@@ -1,0 +1,9 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/.herdr/worktrees/pdfdelta/worktree-green-forest-9bdb/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s
+     Running tests/pipeline_fixture.rs (target/debug/deps/pipeline_fixture-46ffe5dafe80da21)
+
+running 1 test
+test single_leaf_inferred_order_reports_changes_at_low_confidence ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 56 filtered out; finished in 0.01s
+

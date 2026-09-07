@@ -1,0 +1,24 @@
+{
+  "production_annotation_updated": true,
+  "source_pdf_sha256": {
+    "old": "4672ba364e3a9e0dc53285adb174f084cdefaec3e782fc10234d5ff0f0ae6801",
+    "new": "cc32391022c1382ac7c91490f6bcc8838e0f889925270da23ef4e800e2ecb7ad"
+  },
+  "source_pages_zero_based": {
+    "old": 18,
+    "new": 19
+  },
+  "source_pages_printed": {
+    "old": 5,
+    "new": 7
+  },
+  "renderer": "PyMuPDF",
+  "finding": "The Approved definition retains its algorithm-or-technique lead-in; only the comma before or is deleted. The original annotation encoded interleaved term/definition text. The new glossary scope end also inserted the Association term into its description.",
+  "artifacts_sha256": {
+    "corrected-expected.json": "15a938df5370fd1bc53897807f02edbe2dc598067dec6f6003ea7feda58b4948",
+    "new-glossary.png": "7e524d6665f9208b59919d4b87f730029ce7d46ec29202a3576bbae8a249b78d",
+    "old-glossary.png": "2aeb3b8de8c218a9c27a9b99a342fc5428083aa4e5d9fe7630967f18f54a8a24",
+    "original-expected.json": "8b705b3125e23a0c6b3b1329690cdabad7206534c026c7ddf1c7b20e13d3c41c",
+    "manifest.tsv": "073f850d54e94764b96c59e56ff78c87259d95aae1abbf46a97f9c88a1894904"
+  }
+}

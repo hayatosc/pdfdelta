@@ -1,0 +1,49 @@
+{
+  "status": "confirmed_unchanged_footnote_body_reported_deleted",
+  "source_sha256": {
+    "target/issue12-edpb-confidence-full.json": "ef197ba45bdf666fc4bfaf14ea4ddd93fb6c0ae4bbd93f253b792588f60bef1e",
+    "target/issue12-edpb-v2-full-after.json": "c36220345cd7649e5001ab74b65a4ca1833f5407b928b8f338744836dbd7a20e",
+    "target/issue12-edpb-v2-report.json": "7a253b1d20d791a3a06938136ab466f56d8f012062dd1baca502cb7127a432e3",
+    "target/release/pdfdelta": "b9cae5d37448a6b1deb4ea11eea632eb915acb2b20c6c5d4cd6fe037e8f231e2",
+    "benchmark/realworld/cache/edpb-right-of-access-v1-to-final-old.pdf": "90df6b680463318d266a804e91e57543ed891180fdd671594b952ad3863734df",
+    "benchmark/realworld/cache/edpb-right-of-access-v1-to-final-new.pdf": "b399b25634b379576378d725284d5ed2b1a81c93c34ade9ee8eb48ef5eb75032"
+  },
+  "before": {
+    "coverage_old": 0.7724085408327219,
+    "coverage_new": 0.7838191601144969,
+    "reported_changes": 593,
+    "unmatched_tiny_changes": 108
+  },
+  "after": {
+    "coverage_old": 0.7710572020321164,
+    "coverage_new": 0.7837738686184282,
+    "reported_changes": 595,
+    "unmatched_tiny_changes": 109
+  },
+  "reviewed_hunk": {
+    "old_page_zero_based": 11,
+    "old_block": 222,
+    "old_text": "See section 6 of these Guidelines. 11",
+    "new_page_zero_based": 12,
+    "new_blocks": [
+      271,
+      272
+    ],
+    "new_text": "13",
+    "confidence": "low",
+    "source_evidence": [
+      "Old footnote 10 reads See section 6 of these Guidelines.",
+      "Old footnote 11 starts See for information on this Art. 29 Working Party, WP260 rev.01.",
+      "New footnote 13 starts the same text as old footnote 11.",
+      "New footnote 14 repeats the text of old footnote 12.",
+      "New footnote 12, on the preceding new page 11 at y=71.5, reads the same See section 6 of these Guidelines. body as old footnote 10."
+    ],
+    "conclusion": "The body remains in the new PDF after a page-boundary shift and renumbering. Reporting its old text as deleted is incorrect. The baseline already deletes part of this body; the inferred-layout candidate deletes a longer range. A one-page-only inspection initially misclassified this as a true deletion; checking the preceding page corrected that conclusion."
+  },
+  "limitations": [
+    "The preview also changes whitespace-only events and body additions; this sample does not prove all changes correct.",
+    "Scoped changed-token precision and false-positive rate are unavailable for this partial annotation.",
+    "unmatched_tiny_changes is a review proxy, not a measured false-positive rate."
+  ],
+  "reproduction": "Use pdfdelta inspect OLD_OR_NEW.pdf --glyphs. Inspect old page=11 and both new page=11 and page=12 footer glyphs; compare body text independently of footnote numbers."
+}

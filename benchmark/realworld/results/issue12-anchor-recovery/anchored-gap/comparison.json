@@ -1,0 +1,526 @@
+[
+  {
+    "pair": "nist-fips-186-4-to-5",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.6830909827578445,
+        "after": 0.6841714311439248
+      },
+      "coverage_new": {
+        "before": 0.5999761244258492,
+        "after": 0.6013461276092592
+      },
+      "quality": {
+        "before": {
+          "annotation": "partial",
+          "expected_changes": 7,
+          "reported_changes": 1118,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 198.71428571428572,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 139,
+          "unresolvable_reported_spans": 0
+        },
+        "after": {
+          "annotation": "partial",
+          "expected_changes": 7,
+          "reported_changes": 1128,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 200.57142857142858,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 139,
+          "unresolvable_reported_spans": 0
+        }
+      }
+    }
+  },
+  {
+    "pair": "nist-sp800-57-part1-r4-to-r5",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.6782323806761796,
+        "after": 0.685015927968425
+      },
+      "coverage_new": {
+        "before": 0.6655085902498484,
+        "after": 0.671662012051296
+      },
+      "quality": {
+        "before": {
+          "annotation": "partial",
+          "expected_changes": 8,
+          "reported_changes": 1903,
+          "recall": 0.625,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 655.4,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 249,
+          "unresolvable_reported_spans": 0
+        },
+        "after": {
+          "annotation": "partial",
+          "expected_changes": 8,
+          "reported_changes": 2053,
+          "recall": 0.75,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 588.1666666666666,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 249,
+          "unresolvable_reported_spans": 0
+        }
+      },
+      "scoped_token_metrics": {
+        "before": {
+          "expected_changed_tokens": 7,
+          "reported_changed_tokens": 3,
+          "true_positive_tokens": 3,
+          "precision": 1.0,
+          "recall": 0.42857142857142855,
+          "f1": 0.6,
+          "span_iou": 0.42857142857142855,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "after": {
+          "expected_changed_tokens": 7,
+          "reported_changed_tokens": 7,
+          "true_positive_tokens": 7,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "scoped_event_metrics": {
+        "before": {
+          "reviewed_scope_count": 2,
+          "precision": 0.6666666666666666,
+          "recall": 0.5,
+          "f1": 0.5714285714285715
+        },
+        "after": {
+          "reviewed_scope_count": 2,
+          "precision": 0.75,
+          "recall": 0.75,
+          "f1": 0.75
+        }
+      },
+      "reviewed_recall_metrics": {
+        "before": {
+          "content_presence_recall": {
+            "expected": 8,
+            "detected": 6,
+            "recall": 0.75
+          },
+          "exact_localization_recall": {
+            "expected": 5,
+            "detected": 3,
+            "recall": 0.6
+          },
+          "semantic_relation_recall": {
+            "expected": 8,
+            "detected": 5,
+            "recall": 0.625
+          },
+          "move_recall": {
+            "expected": 0,
+            "detected": 0,
+            "recall": null
+          }
+        },
+        "after": {
+          "content_presence_recall": {
+            "expected": 8,
+            "detected": 7,
+            "recall": 0.875
+          },
+          "exact_localization_recall": {
+            "expected": 5,
+            "detected": 4,
+            "recall": 0.8
+          },
+          "semantic_relation_recall": {
+            "expected": 8,
+            "detected": 6,
+            "recall": 0.75
+          },
+          "move_recall": {
+            "expected": 0,
+            "detected": 0,
+            "recall": null
+          }
+        }
+      },
+      "failures": {
+        "before": [
+          {
+            "expected_id": "footer-rev-branding-removed",
+            "reason": "occurrence_count_mismatch",
+            "expected": 157,
+            "actual": 150
+          },
+          {
+            "expected_id": "approved-definition-comma-removed",
+            "reason": "alignment_or_candidate",
+            "diagnostic_limited": false
+          },
+          {
+            "expected_id": "association-definition-punctuation",
+            "reason": "reading_order_unresolved",
+            "side": "both"
+          }
+        ],
+        "after": [
+          {
+            "expected_id": "footer-rev-branding-removed",
+            "reason": "occurrence_count_mismatch",
+            "expected": 157,
+            "actual": 150
+          },
+          {
+            "expected_id": "approved-definition-comma-removed",
+            "reason": "alignment_or_candidate",
+            "diagnostic_limited": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "pair": "irs-form-1040-2024-to-2025",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.5063523088199364,
+        "after": 0.507207427314928
+      },
+      "coverage_new": {
+        "before": 0.4860385697067095,
+        "after": 0.48674166331860186
+      },
+      "quality": {
+        "before": {
+          "annotation": "partial",
+          "expected_changes": 5,
+          "reported_changes": 32,
+          "recall": 0.2,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 41.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 1,
+          "unresolvable_reported_spans": 0
+        },
+        "after": {
+          "annotation": "partial",
+          "expected_changes": 5,
+          "reported_changes": 34,
+          "recall": 0.2,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 43.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 1,
+          "unresolvable_reported_spans": 0
+        }
+      }
+    }
+  },
+  {
+    "pair": "nist-sp800-171-r2-to-r3",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.5479913869219414,
+        "after": 0.5485497712369259
+      },
+      "coverage_new": {
+        "before": 0.7068218870009455,
+        "after": 0.7074677737528744
+      }
+    }
+  },
+  {
+    "pair": "edpb-right-of-access-v1-to-final",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.8428778408299357,
+        "after": 0.8471315395974776
+      },
+      "coverage_new": {
+        "before": 0.8538216964382768,
+        "after": 0.8581334468640168
+      },
+      "quality": {
+        "before": {
+          "annotation": "partial",
+          "expected_changes": 4,
+          "reported_changes": 595,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 228.75,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 109,
+          "unresolvable_reported_spans": 0
+        },
+        "after": {
+          "annotation": "partial",
+          "expected_changes": 4,
+          "reported_changes": 622,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 244.75,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 109,
+          "unresolvable_reported_spans": 0
+        }
+      }
+    }
+  },
+  {
+    "pair": "arxiv-attention-v6-to-v7",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.7740335006007492,
+        "after": 0.7753480811364761
+      },
+      "coverage_new": {
+        "before": 0.6785148525102761,
+        "after": 0.6794777548844
+      }
+    }
+  },
+  {
+    "pair": "ecma-109-ed10-to-ed11",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.8188399902383471,
+        "after": 0.8228748068006182
+      },
+      "coverage_new": {
+        "before": 0.8139852410519814,
+        "after": 0.8180650824095446
+      },
+      "quality": {
+        "before": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "reported_changes": 88,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 53.333333333333336,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 5,
+          "unresolvable_reported_spans": 0
+        },
+        "after": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "reported_changes": 91,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 54.333333333333336,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 5,
+          "unresolvable_reported_spans": 0
+        }
+      }
+    }
+  },
+  {
+    "pair": "oasis-csaf-v2-cs01-to-csd02",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.8339266746332072,
+        "after": 0.836644426741021
+      },
+      "coverage_new": {
+        "before": 0.7860950791142051,
+        "after": 0.7884605139315587
+      },
+      "quality": {
+        "before": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "reported_changes": 489,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 170.33333333333334,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 74,
+          "unresolvable_reported_spans": 0
+        },
+        "after": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "reported_changes": 498,
+          "recall": 1.0,
+          "precision": null,
+          "kind_accuracy": 1.0,
+          "reported_hunks_per_matched_change": 173.33333333333334,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 74,
+          "unresolvable_reported_spans": 0
+        }
+      }
+    }
+  },
+  {
+    "pair": "irs-w4-korean-2024-to-2025",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "hmrc-sa100-2023-to-2024",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "edpb-dark-patterns-v1-to-v2",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.3582253410789847,
+        "after": 0.36027760767503575
+      },
+      "coverage_new": {
+        "before": 0.47948204769598035,
+        "after": 0.4815606086180705
+      }
+    }
+  },
+  {
+    "pair": "bis-operational-risk-2011-to-2021",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.7825118980398483,
+        "after": 0.782608695652174
+      },
+      "coverage_new": {
+        "before": 0.839042021829152,
+        "after": 0.8391274031278015
+      }
+    }
+  },
+  {
+    "pair": "oasis-odf-packages-v1-2-to-v1-3",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "qgis-pyqgis-en-328-to-334",
+    "status": "limit",
+    "changes": {}
+  },
+  {
+    "pair": "jvms-se17-to-se21",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "bis-core-principles-2012-to-2024",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.7879758466789184,
+        "after": 0.7891713956822909
+      },
+      "coverage_new": {
+        "before": 0.7544586445720501,
+        "after": 0.7558222300420672
+      }
+    }
+  },
+  {
+    "pair": "oasis-mqtt-311-to-50",
+    "status": "ok",
+    "changes": {
+      "coverage_old": {
+        "before": 0.4990554255307984,
+        "after": 0.5019888540212635
+      },
+      "coverage_new": {
+        "before": 0.45631532818282156,
+        "after": 0.45793027332337854
+      }
+    }
+  },
+  {
+    "pair": "nist-csf-v1-1-to-v2-0",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "kicad-getting-started-7-to-8",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "qgis-pyqgis-ja-328-to-334",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "qgis-doc-guidelines-es-328-to-334",
+    "status": "limit",
+    "changes": {}
+  },
+  {
+    "pair": "oecd-corporate-governance-2015-to-2023",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "libreoffice-getting-started-74-to-75",
+    "status": "limit",
+    "changes": {}
+  },
+  {
+    "pair": "gcc-13-3-to-13-4",
+    "status": "limit",
+    "changes": {}
+  },
+  {
+    "pair": "khronos-data-format-1-3-to-1-4",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "postgresql-16-to-17",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
+    "status": "ok",
+    "changes": {}
+  },
+  {
+    "pair": "unicode-standard-15-to-16",
+    "status": "limit",
+    "changes": {}
+  }
+]

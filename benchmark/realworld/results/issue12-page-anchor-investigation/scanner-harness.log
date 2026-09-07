@@ -1,0 +1,46 @@
+[
+    PageAnchorPair {
+        old: PageAnchorRange {
+            block_id: 293,
+            comparable: 391..555,
+            pages: Some(
+                PageAnchorPageBounds {
+                    first_page: 16,
+                    last_page: 16,
+                },
+            ),
+        },
+        new: PageAnchorRange {
+            block_id: 519,
+            comparable: 199..363,
+            pages: Some(
+                PageAnchorPageBounds {
+                    first_page: 29,
+                    last_page: 29,
+                },
+            ),
+        },
+    },
+    PageAnchorPair {
+        old: PageAnchorRange {
+            block_id: 298,
+            comparable: 796..941,
+            pages: Some(
+                PageAnchorPageBounds {
+                    first_page: 16,
+                    last_page: 16,
+                },
+            ),
+        },
+        new: PageAnchorRange {
+            block_id: 538,
+            comparable: 228..373,
+            pages: Some(
+                PageAnchorPageBounds {
+                    first_page: 29,
+                    last_page: 29,
+                },
+            ),
+        },
+    },
+]

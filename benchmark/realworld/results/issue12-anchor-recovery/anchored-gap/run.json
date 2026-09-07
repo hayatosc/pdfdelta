@@ -1,0 +1,14 @@
+{
+  "binary_sha256": "88df30cff9c950025fd5dd3e2dcaaea7338b155b59cc6aced3e0d2553dc7f5a9",
+  "pair_count": 29,
+  "command": [
+    "BINARY",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "PAIR",
+    "--summary-json-output",
+    "OUTPUT/PAIR.json"
+  ]
+}

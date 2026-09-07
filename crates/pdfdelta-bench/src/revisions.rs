@@ -34,28 +34,28 @@ use pdfdelta_core::{
         LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
         LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
         MatchedAtomicDiff, NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
-        NearVetoReasonCount, NearVetoReasonMetrics, RecoveredAtomicDiff, RecoveryGapReason,
-        RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError, RecoveryOwnershipContext,
-        RecoveryOwnershipError, RecoveryOwnershipInvariant, RecoveryOwnershipMetrics,
-        RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError, RecoveryOwnershipRect,
-        RecoveryOwnershipResource, RecoveryOwnershipRole, RecoveryOwnershipRoleMetrics,
-        RecoveryOwnershipSample, RecoveryOwnershipSideMetrics, RecoveryOwnershipTrustMetrics,
-        RecoveryRemainderAttributionMetrics, RecoveryRemainderAttributionStopReason,
-        RecoveryRemainderCauseMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
-        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
-        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-        RecoveryWatchOccurrenceEvidence, RecoveryWatchOneSidedOpponentEvidence,
-        RecoveryWatchOneSidedVetoEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
-        RecoveryWatchQuoteLocalEditEvidence, RecoveryWatchQuoteLocalPairEvidence,
-        RecoveryWatchQuoteLocalScoreEvidence, RecoveryWatchQuoteLocalSideEvidence,
-        RecoveryWatchQuoteLocalStatus, RecoveryWatchQuoteLocalStopReason,
-        RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
-        RecoveryWatchSegmentPairEvidence, RecoveryWatchSegmentTopologyDiagnostics,
-        RecoveryWatchSegmentTopologyEvidence, RecoveryWatchSegmentTopologyShadow,
-        RecoveryWatchSide, RecoveryWatchUnitKind, RunSignatureStopReason, SectionPairingMetrics,
-        SectionPairingStopReason, SegmentStopReason, SegmentTopologyNotApplicableReason,
-        SegmentTopologyShadowStopReason, SegmentTopologyUnknownReason,
-        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+        NearVetoReasonCount, NearVetoReasonMetrics, RecoveredAtomicDiff, RecoveredRelationEvidence,
+        RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError,
+        RecoveryOwnershipContext, RecoveryOwnershipError, RecoveryOwnershipInvariant,
+        RecoveryOwnershipMetrics, RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError,
+        RecoveryOwnershipRect, RecoveryOwnershipResource, RecoveryOwnershipRole,
+        RecoveryOwnershipRoleMetrics, RecoveryOwnershipSample, RecoveryOwnershipSideMetrics,
+        RecoveryOwnershipTrustMetrics, RecoveryRemainderAttributionMetrics,
+        RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
+        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
+        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
+        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
+        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
+        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
+        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
+        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
+        RecoveryWatchSegmentTopologyDiagnostics, RecoveryWatchSegmentTopologyEvidence,
+        RecoveryWatchSegmentTopologyShadow, RecoveryWatchSide, RecoveryWatchUnitKind,
+        RunSignatureStopReason, SectionPairingMetrics, SectionPairingStopReason, SegmentStopReason,
+        SegmentTopologyNotApplicableReason, SegmentTopologyShadowStopReason,
+        SegmentTopologyUnknownReason, SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
         SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
         SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
         SentenceEdgeSignatureReferenceOracleMetrics,
@@ -433,6 +433,7 @@ pub enum ChangeOriginReport {
     RunningMatter,
     RangeLocalExact,
     TrustedResidualExact,
+    AnchoredGap,
 }
 
 impl From<ChangeOrigin> for ChangeOriginReport {
@@ -447,6 +448,7 @@ impl From<ChangeOrigin> for ChangeOriginReport {
             ChangeOrigin::RunningMatter => Self::RunningMatter,
             ChangeOrigin::RangeLocalExact => Self::RangeLocalExact,
             ChangeOrigin::TrustedResidualExact => Self::TrustedResidualExact,
+            ChangeOrigin::AnchoredGap => Self::AnchoredGap,
         }
     }
 }
@@ -1083,6 +1085,7 @@ pub struct ChangeOriginMetricsReport {
     pub running_matter: ChangeOriginMetricReport,
     pub range_local_exact: ChangeOriginMetricReport,
     pub trusted_residual_exact: ChangeOriginMetricReport,
+    pub anchored_gap: ChangeOriginMetricReport,
 }
 
 impl From<ChangeOriginMetrics> for ChangeOriginMetricsReport {
@@ -1097,6 +1100,7 @@ impl From<ChangeOriginMetrics> for ChangeOriginMetricsReport {
             running_matter: metrics.running_matter.into(),
             range_local_exact: metrics.range_local_exact.into(),
             trusted_residual_exact: metrics.trusted_residual_exact.into(),
+            anchored_gap: metrics.anchored_gap.into(),
         }
     }
 }
@@ -4957,6 +4961,7 @@ pub struct PairRunReport {
     #[serde(skip)]
     pub scoped_event_metrics: Option<ScopedEventMetrics>,
     /// Scoped token quality is published in compact summary schema v7 and later.
+    /// It can remain available when a change crosses an event-scope boundary.
     #[serde(skip)]
     pub scoped_token_metrics: Option<ScopedTokenMetrics>,
     /// Reviewed candidate recall is published only in compact summary schema
@@ -6623,17 +6628,34 @@ impl RecoveredEvidenceBuildBudget {
 }
 
 fn recovered_relation_trace(trace: &RecoveredAtomicDiff) -> ActualRelationTrace {
-    ActualRelationTrace {
+    let mut result = ActualRelationTrace {
         origin: trace.origin,
         old_alignment_span_index: trace.old_alignment_span_index,
         new_alignment_span_index: trace.new_alignment_span_index,
-        old_best_score: Some(trace.old_best_score),
-        old_second_score: Some(trace.old_second_score),
-        old_best_scope: trace.old_best_scope.map(Into::into),
-        new_best_score: Some(trace.new_best_score),
-        new_second_score: Some(trace.new_second_score),
-        new_best_scope: trace.new_best_scope.map(Into::into),
+        old_best_score: None,
+        old_second_score: None,
+        old_best_scope: None,
+        new_best_score: None,
+        new_second_score: None,
+        new_best_scope: None,
+    };
+    if let RecoveredRelationEvidence::Near {
+        old_best_score,
+        old_second_score,
+        old_best_scope,
+        new_best_score,
+        new_second_score,
+        new_best_scope,
+    } = &trace.relation
+    {
+        result.old_best_score = Some(*old_best_score);
+        result.old_second_score = Some(*old_second_score);
+        result.old_best_scope = old_best_scope.map(Into::into);
+        result.new_best_score = Some(*new_best_score);
+        result.new_second_score = Some(*new_second_score);
+        result.new_best_scope = new_best_scope.map(Into::into);
     }
+    result
 }
 
 fn optional_span_comparable_len(span: Option<&TextSpan>) -> Option<usize> {
@@ -8303,7 +8325,6 @@ fn evaluate_complete_scopes(
     let changes = classify_scoped_changes(&comparison.changes, &scopes, old_blocks, new_blocks)?;
     let token_metrics = evaluate_scoped_token_metrics(
         &comparison.changes,
-        &changes,
         expected_tokens,
         &scopes,
         old_blocks,
@@ -8335,6 +8356,35 @@ fn evaluate_complete_scopes(
         actual_scopes: all_actual_scopes,
         scopes,
     })
+}
+
+fn scoped_token_metrics_after_event_failure(
+    document: &ExpectedDocument,
+    comparison: &Comparison,
+    blocks: [&[BlockText]; 2],
+    recovered_atomic_diffs: &[RecoveredAtomicDiff],
+) -> Option<ScopedTokenMetrics> {
+    if document.scopes.is_empty() {
+        return None;
+    }
+    let scopes = resolve_revision_scopes(&document.scopes, blocks[0], blocks[1]).ok()?;
+    let expected = document
+        .changes
+        .iter()
+        .filter(|change| change.scope.is_some())
+        .cloned()
+        .collect::<Vec<_>>();
+    let expected_tokens =
+        validate_scoped_expected_changes(&expected, &scopes, blocks[0], blocks[1]).ok()?;
+    evaluate_scoped_token_metrics(
+        &comparison.changes,
+        expected_tokens,
+        &scopes,
+        blocks[0],
+        blocks[1],
+        recovered_atomic_diffs,
+    )
+    .ok()
 }
 
 fn scoped_proven_region_scopes(
@@ -8763,7 +8813,15 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                         &scoped,
                     );
                 }
-                Err(reason) => record.quality_skipped_reason = Some(reason),
+                Err(reason) => {
+                    record.quality_skipped_reason = Some(reason);
+                    record.scoped_token_metrics = scoped_token_metrics_after_event_failure(
+                        &document,
+                        &outcome.comparison,
+                        [&outcome.old_blocks, &outcome.new_blocks],
+                        &recovered_atomic_diffs,
+                    );
+                }
             }
         }
         (Some(document), true) => {
@@ -8863,7 +8921,15 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                         record.scoped_token_metrics = Some(scoped.token_metrics);
                     }
                 }
-                Err(reason) => record.quality_skipped_reason = Some(reason),
+                Err(reason) => {
+                    record.quality_skipped_reason = Some(reason);
+                    record.scoped_token_metrics = scoped_token_metrics_after_event_failure(
+                        &document,
+                        &outcome.comparison,
+                        [&outcome.old_blocks, &outcome.new_blocks],
+                        &recovered_atomic_diffs,
+                    );
+                }
             }
         }
         (Some(_), false) => {
@@ -9457,6 +9523,7 @@ fn validate_change_origin_metrics(metrics: ChangeOriginMetrics) -> std::result::
         metrics.running_matter,
         metrics.range_local_exact,
         metrics.trusted_residual_exact,
+        metrics.anchored_gap,
     ];
     for metric in origins {
         if metric.event_count == 0
@@ -9490,6 +9557,7 @@ fn change_origin_totals(
         metrics.running_matter,
         metrics.range_local_exact,
         metrics.trusted_residual_exact,
+        metrics.anchored_gap,
     ]
     .into_iter()
     .try_fold(ChangeOriginTotals::default(), |mut total, metric| {
@@ -14285,7 +14353,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 64;
+    pub const SCHEMA_VERSION: u32 = 65;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -16191,7 +16259,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 64);
+        assert_eq!(completed["schema_version"], 65);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -16265,7 +16333,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 64);
+        assert_eq!(legacy_summary["schema_version"], 65);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -16342,7 +16410,7 @@ mod tests {
         assert!(full.get("reviewed_recall_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
             .expect("summary serializes");
-        assert_eq!(summary["schema_version"], 64);
+        assert_eq!(summary["schema_version"], 65);
         assert_eq!(
             summary["records"][0]["reviewed_recall_metrics"],
             serde_json::json!({
@@ -18229,12 +18297,14 @@ mod tests {
                 old: 3..4,
                 new: 3..4,
             }],
-            old_best_score: 9_100,
-            old_second_score: 7_000,
-            old_best_scope: Some(RecoveryWatchNearScope::PairedStream),
-            new_best_score: 9_200,
-            new_second_score: 7_100,
-            new_best_scope: Some(RecoveryWatchNearScope::CrossSpan),
+            relation: RecoveredRelationEvidence::Near {
+                old_best_score: 9_100,
+                old_second_score: 7_000,
+                old_best_scope: Some(RecoveryWatchNearScope::PairedStream),
+                new_best_score: 9_200,
+                new_second_score: 7_100,
+                new_best_scope: Some(RecoveryWatchNearScope::CrossSpan),
+            },
         };
 
         let evidence = recovered_event_evidence(
@@ -18262,6 +18332,89 @@ mod tests {
             evidence.trace.new_best_scope,
             Some(RecoveryWatchNearScopeReport::CrossSpan)
         );
+    }
+
+    #[test]
+    fn anchored_gap_evidence_retains_context_without_near_scores() {
+        let old_blocks = [relation_block(1, "purpose. For example,")];
+        let new_blocks = [relation_block(2, "purpose; for example,")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let span = |block, start, end| TextSpan {
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical_range: ScalarRange { start, end },
+            comparable_range: TokenRange { start, end },
+        };
+        let occurrence = ChangeOccurrence {
+            old_span: Some(span(1, 7, 10)),
+            new_span: Some(span(2, 7, 10)),
+        };
+        let trace = RecoveredAtomicDiff {
+            origin: ChangeOrigin::AnchoredGap,
+            old_alignment_span_index: 3,
+            new_alignment_span_index: 3,
+            old_context: span(1, 0, 21),
+            new_context: span(2, 0, 21),
+            changed_occurrences: vec![pdfdelta_core::diff::RecoveredAtomicOccurrence {
+                occurrence: occurrence.clone(),
+                edit_range: 0..2,
+            }],
+            edits: vec![
+                pdfdelta_core::diff::AtomicEdit {
+                    old: 7..8,
+                    new: 7..8,
+                },
+                pdfdelta_core::diff::AtomicEdit {
+                    old: 9..10,
+                    new: 9..10,
+                },
+            ],
+            relation: RecoveredRelationEvidence::AnchoredGap {
+                old_before: pdfdelta_core::diff::RecoveredAnchorRange {
+                    block: BlockId(1),
+                    canonical_range: ScalarRange { start: 0, end: 7 },
+                    comparable_range: TokenRange { start: 0, end: 7 },
+                },
+                old_after: pdfdelta_core::diff::RecoveredAnchorRange {
+                    block: BlockId(1),
+                    canonical_range: ScalarRange { start: 13, end: 21 },
+                    comparable_range: TokenRange { start: 13, end: 21 },
+                },
+                new_before: pdfdelta_core::diff::RecoveredAnchorRange {
+                    block: BlockId(2),
+                    canonical_range: ScalarRange { start: 0, end: 7 },
+                    comparable_range: TokenRange { start: 0, end: 7 },
+                },
+                new_after: pdfdelta_core::diff::RecoveredAnchorRange {
+                    block: BlockId(2),
+                    canonical_range: ScalarRange { start: 13, end: 21 },
+                    comparable_range: TokenRange { start: 13, end: 21 },
+                },
+            },
+        };
+        let evidence = recovered_event_evidence(
+            &[trace],
+            [&old_map, &new_map],
+            &mut RecoveredEvidenceBuildBudget::new(MAX_MATCH_TEXT_BYTES),
+        )
+        .expect("anchored evidence stays within the text budget");
+        let evidence = evidence
+            .get(&vec![occurrence])
+            .and_then(Option::as_ref)
+            .expect("one anchored event retains exact evidence");
+        let context = &evidence.context;
+        assert_eq!(context.old, "purpose. For example,");
+        assert_eq!(context.new, "purpose; for example,");
+        assert_eq!(evidence.old_atomic_changed_tokens, 2);
+        assert_eq!(evidence.new_atomic_changed_tokens, 2);
+        assert_eq!(evidence.trace.origin, ChangeOrigin::AnchoredGap);
+        assert_eq!(evidence.trace.old_best_score, None);
+        assert_eq!(evidence.trace.new_best_score, None);
+        assert_eq!(evidence.trace.old_second_score, None);
+        assert_eq!(evidence.trace.new_second_score, None);
+        assert_eq!(evidence.trace.old_best_scope, None);
+        assert_eq!(evidence.trace.new_best_scope, None);
     }
 
     fn repeated_recovered_fixture(
@@ -18323,12 +18476,14 @@ mod tests {
                     old: changed_at..changed_at + 1,
                     new: changed_at..changed_at + 1,
                 }],
-                old_best_score: 9_500,
-                old_second_score: 7_000,
-                old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
-                new_best_score: 9_500,
-                new_second_score: 7_000,
-                new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+                relation: RecoveredRelationEvidence::Near {
+                    old_best_score: 9_500,
+                    old_second_score: 7_000,
+                    old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+                    new_best_score: 9_500,
+                    new_second_score: 7_000,
+                    new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+                },
             });
         }
         let comparison = Comparison {
@@ -19842,7 +19997,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 64);
+        assert_eq!(json["schema_version"], 65);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -24358,7 +24513,10 @@ mod tests {
         assert!(
             validate_sentence_recovery_metrics(candidate_stop_with_verification_deficit).is_err()
         );
+    }
 
+    #[test]
+    fn rejects_invalid_sentence_recovery_metrics_structural_and_floor_counts() {
         let unavailable_structural = SentenceRecoveryMetrics {
             structural_candidate_pairs: 1,
             ..SentenceRecoveryMetrics::default()
@@ -24417,7 +24575,10 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(invalid_recovered_total).is_err());
+    }
 
+    #[test]
+    fn rejects_invalid_sentence_recovery_metrics_work_partitions() {
         let invalid_kind_work = SentenceRecoveryMetrics {
             near_sentence_work: NearSearchWorkMetrics {
                 edge_posting_visits_examined: 2,
@@ -24504,7 +24665,10 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(scope_sentence_trigram_work).is_err());
+    }
 
+    #[test]
+    fn rejects_invalid_sentence_recovery_metrics_work_deficits() {
         let examined_more_pairs_than_attempted = SentenceRecoveryMetrics {
             near_pair_visits_examined: 2,
             near_pair_visits_attempted: 1,
@@ -24568,7 +24732,10 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(posting_limit_with_other_deficit).is_err());
+    }
 
+    #[test]
+    fn rejects_invalid_sentence_recovery_metrics_explained_work_limits() {
         let incomplete_posting_stop = SentenceRecoveryMetrics {
             near_candidate_posting_visits_examined: 6,
             near_candidate_posting_visits_attempted: 7,
@@ -24663,7 +24830,10 @@ mod tests {
             validated.near_relation_stop_reason,
             Some(NearRelationStopReasonReport::SimilarityComparisonLimit)
         );
+    }
 
+    #[test]
+    fn rejects_invalid_sentence_recovery_metrics_truncated_work() {
         let candidate_count_stop = SentenceRecoveryMetrics {
             near_pair_visits_examined: 4,
             near_pair_visits_attempted: 4,
@@ -24756,7 +24926,10 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(truncated_then_comparison_stop).is_ok());
+    }
 
+    #[test]
+    fn rejects_invalid_sentence_recovery_metrics_completion_states() {
         let candidate_count_stop_without_truncation = SentenceRecoveryMetrics {
             near_relation_stop_reason: Some(NearRelationStopReason::CandidateCountLimit),
             ..SentenceRecoveryMetrics::default()
@@ -27338,7 +27511,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 64);
+        assert_eq!(value["schema_version"], 65);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -27705,6 +27878,7 @@ mod tests {
                 "running_matter".to_owned(),
                 "range_local_exact".to_owned(),
                 "trusted_residual_exact".to_owned(),
+                "anchored_gap".to_owned(),
             ])
         );
         let expected_origin_metric_keys = HashSet::from([

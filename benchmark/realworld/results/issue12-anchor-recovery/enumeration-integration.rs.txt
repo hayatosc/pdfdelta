@@ -1,0 +1,337 @@
+//! Source-preserving recovery of changed inline identifier enumerations.
+
+use crate::diff::{Confidence, recovery::enumeration as selector};
+
+use super::{
+    Alignment, BlockId, BlockRole, NearSearchScope, NearSearchWorkSplit, PageAnchorCandidate,
+    PageAnchorPair, PageAnchorRange, PageAnchorRole, RecoveredReplacement, RecoveryBudget,
+    RecoveryHunkPolicy, RecoveryRelationEvidence, RecoveryUnitKind, SentenceRecoveryBuildOutcome,
+    SentenceRecoveryInput, SentenceRecoveryPlan, Side, append_trailing_unit,
+    mark_source_pair_crossings, merged_consumed_ranges, normalize_recovery_ranges,
+    page_anchor_candidates, page_anchor_location, page_anchor_selector_limits,
+    retain_unambiguous_page_anchors, secondary_location_overlaps, select_page_anchors,
+    sentence_boundaries, sort_replacement_recoveries, span_membership,
+};
+use crate::normalize::ComparableToken;
+
+// Short shared fragments can cross between repeated descriptions. A longer
+// exact context is required for this optional structural inference; it remains
+// low confidence even when the identifier lists have a unique counterpart.
+const MIN_ANCHOR_TOKENS: usize = 64;
+
+struct SourceEnumeration {
+    candidate: selector::EnumerationCandidate,
+    range: PageAnchorRange,
+    span_index: Option<usize>,
+    role: BlockRole,
+}
+
+pub(super) fn append_replacements(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+) {
+    let Some(batch) = build_batch(
+        old,
+        new,
+        alignment,
+        input,
+        max_tokens,
+        accepted.plan.as_ref(),
+    ) else {
+        return;
+    };
+    if batch.replacements.is_empty() {
+        return;
+    }
+    let Some(deletion_consumed) = merged_consumed_ranges(
+        accepted
+            .plan
+            .as_ref()
+            .map_or(&[], |plan| &plan.deletion_consumed),
+        &batch.deletion_consumed,
+    ) else {
+        return;
+    };
+    let Some(insertion_consumed) = merged_consumed_ranges(
+        accepted
+            .plan
+            .as_ref()
+            .map_or(&[], |plan| &plan.insertion_consumed),
+        &batch.insertion_consumed,
+    ) else {
+        return;
+    };
+    let had_primary = accepted.plan.is_some();
+    let mut plan = accepted.plan.take().unwrap_or_default();
+    if plan
+        .replacements
+        .try_reserve_exact(batch.replacements.len())
+        .is_err()
+    {
+        accepted.plan = had_primary.then_some(plan);
+        return;
+    }
+    plan.replacements.extend(batch.replacements);
+    plan.deletion_consumed = deletion_consumed;
+    plan.insertion_consumed = insertion_consumed;
+    sort_replacement_recoveries(&mut plan);
+    accepted.plan = Some(plan);
+    if let Some(diagnostics) = accepted.diagnostics.as_mut() {
+        diagnostics.metrics.remainder_attribution_complete = Some(false);
+        diagnostics.metrics.remainder_attribution_stop_reason =
+            Some(crate::diff::RecoveryRemainderAttributionStopReason::AnalysisIncomplete);
+        diagnostics.metrics.remainder_attribution = None;
+    }
+}
+
+fn build_batch(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+    primary: Option<&SentenceRecoveryPlan>,
+) -> Option<SentenceRecoveryPlan> {
+    let membership = span_membership(alignment)?;
+    let mut budget = RecoveryBudget::new(
+        old.total_tokens,
+        new.total_tokens,
+        max_tokens,
+        input.min_tokens,
+    )?;
+    let old_sources = page_anchor_candidates(
+        old,
+        input.old_trusted_run_intervals,
+        &membership.old,
+        &membership.recovery_spans,
+    )?;
+    let new_sources = page_anchor_candidates(
+        new,
+        input.new_trusted_run_intervals,
+        &membership.new,
+        &membership.recovery_spans,
+    )?;
+    let mut anchors = select_page_anchors(
+        &old_sources,
+        &new_sources,
+        MIN_ANCHOR_TOKENS.max(input.min_tokens),
+        page_anchor_selector_limits(&budget)?,
+    )
+    .ok()?;
+    if !retain_unambiguous_page_anchors(&mut anchors, old, new, &membership, input)
+        || anchors.is_empty()
+    {
+        return None;
+    }
+    let old_enumerations = collect(
+        old,
+        &old_sources,
+        &anchors,
+        true,
+        input.min_tokens,
+        &mut budget,
+    )?;
+    let new_enumerations = collect(
+        new,
+        &new_sources,
+        &anchors,
+        false,
+        input.min_tokens,
+        &mut budget,
+    )?;
+    let mut old_candidates = Vec::new();
+    old_candidates
+        .try_reserve_exact(old_enumerations.len())
+        .ok()?;
+    let mut old_locations = Vec::new();
+    old_locations
+        .try_reserve_exact(old_enumerations.len())
+        .ok()?;
+    for item in old_enumerations {
+        old_candidates.push(item.candidate);
+        old_locations.push((item.range, item.span_index, item.role));
+    }
+    let mut new_candidates = Vec::new();
+    new_candidates
+        .try_reserve_exact(new_enumerations.len())
+        .ok()?;
+    let mut new_locations = Vec::new();
+    new_locations
+        .try_reserve_exact(new_enumerations.len())
+        .ok()?;
+    for item in new_enumerations {
+        new_candidates.push(item.candidate);
+        new_locations.push((item.range, item.span_index, item.role));
+    }
+    let pairs = selector::select_enumeration_pairs(
+        &old_candidates,
+        &new_candidates,
+        budget.comparison_limit.checked_sub(budget.comparisons)?,
+        budget.output_range_limit / 2,
+    )?;
+    let mut usable = Vec::new();
+    usable.try_reserve_exact(pairs.len()).ok()?;
+    usable.resize(pairs.len(), true);
+    mark_source_pair_crossings(
+        pairs
+            .iter()
+            .map(|pair| (&old_locations[pair.old].0, &new_locations[pair.new].0)),
+        old,
+        new,
+        input,
+        &mut usable,
+    )?;
+    let mut batch = SentenceRecoveryPlan::default();
+    for (pair, usable) in pairs.into_iter().zip(usable) {
+        if !usable {
+            continue;
+        }
+        let (old_range, old_span, old_role) = old_locations.get(pair.old)?;
+        let (new_range, new_span, new_role) = new_locations.get(pair.new)?;
+        if old_span != new_span || !old_role.is_alignment_compatible(*new_role) {
+            continue;
+        }
+        let mut old_location = page_anchor_location(old, old_range, (*old_span)?, &mut budget)?;
+        let mut new_location = page_anchor_location(new, new_range, (*new_span)?, &mut budget)?;
+        if primary.is_some_and(|plan| {
+            secondary_location_overlaps(&old_location, &plan.deletion_consumed)
+                || secondary_location_overlaps(&new_location, &plan.insertion_consumed)
+        }) {
+            continue;
+        }
+        if secondary_location_overlaps(&old_location, &batch.deletion_consumed)
+            || secondary_location_overlaps(&new_location, &batch.insertion_consumed)
+        {
+            return None;
+        }
+        let tokens = old_location
+            .recovery
+            .source_tokens
+            .checked_add(new_location.recovery.source_tokens)?;
+        if !budget.charge_outputs(2, tokens) {
+            return None;
+        }
+        batch.replacements.try_reserve(1).ok()?;
+        batch
+            .deletion_consumed
+            .try_reserve_exact(old_location.consumed.len())
+            .ok()?;
+        batch
+            .insertion_consumed
+            .try_reserve_exact(new_location.consumed.len())
+            .ok()?;
+        old_location.recovery.origin = crate::diff::ChangeOrigin::SentenceNear;
+        new_location.recovery.origin = crate::diff::ChangeOrigin::SentenceNear;
+        batch
+            .deletion_consumed
+            .extend_from_slice(&old_location.consumed);
+        batch
+            .insertion_consumed
+            .extend_from_slice(&new_location.consumed);
+        batch.replacements.push(RecoveredReplacement {
+            origin: crate::diff::ChangeOrigin::SentenceNear,
+            confidence: Confidence::Low,
+            old: old_location.recovery,
+            new: new_location.recovery,
+            old_consumed: old_location.consumed,
+            new_consumed: new_location.consumed,
+            relation: RecoveryRelationEvidence {
+                old_best_score: pair.score,
+                old_second_score: 0,
+                old_best_scope: None,
+                new_best_score: pair.score,
+                new_second_score: 0,
+                new_best_scope: None,
+            },
+            hunk_policy: RecoveryHunkPolicy::Semantic,
+            repeated_group: None,
+            edits: None,
+        });
+    }
+    normalize_recovery_ranges(&mut batch).then_some(batch)
+}
+
+fn collect(
+    side: &Side<'_>,
+    sources: &[PageAnchorCandidate<'_, ComparableToken, PageAnchorRole>],
+    anchors: &[PageAnchorPair],
+    old: bool,
+    min_tokens: usize,
+    budget: &mut RecoveryBudget,
+) -> Option<Vec<SourceEnumeration>> {
+    let mut result = Vec::new();
+    for source in sources {
+        let index = *side.index.get(&BlockId(source.block_id))?;
+        let block = side.blocks.get(index)?;
+        let text = &block.canonical.text;
+        if !budget.charge_key_bytes(text.len()) {
+            return None;
+        }
+        let mut boundaries = sentence_boundaries(text, &[], budget)?;
+        append_trailing_unit(text, 0, text.len(), &mut boundaries, budget)?;
+        for boundary in boundaries {
+            let text = text.get(boundary.byte_start..boundary.byte_end)?;
+            let count = boundary.scalar_end.checked_sub(boundary.scalar_start)?;
+            if !charge_scan(budget, count) {
+                return None;
+            }
+            let mut chars = Vec::new();
+            chars.try_reserve_exact(count).ok()?;
+            chars.extend(text.chars());
+            let Some(enumeration) = selector::parse_enumeration(&chars).ok()? else {
+                continue;
+            };
+            if !charge_scan(budget, anchors.len()) {
+                return None;
+            }
+            let mut scope = Vec::new();
+            scope.try_reserve_exact(anchors.len()).ok()?;
+            for anchor in anchors {
+                let range = if old { &anchor.old } else { &anchor.new };
+                let direction = match (source.pages, range.pages) {
+                    (Some(pages), Some(bounds))
+                        if pages.last().is_some_and(|page| *page < bounds.first_page) =>
+                    {
+                        -1
+                    }
+                    (Some(pages), Some(bounds))
+                        if pages.first().is_some_and(|page| *page > bounds.last_page) =>
+                    {
+                        1
+                    }
+                    _ => 0,
+                };
+                scope.push(direction);
+            }
+            result.try_reserve(1).ok()?;
+            result.push(SourceEnumeration {
+                candidate: selector::EnumerationCandidate {
+                    enumeration,
+                    eligible: source.eligible && count >= min_tokens,
+                    scope,
+                },
+                range: PageAnchorRange {
+                    block_id: source.block_id,
+                    comparable: boundary.scalar_start..boundary.scalar_end,
+                    pages: None,
+                },
+                span_index: source.role.1,
+                role: block.role,
+            });
+        }
+    }
+    Some(result)
+}
+
+fn charge_scan(budget: &mut RecoveryBudget, amount: usize) -> bool {
+    budget.charge_comparisons_in_scope_split(
+        amount,
+        RecoveryUnitKind::Sentence,
+        NearSearchScope::SameOrAmbiguousSpan,
+        NearSearchWorkSplit::shared(amount),
+    )
+}

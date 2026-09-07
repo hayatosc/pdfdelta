@@ -1,0 +1,14 @@
+# Non-vendored public revision-pair corpus captured from 2026-08-24 through 2026-08-29.
+# Each row compares two genuinely different public revisions of the same document (v_old -> v_new).
+# Download both sides into a cache directory as <pair_id>-old.pdf / <pair_id>-new.pdf,
+# then validate byte_count and sha256 before comparing. benchmark/realworld/fetch.sh automates this.
+# set: dev pairs may inform alignment work; holdout pairs are evaluation-only.
+# role: standard pairs sit near pdfdelta's current scope; stress pairs document layout-heavy ceilings
+# and must not become the sole quality target.
+# in_scope: whether the document type is inside the current product milestone's intended scope.
+# expected_extraction: complete requires both sides to extract completely; incomplete records a known
+# explicit boundary (unsupported or unresolved) that the comparison must reproduce.
+# limit_scale_hint: suggested --limit-scale for large documents; 1.0 keeps documented defaults.
+# expected_file: reviewed expected changes relative to this manifest ("-" when none yet).
+pair_id	set	role	document_type	layout	in_scope	known_issues	captured	expected_extraction	limit_scale_hint	expected_file	old_url	old_byte_count	old_sha256	new_url	new_byte_count	new_sha256
+nist-sp800-57-part1-r4-to-r5	dev	standard	federal-key-management-recommendation	single-column-latex	true	candidate generation exhausts the default alignment budget; the hint records the smallest scale observed completing a comparison	2026-08-24	complete	512.0	expected.json	https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57Pt1r4.pdf	1470841	4672ba364e3a9e0dc53285adb174f084cdefaec3e782fc10234d5ff0f0ae6801	https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57Pt1r5.pdf	1688080	cc32391022c1382ac7c91490f6bcc8838e0f889925270da23ef4e800e2ecb7ad

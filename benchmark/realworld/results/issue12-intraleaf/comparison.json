@@ -1,0 +1,1577 @@
+{
+  "pair_count": 29,
+  "adoption_status": "rejected_pending_fix",
+  "regression": "EDPB watermark deletion occurrence_count 51 ->50, quality recall1 ->.75; do not claim nonregression",
+  "pairs": [
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.9611652990659029,
+        "coverage_new": 0.9611642969576549,
+        "coverage_comparison": 0.9611642969576549,
+        "unresolved_regions": 25,
+        "reported_content_changes": 1,
+        "reported_uncertain_changes": 0,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 1,
+          "kind_accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 1,
+          "reported_hunks_per_matched_change": 2.0,
+          "review_hunks_per_expected_change": 2.0,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.9611652990659029,
+        "coverage_new": 0.9611642969576549,
+        "coverage_comparison": 0.9611642969576549,
+        "unresolved_regions": 25,
+        "reported_content_changes": 1,
+        "reported_uncertain_changes": 0,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 1,
+          "kind_accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 1,
+          "reported_hunks_per_matched_change": 2.0,
+          "review_hunks_per_expected_change": 2.0,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "bis-core-principles-2012-to-2024",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.7531675990064018,
+        "coverage_new": 0.7199971208752539,
+        "coverage_comparison": 0.7199971208752539,
+        "unresolved_regions": 2393,
+        "reported_content_changes": 1309,
+        "reported_uncertain_changes": 93,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.7531675990064018,
+        "coverage_new": 0.7199971208752539,
+        "coverage_comparison": 0.7199971208752539,
+        "unresolved_regions": 2393,
+        "reported_content_changes": 1309,
+        "reported_uncertain_changes": 93,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.7768008389126402,
+        "coverage_new": 0.8340045252088284,
+        "coverage_comparison": 0.7768008389126402,
+        "unresolved_regions": 723,
+        "reported_content_changes": 394,
+        "reported_uncertain_changes": 40,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 1,
+          "kind_accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 1,
+          "reported_hunks_per_matched_change": 14.0,
+          "review_hunks_per_expected_change": 14.0,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.7768008389126402,
+        "coverage_new": 0.8340045252088284,
+        "coverage_comparison": 0.7768008389126402,
+        "unresolved_regions": 723,
+        "reported_content_changes": 394,
+        "reported_uncertain_changes": 40,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 1,
+          "kind_accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 1,
+          "reported_hunks_per_matched_change": 14.0,
+          "review_hunks_per_expected_change": 14.0,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.76819328072887,
+        "coverage_new": 0.7633854556093755,
+        "coverage_comparison": 0.7633854556093755,
+        "unresolved_regions": 492,
+        "reported_content_changes": 88,
+        "reported_uncertain_changes": 2,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 1.0,
+          "reported_changes": 88,
+          "reported_hunks_per_matched_change": 53.333333333333336,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 5,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 2,
+            "expected": 2,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": []
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.76819328072887,
+        "coverage_new": 0.7633854556093755,
+        "coverage_comparison": 0.7633854556093755,
+        "unresolved_regions": 492,
+        "reported_content_changes": 88,
+        "reported_uncertain_changes": 2,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 1.0,
+          "reported_changes": 88,
+          "reported_hunks_per_matched_change": 53.333333333333336,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 5,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 2,
+            "expected": 2,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": []
+      }
+    },
+    {
+      "pair": "edpb-dark-patterns-v1-to-v2",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.3033603107087492,
+        "coverage_new": 0.4315208217790745,
+        "coverage_comparison": 0.3033603107087492,
+        "unresolved_regions": 1161,
+        "reported_content_changes": 324,
+        "reported_uncertain_changes": 62,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.3033603107087492,
+        "coverage_new": 0.4315208217790745,
+        "coverage_comparison": 0.3033603107087492,
+        "unresolved_regions": 1161,
+        "reported_content_changes": 324,
+        "reported_uncertain_changes": 194,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.7724085408327219,
+        "coverage_new": 0.7838191601144969,
+        "coverage_comparison": 0.7724085408327219,
+        "unresolved_regions": 1864,
+        "reported_content_changes": 593,
+        "reported_uncertain_changes": 126,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 4,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 1.0,
+          "reported_changes": 593,
+          "reported_hunks_per_matched_change": 228.25,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 108,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": []
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.7708668072182854,
+        "coverage_new": 0.7827955723033443,
+        "coverage_comparison": 0.7708668072182854,
+        "unresolved_regions": 1863,
+        "reported_content_changes": 594,
+        "reported_uncertain_changes": 127,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 4,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 0.75,
+          "reported_changes": 594,
+          "reported_hunks_per_matched_change": 304.3333333333333,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 109,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 2,
+            "expected": 3,
+            "recall": 0.6666666666666666
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 2,
+            "expected": 3,
+            "recall": 0.6666666666666666
+          }
+        },
+        "expected_failures": [
+          {
+            "actual": 50,
+            "expected": 51,
+            "expected_id": "consultation-watermark-removed",
+            "reason": "occurrence_count_mismatch"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "gcc-13-3-to-13-4",
+      "before": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "hmrc-sa100-2023-to-2024",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 63,
+        "reported_content_changes": 11,
+        "reported_uncertain_changes": 1,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 63,
+        "reported_content_changes": 11,
+        "reported_uncertain_changes": 1,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.47129245052528707,
+        "coverage_new": 0.4530936118923262,
+        "coverage_comparison": 0.4530936118923262,
+        "unresolved_regions": 79,
+        "reported_content_changes": 32,
+        "reported_uncertain_changes": 2,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 5,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 0.2,
+          "reported_changes": 32,
+          "reported_hunks_per_matched_change": 41.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 1,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 2,
+            "expected": 5,
+            "recall": 0.4
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 5,
+            "recall": 0.2
+          }
+        },
+        "expected_failures": [
+          {
+            "diagnostic_limited": false,
+            "expected_id": "age-cutoff-1961-primary",
+            "reason": "alignment_or_candidate"
+          },
+          {
+            "expected_id": "mfs-checkbox-restructured",
+            "reason": "reading_order_unresolved",
+            "side": "old"
+          },
+          {
+            "expected_id": "combat-zone-deceased-checkbox-added",
+            "reason": "reading_order_unresolved",
+            "side": "new"
+          },
+          {
+            "expected_id": "footer-form-year-stamp",
+            "reason": "reading_order_unresolved",
+            "side": "new"
+          }
+        ]
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.47129245052528707,
+        "coverage_new": 0.4530936118923262,
+        "coverage_comparison": 0.4530936118923262,
+        "unresolved_regions": 79,
+        "reported_content_changes": 32,
+        "reported_uncertain_changes": 2,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 5,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 0.2,
+          "reported_changes": 32,
+          "reported_hunks_per_matched_change": 41.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 1,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 2,
+            "expected": 5,
+            "recall": 0.4
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 5,
+            "recall": 0.2
+          }
+        },
+        "expected_failures": [
+          {
+            "diagnostic_limited": false,
+            "expected_id": "age-cutoff-1961-primary",
+            "reason": "alignment_or_candidate"
+          },
+          {
+            "expected_id": "mfs-checkbox-restructured",
+            "reason": "reading_order_unresolved",
+            "side": "old"
+          },
+          {
+            "expected_id": "combat-zone-deceased-checkbox-added",
+            "reason": "reading_order_unresolved",
+            "side": "new"
+          },
+          {
+            "expected_id": "footer-form-year-stamp",
+            "reason": "reading_order_unresolved",
+            "side": "new"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.22698921105866487,
+        "coverage_new": 0.24255663430420712,
+        "coverage_comparison": 0.22698921105866487,
+        "unresolved_regions": 9,
+        "reported_content_changes": 88,
+        "reported_uncertain_changes": 87,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 1,
+          "kind_accuracy": null,
+          "precision": null,
+          "recall": 0.0,
+          "reported_changes": 88,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 29,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 0,
+            "expected": 1,
+            "recall": 0.0
+          }
+        },
+        "expected_failures": [
+          {
+            "diagnostic_limited": false,
+            "expected_id": "form-year-footer",
+            "reason": "alignment_or_candidate"
+          }
+        ]
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.22698921105866487,
+        "coverage_new": 0.24255663430420712,
+        "coverage_comparison": 0.22698921105866487,
+        "unresolved_regions": 9,
+        "reported_content_changes": 88,
+        "reported_uncertain_changes": 87,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 1,
+          "kind_accuracy": null,
+          "precision": null,
+          "recall": 0.0,
+          "reported_changes": 88,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 29,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 0,
+            "expected": 1,
+            "recall": 0.0
+          }
+        },
+        "expected_failures": [
+          {
+            "diagnostic_limited": false,
+            "expected_id": "form-year-footer",
+            "reason": "alignment_or_candidate"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "jvms-se17-to-se21",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 490,
+        "reported_content_changes": 223,
+        "reported_uncertain_changes": 21,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 490,
+        "reported_content_changes": 223,
+        "reported_uncertain_changes": 21,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "khronos-data-format-1-3-to-1-4",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1025,
+        "reported_content_changes": 408,
+        "reported_uncertain_changes": 126,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1025,
+        "reported_content_changes": 408,
+        "reported_uncertain_changes": 126,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "kicad-getting-started-7-to-8",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 37,
+        "reported_content_changes": 9,
+        "reported_uncertain_changes": 1,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 31,
+        "reported_content_changes": 13,
+        "reported_uncertain_changes": 10,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "libreoffice-getting-started-74-to-75",
+      "before": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.6762929693420874,
+        "coverage_new": 0.7145010463465675,
+        "coverage_comparison": 0.6762929693420874,
+        "unresolved_regions": 1292,
+        "reported_content_changes": 790,
+        "reported_uncertain_changes": 232,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 0.3333333333333333,
+          "reported_changes": 790,
+          "reported_hunks_per_matched_change": 951.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 3,
+            "recall": 0.3333333333333333
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 3,
+            "recall": 0.3333333333333333
+          }
+        },
+        "expected_failures": [
+          {
+            "expected_id": "all-sector-scope-emphasized",
+            "reason": "reading_order_unresolved",
+            "side": "both"
+          },
+          {
+            "expected_id": "core-expanded-from-five-to-six-functions",
+            "reason": "reading_order_unresolved",
+            "side": "both"
+          }
+        ]
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.6762929693420874,
+        "coverage_new": 0.715115683491139,
+        "coverage_comparison": 0.6762929693420874,
+        "unresolved_regions": 1292,
+        "reported_content_changes": 791,
+        "reported_uncertain_changes": 234,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 0.3333333333333333,
+          "reported_changes": 791,
+          "reported_hunks_per_matched_change": 952.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 1,
+            "expected": 3,
+            "recall": 0.3333333333333333
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 1,
+            "expected": 3,
+            "recall": 0.3333333333333333
+          }
+        },
+        "expected_failures": [
+          {
+            "expected_id": "all-sector-scope-emphasized",
+            "reason": "reading_order_unresolved",
+            "side": "both"
+          },
+          {
+            "expected_id": "core-expanded-from-five-to-six-functions",
+            "reason": "reading_order_unresolved",
+            "side": "both"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.6483995858281186,
+        "coverage_new": 0.5570796762017373,
+        "coverage_comparison": 0.5570796762017373,
+        "unresolved_regions": 2167,
+        "reported_content_changes": 1117,
+        "reported_uncertain_changes": 232,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 7,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 1.0,
+          "reported_changes": 1117,
+          "reported_hunks_per_matched_change": 198.57142857142858,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 139,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 6,
+            "expected": 6,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 6,
+            "expected": 6,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": []
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.6483995858281186,
+        "coverage_new": 0.5570796762017373,
+        "coverage_comparison": 0.5570796762017373,
+        "unresolved_regions": 2167,
+        "reported_content_changes": 1117,
+        "reported_uncertain_changes": 232,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 7,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 1.0,
+          "reported_changes": 1117,
+          "reported_hunks_per_matched_change": 198.57142857142858,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 139,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 6,
+            "expected": 6,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 6,
+            "expected": 6,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": []
+      }
+    },
+    {
+      "pair": "nist-sp800-171-r2-to-r3",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.5286608199175685,
+        "coverage_new": 0.685270280260378,
+        "coverage_comparison": 0.5286608199175685,
+        "unresolved_regions": 3485,
+        "reported_content_changes": 1681,
+        "reported_uncertain_changes": 38,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.5286608199175685,
+        "coverage_new": 0.685270280260378,
+        "coverage_comparison": 0.5286608199175685,
+        "unresolved_regions": 3485,
+        "reported_content_changes": 1681,
+        "reported_uncertain_changes": 38,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.5628169167259528,
+        "coverage_new": 0.5494726808096377,
+        "coverage_comparison": 0.5494726808096377,
+        "unresolved_regions": 5003,
+        "reported_content_changes": 1783,
+        "reported_uncertain_changes": 509,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.5628169167259528,
+        "coverage_new": 0.5494726808096377,
+        "coverage_comparison": 0.5494726808096377,
+        "unresolved_regions": 5003,
+        "reported_content_changes": 1783,
+        "reported_uncertain_changes": 509,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.778214831042953,
+        "coverage_new": 0.7384063504466267,
+        "coverage_comparison": 0.7384063504466267,
+        "unresolved_regions": 734,
+        "reported_content_changes": 489,
+        "reported_uncertain_changes": 65,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 1.0,
+          "reported_changes": 489,
+          "reported_hunks_per_matched_change": 170.33333333333334,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 74,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 2,
+            "expected": 2,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 2,
+            "expected": 2,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": []
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.778214831042953,
+        "coverage_new": 0.7384063504466267,
+        "coverage_comparison": 0.7384063504466267,
+        "unresolved_regions": 734,
+        "reported_content_changes": 489,
+        "reported_uncertain_changes": 65,
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "kind_accuracy": 1.0,
+          "precision": null,
+          "recall": 1.0,
+          "reported_changes": 489,
+          "reported_hunks_per_matched_change": 170.33333333333334,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 74,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 2,
+            "expected": 2,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 2,
+            "expected": 2,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": []
+      }
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.43729599815283215,
+        "coverage_new": 0.4248171351901145,
+        "coverage_comparison": 0.4248171351901145,
+        "unresolved_regions": 3495,
+        "reported_content_changes": 1615,
+        "reported_uncertain_changes": 35,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 0,
+          "kind_accuracy": null,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 0,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          }
+        },
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.43980436813215645,
+        "coverage_new": 0.42577203575061134,
+        "coverage_comparison": 0.42577203575061134,
+        "unresolved_regions": 3518,
+        "reported_content_changes": 1620,
+        "reported_uncertain_changes": 172,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 0,
+          "kind_accuracy": null,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 0,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "exact_localization_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "move_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          },
+          "semantic_relation_recall": {
+            "detected": 0,
+            "expected": 0,
+            "recall": null
+          }
+        },
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "oasis-odf-packages-v1-2-to-v1-3",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.014450947216597787,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 5,
+        "reported_content_changes": 8,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.014450947216597787,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 5,
+        "reported_content_changes": 8,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "oecd-corporate-governance-2015-to-2023",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "postgresql-16-to-17",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "qgis-doc-guidelines-es-328-to-334",
+      "before": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "qgis-pyqgis-en-328-to-334",
+      "before": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "qgis-pyqgis-ja-328-to-334",
+      "before": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": 1,
+        "reported_content_changes": 0,
+        "reported_uncertain_changes": 0,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "unicode-standard-15-to-16",
+      "before": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      },
+      "after": {
+        "status": "limit",
+        "coverage_old": null,
+        "coverage_new": null,
+        "coverage_comparison": null,
+        "unresolved_regions": null,
+        "reported_content_changes": null,
+        "reported_uncertain_changes": null,
+        "quality": null,
+        "reviewed_recall_metrics": null,
+        "expected_failures": null
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "before": {
+        "status": "ok",
+        "coverage_old": 0.7074563573397413,
+        "coverage_new": 0.6244680740917139,
+        "coverage_comparison": 0.6244680740917139,
+        "unresolved_regions": 457,
+        "reported_content_changes": 148,
+        "reported_uncertain_changes": 9,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 4,
+          "kind_accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 4,
+          "reported_hunks_per_matched_change": 1.0,
+          "review_hunks_per_expected_change": 1.0,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": null
+      },
+      "after": {
+        "status": "ok",
+        "coverage_old": 0.718920065022263,
+        "coverage_new": 0.6293654162740855,
+        "coverage_comparison": 0.6293654162740855,
+        "unresolved_regions": 322,
+        "reported_content_changes": 225,
+        "reported_uncertain_changes": 159,
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 4,
+          "kind_accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "reported_changes": 4,
+          "reported_hunks_per_matched_change": 1.0,
+          "review_hunks_per_expected_change": 1.0,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "reviewed_recall_metrics": {
+          "content_presence_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          },
+          "exact_localization_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          },
+          "move_recall": {
+            "detected": 1,
+            "expected": 1,
+            "recall": 1.0
+          },
+          "semantic_relation_recall": {
+            "detected": 3,
+            "expected": 3,
+            "recall": 1.0
+          }
+        },
+        "expected_failures": null
+      }
+    }
+  ]
+}

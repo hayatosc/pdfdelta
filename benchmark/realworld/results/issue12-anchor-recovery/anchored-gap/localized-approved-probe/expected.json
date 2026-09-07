@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "pair": "nist-sp800-57-part1-r4-to-r5",
+  "reviewed_on": "2026-09-07",
+  "annotation": "partial",
+  "notes": "Mixed review annotation: the document-wide change list remains a representative partial review, while the introduction and glossary scopes are fully human-reviewed development scopes. The scopes measure precision for adjacent punctuation and reference edits without treating changes elsewhere in the documents as false positives. The glossary correction was checked against rendered source PDF pages, not extraction order.",
+  "scopes": [
+    {
+      "id": "introduction-adjacent-replacements",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "Since 1977, NIST has developed a cryptographic \u201ctoolkit\u201d of NIST standards1 that form a basis for the implementation of approved cryptography.",
+        "end_quote": "This Recommendation references many of those standards, and provides guidance on how they may be properly used to protect sensitive information."
+      },
+      "new": {
+        "start_quote": "Since 1977, NIST has developed a cryptographic \u201ctoolkit\u201d of NIST standards11 that form a basis for the implementation of approved cryptography.",
+        "end_quote": "This Recommendation references many of those standards and provides guidance on how they may be properly used to protect sensitive information."
+      }
+    },
+    {
+      "id": "glossary-adjacent-replacements",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "An algorithm or technique",
+        "end_quote": "for which it will be used."
+      },
+      "new": {
+        "start_quote": "An algorithm or technique",
+        "end_quote": "for which it will be used."
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "footer-rev-branding-removed",
+      "kind": "deletion",
+      "occurrence_count": 157,
+      "old_quote": "NIST SP 800-57 Pt. 1 Rev. 4",
+      "note": "Running footer/header branding replaced by Rev. 5 across 157 extracted occurrences."
+    },
+    {
+      "id": "keying-material-definition-added",
+      "kind": "insertion",
+      "new_quote": "Keying material includes a cryptographic key and other material",
+      "note": "Rev. 5 expands the key-information terminology discussion."
+    },
+    {
+      "id": "toolkit-footnote-comma-removed",
+      "kind": "replacement",
+      "old_quote": "The toolkit consists of publications specifying algorithms and guidance for their use, rather than software code.",
+      "new_quote": "The toolkit consists of publications specifying algorithms and guidance for their use rather than software code.",
+      "old_changed_ranges": [
+        {
+          "start": 85,
+          "end": 86
+        }
+      ],
+      "new_changed_ranges": [],
+      "note": "The Rev. 5 footnote remains present and removes the comma before 'rather'."
+    },
+    {
+      "id": "cryptanalysis-review-window-added",
+      "kind": "insertion",
+      "new_quote": "Inputs on their security are welcome at any point, including during the creation of the initial requirements",
+      "note": "Rev. 5 broadens the public-review statement."
+    },
+    {
+      "id": "toolkit-footnote-renumbered",
+      "kind": "replacement",
+      "scope": "introduction-adjacent-replacements",
+      "old_quote": "standards1",
+      "new_quote": "standards11",
+      "old_changed_ranges": [],
+      "new_changed_ranges": [
+        {
+          "start": 10,
+          "end": 11
+        }
+      ],
+      "note": "The toolkit footnote reference changes from 1 to 11."
+    },
+    {
+      "id": "standards-reference-comma-removed",
+      "kind": "replacement",
+      "scope": "introduction-adjacent-replacements",
+      "old_quote": "standards, and",
+      "new_quote": "standards and",
+      "old_changed_ranges": [
+        {
+          "start": 9,
+          "end": 10
+        }
+      ],
+      "new_changed_ranges": [],
+      "note": "The revised sentence removes the comma before the coordinated predicate."
+    },
+    {
+      "id": "approved-definition-comma-removed",
+      "kind": "replacement",
+      "scope": "glossary-adjacent-replacements",
+      "old_quote": "Recommendation, or 2) specified elsewhere",
+      "new_quote": "Recommendation or 2) specified elsewhere",
+      "old_changed_ranges": [
+        {
+          "start": 14,
+          "end": 15
+        }
+      ],
+      "new_changed_ranges": [],
+      "note": "Visual comparison of the source PDFs confirms only the comma before or is removed; the algorithm-or-technique lead-in is retained."
+    },
+    {
+      "id": "association-definition-punctuation",
+      "kind": "replacement",
+      "scope": "glossary-adjacent-replacements",
+      "old_quote": "purpose. For example,",
+      "new_quote": "purpose; for example,",
+      "old_changed_ranges": [
+        {
+          "start": 7,
+          "end": 8
+        },
+        {
+          "start": 9,
+          "end": 10
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 7,
+          "end": 8
+        },
+        {
+          "start": 9,
+          "end": 10
+        }
+      ],
+      "note": "The revised Association definition joins the example with a semicolon."
+    }
+  ]
+}

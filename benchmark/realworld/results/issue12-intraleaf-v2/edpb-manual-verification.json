@@ -1,0 +1,178 @@
+{
+  "page_indexing": "zero-based",
+  "limits": {
+    "limit_scale": 64
+  },
+  "candidate_summary": {
+    "content_changes": 595,
+    "proven_changed_regions": 3,
+    "formatting_only_changes": 262,
+    "uncertain_changes": 129,
+    "unresolved_regions": 1868,
+    "unsupported_extraction_issues": 0,
+    "unresolved_extraction_issues": 0,
+    "comparison_complete": false,
+    "old_alignment_coverage": {
+      "resolved_tokens": 166041,
+      "total_tokens": 215342,
+      "ratio": 0.7710572020321164
+    },
+    "new_alignment_coverage": {
+      "resolved_tokens": 173051,
+      "total_tokens": 220792,
+      "ratio": 0.7837738686184282
+    },
+    "comparison_coverage_ratio": 0.7710572020321164
+  },
+  "selected_changes": [
+    {
+      "kind": "deletion",
+      "confidence": "low",
+      "old_span": {
+        "blocks": [
+          222
+        ],
+        "pages": [
+          11
+        ],
+        "text": "10",
+        "canonical_range": {
+          "start": 0,
+          "end": 2
+        }
+      },
+      "new_span": null
+    },
+    {
+      "kind": "replacement",
+      "confidence": "low",
+      "old_span": {
+        "blocks": [
+          222
+        ],
+        "pages": [
+          11
+        ],
+        "text": "See section 6 of these Guidelines. 11",
+        "canonical_range": {
+          "start": 3,
+          "end": 40
+        }
+      },
+      "new_span": {
+        "blocks": [
+          271,
+          272
+        ],
+        "pages": [
+          12
+        ],
+        "text": "13",
+        "canonical_range": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "kind": "replacement",
+      "confidence": "low",
+      "old_span": {
+        "blocks": [
+          548,
+          549
+        ],
+        "pages": [
+          28
+        ],
+        "text": "37",
+        "canonical_range": {
+          "start": 162,
+          "end": 164
+        }
+      },
+      "new_span": {
+        "blocks": [
+          615
+        ],
+        "pages": [
+          30
+        ],
+        "text": "46",
+        "canonical_range": {
+          "start": 162,
+          "end": 164
+        }
+      }
+    }
+  ],
+  "source_block_contexts": {
+    "Old": [
+      {
+        "block_id": 222,
+        "pages": [
+          11
+        ],
+        "canonical": "10 See section 6 of these Guidelines. 11 See for information on this Art. 29 Working Party, WP260 rev.01, 11 April 2018, Guidelines on transparency "
+      },
+      {
+        "block_id": 223,
+        "pages": [
+          11
+        ],
+        "canonical": "under Regulation 2016/679 - endorsed by the EDPB (hereinafter “WP29 Guidelines on transparency - endorsed by the EDPB”). "
+      },
+      {
+        "block_id": 548,
+        "pages": [
+          28
+        ],
+        "canonical": "respectively. Therefore, the scope of the right of access is first and foremost determined by the scope of the concept of personal data, defined in Art. 4(1) GDPR37. The concept of personal data has already "
+      },
+      {
+        "block_id": 549,
+        "pages": [
+          28
+        ],
+        "canonical": " "
+      }
+    ],
+    "New": [
+      {
+        "block_id": 271,
+        "pages": [
+          12
+        ],
+        "canonical": " "
+      },
+      {
+        "block_id": 272,
+        "pages": [
+          12
+        ],
+        "canonical": "13 See for information on this Art. 29 Working Party, WP260 rev.01, 11 April 2018, Guidelines on transparency "
+      },
+      {
+        "block_id": 273,
+        "pages": [
+          12
+        ],
+        "canonical": "under Regulation 2016/679 - endorsed by the EDPB (hereinafter “WP29 Guidelines on transparency - endorsed by the EDPB”). "
+      },
+      {
+        "block_id": 615,
+        "pages": [
+          30
+        ],
+        "canonical": "respectively. Therefore, the scope of the right of access is first and foremost determined by the scope of the concept of personal data, defined in Art. 4(1) GDPR46. The concept of personal data has already been the subject of several Art. 29 Working Party47 documents48 and has been interpreted by the CJEU, including in the context of the right of access under Art. 12 of the Directive 95/46/CE. "
+      }
+    ]
+  },
+  "assessment": [
+    "The extra tiny-change count is an annotation proxy, not a verified false-positive count.",
+    "Deleted old footnote 10 and its reference sentence are absent before the surviving transparency footnote, which is renumbered from 11 to 13. The candidate splits this into deletion and replacement events.",
+    "Old inline GDPR footnote reference 37 is new reference 46 in otherwise identical local text; the source supports the change.",
+    "This spot check does not establish exhaustive precision. Old coverage declines from 0.7724085408327219 to 0.7710572020321164; new coverage declines from 0.7838191601144969 to 0.7837738686184282.",
+    "CSF expected recovery remains 1/3, so this candidate does not satisfy issue #12."
+  ]
+}

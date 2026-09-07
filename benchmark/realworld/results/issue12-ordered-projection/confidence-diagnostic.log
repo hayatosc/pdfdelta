@@ -1,0 +1,25 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/.herdr/worktrees/pdfdelta/worktree-green-forest-9bdb/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.05s
+     Running tests/pipeline_fixture.rs (target/debug/deps/pipeline_fixture-46ffe5dafe80da21)
+
+running 1 test
+alignment=Some(Alignment { spans: [AlignmentSpan { kind: Unresolved, old: [BlockId(0), BlockId(1)], new: [BlockId(0), BlockId(1)], score: 0.0, canonical_similarity: 0.0, score_margin: None, confidence: Low, evidence: [ReadingOrderUnknown], old_separator: None, new_separator: None }, AlignmentSpan { kind: Unresolved, old: [BlockId(2)], new: [BlockId(2)], score: 0.0, canonical_similarity: 0.0, score_margin: None, confidence: Low, evidence: [TextSimilarity, CandidateSource(NGramInvertedIndex), NumericMask, ReadingOrderPartial], old_separator: None, new_separator: None }, AlignmentSpan { kind: Match, old: [BlockId(3)], new: [BlockId(3)], score: 1.0, canonical_similarity: 1.0, score_margin: None, confidence: Low, evidence: [ExactCanonical, Anchor, ReadingOrderInferred, ReadingOrderPartial], old_separator: None, new_separator: None }], main_anchors: [ExactAnchor { old: BlockId(3), new: BlockId(3) }], move_candidates: [] })
+changes=[Change { kind: Replacement, occurrences: [ChangeOccurrence { old_span: Some(TextSpan { blocks: [BlockId(0)], separator: None, canonical_range: ScalarRange { start: 5, end: 10 }, comparable_range: TokenRange { start: 5, end: 10 } }), new_span: Some(TextSpan { blocks: [BlockId(0)], separator: None, canonical_range: ScalarRange { start: 5, end: 9 }, comparable_range: TokenRange { start: 5, end: 9 } }) }, ChangeOccurrence { old_span: Some(TextSpan { blocks: [BlockId(0)], separator: None, canonical_range: ScalarRange { start: 37, end: 42 }, comparable_range: TokenRange { start: 37, end: 42 } }), new_span: Some(TextSpan { blocks: [BlockId(0)], separator: None, canonical_range: ScalarRange { start: 36, end: 40 }, comparable_range: TokenRange { start: 36, end: 40 } }) }], confidence: Medium, tags: [] }, Change { kind: Replacement, occurrences: [ChangeOccurrence { old_span: Some(TextSpan { blocks: [BlockId(1)], separator: None, canonical_range: ScalarRange { start: 6, end: 11 }, comparable_range: TokenRange { start: 6, end: 11 } }), new_span: Some(TextSpan { blocks: [BlockId(1)], separator: None, canonical_range: ScalarRange { start: 6, end: 10 }, comparable_range: TokenRange { start: 6, end: 10 } }) }, ChangeOccurrence { old_span: Some(TextSpan { blocks: [BlockId(1)], separator: None, canonical_range: ScalarRange { start: 39, end: 44 }, comparable_range: TokenRange { start: 39, end: 44 } }), new_span: Some(TextSpan { blocks: [BlockId(1)], separator: None, canonical_range: ScalarRange { start: 38, end: 42 }, comparable_range: TokenRange { start: 38, end: 42 } }) }], confidence: Medium, tags: [] }]
+
+thread 'inferred_order_remains_low_confidence_through_sentence_recovery' (163) panicked at crates/pdfdelta-core/tests/pipeline_fixture.rs:564:5:
+assertion failed: traced.recovered_atomic_diffs.iter().any(|recovered|
+        {
+            recovered.old_context.blocks.iter().any(|block|
+                    inferred_blocks.contains(block))
+        })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test inferred_order_remains_low_confidence_through_sentence_recovery ... FAILED
+
+failures:
+
+failures:
+    inferred_order_remains_low_confidence_through_sentence_recovery
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 56 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p pdfdelta-core --test pipeline_fixture`

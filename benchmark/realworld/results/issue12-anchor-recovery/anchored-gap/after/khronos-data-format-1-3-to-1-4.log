@@ -1,0 +1,2 @@
+OK pair=khronos-data-format-1-3-to-1-4 set=dev role=stress provenance=verified extracted=incomplete comparison=incomplete coverage=old=unknown,new=unknown,comp=unknown unresolved=991 runtime_ms=21736 candidate_visits=26076313/32000000 required_candidate_visits=26076313 required_candidate_components=exact:173918,ngram:25863589,short_fallback:38806 quality_skipped="no expected annotations are recorded for this pair"
+1/1 revision pairs healthy; 0 stopped at resource limits; 0 failed

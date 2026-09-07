@@ -1,0 +1,2 @@
+OK pair=oasis-odf-packages-v1-2-to-v1-3 set=dev role=standard provenance=verified extracted=incomplete comparison=incomplete coverage=old=0.014,new=unknown,comp=unknown unresolved=5 runtime_ms=615 candidate_visits=6134/1000000 required_candidate_visits=6134 required_candidate_components=exact:3,ngram:6131,short_fallback:0 quality_skipped="no expected annotations are recorded for this pair"
+1/1 revision pairs healthy; 0 stopped at resource limits; 0 failed

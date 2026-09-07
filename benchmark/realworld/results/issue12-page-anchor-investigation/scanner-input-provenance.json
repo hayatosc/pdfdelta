@@ -1,0 +1,23 @@
+{
+  "source": "target/issue12-trust-blocks.json",
+  "source_sha256": "4baf8aaf97c7ed902ec68cb24e9d3eb966323e0bd058f7d64967be5db5a9d71f",
+  "roles": {
+    "Body": 0,
+    "RepeatedFooter": 1,
+    "RepeatedHeader": 2
+  },
+  "sides": {
+    "Old": {
+      "blocks": 1527,
+      "input": "target/issue12-page-anchor-old.txt",
+      "sha256": "7457576265943836c6140f432523866939ed16fa933eb28b396a6413e0a60df0"
+    },
+    "New": {
+      "blocks": 589,
+      "input": "target/issue12-page-anchor-new.txt",
+      "sha256": "47bda0d1ba79173f4c38b4580251a59f88768551f987b714734a915c92e0f8c9"
+    }
+  },
+  "eligibility": "trusted interval, no reading-order uncertainty, no unmapped tokens, no normalization issues; every block remains in the duplicate census",
+  "status": "diagnostic input; acceptance still requires full source-map/range validation during production integration"
+}

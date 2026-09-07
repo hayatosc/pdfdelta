@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "record_kind": "issue12_csf_enumeration_head_evidence",
+  "pair": "nist-csf-v1-1-to-v2-0",
+  "purpose": "Bounded source evidence comparing the expected Core Functions replacement with the rejected enumeration correspondence.",
+  "provenance": {
+    "normalized_blocks": {
+      "path": "target/issue12-probe-blocks.json",
+      "sha256": "2544159eeae623c98a351f5ce67d798f0b704b5f13c3b8cceaede939762f8913"
+    },
+    "trust_blocks": {
+      "path": "target/issue12-trust-blocks.json",
+      "sha256": "4baf8aaf97c7ed902ec68cb24e9d3eb966323e0bd058f7d64967be5db5a9d71f"
+    },
+    "rejected_result": {
+      "path": "benchmark/realworld/results/issue12-anchor-recovery/enumeration-rejected/nist-csf-v1-1-to-v2-0.json",
+      "sha256": "3ef98753caceb5bcaa6e5928bd124b8fc2ccd15260b3a7b1e925cfa994659db3"
+    },
+    "rejection_decision": {
+      "path": "benchmark/realworld/results/issue12-anchor-recovery/enumeration-decision.md",
+      "sha256": "d529c9e746fec741eb2a30522f9f506e482acfaef86afeb0065e653bacaae262"
+    },
+    "parser_snapshot": {
+      "path": "benchmark/realworld/results/issue12-anchor-recovery/enumeration-selector.rs.txt",
+      "sha256": "0d44af0137245b6a33b2f168b1c3368c4ee301c48d4970afd2e6b90a1f1fb5cf"
+    },
+    "collection_snapshot": {
+      "path": "benchmark/realworld/results/issue12-anchor-recovery/enumeration-integration.rs.txt",
+      "sha256": "b102c105164929f001f53ba0b79201316fbd1a13ccc6d5bb0f9ece09772b00b6"
+    },
+    "source_manifest": {
+      "path": "benchmark/realworld/results/issue12-anchor-recovery/enumeration-source.json",
+      "sha256": "d40c371a0ebc59db33a4f63ee30ab6afd7f68418d3d888b840adab985d12397b",
+      "head": "2ae1d71aa8a3332b6250336a6badcd93147d330e",
+      "binary_sha256": "85e465f524c415bec034afa0f8adac22d3679091fdf053472d623ef197f95c79"
+    }
+  },
+  "coordinate_contract": {
+    "text": "canonical_text and raw_text are the existing block capture spellings; offsets are half-open Unicode scalar ranges within one block.",
+    "candidate_sentence": "The collection snapshot applies sentence boundaries within each source block and includes a non-empty trailing unit.",
+    "enumeration_shape": "The parser accepts one labelled delimiter (:, en dash, or em dash), four to 32 unique ASCII identifier items, and an ASCII identifier label.",
+    "comparison": "Case-insensitive comparisons below are evidence calculations over captured text. They do not establish semantic correspondence or change a recovery threshold.",
+    "trust": "The listed blocks have clean normalization and complete source evidence in the dumps, while global reading-order trust remains not established."
+  },
+  "valid_candidates": [
+    {
+      "id": "old-core-functions-main",
+      "side": "old",
+      "block_index": 166,
+      "block_id": 166,
+      "pages": [9],
+      "canonical_sentence_range": {"start": 314, "end": 430},
+      "raw_sentence_range": {"start": 317, "end": 434},
+      "sentence_scalar_count": 116,
+      "label_range": {"start": 376, "end": 385},
+      "enumeration_items_range": {"start": 386, "end": 429},
+      "head_before_label": "The Framework Core consists of five concurrent and continuous",
+      "label": "Functions",
+      "delimiter": "—",
+      "items": ["Identify", "Protect", "Detect", "Respond", "Recover"],
+      "canonical_text": "The Framework Core consists of five concurrent and continuous Functions—Identify, Protect, Detect, Respond, Recover."
+    },
+    {
+      "id": "old-elements-core",
+      "side": "old",
+      "block_index": 219,
+      "block_id": 219,
+      "pages": [12],
+      "canonical_sentence_range": {"start": 315, "end": 436},
+      "raw_sentence_range": {"start": 318, "end": 440},
+      "sentence_scalar_count": 121,
+      "label_range": {"start": 339, "end": 347},
+      "enumeration_items_range": {"start": 349, "end": 402},
+      "head_before_label": "The Core comprises four",
+      "label": "elements",
+      "delimiter": ":",
+      "items": ["Functions", "Categories", "Subcategories", "Informative"],
+      "canonical_text": "The Core comprises four elements: Functions, Categories, Subcategories, and Informative References, depicted in Figure 1:"
+    },
+    {
+      "id": "old-profile-functions-counterexample",
+      "side": "old",
+      "block_index": 333,
+      "block_id": 333,
+      "pages": [19],
+      "canonical_sentence_range": {"start": 38, "end": 303},
+      "raw_sentence_range": {"start": 38, "end": 306},
+      "sentence_scalar_count": 265,
+      "label_range": {"start": 244, "end": 253},
+      "enumeration_items_range": {"start": 255, "end": 302},
+      "head_before_label": "Through the creation of a Current Profile, organizations can examine the extent to which they are achieving the outcomes described in the Core Categories and Subcategories, aligned with the five high-level",
+      "label": "Functions",
+      "delimiter": ":",
+      "items": ["Identify", "Protect", "Detect", "Respond", "Recover"],
+      "canonical_text": "Through the creation of a Current Profile, organizations can examine the extent to which they are achieving the outcomes described in the Core Categories and Subcategories, aligned with the five high-level Functions: Identify, Protect, Detect, Respond, and Recover.",
+      "raw_text": "Through the creation of a Current Profile, organizations \ncan examine the extent to which they are achieving the outcomes described in the Core \nCategories and Subcategories, aligned with the five high-level Functions: Identify, Protect, \nDetect, Respond, and Recover."
+    },
+    {
+      "id": "old-elements-appendix",
+      "side": "old",
+      "block_index": 1432,
+      "block_id": 1432,
+      "pages": [51],
+      "canonical_sentence_range": {"start": 85, "end": 203},
+      "raw_sentence_range": {"start": 86, "end": 206},
+      "sentence_scalar_count": 118,
+      "label_range": {"start": 128, "end": 136},
+      "enumeration_items_range": {"start": 138, "end": 191},
+      "head_before_label": "The Framework Core comprises four types of",
+      "label": "elements",
+      "delimiter": ":",
+      "items": ["Functions", "Categories", "Subcategories", "Informative"],
+      "canonical_text": "The Framework Core comprises four types of elements: Functions, Categories, Subcategories, and Informative References."
+    },
+    {
+      "id": "new-core-functions-main",
+      "side": "new",
+      "block_index": 99,
+      "block_id": 99,
+      "pages": [7],
+      "canonical_sentence_range": {"start": 0, "end": 138},
+      "raw_sentence_range": {"start": 0, "end": 139},
+      "sentence_scalar_count": 138,
+      "label_range": {"start": 13, "end": 22},
+      "enumeration_items_range": {"start": 25, "end": 80},
+      "head_before_label": "The CSF Core",
+      "label": "Functions",
+      "delimiter": "—",
+      "items": ["GOVERN", "IDENTIFY", "PROTECT", "DETECT", "RESPOND", "RECOVER"],
+      "canonical_text": "The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize cybersecurity outcomes at their highest level.",
+      "raw_text": "The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize \ncybersecurity outcomes at their highest level."
+    },
+    {
+      "id": "new-glossary-functions-counterexample",
+      "side": "new",
+      "block_index": 556,
+      "block_id": 556,
+      "pages": [30],
+      "canonical_sentence_range": {"start": 62, "end": 147},
+      "raw_sentence_range": {"start": 62, "end": 148},
+      "sentence_scalar_count": 85,
+      "label_range": {"start": 80, "end": 89},
+      "enumeration_items_range": {"start": 91, "end": 146},
+      "head_before_label": "There are six CSF",
+      "label": "Functions",
+      "delimiter": ":",
+      "items": ["Govern", "Identify", "Protect", "Detect", "Respond", "Recover"],
+      "canonical_text": "There are six CSF Functions: Govern, Identify, Protect, Detect, Respond, and Recover.",
+      "raw_text": "There are six CSF Functions: Govern, Identify, \nProtect, Detect, Respond, and Recover."
+    }
+  ],
+  "pairs": {
+    "expected": {
+      "old_candidate": "old-core-functions-main",
+      "new_candidate": "new-core-functions-main",
+      "source_ranges": {
+        "old": [314, 430],
+        "new": [0, 138]
+      },
+      "old_list_start": 72,
+      "new_list_start": 25,
+      "old_list_start_fraction": 0.62069,
+      "new_list_start_fraction": 0.181159,
+      "old_core_present_in_head": true,
+      "new_core_present_in_head": true,
+      "label_case_insensitive_equal": true,
+      "ordered_case_insensitive_subsequence": true,
+      "shared_items_in_old_order": ["identify", "protect", "detect", "respond", "recover"],
+      "item_dice_score_scaled_10000": 9090
+    },
+    "rejected_experiment": {
+      "old_candidate": "old-profile-functions-counterexample",
+      "new_candidate": "new-glossary-functions-counterexample",
+      "source_ranges": {
+        "old": [38, 303],
+        "new": [62, 147]
+      },
+      "old_list_start": 217,
+      "new_list_start": 29,
+      "old_list_start_fraction": 0.818868,
+      "new_list_start_fraction": 0.341176,
+      "old_core_present_in_head": true,
+      "new_core_present_in_head": false,
+      "label_case_insensitive_equal": true,
+      "ordered_case_insensitive_subsequence": true,
+      "shared_items_in_old_order": ["identify", "protect", "detect", "respond", "recover"],
+      "item_dice_score_scaled_10000": 9090,
+      "experiment_status": "rejected; the decision records this as a 303-ending-scalar profile-creation candidate paired with the 85-scalar glossary candidate."
+    },
+    "list_only_alternatives": [
+      {"old_candidate": "old-core-functions-main", "new_candidate": "new-glossary-functions-counterexample", "item_dice_score_scaled_10000": 9090},
+      {"old_candidate": "old-profile-functions-counterexample", "new_candidate": "new-core-functions-main", "item_dice_score_scaled_10000": 9090}
+    ],
+    "non_function_label_pairs": [
+      {"old_candidate": "old-elements-core", "new_candidate": "new-core-functions-main", "label_case_insensitive_equal": false, "ordered_case_insensitive_subsequence": false},
+      {"old_candidate": "old-elements-appendix", "new_candidate": "new-glossary-functions-counterexample", "label_case_insensitive_equal": false, "ordered_case_insensitive_subsequence": false}
+    ]
+  },
+  "overlap_method": {
+    "case_insensitive_characters": "Unique ASCII alphabetic characters, lowercased, with Jaccard intersection over union.",
+    "case_insensitive_words": "Unique ASCII word tokens, lowercased, with Jaccard intersection over union; repeated words are counted once for the set metric.",
+    "head_scope": "The exact captured text before the enumeration label.",
+    "sentence_scope": "The exact candidate sentence, including the enumeration and surrounding sentence text."
+  },
+  "overlap_results": {
+    "expected": {
+      "head_shared_words": ["core", "functions", "the"],
+      "head_word_jaccard": 0.272727,
+      "head_word_overlap_shorter_set": 0.75,
+      "head_character_jaccard": 0.647059,
+      "sentence_shared_words": ["and", "core", "detect", "functions", "identify", "protect", "recover", "respond", "the"],
+      "sentence_word_jaccard": 0.375,
+      "sentence_word_overlap_shorter_set": 0.6,
+      "sentence_character_jaccard": 0.73913
+    },
+    "rejected_experiment": {
+      "head_shared_words": ["are", "functions"],
+      "head_word_jaccard": 0.0625,
+      "head_word_overlap_shorter_set": 0.4,
+      "head_character_jaccard": 0.565217,
+      "sentence_shared_words": ["and", "are", "detect", "functions", "identify", "protect", "recover", "respond"],
+      "sentence_word_jaccard": 0.210526,
+      "sentence_word_overlap_shorter_set": 0.666667,
+      "sentence_character_jaccard": 0.782609
+    },
+    "interpretation": "The list items and label are identical under case-insensitive comparison for both pairs. Whole-sentence character overlap is higher for the rejected pair, and whole-sentence shorter-set word overlap is also higher for the rejected pair; these metrics cannot identify the expected correspondence. Head word overlap favors the expected pair, but it is only a textual distinction and supplies no semantic proof."
+  },
+  "near_miss_candidate": {
+    "side": "new",
+    "block_index": 83,
+    "block_id": 83,
+    "pages": [6],
+    "canonical_sentence_range": {"start": 0, "end": 90},
+    "text": "• Section 2 explains the basics of the CSF Core: Functions, Categories, and Subcategories.",
+    "head_before_label": "• Section 2 explains the basics of the CSF",
+    "label": "Core",
+    "natural_items": ["Functions", "Categories", "Subcategories"],
+    "reason_excluded": "It has three items and therefore does not satisfy the existing four-item structural shape."
+  },
+  "conclusions": [
+    "Case-insensitive list and label evidence makes the expected pair and the observed rejected pair indistinguishable: both have the same five old items as an ordered subsequence of the same six new items, with selector score 9090/10000.",
+    "The exact heads expose the contextual difference. The expected old head is Core prose followed by Functions, while the rejected old head is a long Current Profile sentence whose list starts at scalar 217. The rejected new head is a glossary definition and lacks Core in the head; however, the alternate rejected-old-to-new-Core pair still passes the Core/Functions check.",
+    "The candidate census contains unrelated four-element lists with the label elements, so shared list vocabulary alone does not establish correspondence. The evidence supports preserving the rejection and does not authorize semantic classification, dictionary use, or threshold relaxation."
+  ]
+}

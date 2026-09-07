@@ -1,0 +1,34 @@
+{
+  "schema_version": 65,
+  "records": [
+    {
+      "pair_id": "jvms-se17-to-se21",
+      "set": "dev",
+      "role": "standard",
+      "in_scope": true,
+      "status": "ok",
+      "provenance_verified": true,
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "limit_scale_used": 128.0,
+      "resource_limit_failure": null,
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_regions": 490,
+      "unresolved_old_token_share": 0.13552406359388733,
+      "unresolved_new_token_share": 0.13965625388198163,
+      "reported_content_changes": 223,
+      "reported_formatting_changes": 173,
+      "reported_proven_changed_regions": 0,
+      "reported_uncertain_changes": 21,
+      "sentence_recovery_metrics": null,
+      "quality": null,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "reviewed_recall_metrics": null,
+      "candidate_recall": null,
+      "expected_change_diagnostics": null
+    }
+  ]
+}

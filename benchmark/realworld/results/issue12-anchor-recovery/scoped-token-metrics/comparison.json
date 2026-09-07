@@ -1,0 +1,87 @@
+{
+  "baseline_engine_source": "../baseline-source.json",
+  "current_engine_source": "../run-order-source.json",
+  "measurement_source_sha256": {
+    "crates/pdfdelta-bench/src/revision_scopes.rs": "60c9cc2a0e7e088825ed6118f349139ff0d2c199c7724c8b48da6855a2c49fd3",
+    "crates/pdfdelta-bench/src/revisions.rs": "68c38f02e63e9d1c8c68556651f1df49f73a949d772e1f70c3738e0de7dca342"
+  },
+  "binaries": {
+    "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+    "current": "81c755592cb4e63cfa23ce2cb14394aa3b5d0acd0739a9a486b802d8e5657e1a"
+  },
+  "sp80057": {
+    "baseline": {
+      "coverage_old": 0.5628169167259528,
+      "coverage_new": 0.5494726808096377,
+      "scoped_token_metrics": {
+        "expected_changed_tokens": 38,
+        "reported_changed_tokens": 29,
+        "true_positive_tokens": 25,
+        "precision": 0.8620689655172413,
+        "recall": 0.6578947368421053,
+        "f1": 0.746268656716418,
+        "span_iou": 0.5952380952380952,
+        "false_positive_tokens_per_10k_unchanged": 29.282576866764277
+      },
+      "quality_skipped_reason": "scoped-complete reported change coordinates are indeterminate",
+      "scoped_event_metrics": null,
+      "expected_change_diagnostics": null
+    },
+    "current": {
+      "coverage_old": 0.6691808538116104,
+      "coverage_new": 0.6446842169310023,
+      "scoped_token_metrics": {
+        "expected_changed_tokens": 38,
+        "reported_changed_tokens": 29,
+        "true_positive_tokens": 25,
+        "precision": 0.8620689655172413,
+        "recall": 0.6578947368421053,
+        "f1": 0.746268656716418,
+        "span_iou": 0.5952380952380952,
+        "false_positive_tokens_per_10k_unchanged": 29.282576866764277
+      },
+      "quality_skipped_reason": "scoped-complete reported change coordinates are indeterminate",
+      "scoped_event_metrics": null,
+      "expected_change_diagnostics": null
+    }
+  },
+  "other_scoped_pairs": [
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "existing_quality_and_diagnostics_unchanged": true
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "existing_quality_and_diagnostics_unchanged": true
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "existing_quality_and_diagnostics_unchanged": true
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "existing_quality_and_diagnostics_unchanged": true
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "existing_quality_and_diagnostics_unchanged": true
+    }
+  ],
+  "checks": {
+    "format": "passed",
+    "clippy": "passed",
+    "workspace_tests": 1966
+  },
+  "captures_sha256": {
+    "baseline-nist-sp800-57-part1-r4-to-r5.json": "ebecaf49ea9f357e46a1d1c8817ebef56818d0f7b2b144e9cb18fbaffbc801f9",
+    "current-arxiv-attention-v6-to-v7.json": "6e2866c498948431f0d723e1470293f2b01aa02bc55b6d2c8e575850550d6da9",
+    "current-bis-operational-risk-2011-to-2021.json": "68e8675d04e266dc050bcbecd7d3a532cbce20786253351755ded0a3ddf22700",
+    "current-nist-fips-186-4-to-5.json": "cf8454a0f1b5ea2c34517b16bca5f5f46303551f76e07ca40ea591883bc31b8b",
+    "current-nist-sp800-57-part1-r4-to-r5.json": "d58b84b6b719109f0184d5136805baaa1868f5f0a7507ced248a33ce52c86631",
+    "current-oasis-mqtt-311-to-50.json": "e6b7db0374e9ac4c2537ce9a048ed4c11c42291d047e1c320a4787bb1a2d71b3",
+    "current-w3c-ws-policy-attach-20060927-to-20061102.json": "26ca0ae8810d783cc6317fa91aa12bc5372c3d9ec4ae993bf5beb712c6c82430"
+  },
+  "build_isolation": "Separate Cargo target directories for baseline and current; no shared build artifacts.",
+  "sp80057_annotation_reference": "../sp80057-annotation-review/original-expected.json",
+  "sp80057_annotation_sha256": "8b705b3125e23a0c6b3b1329690cdabad7206534c026c7ddf1c7b20e13d3c41c"
+}

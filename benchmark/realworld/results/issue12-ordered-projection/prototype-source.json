@@ -1,0 +1,17 @@
+{
+  "head": "2ae1d71aa8a3332b6250336a6badcd93147d330e",
+  "source_sha256": {
+    "crates/pdfdelta-core/src/alignment/mod.rs": "4863eacc7030455c85b632f6dfb1f8a6426c4fd0bcefe75f719d184ff18baddb",
+    "crates/pdfdelta-core/src/alignment/ordered.rs": "e8744ae482c77f98ebc1d67f360cf95e5d392bc756800559b3fdbabd6bf7e9d6",
+    "crates/pdfdelta-core/src/diff/mod.rs": "d96e577addff12ee79d4ca57026c6fbe9b6071a8b908d932ff097961989ec5e9",
+    "crates/pdfdelta-core/src/diff/recovery/mod.rs": "094b0b892a5da4d611c34214aee0b30f1581aa15cdcec75e8e8364eb76fb9086",
+    "crates/pdfdelta-core/src/diff/sentence.rs": "4f1c5ad35485d6ecf9c29b34a108b27add4077442a320483b1853a0dbb31e5ed",
+    "crates/pdfdelta-core/src/layout/block.rs": "ff872473f4c49277afcc891a91eb593b62a515ef997be78318e86ba3d7c8e307",
+    "crates/pdfdelta-core/src/layout/region.rs": "00736cb9f9b28e681241bab8a7da3ea4d9ecbec45761606d8d097b04ee4f9aef",
+    "crates/pdfdelta-core/src/pipeline.rs": "609f97c1a432058f19316ddd18f5d06cb94f9f145726939ac6cbafe84743847e",
+    "crates/pdfdelta-core/src/report/json.rs": "60dc04f51b1d14e3a642dbdc9dbdcecc19b55a8eec0b7d4cddaa52c15a8d5e4b",
+    "crates/pdfdelta-core/tests/pipeline_fixture.rs": "615d2759a937e2e7d71b141f622b9c4e9c683e91f2b6f1f061976f66d88c910e",
+    "crates/pdfdelta-core/src/diff/recovery/page_anchor.rs": "c1539515ceccf83fb054e13250cd159c688c1bc7704ec42593f59d0b79881c35"
+  },
+  "binary_sha256": "3e023f714f964eaf4cf48f83cf7b72295af5f3056f8d7f9481f41f0a2e8d3e86"
+}

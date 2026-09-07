@@ -1,0 +1,83 @@
+{
+  "status": "standalone_scanner_verified_not_production_recovery",
+  "source_sha256": {
+    "crates/pdfdelta-core/src/diff/recovery/page_anchor.rs": "c1539515ceccf83fb054e13250cd159c688c1bc7704ec42593f59d0b79881c35",
+    "target/issue12-page-anchor-old.txt": "7457576265943836c6140f432523866939ed16fa933eb28b396a6413e0a60df0",
+    "target/issue12-page-anchor-new.txt": "47bda0d1ba79173f4c38b4580251a59f88768551f987b714734a915c92e0f8c9",
+    "target/issue12-page-anchor-harness.rs": "ee2c9a41cb0cf33e01e8416f982eae7a30df1c44cc2f74612d1fa04937e6c149"
+  },
+  "input_blocks": {
+    "old": 1527,
+    "new": 589
+  },
+  "window_tokens": 128,
+  "merged_anchors": [
+    {
+      "old": [
+        293,
+        391,
+        555
+      ],
+      "new": [
+        519,
+        199,
+        363
+      ]
+    },
+    {
+      "old": [
+        298,
+        796,
+        941
+      ],
+      "new": [
+        538,
+        228,
+        373
+      ]
+    }
+  ],
+  "checks": {
+    "expected_two_merged_anchors": "passed",
+    "token_work_limit_1_fails_without_partial_result": "passed",
+    "rolling_hash_continues_after_new_and_repeated_windows": "passed"
+  },
+  "limitations": [
+    "Uniqueness counts all supplied within-block windows, not arbitrary cross-block permutations.",
+    "No sentence correspondence or benchmark recall improvement follows from this scanner check.",
+    "Harness assumes generated input protocol valid; production selector validates candidate evidence."
+  ],
+  "reproduction": "Copy scanner_harness.rs to target/issue12-page-anchor-harness.rs, prepare inputs from scanner-input-provenance.json, then rustc --edition 2024 -O target/issue12-page-anchor-harness.rs -o target/issue12-page-anchor-harness and execute from repository root.",
+  "production_budget_audit": {
+    "status": "standalone_selector_passes_existing_4N_cap",
+    "canonical_scalars": 193684,
+    "existing_4N_comparison_cap": 774736,
+    "algorithm": "Hash each source token once, roll fixed-width window fingerprints, verify token equality for every matching fingerprint and merged anchor.",
+    "checks": {
+      "same_two_source_ranges_at_4N": "passed",
+      "token_work_limit_1_fails_without_partial_result": "passed",
+      "selector_unit_tests": "9 passed"
+    },
+    "limitations": [
+      "Standalone scanner inputs retain prior captured source provenance; this is not a current production comparison.",
+      "The 4N budget check covers this captured pair; it is not a universal complexity claim or a sentence correspondence proof."
+    ],
+    "default_window_probe_before_equality_reuse": {
+      "window_tokens": 16,
+      "max_scanned_token_work": 774736,
+      "outcome": "Limit(TokenWork)",
+      "meaning": "The successful 128-token experiment does not establish production viability with the alignment default of 16 tokens."
+    },
+    "default_window_probe": {
+      "window_tokens": 16,
+      "max_scanned_token_work": 774736,
+      "outcome": "success",
+      "merged_pairs": 324,
+      "mechanism": "Reuse a verified overlapping prefix only when both immutable source windows advance by one token; compare the incoming token. Recheck each complete merged range once.",
+      "limits": [
+        "This remains a scanner experiment, not a production recovery or precision claim.",
+        "Adversarial collisions and repetitive inputs still stop at the existing work bound."
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "official_scoped_evaluation": false,
+  "purpose": "Reveal downstream diagnostic candidates after disabling scope restrictions; matches are not validated scoped correspondences.",
+  "source_manifest": "../run-order-source.json",
+  "original_annotation_sha256": "8b705b3125e23a0c6b3b1329690cdabad7206534c026c7ddf1c7b20e13d3c41c",
+  "binary_sha256": "81c755592cb4e63cfa23ce2cb14394aa3b5d0acd0739a9a486b802d8e5657e1a",
+  "diagnostics_complete": true,
+  "failures": [
+    {
+      "expected_id": "footer-rev-branding-removed",
+      "reason": "occurrence_count_mismatch",
+      "expected": 157,
+      "actual": 152
+    },
+    {
+      "expected_id": "approved-definition-rewritten",
+      "reason": "unit_segmentation_failure",
+      "side": "new"
+    },
+    {
+      "expected_id": "association-definition-punctuation",
+      "reason": "reading_order_unresolved",
+      "side": "both"
+    }
+  ],
+  "artifacts_sha256": {
+    "expected.json": "da79eb7455fc6f6b7d46fea5ac5e7d0419fe69f7770eae211652c56d8796b9b8",
+    "manifest.tsv": "16a094f47e2295b13e332de6d9c1f8d69b3ca0ee0a4ae9a9c07816b9b497cf00",
+    "result.json": "349793f85c96be5390ebdaacb67dbfdc9c44e6b5c4a41a75953ddb8729feb10a"
+  }
+}

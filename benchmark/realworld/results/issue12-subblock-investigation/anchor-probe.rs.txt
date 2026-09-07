@@ -1,0 +1,1555 @@
+//! Bounded, non-production investigation of interior text anchors for CSF.
+//!
+//! The probe keeps block boundaries for the global census, but permits an
+//! expected quote to cross those boundaries. A reported unique hit is always
+//! verified against the exact canonical characters after its rolling-hash
+//! lookup. Reading-order trust is deliberately reported as unavailable: the
+//! public facade does not expose the pipeline's per-block reading-order proof.
+
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    env,
+    error::Error as StdError,
+    fs,
+    ops::Range,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+use pdfdelta_core::{
+    layout::{reconstruct_blocks, reconstruct_lines, BlockRole},
+    model::GlyphId,
+    normalize::{normalize_blocks, BlockText, ComparableToken, ScalarRange},
+    pdf::{LopdfParser, ParseLimits},
+    pipeline::PipelineOptions,
+    source::{
+        ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
+    },
+};
+use serde::{Deserialize, Serialize};
+
+const WINDOW_LENGTHS: [usize; 3] = [32, 64, 128];
+const MAX_INDEX_WINDOWS: usize = 2_000_000;
+const MAX_CONTEXT_RADIUS: usize = 256;
+const MAX_CANDIDATE_WINDOWS: usize = 20_000;
+const MAX_ORDER_COMPARISONS: usize = 1_000_000;
+
+#[derive(Debug, Deserialize)]
+struct ExpectedDocument {
+    changes: Vec<ExpectedChange>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedChange {
+    id: String,
+    kind: String,
+    old_quote: Option<String>,
+    new_quote: Option<String>,
+}
+
+#[derive(Debug)]
+struct Config {
+    old_path: PathBuf,
+    new_path: PathBuf,
+    expected_path: PathBuf,
+    output_path: PathBuf,
+    blocks_output_path: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct GlyphSource {
+    page: u32,
+}
+
+struct Side {
+    extraction_complete: bool,
+    extraction_issues: Vec<String>,
+    glyphs: HashMap<GlyphId, GlyphSource>,
+    blocks: Vec<BlockText>,
+    chars: Vec<Vec<char>>,
+    stream: Vec<char>,
+    origins: Vec<Option<Origin>>,
+    block_stream_starts: Vec<usize>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Origin {
+    block: usize,
+    scalar: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct WindowRef {
+    block: usize,
+    start: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct WindowHash {
+    first: u64,
+    second: u64,
+}
+
+#[derive(Default)]
+struct HashBucket {
+    count: usize,
+    first: Option<WindowRef>,
+    different_hashmate: Option<WindowRef>,
+}
+
+struct WindowIndex {
+    length: usize,
+    complete: bool,
+    windows_indexed: usize,
+    buckets: HashMap<WindowHash, HashBucket>,
+}
+
+struct LengthIndexes {
+    length: usize,
+    all: WindowIndex,
+    clean: WindowIndex,
+    projected: WindowIndex,
+}
+
+#[derive(Clone, Copy)]
+enum AnchorClass {
+    AllBlocks,
+    NormalizationClean,
+    IssueFreeProjected,
+}
+
+impl AnchorClass {
+    fn name(self) -> &'static str {
+        match self {
+            Self::AllBlocks => "all_blocks",
+            Self::NormalizationClean => "normalization_clean",
+            Self::IssueFreeProjected => "issue_free_projected",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Relation {
+    Before,
+    Inside,
+    After,
+}
+
+impl Relation {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Before => "before",
+            Self::Inside => "inside",
+            Self::After => "after",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct QuoteOccurrence {
+    stream_start: usize,
+    stream_end: usize,
+    segments: Vec<QuoteSegment>,
+}
+
+#[derive(Clone, Debug)]
+struct QuoteSegment {
+    block: usize,
+    range: Range<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct AnchorCandidate {
+    window: WindowRef,
+    global_start: usize,
+    global_end: usize,
+    relation: Relation,
+    text: String,
+    location: SourceLocation,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct SourceLocation {
+    block_index: usize,
+    block_id: u64,
+    pages: Vec<u32>,
+    canonical_range: OffsetRange,
+    raw_range: OffsetRange,
+    glyph_ids: Vec<u64>,
+    source_evidence_complete: bool,
+    normalization_clean: bool,
+    issue_free_projected: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct OffsetRange {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Serialize)]
+struct ProbeReport {
+    schema_version: u32,
+    record_kind: &'static str,
+    issue: u32,
+    pair: &'static str,
+    bounds: BoundsReport,
+    trust: TrustReport,
+    sides: SidesReport,
+    replacements: Vec<ReplacementReport>,
+    normalized_block_dump: &'static str,
+}
+
+#[derive(Serialize)]
+struct BoundsReport {
+    window_lengths: Vec<usize>,
+    max_index_windows_per_length_per_side: usize,
+    context_radius_chars: usize,
+    max_candidate_windows_per_quote_per_class: usize,
+    max_order_comparisons_per_length_per_class: usize,
+    index_unit: &'static str,
+    block_window_boundary: &'static str,
+}
+
+#[derive(Serialize)]
+struct TrustReport {
+    extraction_complete_both_sides: bool,
+    normalization_clean_class_available: bool,
+    issue_free_projection_class_available: bool,
+    reading_order_trust: &'static str,
+    reading_order_note: &'static str,
+    fully_trusted_anchor_claims: bool,
+}
+
+#[derive(Serialize)]
+struct SidesReport {
+    old: SideReport,
+    new: SideReport,
+}
+
+#[derive(Serialize)]
+struct SideReport {
+    extraction_complete: bool,
+    extraction_issues: Vec<String>,
+    glyphs: usize,
+    normalized_blocks: usize,
+    normalization_clean_blocks: usize,
+    canonical_scalars: usize,
+    index: Vec<IndexReport>,
+}
+
+#[derive(Serialize)]
+struct IndexReport {
+    length: usize,
+    all_blocks: IndexClassReport,
+    normalization_clean: IndexClassReport,
+    issue_free_projected: IndexClassReport,
+}
+
+#[derive(Serialize)]
+struct IndexClassReport {
+    complete: bool,
+    windows_indexed: usize,
+    distinct_hashes: usize,
+    hash_collision_buckets: usize,
+}
+
+#[derive(Serialize)]
+struct BlockDumpReport {
+    schema_version: u32,
+    record_kind: &'static str,
+    reading_order_trust: &'static str,
+    blocks: Vec<BlockDumpSide>,
+}
+
+#[derive(Serialize)]
+struct BlockDumpSide {
+    side: &'static str,
+    block_index: usize,
+    block_id: u64,
+    role: &'static str,
+    pages: Vec<u32>,
+    raw_text: String,
+    canonical_text: String,
+    matching_text: String,
+    canonical_tokens: Vec<TokenDump>,
+    canonical_unmapped_scalar_indices: Vec<usize>,
+    normalization_issue_ranges: Vec<IssueRangeDump>,
+    trust: BlockTrustDump,
+    line_breaks: Option<Vec<usize>>,
+    page_breaks: Option<Vec<usize>>,
+    source_glyph_ids: Vec<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind")]
+enum TokenDump {
+    Scalar {
+        value: char,
+    },
+    Unmapped {
+        font_hash_hex: String,
+        glyph_id: u16,
+    },
+}
+
+#[derive(Serialize)]
+struct IssueRangeDump {
+    kind: String,
+    raw_range: OffsetRange,
+    projected_canonical_range: OffsetRange,
+}
+
+#[derive(Serialize)]
+struct BlockTrustDump {
+    normalization_clean: bool,
+    issue_free_projected: bool,
+    source_evidence_complete: bool,
+    reading_order_trust: &'static str,
+    fully_trusted: bool,
+}
+
+#[derive(Serialize)]
+struct ReplacementReport {
+    id: String,
+    old_quote_chars: usize,
+    new_quote_chars: usize,
+    old_occurrences: Vec<QuoteReport>,
+    new_occurrences: Vec<QuoteReport>,
+    classes: Vec<ClassReport>,
+}
+
+#[derive(Serialize)]
+struct QuoteReport {
+    stream_range: OffsetRange,
+    segments: Vec<SourceLocation>,
+    normalization_clean: bool,
+    issue_free_projected: bool,
+    source_evidence_complete: bool,
+}
+
+#[derive(Serialize)]
+struct ClassReport {
+    class: &'static str,
+    note: &'static str,
+    lengths: Vec<LengthReport>,
+}
+
+#[derive(Serialize)]
+struct LengthReport {
+    length: usize,
+    old_index_complete: bool,
+    new_index_complete: bool,
+    old_candidate_scan_complete: bool,
+    new_candidate_scan_complete: bool,
+    old_unique_candidates: usize,
+    new_unique_candidates: usize,
+    old_candidates_in_dirty_blocks: usize,
+    new_candidates_in_dirty_blocks: usize,
+    old_relations: RelationCounts,
+    new_relations: RelationCounts,
+    paired_unique_candidates: usize,
+    paired_before_on_both_sides: usize,
+    paired_after_on_both_sides: usize,
+    paired_same_relation: usize,
+    paired_cross_relation: usize,
+    monotone_order_pairs: usize,
+    crossing_order_pairs: usize,
+    order_comparisons_complete: bool,
+    consistently_bracketed: bool,
+    closest_old_candidate: Option<CandidateReport>,
+    closest_new_candidate: Option<CandidateReport>,
+    closest_before_pair: Option<PairReport>,
+    closest_after_pair: Option<PairReport>,
+    closest_pair: Option<PairReport>,
+}
+
+#[derive(Default, Serialize)]
+struct RelationCounts {
+    before: usize,
+    inside: usize,
+    after: usize,
+}
+
+#[derive(Serialize)]
+struct PairReport {
+    text: String,
+    old_relation: &'static str,
+    new_relation: &'static str,
+    old: SourceLocation,
+    new: SourceLocation,
+}
+
+#[derive(Serialize)]
+struct CandidateReport {
+    text: String,
+    relation: &'static str,
+    distance_to_quote_chars: usize,
+    location: SourceLocation,
+}
+
+fn main() -> Result<(), Box<dyn StdError>> {
+    let config = parse_config()?;
+    let expected: ExpectedDocument = serde_json::from_slice(&fs::read(&config.expected_path)?)?;
+    let options = PipelineOptions::default();
+    let old = extract_side(&config.old_path, options)?;
+    let new = extract_side(&config.new_path, options)?;
+    let old_indexes = build_indexes(&old)?;
+    let new_indexes = build_indexes(&new)?;
+    write_block_dump(&config.blocks_output_path, &old, &new)?;
+
+    let replacements = expected
+        .changes
+        .iter()
+        .filter(|change| change.kind == "replacement")
+        .map(|change| analyze_replacement(change, &old, &new, &old_indexes, &new_indexes))
+        .collect::<Result<Vec<_>, Box<dyn StdError>>>()?;
+
+    let report = ProbeReport {
+        schema_version: 1,
+        record_kind: "issue12_subblock_anchor_probe",
+        issue: 12,
+        pair: "nist-csf-v1-1-to-v2-0",
+        bounds: BoundsReport {
+            window_lengths: WINDOW_LENGTHS.to_vec(),
+            max_index_windows_per_length_per_side: MAX_INDEX_WINDOWS,
+            context_radius_chars: MAX_CONTEXT_RADIUS,
+            max_candidate_windows_per_quote_per_class: MAX_CANDIDATE_WINDOWS,
+            max_order_comparisons_per_length_per_class: MAX_ORDER_COMPARISONS,
+            index_unit: "canonical scalar character windows within one normalized block",
+            block_window_boundary: "candidate windows require start > 0 and end < block scalar length",
+        },
+        trust: TrustReport {
+            extraction_complete_both_sides: old.extraction_complete && new.extraction_complete,
+            normalization_clean_class_available: true,
+            issue_free_projection_class_available: true,
+            reading_order_trust: "not_established",
+            reading_order_note: "The public parser/extraction facade exposes no per-block proof of reading order; candidate hits are therefore evidence only and never marked fully trusted.",
+            fully_trusted_anchor_claims: false,
+        },
+        sides: SidesReport {
+            old: side_report(&old, &old_indexes),
+            new: side_report(&new, &new_indexes),
+        },
+        replacements,
+        normalized_block_dump: "target/issue12-probe-blocks.json",
+    };
+    let bytes = serde_json::to_vec_pretty(&report)?;
+    if let Some(parent) = config.output_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&config.output_path, bytes)?;
+
+    println!("wrote {}", config.output_path.display());
+    for replacement in &report.replacements {
+        println!(
+            "{} old_occurrences={} new_occurrences={}",
+            replacement.id,
+            replacement.old_occurrences.len(),
+            replacement.new_occurrences.len()
+        );
+        for class in &replacement.classes {
+            for length in &class.lengths {
+                println!(
+                    "  class={} len={} old_unique={} new_unique={} paired={} before_both={} after_both={} monotone={} crossing={}",
+                    class.class,
+                    length.length,
+                    length.old_unique_candidates,
+                    length.new_unique_candidates,
+                    length.paired_unique_candidates,
+                    length.paired_before_on_both_sides,
+                    length.paired_after_on_both_sides,
+                    length.monotone_order_pairs,
+                    length.crossing_order_pairs
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn parse_config() -> Result<Config, Box<dyn StdError>> {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut config = Config {
+        old_path: repo_root.join("benchmark/realworld/cache/nist-csf-v1-1-to-v2-0-old.pdf"),
+        new_path: repo_root.join("benchmark/realworld/cache/nist-csf-v1-1-to-v2-0-new.pdf"),
+        expected_path: repo_root.join("benchmark/realworld/expected/nist-csf-v1-1-to-v2-0.json"),
+        output_path: repo_root
+            .join("benchmark/realworld/results/issue12-subblock-investigation/anchor-probe.json"),
+        blocks_output_path: repo_root.join("target/issue12-probe-blocks.json"),
+    };
+    let mut args = env::args_os().skip(1);
+    while let Some(argument) = args.next() {
+        let name = argument.to_string_lossy();
+        let mut value = || -> Result<PathBuf, Box<dyn StdError>> {
+            args.next()
+                .map(PathBuf::from)
+                .ok_or_else(|| format!("{name} requires a path").into())
+        };
+        match name.as_ref() {
+            "--old" => config.old_path = value()?,
+            "--new" => config.new_path = value()?,
+            "--expected" => config.expected_path = value()?,
+            "--output" => config.output_path = value()?,
+            "--blocks-output" => config.blocks_output_path = value()?,
+            "--help" | "-h" => {
+                println!(
+                    "issue12_anchor_probe [--old PATH] [--new PATH] [--expected PATH] [--output PATH] [--blocks-output PATH]"
+                );
+                std::process::exit(0);
+            }
+            other => return Err(format!("unknown argument {other}").into()),
+        }
+    }
+    Ok(config)
+}
+
+fn extract_side(path: &Path, options: PipelineOptions) -> Result<Side, Box<dyn StdError>> {
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+    let outcome = source.extract_outcome(
+        Arc::from(fs::read(path)?),
+        ParseLimits::default(),
+        ExtractionLimits::default(),
+    )?;
+    build_side(outcome, options)
+}
+
+fn build_side(
+    outcome: ExtractionOutcome,
+    options: PipelineOptions,
+) -> Result<Side, Box<dyn StdError>> {
+    let extraction_complete = outcome.is_complete();
+    let extraction_issues = outcome
+        .issues()
+        .iter()
+        .map(|issue| issue.description().to_owned())
+        .collect::<Vec<_>>();
+    let document = outcome.document().clone();
+    let lines = reconstruct_lines(&document, options.line)?;
+    let blocks = reconstruct_blocks(&document, &lines, options.block)?;
+    let normalized = normalize_blocks(&document, &lines, &blocks)?;
+    let chars = normalized
+        .iter()
+        .map(|block| block.canonical.text.chars().collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    let mut glyphs = HashMap::with_capacity(document.items().len());
+    for glyph in document.items() {
+        glyphs.insert(glyph.id, GlyphSource { page: glyph.page.0 });
+    }
+
+    let mut stream = Vec::new();
+    let mut origins = Vec::new();
+    let mut block_stream_starts = Vec::with_capacity(chars.len());
+    for (block_index, block_chars) in chars.iter().enumerate() {
+        if block_index != 0 {
+            stream.push(' ');
+            origins.push(None);
+        }
+        block_stream_starts.push(stream.len());
+        for (scalar, value) in block_chars.iter().copied().enumerate() {
+            stream.push(value);
+            origins.push(Some(Origin {
+                block: block_index,
+                scalar,
+            }));
+        }
+    }
+
+    Ok(Side {
+        extraction_complete,
+        extraction_issues,
+        glyphs,
+        blocks: normalized,
+        chars,
+        stream,
+        origins,
+        block_stream_starts,
+    })
+}
+
+fn build_indexes(side: &Side) -> Result<Vec<LengthIndexes>, Box<dyn StdError>> {
+    WINDOW_LENGTHS
+        .iter()
+        .copied()
+        .map(|length| build_length_indexes(side, length))
+        .collect()
+}
+
+fn build_length_indexes(side: &Side, length: usize) -> Result<LengthIndexes, Box<dyn StdError>> {
+    let mut indexes = LengthIndexes {
+        length,
+        all: WindowIndex::new(length),
+        clean: WindowIndex::new(length),
+        projected: WindowIndex::new(length),
+    };
+    let mut windows_seen = 0usize;
+    let (first_power, second_power) = (
+        wrapping_power(1_000_003, length.saturating_sub(1)),
+        wrapping_power(1_000_033, length.saturating_sub(1)),
+    );
+    'blocks: for (block_index, block_chars) in side.chars.iter().enumerate() {
+        if block_chars.len() < length {
+            continue;
+        }
+        let (mut first, mut second) = initial_hash(block_chars, length);
+        for start in 0..=block_chars.len() - length {
+            if windows_seen == MAX_INDEX_WINDOWS {
+                indexes.all.complete = false;
+                indexes.clean.complete = false;
+                indexes.projected.complete = false;
+                break 'blocks;
+            }
+            windows_seen += 1;
+            let window = WindowRef {
+                block: block_index,
+                start,
+            };
+            let key = WindowHash { first, second };
+            indexes.all.insert(side, key, window)?;
+            if side.blocks[block_index].issues.is_empty() {
+                indexes.clean.insert(side, key, window)?;
+            }
+            if issue_free_projected(
+                side,
+                block_index,
+                ScalarRange {
+                    start,
+                    end: start + length,
+                },
+            ) {
+                indexes.projected.insert(side, key, window)?;
+            }
+            if start + length < block_chars.len() {
+                (first, second) = roll_hash(
+                    first,
+                    second,
+                    block_chars[start],
+                    block_chars[start + length],
+                    first_power,
+                    second_power,
+                );
+            }
+        }
+    }
+    Ok(indexes)
+}
+
+impl WindowIndex {
+    fn new(length: usize) -> Self {
+        Self {
+            length,
+            complete: true,
+            windows_indexed: 0,
+            buckets: HashMap::new(),
+        }
+    }
+
+    fn insert(
+        &mut self,
+        side: &Side,
+        key: WindowHash,
+        window: WindowRef,
+    ) -> Result<(), Box<dyn StdError>> {
+        self.windows_indexed = self
+            .windows_indexed
+            .checked_add(1)
+            .ok_or("window index count overflow")?;
+        let bucket = self.buckets.entry(key).or_default();
+        bucket.count = bucket
+            .count
+            .checked_add(1)
+            .ok_or("window bucket count overflow")?;
+        if let Some(first) = bucket.first {
+            if bucket.different_hashmate.is_none() && !same_window(side, first, window, self.length)
+            {
+                bucket.different_hashmate = Some(window);
+            }
+        } else {
+            bucket.first = Some(window);
+        }
+        Ok(())
+    }
+
+    fn unique(&self, side: &Side, key: WindowHash, window: WindowRef) -> bool {
+        if !self.complete {
+            return false;
+        }
+        let Some(bucket) = self.buckets.get(&key) else {
+            return false;
+        };
+        bucket.count == 1
+            && bucket
+                .first
+                .is_some_and(|first| same_window(side, first, window, self.length))
+    }
+
+    fn report(&self) -> IndexClassReport {
+        IndexClassReport {
+            complete: self.complete,
+            windows_indexed: self.windows_indexed,
+            distinct_hashes: self.buckets.len(),
+            hash_collision_buckets: self
+                .buckets
+                .values()
+                .filter(|bucket| bucket.different_hashmate.is_some())
+                .count(),
+        }
+    }
+}
+
+fn initial_hash(chars: &[char], length: usize) -> (u64, u64) {
+    let mut first = 0u64;
+    let mut second = 0u64;
+    for value in chars.iter().take(length).copied() {
+        let code = value as u64 + 1;
+        first = first.wrapping_mul(1_000_003).wrapping_add(code);
+        second = second.wrapping_mul(1_000_033).wrapping_add(code);
+    }
+    (first, second)
+}
+
+fn roll_hash(
+    first: u64,
+    second: u64,
+    outgoing: char,
+    incoming: char,
+    first_power: u64,
+    second_power: u64,
+) -> (u64, u64) {
+    let outgoing = outgoing as u64 + 1;
+    let incoming = incoming as u64 + 1;
+    (
+        first
+            .wrapping_sub(outgoing.wrapping_mul(first_power))
+            .wrapping_mul(1_000_003)
+            .wrapping_add(incoming),
+        second
+            .wrapping_sub(outgoing.wrapping_mul(second_power))
+            .wrapping_mul(1_000_033)
+            .wrapping_add(incoming),
+    )
+}
+
+fn wrapping_power(base: u64, exponent: usize) -> u64 {
+    let mut result = 1u64;
+    for _ in 0..exponent {
+        result = result.wrapping_mul(base);
+    }
+    result
+}
+
+fn same_window(side: &Side, left: WindowRef, right: WindowRef, length: usize) -> bool {
+    side.chars[left.block][left.start..left.start + length]
+        == side.chars[right.block][right.start..right.start + length]
+}
+
+fn side_report(side: &Side, indexes: &[LengthIndexes]) -> SideReport {
+    SideReport {
+        extraction_complete: side.extraction_complete,
+        extraction_issues: side.extraction_issues.clone(),
+        glyphs: side.glyphs.len(),
+        normalized_blocks: side.blocks.len(),
+        normalization_clean_blocks: side
+            .blocks
+            .iter()
+            .filter(|block| block.issues.is_empty())
+            .count(),
+        canonical_scalars: side.chars.iter().map(Vec::len).sum(),
+        index: indexes
+            .iter()
+            .map(|indexes| IndexReport {
+                length: indexes.length,
+                all_blocks: indexes.all.report(),
+                normalization_clean: indexes.clean.report(),
+                issue_free_projected: indexes.projected.report(),
+            })
+            .collect(),
+    }
+}
+
+fn write_block_dump(path: &Path, old: &Side, new: &Side) -> Result<(), Box<dyn StdError>> {
+    let mut blocks = Vec::with_capacity(old.blocks.len() + new.blocks.len());
+    blocks.extend(block_dump_side(old, "old")?);
+    blocks.extend(block_dump_side(new, "new")?);
+    let report = BlockDumpReport {
+        schema_version: 1,
+        record_kind: "issue12_normalized_block_dump",
+        reading_order_trust: "not_established",
+        blocks,
+    };
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, serde_json::to_vec_pretty(&report)?)?;
+    Ok(())
+}
+
+fn block_dump_side(
+    side: &Side,
+    side_name: &'static str,
+) -> Result<Vec<BlockDumpSide>, Box<dyn StdError>> {
+    side.blocks
+        .iter()
+        .enumerate()
+        .map(|(block_index, block)| {
+            let scalar_count = block.canonical.text.chars().count();
+            let full_range = ScalarRange {
+                start: 0,
+                end: scalar_count,
+            };
+            let source_glyph_ids = block
+                .project_canonical_glyph_ids(full_range)
+                .into_iter()
+                .map(|glyph| glyph.0)
+                .collect::<Vec<_>>();
+            let canonical_tokens = block
+                .canonical
+                .comparable_tokens()?
+                .into_iter()
+                .map(token_dump)
+                .collect::<Vec<_>>();
+            let normalization_issue_ranges = block
+                .issues
+                .iter()
+                .map(|issue| {
+                    let projected = block.raw_to_canonical_range(issue.raw_range);
+                    IssueRangeDump {
+                        kind: format!("{:?}", issue.kind),
+                        raw_range: OffsetRange {
+                            start: issue.raw_range.start,
+                            end: issue.raw_range.end,
+                        },
+                        projected_canonical_range: OffsetRange {
+                            start: projected.start,
+                            end: projected.end,
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(BlockDumpSide {
+                side: side_name,
+                block_index,
+                block_id: block.block.0,
+                role: role_name(block.role),
+                pages: block.pages.clone(),
+                raw_text: block.raw.text.clone(),
+                canonical_text: block.canonical.text.clone(),
+                matching_text: block.matching.clone(),
+                canonical_tokens,
+                canonical_unmapped_scalar_indices: block
+                    .canonical
+                    .unmapped
+                    .iter()
+                    .map(|token| token.scalar_index)
+                    .collect(),
+                normalization_issue_ranges,
+                trust: BlockTrustDump {
+                    normalization_clean: block.issues.is_empty(),
+                    issue_free_projected: issue_free_projected(side, block_index, full_range),
+                    source_evidence_complete: source_evidence_complete(
+                        side,
+                        block_index,
+                        full_range,
+                        &source_glyph_ids,
+                    ),
+                    reading_order_trust: "not_established",
+                    fully_trusted: false,
+                },
+                line_breaks: block.line_breaks.clone(),
+                page_breaks: block.page_breaks.clone(),
+                source_glyph_ids,
+            })
+        })
+        .collect()
+}
+
+fn token_dump(token: ComparableToken) -> TokenDump {
+    match token {
+        ComparableToken::Scalar(value) => TokenDump::Scalar { value },
+        ComparableToken::Unmapped {
+            font_hash,
+            glyph_id,
+        } => TokenDump::Unmapped {
+            font_hash_hex: font_hash
+                .0
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+            glyph_id,
+        },
+    }
+}
+
+fn role_name(role: BlockRole) -> &'static str {
+    match role {
+        BlockRole::Body => "body",
+        BlockRole::RepeatedHeader => "repeated_header",
+        BlockRole::RepeatedFooter => "repeated_footer",
+    }
+}
+
+fn analyze_replacement(
+    change: &ExpectedChange,
+    old: &Side,
+    new: &Side,
+    old_indexes: &[LengthIndexes],
+    new_indexes: &[LengthIndexes],
+) -> Result<ReplacementReport, Box<dyn StdError>> {
+    let old_quote = change.old_quote.as_deref().unwrap_or_default();
+    let new_quote = change.new_quote.as_deref().unwrap_or_default();
+    let old_occurrences = locate_quote(old, old_quote);
+    let new_occurrences = locate_quote(new, new_quote);
+    let old_reports = old_occurrences
+        .iter()
+        .map(|occurrence| quote_report(old, occurrence))
+        .collect::<Vec<_>>();
+    let new_reports = new_occurrences
+        .iter()
+        .map(|occurrence| quote_report(new, occurrence))
+        .collect::<Vec<_>>();
+
+    let classes = [
+        AnchorClass::AllBlocks,
+        AnchorClass::NormalizationClean,
+        AnchorClass::IssueFreeProjected,
+    ]
+    .into_iter()
+    .map(|class| {
+        analyze_class(
+            class,
+            old,
+            new,
+            old_indexes,
+            new_indexes,
+            &old_occurrences,
+            &new_occurrences,
+        )
+    })
+    .collect::<Result<Vec<_>, Box<dyn StdError>>>()?;
+
+    Ok(ReplacementReport {
+        id: change.id.clone(),
+        old_quote_chars: collapse_whitespace(old_quote).chars().count(),
+        new_quote_chars: collapse_whitespace(new_quote).chars().count(),
+        old_occurrences: old_reports,
+        new_occurrences: new_reports,
+        classes,
+    })
+}
+
+fn analyze_class(
+    class: AnchorClass,
+    old: &Side,
+    new: &Side,
+    old_indexes: &[LengthIndexes],
+    new_indexes: &[LengthIndexes],
+    old_occurrences: &[QuoteOccurrence],
+    new_occurrences: &[QuoteOccurrence],
+) -> Result<ClassReport, Box<dyn StdError>> {
+    let lengths = WINDOW_LENGTHS
+        .iter()
+        .copied()
+        .zip(old_indexes.iter().zip(new_indexes))
+        .map(|(length, (old_index, new_index))| {
+            analyze_length(
+                length,
+                class,
+                old,
+                new,
+                old_index,
+                new_index,
+                old_occurrences,
+                new_occurrences,
+            )
+        })
+        .collect::<Result<Vec<_>, Box<dyn StdError>>>()?;
+    let note = match class {
+        AnchorClass::AllBlocks => {
+            "Includes windows in every normalized block; source and normalization trust are recorded per hit."
+        }
+        AnchorClass::NormalizationClean => {
+            "Indexes only blocks with no normalization issues; reading-order proof remains unavailable."
+        }
+        AnchorClass::IssueFreeProjected => {
+            "Indexes windows projected away from normalization-issue ranges, including otherwise affected blocks; these remain untrusted evidence."
+        }
+    };
+    Ok(ClassReport {
+        class: class.name(),
+        note,
+        lengths,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyze_length(
+    length: usize,
+    class: AnchorClass,
+    old: &Side,
+    new: &Side,
+    old_index: &LengthIndexes,
+    new_index: &LengthIndexes,
+    old_occurrences: &[QuoteOccurrence],
+    new_occurrences: &[QuoteOccurrence],
+) -> Result<LengthReport, Box<dyn StdError>> {
+    let old_windows = class_index(old_index, class);
+    let new_windows = class_index(new_index, class);
+    let old_occurrence = only_occurrence(old_occurrences);
+    let new_occurrence = only_occurrence(new_occurrences);
+    let old_candidates = if let Some(occurrence) = old_occurrence {
+        collect_candidates(old, old_windows, occurrence)
+    } else {
+        CandidateCollection::incomplete()
+    };
+    let new_candidates = if let Some(occurrence) = new_occurrence {
+        collect_candidates(new, new_windows, occurrence)
+    } else {
+        CandidateCollection::incomplete()
+    };
+    let pairs = pair_candidates(&old_candidates.candidates, &new_candidates.candidates);
+    let (monotone_order_pairs, crossing_order_pairs, order_comparisons_complete) = order_counts(
+        &pairs,
+        &old_candidates.candidates,
+        &new_candidates.candidates,
+    );
+    let paired_before_on_both_sides = pairs
+        .iter()
+        .filter(|(old_index, new_index)| {
+            old_candidates.candidates[*old_index].relation == Relation::Before
+                && new_candidates.candidates[*new_index].relation == Relation::Before
+        })
+        .count();
+    let paired_after_on_both_sides = pairs
+        .iter()
+        .filter(|(old_index, new_index)| {
+            old_candidates.candidates[*old_index].relation == Relation::After
+                && new_candidates.candidates[*new_index].relation == Relation::After
+        })
+        .count();
+    let paired_same_relation = pairs
+        .iter()
+        .filter(|(old_index, new_index)| {
+            old_candidates.candidates[*old_index].relation
+                == new_candidates.candidates[*new_index].relation
+        })
+        .count();
+    let paired_cross_relation = pairs.len().saturating_sub(paired_same_relation);
+    let closest_before_pair = closest_pair(
+        &pairs,
+        &old_candidates.candidates,
+        &new_candidates.candidates,
+        Relation::Before,
+        old_occurrence,
+        new_occurrence,
+    );
+    let closest_after_pair = closest_pair(
+        &pairs,
+        &old_candidates.candidates,
+        &new_candidates.candidates,
+        Relation::After,
+        old_occurrence,
+        new_occurrence,
+    );
+    let closest_pair = closest_any_pair(
+        &pairs,
+        &old_candidates.candidates,
+        &new_candidates.candidates,
+        old_occurrence,
+        new_occurrence,
+    );
+    let closest_old_candidate = old_occurrence
+        .and_then(|occurrence| closest_candidate(&old_candidates.candidates, occurrence));
+    let closest_new_candidate = new_occurrence
+        .and_then(|occurrence| closest_candidate(&new_candidates.candidates, occurrence));
+
+    Ok(LengthReport {
+        length,
+        old_index_complete: old_windows.complete,
+        new_index_complete: new_windows.complete,
+        old_candidate_scan_complete: old_candidates.complete,
+        new_candidate_scan_complete: new_candidates.complete,
+        old_unique_candidates: old_candidates.candidates.len(),
+        new_unique_candidates: new_candidates.candidates.len(),
+        old_candidates_in_dirty_blocks: old_candidates
+            .candidates
+            .iter()
+            .filter(|candidate| !candidate.location.normalization_clean)
+            .count(),
+        new_candidates_in_dirty_blocks: new_candidates
+            .candidates
+            .iter()
+            .filter(|candidate| !candidate.location.normalization_clean)
+            .count(),
+        old_relations: relation_counts(&old_candidates.candidates),
+        new_relations: relation_counts(&new_candidates.candidates),
+        paired_unique_candidates: pairs.len(),
+        paired_before_on_both_sides,
+        paired_after_on_both_sides,
+        paired_same_relation,
+        paired_cross_relation,
+        monotone_order_pairs,
+        crossing_order_pairs,
+        order_comparisons_complete,
+        consistently_bracketed: paired_before_on_both_sides != 0 && paired_after_on_both_sides != 0,
+        closest_old_candidate,
+        closest_new_candidate,
+        closest_before_pair,
+        closest_after_pair,
+        closest_pair,
+    })
+}
+
+fn closest_candidate(
+    candidates: &[AnchorCandidate],
+    occurrence: &QuoteOccurrence,
+) -> Option<CandidateReport> {
+    candidates
+        .iter()
+        .min_by_key(|candidate| distance(candidate, occurrence))
+        .map(|candidate| CandidateReport {
+            text: candidate.text.clone(),
+            relation: candidate.relation.name(),
+            distance_to_quote_chars: distance(candidate, occurrence),
+            location: candidate.location.clone(),
+        })
+}
+
+fn class_index(indexes: &LengthIndexes, class: AnchorClass) -> &WindowIndex {
+    match class {
+        AnchorClass::AllBlocks => &indexes.all,
+        AnchorClass::NormalizationClean => &indexes.clean,
+        AnchorClass::IssueFreeProjected => &indexes.projected,
+    }
+}
+
+struct CandidateCollection {
+    complete: bool,
+    candidates: Vec<AnchorCandidate>,
+}
+
+impl CandidateCollection {
+    fn incomplete() -> Self {
+        Self {
+            complete: false,
+            candidates: Vec::new(),
+        }
+    }
+}
+
+fn collect_candidates(
+    side: &Side,
+    index: &WindowIndex,
+    occurrence: &QuoteOccurrence,
+) -> CandidateCollection {
+    if !index.complete {
+        return CandidateCollection::incomplete();
+    }
+    let context_start = occurrence.stream_start.saturating_sub(MAX_CONTEXT_RADIUS);
+    let context_end = occurrence
+        .stream_end
+        .saturating_add(MAX_CONTEXT_RADIUS)
+        .min(side.stream.len());
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    for (block_index, block_chars) in side.chars.iter().enumerate() {
+        let block_start = side.block_stream_starts[block_index];
+        let block_end = block_start + block_chars.len();
+        if block_chars.len() <= index.length + 1
+            || block_end <= context_start
+            || block_start >= context_end
+        {
+            continue;
+        }
+        let local_min = context_start.saturating_sub(block_start).max(1);
+        let local_max_end = context_end
+            .saturating_sub(block_start)
+            .min(block_chars.len() - 1);
+        let Some(max_start) = local_max_end.checked_sub(index.length) else {
+            continue;
+        };
+        if local_min > max_start {
+            continue;
+        }
+        for start in local_min..=max_start {
+            if candidates.len() == MAX_CANDIDATE_WINDOWS {
+                return CandidateCollection {
+                    complete: false,
+                    candidates,
+                };
+            }
+            let window = WindowRef {
+                block: block_index,
+                start,
+            };
+            if !seen.insert(window) {
+                continue;
+            }
+            let key = hash_chars(&block_chars[start..start + index.length]);
+            if !index.unique(side, key, window) {
+                continue;
+            }
+            let global_start = block_start + start;
+            let global_end = global_start + index.length;
+            let text = block_chars[start..start + index.length]
+                .iter()
+                .collect::<String>();
+            candidates.push(AnchorCandidate {
+                window,
+                global_start,
+                global_end,
+                relation: relation(
+                    global_start..global_end,
+                    occurrence.stream_start..occurrence.stream_end,
+                ),
+                location: source_location(
+                    side,
+                    block_index,
+                    ScalarRange {
+                        start,
+                        end: start + index.length,
+                    },
+                ),
+                text,
+            });
+        }
+    }
+    CandidateCollection {
+        complete: true,
+        candidates,
+    }
+}
+
+fn pair_candidates(old: &[AnchorCandidate], new: &[AnchorCandidate]) -> Vec<(usize, usize)> {
+    let mut new_by_text = HashMap::with_capacity(new.len());
+    for (index, candidate) in new.iter().enumerate() {
+        new_by_text.insert(candidate.text.as_str(), index);
+    }
+    old.iter()
+        .enumerate()
+        .filter_map(|(old_index, candidate)| {
+            new_by_text
+                .get(candidate.text.as_str())
+                .copied()
+                .map(|new_index| (old_index, new_index))
+        })
+        .collect()
+}
+
+fn order_counts(
+    pairs: &[(usize, usize)],
+    old: &[AnchorCandidate],
+    new: &[AnchorCandidate],
+) -> (usize, usize, bool) {
+    let comparison_count = pairs.len().saturating_mul(pairs.len().saturating_sub(1)) / 2;
+    let complete = comparison_count <= MAX_ORDER_COMPARISONS;
+    let mut monotone = 0;
+    let mut crossing = 0;
+    if !complete {
+        return (0, 0, false);
+    }
+    for (left_index, &(old_left, new_left)) in pairs.iter().enumerate() {
+        for &(old_right, new_right) in &pairs[left_index + 1..] {
+            let old_order = window_order(&old[old_left].window, &old[old_right].window);
+            let new_order = window_order(&new[new_left].window, &new[new_right].window);
+            if old_order == new_order {
+                monotone += 1;
+            } else {
+                crossing += 1;
+            }
+        }
+    }
+    (monotone, crossing, true)
+}
+
+fn window_order(left: &WindowRef, right: &WindowRef) -> std::cmp::Ordering {
+    left.block
+        .cmp(&right.block)
+        .then(left.start.cmp(&right.start))
+}
+
+fn relation_counts(candidates: &[AnchorCandidate]) -> RelationCounts {
+    let mut counts = RelationCounts::default();
+    for candidate in candidates {
+        match candidate.relation {
+            Relation::Before => counts.before += 1,
+            Relation::Inside => counts.inside += 1,
+            Relation::After => counts.after += 1,
+        }
+    }
+    counts
+}
+
+fn closest_pair(
+    pairs: &[(usize, usize)],
+    old: &[AnchorCandidate],
+    new: &[AnchorCandidate],
+    wanted: Relation,
+    old_occurrence: Option<&QuoteOccurrence>,
+    new_occurrence: Option<&QuoteOccurrence>,
+) -> Option<PairReport> {
+    let (Some(old_occurrence), Some(new_occurrence)) = (old_occurrence, new_occurrence) else {
+        return None;
+    };
+    pairs
+        .iter()
+        .filter(|(old_index, new_index)| {
+            old[*old_index].relation == wanted && new[*new_index].relation == wanted
+        })
+        .min_by_key(|(old_index, new_index)| {
+            distance(&old[*old_index], old_occurrence)
+                .max(distance(&new[*new_index], new_occurrence))
+        })
+        .map(|(old_index, new_index)| pair_report(&old[*old_index], &new[*new_index]))
+}
+
+fn closest_any_pair(
+    pairs: &[(usize, usize)],
+    old: &[AnchorCandidate],
+    new: &[AnchorCandidate],
+    old_occurrence: Option<&QuoteOccurrence>,
+    new_occurrence: Option<&QuoteOccurrence>,
+) -> Option<PairReport> {
+    let (Some(old_occurrence), Some(new_occurrence)) = (old_occurrence, new_occurrence) else {
+        return None;
+    };
+    pairs
+        .iter()
+        .min_by_key(|(old_index, new_index)| {
+            distance(&old[*old_index], old_occurrence)
+                .max(distance(&new[*new_index], new_occurrence))
+        })
+        .map(|(old_index, new_index)| pair_report(&old[*old_index], &new[*new_index]))
+}
+
+fn distance(candidate: &AnchorCandidate, occurrence: &QuoteOccurrence) -> usize {
+    if candidate.global_end <= occurrence.stream_start {
+        occurrence.stream_start - candidate.global_end
+    } else {
+        candidate.global_start.saturating_sub(occurrence.stream_end)
+    }
+}
+
+fn pair_report(old: &AnchorCandidate, new: &AnchorCandidate) -> PairReport {
+    PairReport {
+        text: old.text.clone(),
+        old_relation: old.relation.name(),
+        new_relation: new.relation.name(),
+        old: old.location.clone(),
+        new: new.location.clone(),
+    }
+}
+
+fn locate_quote(side: &Side, quote: &str) -> Vec<QuoteOccurrence> {
+    let needle = collapse_whitespace(quote).chars().collect::<Vec<_>>();
+    if needle.is_empty() || side.stream.len() < needle.len() {
+        return Vec::new();
+    }
+    let prefix = kmp_prefix(&needle);
+    let mut matched = 0usize;
+    let mut occurrences = Vec::new();
+    for (index, value) in side.stream.iter().copied().enumerate() {
+        while matched > 0 && needle[matched] != value {
+            matched = prefix[matched - 1];
+        }
+        if needle[matched] == value {
+            matched += 1;
+        }
+        if matched == needle.len() {
+            let stream_end = index + 1;
+            let stream_start = stream_end - needle.len();
+            let segments = quote_segments(side, stream_start..stream_end);
+            if !segments.is_empty() {
+                occurrences.push(QuoteOccurrence {
+                    stream_start,
+                    stream_end,
+                    segments,
+                });
+            }
+            matched = prefix[matched - 1];
+        }
+    }
+    occurrences
+}
+
+fn kmp_prefix(needle: &[char]) -> Vec<usize> {
+    let mut prefix = vec![0; needle.len()];
+    let mut matched = 0usize;
+    for index in 1..needle.len() {
+        while matched > 0 && needle[index] != needle[matched] {
+            matched = prefix[matched - 1];
+        }
+        if needle[index] == needle[matched] {
+            matched += 1;
+        }
+        prefix[index] = matched;
+    }
+    prefix
+}
+
+fn quote_segments(side: &Side, range: Range<usize>) -> Vec<QuoteSegment> {
+    let mut segments = BTreeMap::<usize, Range<usize>>::new();
+    for origin in side.origins[range].iter().flatten().copied() {
+        segments
+            .entry(origin.block)
+            .and_modify(|segment| {
+                segment.start = segment.start.min(origin.scalar);
+                segment.end = segment.end.max(origin.scalar + 1);
+            })
+            .or_insert(origin.scalar..origin.scalar + 1);
+    }
+    segments
+        .into_iter()
+        .map(|(block, range)| QuoteSegment { block, range })
+        .collect()
+}
+
+fn quote_report(side: &Side, occurrence: &QuoteOccurrence) -> QuoteReport {
+    let segments = occurrence
+        .segments
+        .iter()
+        .map(|segment| source_location(side, segment.block, scalar_range(&segment.range)))
+        .collect::<Vec<_>>();
+    QuoteReport {
+        stream_range: OffsetRange {
+            start: occurrence.stream_start,
+            end: occurrence.stream_end,
+        },
+        normalization_clean: segments.iter().all(|segment| segment.normalization_clean),
+        issue_free_projected: segments.iter().all(|segment| segment.issue_free_projected),
+        source_evidence_complete: segments
+            .iter()
+            .all(|segment| segment.source_evidence_complete),
+        segments,
+    }
+}
+
+fn only_occurrence(occurrences: &[QuoteOccurrence]) -> Option<&QuoteOccurrence> {
+    (occurrences.len() == 1).then(|| &occurrences[0])
+}
+
+fn source_location(side: &Side, block_index: usize, range: ScalarRange) -> SourceLocation {
+    let block = &side.blocks[block_index];
+    let raw = block.canonical_to_raw_range(range);
+    let glyph_ids = block
+        .project_canonical_glyph_ids(range)
+        .into_iter()
+        .map(|glyph| glyph.0)
+        .collect::<Vec<_>>();
+    let mut pages = glyph_ids
+        .iter()
+        .filter_map(|glyph| side.glyphs.get(&GlyphId(*glyph)).map(|source| source.page))
+        .collect::<Vec<_>>();
+    pages.sort_unstable();
+    pages.dedup();
+    if pages.is_empty() {
+        pages = block.pages.clone();
+    }
+    SourceLocation {
+        block_index,
+        block_id: block.block.0,
+        pages,
+        canonical_range: OffsetRange {
+            start: range.start,
+            end: range.end,
+        },
+        raw_range: OffsetRange {
+            start: raw.start,
+            end: raw.end,
+        },
+        source_evidence_complete: source_evidence_complete(side, block_index, range, &glyph_ids),
+        glyph_ids,
+        normalization_clean: block.issues.is_empty(),
+        issue_free_projected: issue_free_projected(side, block_index, range),
+    }
+}
+
+fn source_evidence_complete(
+    side: &Side,
+    block_index: usize,
+    range: ScalarRange,
+    glyph_ids: &[u64],
+) -> bool {
+    let block = &side.blocks[block_index];
+    range.start < range.end
+        && range.end <= block.canonical.text.chars().count()
+        && !block
+            .canonical
+            .unmapped
+            .iter()
+            .any(|token| range.start <= token.scalar_index && token.scalar_index < range.end)
+        && canonical_source_map_complete(block, range)
+        && !glyph_ids.is_empty()
+}
+
+fn canonical_source_map_complete(block: &BlockText, range: ScalarRange) -> bool {
+    let mut cursor = range.start;
+    for entry in &block.canonical.source_map {
+        if entry.output_range.end <= cursor {
+            continue;
+        }
+        if entry.output_range.start > cursor {
+            return false;
+        }
+        cursor = cursor.max(entry.output_range.end.min(range.end));
+        if cursor == range.end {
+            return true;
+        }
+    }
+    cursor == range.end
+}
+
+fn issue_free_projected(side: &Side, block_index: usize, range: ScalarRange) -> bool {
+    let block = &side.blocks[block_index];
+    block.issues.iter().all(|issue| {
+        let projected = block.raw_to_canonical_range(issue.raw_range);
+        projected.start <= projected.end
+            && projected.end <= block.canonical.text.chars().count()
+            && !ranges_overlap(range, projected)
+    })
+}
+
+fn ranges_overlap(left: ScalarRange, right: ScalarRange) -> bool {
+    if left.start == left.end || right.start == right.end {
+        let point = if left.start == left.end {
+            left.start
+        } else {
+            right.start
+        };
+        let other = if left.start == left.end { right } else { left };
+        other.start <= point && point < other.end
+    } else {
+        left.start < right.end && right.start < left.end
+    }
+}
+
+fn scalar_range(range: &Range<usize>) -> ScalarRange {
+    ScalarRange {
+        start: range.start,
+        end: range.end,
+    }
+}
+
+fn relation(window: Range<usize>, target: Range<usize>) -> Relation {
+    if window.end <= target.start {
+        Relation::Before
+    } else if window.start >= target.end {
+        Relation::After
+    } else {
+        Relation::Inside
+    }
+}
+
+fn hash_chars(chars: &[char]) -> WindowHash {
+    let mut first = 0u64;
+    let mut second = 0u64;
+    for value in chars {
+        let code = *value as u64 + 1;
+        first = first.wrapping_mul(1_000_003).wrapping_add(code);
+        second = second.wrapping_mul(1_000_033).wrapping_add(code);
+    }
+    WindowHash { first, second }
+}
+
+fn collapse_whitespace(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}

@@ -248,12 +248,38 @@ pub struct RecoveredAtomicDiff {
     /// Emitted semantic hunks and the exact edit subsequence behind each one.
     pub changed_occurrences: Vec<RecoveredAtomicOccurrence>,
     pub edits: Vec<AtomicEdit>,
-    pub old_best_score: u16,
-    pub old_second_score: u16,
-    pub old_best_scope: Option<RecoveryWatchNearScope>,
-    pub new_best_score: u16,
-    pub new_second_score: u16,
-    pub new_best_scope: Option<RecoveryWatchNearScope>,
+    pub relation: RecoveredRelationEvidence,
+}
+
+/// Evidence that justified one retained recovered atomic diff.
+///
+/// Near recovery carries reciprocal search scores. Source-anchored gap
+/// recovery carries the four exact ranges that bracket the inferred gap and
+/// intentionally has no near score fields to populate.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RecoveredRelationEvidence {
+    Near {
+        old_best_score: u16,
+        old_second_score: u16,
+        old_best_scope: Option<RecoveryWatchNearScope>,
+        new_best_score: u16,
+        new_second_score: u16,
+        new_best_scope: Option<RecoveryWatchNearScope>,
+    },
+    AnchoredGap {
+        old_before: RecoveredAnchorRange,
+        old_after: RecoveredAnchorRange,
+        new_before: RecoveredAnchorRange,
+        new_after: RecoveredAnchorRange,
+    },
+}
+
+/// One exact anchor within a single source block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecoveredAnchorRange {
+    pub block: BlockId,
+    pub canonical_range: ScalarRange,
+    pub comparable_range: TokenRange,
 }
 
 /// Internal producer that resolved a content range or emitted a change.
@@ -268,6 +294,7 @@ pub enum ChangeOrigin {
     RunningMatter,
     RangeLocalExact,
     TrustedResidualExact,
+    AnchoredGap,
 }
 
 /// Counts committed output and resolved context for one [`ChangeOrigin`].
@@ -292,6 +319,7 @@ pub struct ChangeOriginMetrics {
     pub running_matter: ChangeOriginMetric,
     pub range_local_exact: ChangeOriginMetric,
     pub trusted_residual_exact: ChangeOriginMetric,
+    pub anchored_gap: ChangeOriginMetric,
 }
 
 impl ChangeOriginMetrics {
@@ -306,6 +334,7 @@ impl ChangeOriginMetrics {
             ChangeOrigin::RunningMatter => &mut self.running_matter,
             ChangeOrigin::RangeLocalExact => &mut self.range_local_exact,
             ChangeOrigin::TrustedResidualExact => &mut self.trusted_residual_exact,
+            ChangeOrigin::AnchoredGap => &mut self.anchored_gap,
         }
     }
 }
@@ -2828,6 +2857,7 @@ fn apply_ordered_alignment_origin(
         metrics.change_origins.running_matter,
         metrics.change_origins.range_local_exact,
         metrics.change_origins.trusted_residual_exact,
+        metrics.change_origins.anchored_gap,
     ] {
         recovery.event_count = recovery.event_count.checked_add(metric.event_count)?;
         recovery.old_changed_tokens = recovery
@@ -3022,6 +3052,7 @@ pub(super) fn checked_add_origin_metrics(
         ChangeOrigin::RunningMatter,
         ChangeOrigin::RangeLocalExact,
         ChangeOrigin::TrustedResidualExact,
+        ChangeOrigin::AnchoredGap,
     ] {
         let right = *match origin {
             ChangeOrigin::OrderedAlignment => &right.ordered_alignment,
@@ -3033,6 +3064,7 @@ pub(super) fn checked_add_origin_metrics(
             ChangeOrigin::RunningMatter => &right.running_matter,
             ChangeOrigin::RangeLocalExact => &right.range_local_exact,
             ChangeOrigin::TrustedResidualExact => &right.trusted_residual_exact,
+            ChangeOrigin::AnchoredGap => &right.anchored_gap,
         };
         let left = left.get_mut(origin);
         left.event_count = left.event_count.checked_add(right.event_count)?;
@@ -3102,7 +3134,6 @@ struct RepeatedRecoveryGroup {
 #[derive(PartialEq, Eq, Hash)]
 struct RepeatedRecoveryKey {
     deletion: bool,
-    unit_kind: sentence::RecoveryUnitKind,
     role: sentence::OccurrenceRole,
     tokens: Vec<ComparableToken>,
 }
@@ -3178,7 +3209,6 @@ fn group_repeated_recovered_changes(
                 };
                 let key = RepeatedRecoveryKey {
                     deletion: change.event.kind == ChangeKind::Deletion,
-                    unit_kind: recovered.kind,
                     role: recovered.role,
                     tokens: try_recovered_tokens(side, recovered, output_budget)?,
                 };
@@ -3595,7 +3625,73 @@ fn prepare_recovered_replacement_edits(
     }
     recovery.cross_span_replacement_new_spans.sort_unstable();
     recovery.cross_span_replacement_new_spans.dedup();
+    for replacement in &mut recovery.anchored_replacements {
+        let mut tentative_budget = *output_budget;
+        if prepare_one_anchored_gap(
+            old,
+            new,
+            replacement,
+            max_edit_distance,
+            &mut tentative_budget,
+        )? {
+            *output_budget = tentative_budget;
+        } else if !remove_consumed_ranges(
+            &mut recovery.deletion_consumed,
+            &replacement.old_consumed,
+        ) || !remove_consumed_ranges(
+            &mut recovery.insertion_consumed,
+            &replacement.new_consumed,
+        ) {
+            return None;
+        }
+    }
+    recovery
+        .anchored_replacements
+        .retain(|replacement| replacement.edits.is_some());
     Some(())
+}
+
+fn prepare_one_anchored_gap(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    replacement: &mut sentence::AnchoredGapReplacement,
+    max_edit_distance: usize,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<bool> {
+    if replacement.edits.is_some()
+        || !valid_recovered_sentence(&replacement.old)
+        || !valid_recovered_sentence(&replacement.new)
+    {
+        return None;
+    }
+    let old_tokens = try_recovered_tokens(old, &replacement.old, output_budget)?;
+    let new_tokens = try_recovered_tokens(new, &replacement.new, output_budget)?;
+    let edits = match myers::diff(&old_tokens, &new_tokens, max_edit_distance).ok()? {
+        Some(edits) if !edits.is_empty() => edits,
+        Some(_) | None => return Some(false),
+    };
+    let edit_bytes = edits
+        .capacity()
+        .checked_mul(std::mem::size_of::<AtomicEdit>())?;
+    if !output_budget.charge_many(0, edit_bytes) {
+        return None;
+    }
+    let mut projection_budget = *output_budget;
+    if !recovered_hunks_projectable(
+        old,
+        &replacement.old,
+        &old_tokens,
+        new,
+        &replacement.new,
+        &new_tokens,
+        &edits,
+        sentence::RecoveryHunkPolicy::Atomic,
+        &mut projection_budget,
+    )? {
+        return Some(false);
+    }
+    replacement.edits = Some(edits);
+    Some(true)
 }
 
 fn repeated_replacement_group_is_identical(
@@ -4046,10 +4142,13 @@ fn prepare_sentence_recovery(
     let deletions = sentence::recoveries_for_span(&recovery.deletions, span_index);
     let insertions = sentence::recoveries_for_span(&recovery.insertions, span_index);
     let replacements = sentence::replacements_for_span(&recovery.replacements, span_index);
+    let anchored_replacements =
+        sentence::anchored_replacements_for_span(&recovery.anchored_replacements, span_index);
     let change_capacity = deletions
         .len()
         .checked_add(insertions.len())?
-        .checked_add(replacements.len())?;
+        .checked_add(replacements.len())?
+        .checked_add(anchored_replacements.len())?;
     let deletion_consumed_count = recovered_range_count(&span.old, &recovery.deletion_consumed)?;
     let insertion_consumed_count = recovered_range_count(&span.new, &recovery.insertion_consumed)?;
     let unresolved_capacity = deletion_consumed_count
@@ -4092,6 +4191,19 @@ fn prepare_sentence_recovery(
         output_budget,
         retain_atomic_edits,
     )?;
+    let (anchored_old, anchored_new) = prepare_anchored_gap_replacements(
+        old,
+        new,
+        anchored_replacements,
+        &mut changes,
+        &mut recovered_atomic_diffs,
+        output_budget,
+        retain_atomic_edits,
+    )?;
+    let replacement_old = replacement_old.checked_add(anchored_old)?;
+    let replacement_new = replacement_new.checked_add(anchored_new)?;
+    change_origins.anchored_gap.old_resolved_context_tokens = anchored_old;
+    change_origins.anchored_gap.new_resolved_context_tokens = anchored_new;
     let (deletion, deletion_origins) =
         prepare_recovered_changes(deletions, ChangeKind::Deletion, &mut changes, output_budget)?;
     change_origins = checked_add_origin_metrics(change_origins, deletion_origins)?;
@@ -4344,6 +4456,7 @@ fn prepare_recovered_replacements(
             &new,
             edits,
             replacement.hunk_policy,
+            Confidence::Medium,
             output_budget,
         )?;
         if retain_atomic_edits {
@@ -4371,12 +4484,14 @@ fn prepare_recovered_replacements(
                 new_context: new.try_span(0, new.tokens.len())?,
                 changed_occurrences,
                 edits: retained_edits,
-                old_best_score: replacement.relation.old_best_score,
-                old_second_score: replacement.relation.old_second_score,
-                old_best_scope: replacement.relation.old_best_scope,
-                new_best_score: replacement.relation.new_best_score,
-                new_second_score: replacement.relation.new_second_score,
-                new_best_scope: replacement.relation.new_best_scope,
+                relation: RecoveredRelationEvidence::Near {
+                    old_best_score: replacement.relation.old_best_score,
+                    old_second_score: replacement.relation.old_second_score,
+                    old_best_scope: replacement.relation.old_best_scope,
+                    new_best_score: replacement.relation.new_best_score,
+                    new_second_score: replacement.relation.new_second_score,
+                    new_best_scope: replacement.relation.new_best_scope,
+                },
             });
         }
         changes.try_reserve_exact(1).ok()?;
@@ -4389,6 +4504,161 @@ fn prepare_recovered_replacements(
         resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
     }
     Some((resolved_old, resolved_new))
+}
+
+fn prepare_anchored_gap_replacements(
+    old_side: &Side<'_>,
+    new_side: &Side<'_>,
+    replacements: &[sentence::AnchoredGapReplacement],
+    changes: &mut Vec<OriginatedChange>,
+    recovered_atomic_diffs: &mut Vec<RecoveredAtomicDiff>,
+    output_budget: &mut RecoveryOutputBudget,
+    retain_atomic_edits: bool,
+) -> Option<(usize, usize)> {
+    let mut resolved_old = 0usize;
+    let mut resolved_new = 0usize;
+    for replacement in replacements {
+        if replacement.old.span_index != replacement.new.span_index {
+            return None;
+        }
+        for (gap, before, after) in [
+            (
+                &replacement.old,
+                &replacement.old_before,
+                &replacement.old_after,
+            ),
+            (
+                &replacement.new,
+                &replacement.new_before,
+                &replacement.new_after,
+            ),
+        ] {
+            if !valid_recovered_sentence(gap)
+                || gap.origin != ChangeOrigin::AnchoredGap
+                || gap.blocks.as_slice() != [BlockId(before.block_id)]
+                || before.block_id != after.block_id
+                || before.comparable.start >= before.comparable.end
+                || after.comparable.start >= after.comparable.end
+                || before.comparable.end != gap.comparable.start
+                || after.comparable.start != gap.comparable.end
+            {
+                return None;
+            }
+        }
+        let edits = replacement
+            .edits
+            .as_deref()
+            .filter(|edits| !edits.is_empty())?;
+        let old = recovered_group_text(old_side, &replacement.old, output_budget)?;
+        let new = recovered_group_text(new_side, &replacement.new, output_budget)?;
+        let (event, changed_occurrences) = recovered_replacement_event(
+            old_side,
+            &replacement.old,
+            &old,
+            new_side,
+            &replacement.new,
+            &new,
+            edits,
+            sentence::RecoveryHunkPolicy::Atomic,
+            Confidence::Low,
+            output_budget,
+        )?;
+        if retain_atomic_edits {
+            let trace_bytes = std::mem::size_of::<RecoveredAtomicDiff>()
+                .checked_add(edits.len().checked_mul(std::mem::size_of::<AtomicEdit>())?)?
+                .checked_add(2usize.checked_mul(std::mem::size_of::<BlockId>())?)?;
+            if !output_budget.charge(trace_bytes) {
+                return None;
+            }
+            let old_before = anchored_source_range(old_side, &replacement.old_before)?;
+            let old_after = anchored_source_range(old_side, &replacement.old_after)?;
+            let new_before = anchored_source_range(new_side, &replacement.new_before)?;
+            let new_after = anchored_source_range(new_side, &replacement.new_after)?;
+            let context = |before: &RecoveredAnchorRange, after: &RecoveredAnchorRange| {
+                Some(TextSpan {
+                    blocks: try_single_block(before.block)?,
+                    separator: None,
+                    canonical_range: ScalarRange {
+                        start: before.canonical_range.start,
+                        end: after.canonical_range.end,
+                    },
+                    comparable_range: TokenRange {
+                        start: before.comparable_range.start,
+                        end: after.comparable_range.end,
+                    },
+                })
+            };
+            let old_context = context(&old_before, &old_after)?;
+            let new_context = context(&new_before, &new_after)?;
+            let old_offset = replacement
+                .old
+                .comparable
+                .start
+                .checked_sub(old_context.comparable_range.start)?;
+            let new_offset = replacement
+                .new
+                .comparable
+                .start
+                .checked_sub(new_context.comparable_range.start)?;
+            let mut retained_edits = Vec::new();
+            retained_edits.try_reserve_exact(edits.len()).ok()?;
+            for edit in edits {
+                retained_edits.push(AtomicEdit {
+                    old: edit.old.start.checked_add(old_offset)?
+                        ..edit.old.end.checked_add(old_offset)?,
+                    new: edit.new.start.checked_add(new_offset)?
+                        ..edit.new.end.checked_add(new_offset)?,
+                });
+            }
+            recovered_atomic_diffs.try_reserve_exact(1).ok()?;
+            recovered_atomic_diffs.push(RecoveredAtomicDiff {
+                origin: ChangeOrigin::AnchoredGap,
+                old_alignment_span_index: replacement.old.span_index,
+                new_alignment_span_index: replacement.new.span_index,
+                old_context,
+                new_context,
+                changed_occurrences,
+                edits: retained_edits,
+                relation: RecoveredRelationEvidence::AnchoredGap {
+                    old_before,
+                    old_after,
+                    new_before,
+                    new_after,
+                },
+            });
+        }
+        changes.try_reserve_exact(1).ok()?;
+        changes.push(OriginatedChange {
+            event,
+            origin: ChangeOrigin::AnchoredGap,
+            repeated_group: None,
+        });
+        resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
+        resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
+    }
+    Some((resolved_old, resolved_new))
+}
+
+fn anchored_source_range(
+    side: &Side<'_>,
+    anchor: &recovery::page_anchor::PageAnchorRange,
+) -> Option<RecoveredAnchorRange> {
+    let block = BlockId(anchor.block_id);
+    let (start, end) = recovered_scalar_boundaries(
+        side,
+        &[block],
+        None,
+        anchor.comparable.start,
+        anchor.comparable.end,
+    )?;
+    Some(RecoveredAnchorRange {
+        block,
+        canonical_range: ScalarRange { start, end },
+        comparable_range: TokenRange {
+            start: anchor.comparable.start,
+            end: anchor.comparable.end,
+        },
+    })
 }
 
 fn replacement_origin_contexts(
@@ -4485,6 +4755,7 @@ fn recovered_replacement_event(
     new: &GroupText,
     edits: &[AtomicEdit],
     hunk_policy: sentence::RecoveryHunkPolicy,
+    confidence: Confidence,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<(ChangeEvent, Vec<RecoveredAtomicOccurrence>)> {
     let mut occurrences = Vec::new();
@@ -4576,7 +4847,7 @@ fn recovered_replacement_event(
         ChangeEvent {
             kind: ChangeKind::Replacement,
             occurrences,
-            confidence: Confidence::Medium,
+            confidence,
             tags,
         },
         changed_occurrences,
@@ -8824,6 +9095,67 @@ mod tests {
     }
 
     #[test]
+    fn repeated_footer_groups_line_and_trusted_tail_occurrences() {
+        let mut old = vec![
+            line_block(1, "Stable review watermark"),
+            line_block(2, "Stable review watermark"),
+        ];
+        for block in &mut old {
+            block.role = BlockRole::RepeatedFooter;
+        }
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[None, Some(TrustedRunId(1))],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].occurrences.len(), 2);
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn inferred_parent_competition_preserves_footer_recovery_without_bypassing_gaps() {
+        let old = repeated_role_blocks(
+            [1, 2],
+            "Stable review watermark.",
+            BlockRole::RepeatedFooter,
+        );
+        let competition = vec![
+            AlignmentEvidence::TextSimilarity,
+            AlignmentEvidence::CandidateCompetition,
+        ];
+        let mut inferred = competition.clone();
+        inferred.push(AlignmentEvidence::ReadingOrderInferred);
+        let mut extraction_gap = inferred.clone();
+        extraction_gap.push(AlignmentEvidence::ExtractionGap);
+        for (evidence, eligible) in [
+            (competition, false),
+            (inferred, true),
+            (extraction_gap, false),
+        ] {
+            let result = compare_sentence_recovery(
+                &old,
+                &[],
+                &[Some(TrustedRunId(1)), Some(TrustedRunId(2))],
+                &[],
+                5,
+                evidence,
+            );
+            if eligible {
+                assert_eq!(result.changes.len(), 1);
+                assert_eq!(result.changes[0].occurrences.len(), 2);
+                assert!(result.unresolved_regions.is_empty());
+            } else {
+                assert!(result.changes.is_empty());
+                assert!(!result.unresolved_regions.is_empty());
+            }
+        }
+    }
+
+    #[test]
     fn repeated_recovery_budget_failure_keeps_all_span_fallbacks() {
         let old = repeated_role_blocks(
             [1, 2, 3],
@@ -10741,6 +11073,122 @@ mod tests {
         assert_eq!(span.separator, Some(BlockSeparator::Space));
         assert_eq!(span.canonical_range, ScalarRange { start: 4, end: 8 });
         assert_eq!(span.comparable_range, TokenRange { start: 4, end: 8 });
+    }
+
+    #[test]
+    fn anchored_gap_emission_counts_only_gap_and_retains_context() {
+        let old_blocks = vec![sentence_block(40, "purpose. For example,")];
+        let new_blocks = vec![sentence_block(42, "purpose; for example,")];
+        let old = SidePlan::inspect("old", &old_blocks)
+            .expect("valid anchored-gap fixture")
+            .materialize()
+            .expect("valid anchored-gap fixture");
+        let new = SidePlan::inspect("new", &new_blocks)
+            .expect("valid anchored-gap fixture")
+            .materialize()
+            .expect("valid anchored-gap fixture");
+        let gap = |block| sentence::RecoveredSentence {
+            origin: ChangeOrigin::AnchoredGap,
+            span_index: 0,
+            kind: sentence::RecoveryUnitKind::Sentence,
+            role: sentence::OccurrenceRole::Body,
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical: ScalarRange { start: 7, end: 13 },
+            comparable: TokenRange { start: 7, end: 13 },
+            source_tokens: 6,
+        };
+        let anchor = |block_id, comparable| recovery::page_anchor::PageAnchorRange {
+            block_id,
+            comparable,
+            pages: None,
+        };
+        let mut replacement = sentence::AnchoredGapReplacement {
+            old: gap(40),
+            new: gap(42),
+            old_consumed: Vec::new(),
+            new_consumed: Vec::new(),
+            old_before: anchor(40, 0..7),
+            old_after: anchor(40, 13..21),
+            new_before: anchor(42, 0..7),
+            new_after: anchor(42, 13..21),
+            edits: None,
+        };
+        let mut changes = Vec::new();
+        let mut traces = Vec::new();
+        let mut budget = RecoveryOutputBudget::default();
+        let mut exhausted = RecoveryOutputBudget::with_limits(RecoveryOutputLimits {
+            max_items: 0,
+            max_bytes: 0,
+        });
+        assert_eq!(
+            prepare_one_anchored_gap(&old, &new, &mut replacement, 10, &mut exhausted),
+            None
+        );
+        assert!(replacement.edits.is_none());
+        assert_eq!(
+            prepare_one_anchored_gap(
+                &old,
+                &new,
+                &mut replacement,
+                0,
+                &mut RecoveryOutputBudget::default()
+            ),
+            Some(false)
+        );
+        assert!(replacement.edits.is_none());
+        assert_eq!(
+            prepare_one_anchored_gap(&old, &new, &mut replacement, 10, &mut budget),
+            Some(true)
+        );
+        assert_eq!(
+            prepare_anchored_gap_replacements(
+                &old,
+                &new,
+                &[replacement],
+                &mut changes,
+                &mut traces,
+                &mut budget,
+                true,
+            ),
+            Some((6, 6))
+        );
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].event.confidence, Confidence::Low);
+        assert_eq!(changes[0].event.kind, ChangeKind::Replacement);
+        assert_eq!(changes[0].origin, ChangeOrigin::AnchoredGap);
+        let trace = &traces[0];
+        assert_eq!(
+            trace.old_context.comparable_range,
+            TokenRange { start: 0, end: 21 }
+        );
+        assert_eq!(
+            trace.new_context.comparable_range,
+            TokenRange { start: 0, end: 21 }
+        );
+        assert_eq!(
+            trace.edits.iter().map(|edit| edit.old.len()).sum::<usize>(),
+            2
+        );
+        assert_eq!(
+            trace.edits.iter().map(|edit| edit.new.len()).sum::<usize>(),
+            2
+        );
+        assert_eq!(trace.edits[0].old.start, 7);
+        assert_eq!(trace.changed_occurrences.len(), 2);
+        assert_eq!(
+            trace.changed_occurrences[0]
+                .occurrence
+                .old_span
+                .as_ref()
+                .expect("valid anchored-gap fixture")
+                .comparable_range,
+            TokenRange { start: 7, end: 8 }
+        );
+        assert!(matches!(
+            trace.relation,
+            RecoveredRelationEvidence::AnchoredGap { .. }
+        ));
     }
 
     #[test]
@@ -12861,8 +13309,14 @@ mod tests {
             .expect("recovery atomic retention was requested");
         assert_eq!(recovered.len(), 1);
         assert_eq!(recovered[0].origin, ChangeOrigin::SentenceNear);
-        assert!(recovered[0].old_best_score >= 7_000);
-        assert!(recovered[0].new_best_score >= 7_000);
+        assert!(matches!(
+            recovered[0].relation,
+            RecoveredRelationEvidence::Near {
+                old_best_score: 7_000..,
+                new_best_score: 7_000..,
+                ..
+            }
+        ));
         assert_eq!(recovered[0].old_alignment_span_index, 0);
         assert_eq!(recovered[0].new_alignment_span_index, 0);
         assert_eq!(

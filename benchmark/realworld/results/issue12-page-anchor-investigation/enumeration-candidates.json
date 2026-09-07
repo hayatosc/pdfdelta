@@ -1,0 +1,277 @@
+{
+  "status": "diagnostic_only_not_a_recovery_proof",
+  "limitations": [
+    "Case-insensitive item comparison proposes correspondence; original case differences must remain in exact diff.",
+    "Page separation does not establish equivalence of the surrounding sentences.",
+    "Anchor uniqueness in the source artifact counts within-block windows; arbitrary unproven cross-block orders are not covered.",
+    "No benchmark quotes or pair id participate in candidate selection."
+  ],
+  "candidate_counts": {
+    "Old": 4,
+    "New": 2
+  },
+  "anchors": [
+    {
+      "Old": {
+        "block": 293,
+        "range": [
+          391,
+          555
+        ],
+        "pages": [
+          16
+        ]
+      },
+      "New": {
+        "block": 519,
+        "range": [
+          199,
+          363
+        ],
+        "pages": [
+          29
+        ]
+      }
+    },
+    {
+      "Old": {
+        "block": 298,
+        "range": [
+          796,
+          941
+        ],
+        "pages": [
+          16
+        ]
+      },
+      "New": {
+        "block": 538,
+        "range": [
+          228,
+          373
+        ],
+        "pages": [
+          29
+        ]
+      }
+    }
+  ],
+  "relations": [
+    {
+      "old": {
+        "block": 166,
+        "pages": [
+          9
+        ],
+        "range": [
+          376,
+          429
+        ],
+        "label": "Functions",
+        "items": [
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions—Identify, Protect, Detect, Respond, Recover"
+      },
+      "new": {
+        "block": 99,
+        "pages": [
+          7
+        ],
+        "range": [
+          13,
+          80
+        ],
+        "label": "Functions",
+        "items": [
+          "govern",
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER"
+      },
+      "same_anchor_side": true,
+      "page_evidence": [
+        {
+          "anchor": 0,
+          "old": "before",
+          "new": "before"
+        },
+        {
+          "anchor": 1,
+          "old": "before",
+          "new": "before"
+        }
+      ]
+    },
+    {
+      "old": {
+        "block": 166,
+        "pages": [
+          9
+        ],
+        "range": [
+          376,
+          429
+        ],
+        "label": "Functions",
+        "items": [
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions—Identify, Protect, Detect, Respond, Recover"
+      },
+      "new": {
+        "block": 556,
+        "pages": [
+          30
+        ],
+        "range": [
+          80,
+          146
+        ],
+        "label": "Functions",
+        "items": [
+          "govern",
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions: Govern, Identify, Protect, Detect, Respond, and Recover"
+      },
+      "same_anchor_side": false,
+      "page_evidence": [
+        {
+          "anchor": 0,
+          "old": "before",
+          "new": "after"
+        },
+        {
+          "anchor": 1,
+          "old": "before",
+          "new": "after"
+        }
+      ]
+    },
+    {
+      "old": {
+        "block": 333,
+        "pages": [
+          19
+        ],
+        "range": [
+          244,
+          302
+        ],
+        "label": "Functions",
+        "items": [
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions: Identify, Protect, Detect, Respond, and Recover"
+      },
+      "new": {
+        "block": 99,
+        "pages": [
+          7
+        ],
+        "range": [
+          13,
+          80
+        ],
+        "label": "Functions",
+        "items": [
+          "govern",
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER"
+      },
+      "same_anchor_side": false,
+      "page_evidence": [
+        {
+          "anchor": 0,
+          "old": "after",
+          "new": "before"
+        },
+        {
+          "anchor": 1,
+          "old": "after",
+          "new": "before"
+        }
+      ]
+    },
+    {
+      "old": {
+        "block": 333,
+        "pages": [
+          19
+        ],
+        "range": [
+          244,
+          302
+        ],
+        "label": "Functions",
+        "items": [
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions: Identify, Protect, Detect, Respond, and Recover"
+      },
+      "new": {
+        "block": 556,
+        "pages": [
+          30
+        ],
+        "range": [
+          80,
+          146
+        ],
+        "label": "Functions",
+        "items": [
+          "govern",
+          "identify",
+          "protect",
+          "detect",
+          "respond",
+          "recover"
+        ],
+        "source_text": "Functions: Govern, Identify, Protect, Detect, Respond, and Recover"
+      },
+      "same_anchor_side": true,
+      "page_evidence": [
+        {
+          "anchor": 0,
+          "old": "after",
+          "new": "after"
+        },
+        {
+          "anchor": 1,
+          "old": "after",
+          "new": "after"
+        }
+      ]
+    }
+  ]
+}

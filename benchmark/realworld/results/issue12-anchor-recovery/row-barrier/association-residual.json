@@ -1,0 +1,22 @@
+{
+  "source_manifest": "source.json",
+  "quote": "association-definition-punctuation",
+  "old_block": 297,
+  "new_block": 354,
+  "old_text": "A relationship for a particular purpose. For example, a key is associated with the application or process for which it will be used. ",
+  "new_text": "A relationship for a particular purpose; for example, a key is associated with the application or process for which it will be used. ",
+  "unresolved_ranges": [
+    {
+      "start": 39,
+      "end": 45,
+      "old": ". For ",
+      "new": "; for "
+    },
+    {
+      "start": 70,
+      "end": 91,
+      "old": "ted with the applicat",
+      "new": "ted with the applicat"
+    }
+  ]
+}

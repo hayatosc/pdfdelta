@@ -1,0 +1,2 @@
+OK pair=jvms-se17-to-se21 set=dev role=standard provenance=verified extracted=incomplete comparison=incomplete coverage=old=unknown,new=unknown,comp=unknown unresolved=490 runtime_ms=37027 candidate_visits=61123904/128000000 required_candidate_visits=61123904 required_candidate_components=exact:106971,ngram:61004389,short_fallback:12544 quality_skipped="no expected annotations are recorded for this pair"
+1/1 revision pairs healthy; 0 stopped at resource limits; 0 failed

@@ -1,0 +1,824 @@
+//! Narrow structural recovery for labelled inline enumerations.
+
+use std::ops::Range;
+
+const MIN_ITEMS: usize = 4;
+const MAX_ITEMS: usize = 32;
+const MIN_DICE_SCORE: u16 = 7_000;
+const DICE_SCALE: usize = 10_000;
+const PARSE_WORK_PER_SCALAR: usize = 64;
+
+/// A labelled enumeration retained as owned source spelling.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::diff) struct Enumeration {
+    pub(in crate::diff) label: String,
+    pub(in crate::diff) items: Vec<String>,
+}
+
+/// One side-local enumeration candidate and its anchor-relative scope.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::diff) struct EnumerationCandidate {
+    pub(in crate::diff) enumeration: Enumeration,
+    pub(in crate::diff) eligible: bool,
+    pub(in crate::diff) scope: Vec<i8>,
+}
+
+/// One structurally supported old/new enumeration relationship.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::diff) struct EnumerationPair {
+    pub(in crate::diff) old: usize,
+    pub(in crate::diff) new: usize,
+    pub(in crate::diff) score: u16,
+}
+
+/// Resource failure while parsing a sentence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::diff) enum EnumerationParseError {
+    AllocationFailure,
+    CounterOverflow,
+    WorkLimit,
+}
+
+/// Parses the only supported labelled inline-enumeration forms.
+///
+/// The returned strings retain their original ASCII spelling. A sentence with
+/// no valid enumeration or more than one valid enumeration returns
+/// `Ok(None)`. Parsing has a length-derived linear work ceiling; resource
+/// exhaustion is returned as an error so callers can abort the whole census.
+pub(in crate::diff) fn parse_enumeration(
+    text: &[char],
+) -> Result<Option<Enumeration>, EnumerationParseError> {
+    let limit = text
+        .len()
+        .checked_mul(PARSE_WORK_PER_SCALAR)
+        .ok_or(EnumerationParseError::CounterOverflow)?;
+    let mut budget = ParseBudget { used: 0, limit };
+    let mut parsed = None;
+    for (delimiter_index, delimiter) in text.iter().copied().enumerate() {
+        budget.consume(1)?;
+        if !matches!(delimiter, ':' | '—' | '–') {
+            continue;
+        }
+        let Some(candidate) = parse_at_delimiter(text, delimiter_index, &mut budget)? else {
+            continue;
+        };
+        if parsed.is_some() {
+            return Ok(None);
+        }
+        parsed = Some(candidate);
+    }
+    Ok(parsed)
+}
+
+/// Selects reciprocal, unique relationships within known identical scopes.
+///
+/// Every cross-side candidate pair consumes one work unit plus the scalar and
+/// scope comparisons it performs. Candidate validation is charged once per
+/// side. Census counts are built before either side's eligibility is
+/// considered, so an ineligible duplicate vetoes an otherwise eligible
+/// relationship. Unknown scope entries act as wildcards for that census; they
+/// can veto a known relationship but can never themselves produce an output
+/// pair. A mismatch in scope length is treated conservatively as compatible
+/// for the census.
+pub(in crate::diff) fn select_enumeration_pairs(
+    old: &[EnumerationCandidate],
+    new: &[EnumerationCandidate],
+    max_comparisons: usize,
+    max_pairs: usize,
+) -> Option<Vec<EnumerationPair>> {
+    let mut old_matches = empty_match_summaries(old.len())?;
+    let mut new_matches = empty_match_summaries(new.len())?;
+    let mut work = WorkBudget::new(max_comparisons);
+    let old_valid = validate_candidates(old, &mut work)?;
+    let new_valid = validate_candidates(new, &mut work)?;
+
+    // deliberate: bounded O(N*M) census; candidate counts are currently small
+    // and a posting index would obscure the ambiguity proof.
+    for (old_index, old_candidate) in old.iter().enumerate() {
+        for (new_index, new_candidate) in new.iter().enumerate() {
+            work.consume(1).ok()?;
+            let Some((score, known_scope)) = candidate_score(
+                old_candidate,
+                new_candidate,
+                old_valid[old_index],
+                new_valid[new_index],
+                &mut work,
+            )
+            .ok()?
+            else {
+                continue;
+            };
+            record_match(&mut old_matches[old_index], new_index, score, known_scope);
+            record_match(&mut new_matches[new_index], old_index, score, known_scope);
+        }
+    }
+
+    let output_capacity = old.len().min(new.len()).min(max_pairs);
+    let mut pairs = Vec::new();
+    pairs.try_reserve_exact(output_capacity).ok()?;
+    for (old_index, old_candidate) in old.iter().enumerate() {
+        let old_match = old_matches[old_index];
+        if old_match.count != 1 || !old_match.known_scope || !old_candidate.eligible {
+            continue;
+        }
+        let new_index = old_match.partner;
+        let new_candidate = new.get(new_index)?;
+        let new_match = new_matches[new_index];
+        if new_match.count != 1
+            || !new_match.known_scope
+            || new_match.partner != old_index
+            || !new_candidate.eligible
+        {
+            continue;
+        }
+        if pairs.len() >= max_pairs {
+            return None;
+        }
+        pairs.push(EnumerationPair {
+            old: old_index,
+            new: new_index,
+            score: old_match.score,
+        });
+    }
+    Some(pairs)
+}
+
+struct WorkBudget {
+    remaining: usize,
+}
+
+impl WorkBudget {
+    fn new(limit: usize) -> Self {
+        Self { remaining: limit }
+    }
+
+    fn consume(&mut self, amount: usize) -> Result<(), ()> {
+        self.remaining = self.remaining.checked_sub(amount).ok_or(())?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct MatchSummary {
+    count: u8,
+    partner: usize,
+    score: u16,
+    known_scope: bool,
+}
+
+fn empty_match_summaries(count: usize) -> Option<Vec<MatchSummary>> {
+    let mut summaries = Vec::new();
+    summaries.try_reserve_exact(count).ok()?;
+    for _ in 0..count {
+        summaries.push(MatchSummary::default());
+    }
+    Some(summaries)
+}
+
+fn record_match(summary: &mut MatchSummary, partner: usize, score: u16, known_scope: bool) {
+    if summary.count == 0 {
+        summary.partner = partner;
+        summary.score = score;
+        summary.known_scope = known_scope;
+    }
+    summary.count = summary.count.saturating_add(1).min(2);
+}
+
+fn validate_candidates(
+    candidates: &[EnumerationCandidate],
+    work: &mut WorkBudget,
+) -> Option<Vec<bool>> {
+    let mut valid = Vec::new();
+    valid.try_reserve_exact(candidates.len()).ok()?;
+    for candidate in candidates {
+        valid.push(valid_enumeration(&candidate.enumeration, work).ok()?);
+    }
+    Some(valid)
+}
+
+fn candidate_score(
+    old: &EnumerationCandidate,
+    new: &EnumerationCandidate,
+    old_valid: bool,
+    new_valid: bool,
+    work: &mut WorkBudget,
+) -> Result<Option<(u16, bool)>, ()> {
+    let Some(known_scope) = census_scope_compatible(&old.scope, &new.scope, work)? else {
+        return Ok(None);
+    };
+    if !old_valid || !new_valid {
+        return Ok(None);
+    }
+    if !ascii_equal(&old.enumeration.label, &new.enumeration.label, work)? {
+        return Ok(None);
+    }
+
+    let (shorter, longer) = if old.enumeration.items.len() < new.enumeration.items.len() {
+        (&old.enumeration.items, &new.enumeration.items)
+    } else {
+        (&new.enumeration.items, &old.enumeration.items)
+    };
+    if !strict_subsequence(shorter, longer, work)? {
+        return Ok(None);
+    }
+    let score = item_dice_score(&old.enumeration.items, &new.enumeration.items, work)?;
+    Ok((score >= MIN_DICE_SCORE).then_some((score, known_scope)))
+}
+
+fn valid_enumeration(enumeration: &Enumeration, work: &mut WorkBudget) -> Result<bool, ()> {
+    if !(MIN_ITEMS..=MAX_ITEMS).contains(&enumeration.items.len())
+        || !is_identifier(&enumeration.label, work)?
+    {
+        return Ok(false);
+    }
+    for (index, item) in enumeration.items.iter().enumerate() {
+        if !is_identifier(item, work)? {
+            return Ok(false);
+        }
+        for previous in &enumeration.items[..index] {
+            if ascii_equal(previous, item, work)? {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn strict_subsequence(
+    shorter: &[String],
+    longer: &[String],
+    work: &mut WorkBudget,
+) -> Result<bool, ()> {
+    if shorter.len() >= longer.len() {
+        return Ok(false);
+    }
+    let mut remaining = longer.iter();
+    for item in shorter {
+        let mut found = false;
+        for candidate in &mut remaining {
+            if ascii_equal(item, candidate, work)? {
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn item_dice_score(left: &[String], right: &[String], work: &mut WorkBudget) -> Result<u16, ()> {
+    let mut shared = 0usize;
+    for (index, item) in left.iter().enumerate() {
+        let mut left_count = 0usize;
+        for previous in &left[..=index] {
+            if ascii_equal(previous, item, work)? {
+                left_count = left_count.checked_add(1).ok_or(())?;
+            }
+        }
+        let mut right_count = 0usize;
+        for candidate in right {
+            if ascii_equal(candidate, item, work)? {
+                right_count = right_count.checked_add(1).ok_or(())?;
+            }
+        }
+        if left_count <= right_count {
+            shared = shared.checked_add(1).ok_or(())?;
+        }
+    }
+    let denominator = left.len().checked_add(right.len()).ok_or(())?;
+    let numerator = shared
+        .checked_mul(2)
+        .and_then(|value| value.checked_mul(DICE_SCALE))
+        .ok_or(())?;
+    u16::try_from(numerator / denominator).map_err(|_| ())
+}
+
+fn ascii_equal(left: &str, right: &str, work: &mut WorkBudget) -> Result<bool, ()> {
+    work.consume(left.len().max(right.len()))?;
+    Ok(left.eq_ignore_ascii_case(right))
+}
+
+fn census_scope_compatible(
+    left: &[i8],
+    right: &[i8],
+    work: &mut WorkBudget,
+) -> Result<Option<bool>, ()> {
+    if left.len() != right.len() {
+        return Ok(Some(false));
+    }
+    let mut known_identical = !left.is_empty();
+    for (&left, &right) in left.iter().zip(right) {
+        work.consume(1)?;
+        if known_scope_value(left) && known_scope_value(right) {
+            if left != right {
+                return Ok(None);
+            }
+        } else {
+            known_identical = false;
+        }
+    }
+    Ok(Some(known_identical))
+}
+
+fn known_scope_value(value: i8) -> bool {
+    matches!(value, -1 | 1)
+}
+
+struct ParseBudget {
+    used: usize,
+    limit: usize,
+}
+
+impl ParseBudget {
+    fn consume(&mut self, amount: usize) -> Result<(), EnumerationParseError> {
+        let next = self
+            .used
+            .checked_add(amount)
+            .ok_or(EnumerationParseError::CounterOverflow)?;
+        if next > self.limit {
+            return Err(EnumerationParseError::WorkLimit);
+        }
+        self.used = next;
+        Ok(())
+    }
+}
+
+fn parse_at_delimiter(
+    text: &[char],
+    delimiter_index: usize,
+    budget: &mut ParseBudget,
+) -> Result<Option<Enumeration>, EnumerationParseError> {
+    let label_end = skip_whitespace_backward(text, delimiter_index, budget)?;
+    let Some(label_start) = identifier_start(text, label_end, budget)? else {
+        return Ok(None);
+    };
+    let cursor_start = delimiter_index
+        .checked_add(1)
+        .ok_or(EnumerationParseError::CounterOverflow)?;
+    let mut cursor = skip_whitespace_forward(text, cursor_start, budget)?;
+    let Some(first_item_end) = identifier_end(text, cursor, budget)? else {
+        return Ok(None);
+    };
+    let mut item_ranges = Vec::new();
+    item_ranges
+        .try_reserve_exact(MAX_ITEMS)
+        .map_err(|_| EnumerationParseError::AllocationFailure)?;
+    item_ranges.push(cursor..first_item_end);
+    cursor = skip_whitespace_forward(text, first_item_end, budget)?;
+
+    while let Some(',') = text.get(cursor).copied() {
+        if item_ranges.len() == MAX_ITEMS {
+            return Ok(None);
+        }
+        let comma_end = cursor
+            .checked_add(1)
+            .ok_or(EnumerationParseError::CounterOverflow)?;
+        cursor = skip_whitespace_forward(text, comma_end, budget)?;
+        if let Some(after_and) = conjunction_end(text, cursor, budget)? {
+            cursor = skip_whitespace_forward(text, after_and, budget)?;
+        }
+        let item_start = cursor;
+        let Some(item_end) = identifier_end(text, item_start, budget)? else {
+            return Ok(None);
+        };
+        item_ranges.push(item_start..item_end);
+        cursor = skip_whitespace_forward(text, item_end, budget)?;
+    }
+
+    if !(MIN_ITEMS..=MAX_ITEMS).contains(&item_ranges.len())
+        || has_repeated_items(text, &item_ranges, budget)?
+    {
+        return Ok(None);
+    }
+    let Some(label) = copy_ascii(text, label_start..label_end, budget)? else {
+        return Ok(None);
+    };
+    let mut items = Vec::new();
+    items
+        .try_reserve_exact(item_ranges.len())
+        .map_err(|_| EnumerationParseError::AllocationFailure)?;
+    for range in item_ranges {
+        let Some(item) = copy_ascii(text, range, budget)? else {
+            return Ok(None);
+        };
+        items.push(item);
+    }
+    Ok(Some(Enumeration { label, items }))
+}
+
+fn has_repeated_items(
+    text: &[char],
+    ranges: &[Range<usize>],
+    budget: &mut ParseBudget,
+) -> Result<bool, EnumerationParseError> {
+    for (index, range) in ranges.iter().enumerate() {
+        for previous in &ranges[..index] {
+            if ascii_ranges_equal(text, previous, range, budget)? {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn conjunction_end(
+    text: &[char],
+    start: usize,
+    budget: &mut ParseBudget,
+) -> Result<Option<usize>, EnumerationParseError> {
+    let Some(end) = identifier_end(text, start, budget)? else {
+        return Ok(None);
+    };
+    budget.consume(3)?;
+    if end - start == 3
+        && text[start..end]
+            .iter()
+            .copied()
+            .zip(['a', 'n', 'd'])
+            .all(|(left, right)| left.eq_ignore_ascii_case(&right))
+        && text
+            .get(end)
+            .is_some_and(|character| character.is_ascii_whitespace())
+    {
+        Ok(Some(end))
+    } else {
+        Ok(None)
+    }
+}
+
+fn identifier_start(
+    text: &[char],
+    end: usize,
+    budget: &mut ParseBudget,
+) -> Result<Option<usize>, EnumerationParseError> {
+    if end == 0 {
+        return Ok(None);
+    }
+    let mut start = end;
+    while start > 0 && is_identifier_continue(text[start - 1]) {
+        budget.consume(1)?;
+        start -= 1;
+    }
+    Ok((start < end && text[start].is_ascii_alphabetic()).then_some(start))
+}
+
+fn identifier_end(
+    text: &[char],
+    start: usize,
+    budget: &mut ParseBudget,
+) -> Result<Option<usize>, EnumerationParseError> {
+    let Some(&first) = text.get(start) else {
+        return Ok(None);
+    };
+    if !first.is_ascii_alphabetic() {
+        return Ok(None);
+    }
+    budget.consume(1)?;
+    let mut end = start
+        .checked_add(1)
+        .ok_or(EnumerationParseError::CounterOverflow)?;
+    while text
+        .get(end)
+        .is_some_and(|&character| is_identifier_continue(character))
+    {
+        budget.consume(1)?;
+        end = end
+            .checked_add(1)
+            .ok_or(EnumerationParseError::CounterOverflow)?;
+    }
+    Ok(Some(end))
+}
+
+fn is_identifier(value: &str, work: &mut WorkBudget) -> Result<bool, ()> {
+    let mut characters = value.chars();
+    let Some(first) = characters.next() else {
+        return Ok(false);
+    };
+    work.consume(1)?;
+    if !first.is_ascii_alphabetic() {
+        return Ok(false);
+    }
+    for character in characters {
+        work.consume(1)?;
+        if !is_identifier_continue(character) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn is_identifier_continue(value: char) -> bool {
+    value.is_ascii_alphanumeric() || matches!(value, '-' | '_')
+}
+
+fn skip_whitespace_backward(
+    text: &[char],
+    mut index: usize,
+    budget: &mut ParseBudget,
+) -> Result<usize, EnumerationParseError> {
+    while index > 0 && text[index - 1].is_ascii_whitespace() {
+        budget.consume(1)?;
+        index -= 1;
+    }
+    Ok(index)
+}
+
+fn skip_whitespace_forward(
+    text: &[char],
+    mut index: usize,
+    budget: &mut ParseBudget,
+) -> Result<usize, EnumerationParseError> {
+    while text
+        .get(index)
+        .is_some_and(|&character| character.is_ascii_whitespace())
+    {
+        budget.consume(1)?;
+        index = index
+            .checked_add(1)
+            .ok_or(EnumerationParseError::CounterOverflow)?;
+    }
+    Ok(index)
+}
+
+fn ascii_ranges_equal(
+    text: &[char],
+    left: &Range<usize>,
+    right: &Range<usize>,
+    budget: &mut ParseBudget,
+) -> Result<bool, EnumerationParseError> {
+    let Some((left, right)) = text.get(left.clone()).zip(text.get(right.clone())) else {
+        return Ok(false);
+    };
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (&left, &right) in left.iter().zip(right) {
+        budget.consume(1)?;
+        if !left.eq_ignore_ascii_case(&right) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn copy_ascii(
+    text: &[char],
+    range: Range<usize>,
+    budget: &mut ParseBudget,
+) -> Result<Option<String>, EnumerationParseError> {
+    let Some(source) = text.get(range.clone()) else {
+        return Ok(None);
+    };
+    let mut value = String::new();
+    value
+        .try_reserve_exact(source.len())
+        .map_err(|_| EnumerationParseError::AllocationFailure)?;
+    budget.consume(source.len())?;
+    value.extend(source.iter().copied());
+    Ok(Some(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WORK: usize = usize::MAX;
+
+    fn enumeration(text: &str) -> Enumeration {
+        parse_enumeration(&text.chars().collect::<Vec<_>>())
+            .expect("parser succeeds")
+            .expect("valid enumeration")
+    }
+
+    fn candidate(text: &str, eligible: bool, scope: &[i8]) -> EnumerationCandidate {
+        EnumerationCandidate {
+            enumeration: enumeration(text),
+            eligible,
+            scope: scope.to_vec(),
+        }
+    }
+
+    #[test]
+    fn parses_insertion_and_deletion_as_strict_subsequence() {
+        let old = [candidate("Plan: alpha, beta, gamma, delta", true, &[1])];
+        let new = [candidate(
+            "Plan: alpha, beta, gamma, delta, epsilon",
+            true,
+            &[1],
+        )];
+        let pair = select_enumeration_pairs(&old, &new, WORK, 1)
+            .expect("selection succeeds")
+            .pop()
+            .expect("insertion is paired");
+        assert_eq!(
+            pair,
+            EnumerationPair {
+                old: 0,
+                new: 0,
+                score: 8_888
+            }
+        );
+
+        let reverse = select_enumeration_pairs(&new, &old, WORK, 1)
+            .expect("selection succeeds")
+            .pop()
+            .expect("deletion is paired");
+        assert_eq!(reverse.score, 8_888);
+    }
+
+    #[test]
+    fn preserves_case_difference_in_source_items() {
+        let parsed = enumeration("Plan — Alpha, beta, GAMMA, delta trailing prose.");
+        assert_eq!(parsed.label, "Plan");
+        assert_eq!(parsed.items, ["Alpha", "beta", "GAMMA", "delta"]);
+    }
+
+    #[test]
+    fn rejects_changed_item_order() {
+        let old = [candidate("Plan: alpha, beta, gamma, delta", true, &[1])];
+        let new = [candidate(
+            "Plan: beta, alpha, gamma, delta, extra",
+            true,
+            &[1],
+        )];
+        assert!(
+            select_enumeration_pairs(&old, &new, WORK, 1)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn rejects_missing_and_repeated_items() {
+        assert!(matches!(
+            parse_enumeration(&"Plan: alpha, beta, gamma".chars().collect::<Vec<_>>()),
+            Ok(None)
+        ));
+        assert!(matches!(
+            parse_enumeration(
+                &"Plan: alpha, beta, ALPHA, delta"
+                    .chars()
+                    .collect::<Vec<_>>()
+            ),
+            Ok(None)
+        ));
+
+        let thirty_two = (0..32)
+            .map(|index| format!("item{index}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        assert!(
+            parse_enumeration(&format!("Plan: {thirty_two}").chars().collect::<Vec<_>>())
+                .expect("parser succeeds")
+                .is_some()
+        );
+        let thirty_three = (0..33)
+            .map(|index| format!("item{index}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        assert!(matches!(
+            parse_enumeration(&format!("Plan: {thirty_three}").chars().collect::<Vec<_>>()),
+            Ok(None)
+        ));
+    }
+
+    #[test]
+    fn rejects_ambiguous_multiple_lists() {
+        let text = "First: alpha, beta, gamma, delta; Second: one, two, three, four";
+        assert!(matches!(
+            parse_enumeration(&text.chars().collect::<Vec<_>>()),
+            Ok(None)
+        ));
+    }
+
+    #[test]
+    fn identical_lists_do_not_propose_replacement() {
+        let old = [candidate("Plan: alpha, beta, gamma, delta", true, &[1])];
+        let new = [candidate("Plan: alpha, beta, gamma, delta", true, &[1])];
+        assert!(
+            select_enumeration_pairs(&old, &new, WORK, 1)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn requires_same_scope_and_reciprocal_uniqueness() {
+        let old = [candidate("Plan: alpha, beta, gamma, delta", true, &[1, -1])];
+        let new = [candidate(
+            "Plan: alpha, beta, gamma, delta, epsilon",
+            true,
+            &[1, -1],
+        )];
+        assert_eq!(
+            select_enumeration_pairs(&old, &new, WORK, 1).expect("selection succeeds"),
+            [EnumerationPair {
+                old: 0,
+                new: 0,
+                score: 8_888,
+            }]
+        );
+
+        let crossing = [candidate(
+            "Plan: alpha, beta, gamma, delta, epsilon",
+            true,
+            &[-1, 1],
+        )];
+        assert!(
+            select_enumeration_pairs(&old, &crossing, WORK, 1)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn ineligible_duplicate_vetoes_eligible_pair() {
+        let old = [
+            candidate("Plan: alpha, beta, gamma, delta", true, &[1]),
+            candidate("Plan: alpha, beta, gamma, delta", false, &[1]),
+        ];
+        let new = [candidate(
+            "Plan: alpha, beta, gamma, delta, epsilon",
+            true,
+            &[1],
+        )];
+        assert!(
+            select_enumeration_pairs(&old, &new, WORK, 1)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn unknown_duplicate_vetoes_known_pair() {
+        let old = [
+            candidate("Plan: alpha, beta, gamma, delta", true, &[1]),
+            candidate("Plan: alpha, beta, gamma, delta", false, &[0]),
+        ];
+        let new = [candidate(
+            "Plan: alpha, beta, gamma, delta, epsilon",
+            true,
+            &[1],
+        )];
+        assert!(
+            select_enumeration_pairs(&old, &new, WORK, 1)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn unknown_scope_cannot_produce_a_pair_and_length_mismatch_vetoes() {
+        let old = [candidate("Plan: alpha, beta, gamma, delta", true, &[0])];
+        let new = [candidate(
+            "Plan: alpha, beta, gamma, delta, epsilon",
+            true,
+            &[0],
+        )];
+        assert!(
+            select_enumeration_pairs(&old, &new, WORK, 1)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+
+        let known_old = [candidate("Plan: alpha, beta, gamma, delta", true, &[1])];
+        let unknown_duplicate = [candidate("Plan: alpha, beta, gamma, delta", false, &[1, 0])];
+        let known_new = [candidate(
+            "Plan: alpha, beta, gamma, delta, epsilon",
+            true,
+            &[1],
+        )];
+        assert!(
+            select_enumeration_pairs(&known_old, &known_new, WORK, 1)
+                .expect("selection succeeds")
+                .len()
+                == 1
+        );
+        assert!(
+            select_enumeration_pairs(
+                &[known_old[0].clone(), unknown_duplicate[0].clone()],
+                &known_new,
+                WORK,
+                1,
+            )
+            .expect("selection succeeds")
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn work_exhaustion_is_atomic() {
+        let old = [
+            candidate("Plan: alpha, beta, gamma, delta", true, &[1]),
+            candidate("Other: one, two, three, four", true, &[1]),
+        ];
+        let new = [
+            candidate("Plan: alpha, beta, gamma, delta, epsilon", true, &[1]),
+            candidate("Other: one, two, three, four, five", true, &[1]),
+        ];
+        assert!(select_enumeration_pairs(&old, &new, 1, 2).is_none());
+        assert!(select_enumeration_pairs(&old, &new, WORK, 1).is_none());
+    }
+}

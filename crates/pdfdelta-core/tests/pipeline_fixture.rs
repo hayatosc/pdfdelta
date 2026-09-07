@@ -495,6 +495,143 @@ fn supported_sentence_recovers_beside_mixed_orientation_text() -> Result<()> {
 }
 
 #[test]
+fn inferred_order_remains_low_confidence_through_sentence_recovery() -> Result<()> {
+    let old = document(&[
+        line_at("Left alpha context remains open", 0, 0.0, 300.0),
+        line_at("Right alpha context remains open", 0, 400.0, 300.0),
+        line_at("Left alpha remainder stays open", 0, 0.0, 288.0),
+        line_at("Right alpha remainder stays open", 0, 400.0, 288.0),
+        line("A distant appendix explains orbital mechanics", 1, 100.0),
+        line("and archived calculations use cobalt notation.", 1, 88.0),
+        line(
+            "Released widgets retain a robust catalog code of 10",
+            1,
+            600.0,
+        ),
+        line(
+            "and operators apply durable labels before shipment.",
+            1,
+            588.0,
+        ),
+    ]);
+    let new = document(&[
+        line_at("Left beta context remains open", 0, 0.0, 300.0),
+        line_at("Right beta context remains open", 0, 400.0, 300.0),
+        line_at("Left beta remainder stays open", 0, 0.0, 288.0),
+        line_at("Right beta remainder stays open", 0, 400.0, 288.0),
+        line("A distant appendix explains orbital mechanics", 1, 100.0),
+        line("and archived calculations use cobalt notation.", 1, 88.0),
+        line(
+            "Released widgets retain a robust catalog code of 20",
+            1,
+            600.0,
+        ),
+        line(
+            "and operators apply durable labels before shipment.",
+            1,
+            588.0,
+        ),
+    ]);
+    let old_lines = reconstruct_lines(&old, LineOptions::default())?
+        .into_iter()
+        .filter(|line| line.page == PageId(1))
+        .collect::<Vec<_>>();
+    let graph = pdfdelta_core::layout::partition_regions(
+        PageId(1),
+        &old_lines,
+        pdfdelta_core::layout::RegionOptions::default(),
+    )?;
+    assert!(matches!(
+        graph.reading_order,
+        pdfdelta_core::layout::ReadingOrder::Inferred(_)
+    ));
+    let mut diagnostics = PipelineDiagnostics::new();
+    let traced = compare_extraction_outcomes_with_atomic_edits(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+    assert!(!traced.recovered_atomic_diffs.is_empty());
+    let inferred_blocks = traced
+        .outcome
+        .old_blocks
+        .iter()
+        .filter(|block| block.pages.contains(&1))
+        .map(|block| block.block)
+        .collect::<std::collections::HashSet<_>>();
+    assert!(traced.recovered_atomic_diffs.iter().any(|recovered| {
+        recovered
+            .old_context
+            .blocks
+            .iter()
+            .any(|block| inferred_blocks.contains(block))
+    }));
+    let recovered = traced
+        .outcome
+        .comparison
+        .changes
+        .iter()
+        .filter(|change| {
+            change.occurrences.iter().any(|occurrence| {
+                occurrence.old_span.as_ref().is_some_and(|span| {
+                    span.blocks
+                        .iter()
+                        .any(|block| inferred_blocks.contains(block))
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    assert!(!recovered.is_empty());
+    assert!(
+        recovered
+            .iter()
+            .all(|change| change.confidence == Confidence::Low),
+        "inferred-order recovery must remain low confidence: {recovered:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn single_leaf_inferred_order_reports_changes_at_low_confidence() -> Result<()> {
+    let old = document(&[
+        line("A stable footer remains here.", 0, 100.0),
+        line("A stable heading opens the catalog.", 0, 700.0),
+        line("Released widgets retain catalog code 10", 0, 600.0),
+        line("and operators apply labels before shipment.", 0, 588.0),
+    ]);
+    let new = document(&[
+        line("A stable footer remains here.", 0, 100.0),
+        line("A stable heading opens the catalog.", 0, 700.0),
+        line("Released widgets retain catalog code 20", 0, 600.0),
+        line("and operators apply labels before shipment.", 0, 588.0),
+    ]);
+    let lines = reconstruct_lines(&old, LineOptions::default())?;
+    let graph = pdfdelta_core::layout::partition_regions(
+        PageId(0),
+        &lines,
+        pdfdelta_core::layout::RegionOptions::default(),
+    )?;
+    assert_eq!(graph.regions.len(), 1);
+    assert!(matches!(
+        graph.reading_order,
+        pdfdelta_core::layout::ReadingOrder::Inferred(_)
+    ));
+    let mut diagnostics = PipelineDiagnostics::new();
+    let traced = compare_extraction_outcomes_with_atomic_edits(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+    let comparison = &traced.outcome.comparison;
+    assert_eq!(comparison.changes.len(), 1);
+    assert_eq!(comparison.changes[0].confidence, Confidence::Low);
+    assert!(comparison.unresolved_regions.is_empty());
+    Ok(())
+}
+
+#[test]
 fn partial_render_order_uncertainty_recovers_one_line_beside_a_safe_replacement() -> Result<()> {
     let old = document(&[
         line("Opening anchor remains stable", 0, 148.0),

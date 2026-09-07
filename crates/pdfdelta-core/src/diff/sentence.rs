@@ -43,6 +43,10 @@ use super::recovery::ownership::{
     RecoveryEligibleBlock, RecoveryOwnershipLedger, RecoveryOwnershipLimits,
     RecoveryOwnershipRange, analyze_recovery_ownership_partition, build_recovery_ownership_ledger,
 };
+use super::recovery::page_anchor::{
+    PageAnchorCandidate, PageAnchorPair, PageAnchorRange, PageAnchorSelectorLimits,
+    select_page_anchors,
+};
 use super::recovery::score::{
     CachedSentenceEdgeEvidence, MIN_NEAR_SCORE, MIN_WORD_SCORE_EDGE_EVIDENCE, RelationFloorProbe,
     basis_points, cached_sentence_edge_evidence, cached_sentence_edge_evidence_from_aligned_facts,
@@ -156,6 +160,24 @@ pub(super) struct RecoveredReplacement {
     pub relation: RecoveryRelationEvidence,
     pub hunk_policy: RecoveryHunkPolicy,
     pub repeated_group: Option<usize>,
+    pub edits: Option<Vec<AtomicEdit>>,
+}
+
+/// A replacement inferred only from two exact source-backed anchor pairs.
+///
+/// The four ranges are retained as evidence for the correspondence. They are
+/// deliberately separate from [`RecoveredReplacement`], whose relation
+/// scores describe fuzzy near-search decisions.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct AnchoredGapReplacement {
+    pub old: RecoveredSentence,
+    pub new: RecoveredSentence,
+    pub old_consumed: Vec<LocalSentenceRange>,
+    pub new_consumed: Vec<LocalSentenceRange>,
+    pub old_before: PageAnchorRange,
+    pub old_after: PageAnchorRange,
+    pub new_before: PageAnchorRange,
+    pub new_after: PageAnchorRange,
     pub edits: Option<Vec<AtomicEdit>>,
 }
 
@@ -565,6 +587,7 @@ pub(super) struct SentenceRecoveryPlan {
     pub deletions: Vec<RecoveredSentence>,
     pub insertions: Vec<RecoveredSentence>,
     pub replacements: Vec<RecoveredReplacement>,
+    pub anchored_replacements: Vec<AnchoredGapReplacement>,
     pub deletion_consumed: Vec<LocalSentenceRange>,
     pub insertion_consumed: Vec<LocalSentenceRange>,
 }
@@ -587,6 +610,7 @@ impl SentenceRecoveryPlan {
             || !recoveries_for_span(&self.deletions, span_index).is_empty()
             || !recoveries_for_span(&self.insertions, span_index).is_empty()
             || !replacements_for_span(&self.replacements, span_index).is_empty()
+            || !anchored_replacements_for_span(&self.anchored_replacements, span_index).is_empty()
             || self
                 .cross_span_replacement_new_spans
                 .binary_search(&span_index)
@@ -918,6 +942,17 @@ pub(super) fn replacements_for_span(
     replacements: &[RecoveredReplacement],
     span_index: usize,
 ) -> &[RecoveredReplacement] {
+    let start = replacements.partition_point(|replacement| replacement.old.span_index < span_index);
+    let end = replacements[start..]
+        .partition_point(|replacement| replacement.old.span_index == span_index)
+        + start;
+    &replacements[start..end]
+}
+
+pub(super) fn anchored_replacements_for_span(
+    replacements: &[AnchoredGapReplacement],
+    span_index: usize,
+) -> &[AnchoredGapReplacement] {
     let start = replacements.partition_point(|replacement| replacement.old.span_index < span_index);
     let end = replacements[start..]
         .partition_point(|replacement| replacement.old.span_index == span_index)
@@ -3394,17 +3429,16 @@ fn explicit_list_item_start(text: &str) -> Option<usize> {
     })
 }
 
-fn short_enumeration_boundaries(
+fn short_enumeration_ranges(
     text: &str,
-    output: &mut Vec<GranularBoundary>,
     budget: &mut GranularDiagnosticBudget,
-) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+) -> std::result::Result<Vec<Range<usize>>, RecoveryWatchGranularStopReason> {
     let Some((delimiter, width)) = text
         .char_indices()
         .find(|(_, character)| matches!(character, ':' | '\u{2014}'))
         .map(|(offset, character)| (offset, character.len_utf8()))
     else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let body_start = delimiter
         .checked_add(width)
@@ -3428,7 +3462,7 @@ fn short_enumeration_boundaries(
     for (offset, character) in body.char_indices() {
         if character == ',' {
             if ranges.len() == 8 {
-                return Ok(());
+                return Ok(Vec::new());
             }
             ranges.push(start..offset);
             start = offset + 1;
@@ -3436,7 +3470,7 @@ fn short_enumeration_boundaries(
     }
     ranges.push(start..body.len());
     if !(2..=8).contains(&ranges.len()) {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let mut adjusted = Vec::new();
     adjusted
@@ -3468,17 +3502,24 @@ fn short_enumeration_boundaries(
             .unicode_words()
             .count();
         if !(1..=3).contains(&words) {
-            return Ok(());
+            return Ok(Vec::new());
         }
         adjusted.push(item_start..item_end);
     }
-    for range in adjusted {
-        push_trimmed_boundary(
-            text,
-            body_start + range.start..body_start + range.end,
-            RecoveryWatchUnitKind::ListItem,
-            output,
-        )?;
+    for range in &mut adjusted {
+        range.start += body_start;
+        range.end += body_start;
+    }
+    Ok(adjusted)
+}
+
+fn short_enumeration_boundaries(
+    text: &str,
+    output: &mut Vec<GranularBoundary>,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+    for range in short_enumeration_ranges(text, budget)? {
+        push_trimmed_boundary(text, range, RecoveryWatchUnitKind::ListItem, output)?;
     }
     Ok(())
 }
@@ -11809,6 +11850,22 @@ fn canonical_source_map_is_valid(block: &BlockText, scalar_count: usize) -> bool
     true
 }
 
+fn canonical_source_map_is_exact(block: &BlockText) -> bool {
+    let scalar_count = block.canonical.text.chars().count();
+    let mut next_start = 0usize;
+    for entry in &block.canonical.source_map {
+        if entry.output_range.start != next_start
+            || entry.output_range.start >= entry.output_range.end
+            || entry.output_range.end > scalar_count
+            || entry.source.atoms.is_empty()
+        {
+            return false;
+        }
+        next_start = entry.output_range.end;
+    }
+    next_start == scalar_count
+}
+
 fn scalar_source_available(
     block: &BlockText,
     scalar_index: usize,
@@ -12336,24 +12393,586 @@ fn append_secondary_range_local_exact_matches(
     input: SentenceRecoveryInput<'_>,
     max_tokens: usize,
 ) {
-    let Some(batch) = secondary_range_local_exact_batch(
+    if let Some(batch) = secondary_range_local_exact_batch(
         old,
         new,
         alignment,
         input,
         max_tokens,
         accepted.plan.as_ref(),
-    ) else {
-        return;
+    ) {
+        let _ = commit_secondary_exact_batch(accepted, batch);
+    }
+    if let Some(batch) = page_anchor_exact_batch(
+        old,
+        new,
+        alignment,
+        input,
+        max_tokens,
+        accepted.plan.as_ref(),
+    ) {
+        let _ = commit_secondary_exact_batch(accepted, batch);
+    }
+}
+
+type PageAnchorRole = (BlockRole, Option<usize>);
+
+fn page_anchor_exact_batch(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+    primary: Option<&SentenceRecoveryPlan>,
+) -> Option<SentenceRecoveryPlan> {
+    let membership = span_membership(alignment)?;
+    let mut budget = RecoveryBudget::new(
+        old.total_tokens,
+        new.total_tokens,
+        max_tokens,
+        input.min_tokens,
+    )?;
+    let limits = page_anchor_selector_limits(&budget)?;
+    let old_candidates = page_anchor_candidates(
+        old,
+        input.old_trusted_run_intervals,
+        &membership.old,
+        &membership.recovery_spans,
+    )?;
+    let new_candidates = page_anchor_candidates(
+        new,
+        input.new_trusted_run_intervals,
+        &membership.new,
+        &membership.recovery_spans,
+    )?;
+    let mut pairs =
+        select_page_anchors(&old_candidates, &new_candidates, input.min_tokens, limits).ok()?;
+    if !retain_unambiguous_page_anchors(&mut pairs, old, new, &membership, input) {
+        return None;
+    }
+    build_page_anchor_batch(pairs, old, new, &membership, primary, &mut budget)
+}
+
+fn page_anchor_selector_limits(budget: &RecoveryBudget) -> Option<PageAnchorSelectorLimits> {
+    let token_work_limit = budget.token_limit.checked_mul(4)?;
+    Some(PageAnchorSelectorLimits {
+        max_blocks_per_side: budget.token_limit,
+        max_scanned_windows_per_side: budget.token_limit,
+        max_scanned_token_work: token_work_limit,
+        max_retained_windows_per_side: budget.token_limit,
+        max_pairs: budget.output_range_limit / 2,
+    })
+}
+
+fn page_anchor_candidates<'side>(
+    side: &'side Side<'_>,
+    trusted_run_intervals: &[Option<TrustedRunInterval>],
+    span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
+) -> Option<Vec<PageAnchorCandidate<'side, ComparableToken, PageAnchorRole>>> {
+    if trusted_run_intervals.len() != side.blocks.len() {
+        return None;
+    }
+    // This optional stage can run after primary recovery rejected its input.
+    // Validate the same interval contract before trusting a block-local window.
+    stream_plans(trusted_run_intervals)?;
+    let mut candidates = Vec::new();
+    candidates.try_reserve_exact(side.blocks.len()).ok()?;
+    for (block_index, block) in side.blocks.iter().enumerate() {
+        let tokens = side.canonical.get(block_index)?;
+        if tokens.is_empty() {
+            continue;
+        }
+        let span_index = span_by_block.get(&block.block).copied();
+        // A trusted interval is emitted only for a block whose complete line
+        // sequence is contiguous in a proven run, so block-local windows keep
+        // the source order contract of the recovery pipeline.
+        let eligible = trusted_run_intervals
+            .get(block_index)
+            .copied()
+            .flatten()
+            .is_some_and(|interval| interval.start < interval.end)
+            && block.issues.is_empty()
+            && block.canonical.unmapped.is_empty()
+            && tokens.len() == block.canonical.text.chars().count()
+            && tokens.iter().all(ComparableToken::is_scalar)
+            && span_index
+                .is_some_and(|span_index| recovery_spans.get(span_index).copied().unwrap_or(false))
+            && canonical_source_map_is_exact(block);
+        let pages = (!block.pages.is_empty()).then_some(block.pages.as_slice());
+        candidates.push(PageAnchorCandidate::new(
+            block.block.0,
+            (block.role, span_index),
+            pages,
+            tokens,
+            eligible,
+        ));
+    }
+    Some(candidates)
+}
+
+fn retain_unambiguous_page_anchors(
+    pairs: &mut Vec<PageAnchorPair>,
+    old: &Side<'_>,
+    new: &Side<'_>,
+    membership: &SpanMembership,
+    input: SentenceRecoveryInput<'_>,
+) -> bool {
+    for pair in pairs.iter() {
+        let Some(old_block_index) = old.index.get(&BlockId(pair.old.block_id)).copied() else {
+            return false;
+        };
+        let Some(new_block_index) = new.index.get(&BlockId(pair.new.block_id)).copied() else {
+            return false;
+        };
+        let Some(&old_span_index) = membership.old.get(&BlockId(pair.old.block_id)) else {
+            return false;
+        };
+        let Some(&new_span_index) = membership.new.get(&BlockId(pair.new.block_id)) else {
+            return false;
+        };
+        if old_span_index != new_span_index
+            || old.blocks.get(old_block_index).map(|block| block.role)
+                != new.blocks.get(new_block_index).map(|block| block.role)
+            || pair.old.comparable.start >= pair.old.comparable.end
+            || pair.new.comparable.start >= pair.new.comparable.end
+            || pair.old.comparable.end > old.canonical.get(old_block_index).map_or(0, Vec::len)
+            || pair.new.comparable.end > new.canonical.get(new_block_index).map_or(0, Vec::len)
+        {
+            return false;
+        }
+    }
+
+    pairs.sort_unstable_by_key(|pair| {
+        (
+            old.index
+                .get(&BlockId(pair.old.block_id))
+                .copied()
+                .unwrap_or(usize::MAX),
+            pair.old.comparable.start,
+            pair.old.comparable.end,
+            new.index
+                .get(&BlockId(pair.new.block_id))
+                .copied()
+                .unwrap_or(usize::MAX),
+            pair.new.comparable.start,
+            pair.new.comparable.end,
+        )
+    });
+    // Distinct runs have no proven relative order, but anchors within the same
+    // pair of proven runs must not erase an observable rearrangement.
+    let mut usable = Vec::new();
+    if usable.try_reserve_exact(pairs.len()).is_err() {
+        return false;
+    }
+    usable.resize(pairs.len(), true);
+    mark_page_anchor_overlaps(pairs, 0..pairs.len(), OccurrenceSide::Old, &mut usable);
+    let mut new_order = Vec::new();
+    if new_order.try_reserve_exact(pairs.len()).is_err() {
+        return false;
+    }
+    new_order.extend(0..pairs.len());
+    new_order.sort_unstable_by_key(|index| {
+        let pair = &pairs[*index];
+        (
+            new.index
+                .get(&BlockId(pair.new.block_id))
+                .copied()
+                .unwrap_or(usize::MAX),
+            pair.new.comparable.start,
+            pair.new.comparable.end,
+            old.index
+                .get(&BlockId(pair.old.block_id))
+                .copied()
+                .unwrap_or(usize::MAX),
+            pair.old.comparable.start,
+            pair.old.comparable.end,
+        )
+    });
+    mark_page_anchor_overlaps(
+        pairs,
+        new_order.into_iter(),
+        OccurrenceSide::New,
+        &mut usable,
+    );
+    if mark_page_anchor_crossings(pairs, old, new, input, &mut usable).is_none() {
+        return false;
+    }
+    let mut index = 0;
+    pairs.retain(|_| {
+        let keep = usable[index];
+        index += 1;
+        keep
+    });
+    true
+}
+
+fn mark_page_anchor_crossings(
+    pairs: &[PageAnchorPair],
+    old: &Side<'_>,
+    new: &Side<'_>,
+    input: SentenceRecoveryInput<'_>,
+    usable: &mut [bool],
+) -> Option<()> {
+    let mut order = Vec::new();
+    order.try_reserve_exact(pairs.len()).ok()?;
+    for (index, pair) in pairs.iter().enumerate() {
+        let old_index = *old.index.get(&BlockId(pair.old.block_id))?;
+        let new_index = *new.index.get(&BlockId(pair.new.block_id))?;
+        let old_interval = input.old_trusted_run_intervals.get(old_index)?.as_ref()?;
+        let new_interval = input.new_trusted_run_intervals.get(new_index)?.as_ref()?;
+        order.push((
+            (old_interval.run_id.0, new_interval.run_id.0),
+            (old_interval.start, pair.old.comparable.start),
+            (new_interval.start, pair.new.comparable.start),
+            index,
+        ));
+    }
+    order.sort_unstable();
+    let mut start = 0;
+    while start < order.len() {
+        let end = start + order[start..].partition_point(|entry| entry.0 == order[start].0);
+        // Reject both sides of every inversion, including nested inversions.
+        let mut greatest = order[start].2;
+        for entry in &order[start..end] {
+            if entry.2 < greatest {
+                usable[entry.3] = false;
+            }
+            greatest = greatest.max(entry.2);
+        }
+        let mut least = order[end - 1].2;
+        for entry in order[start..end].iter().rev() {
+            if entry.2 > least {
+                usable[entry.3] = false;
+            }
+            least = least.min(entry.2);
+        }
+        start = end;
+    }
+    Some(())
+}
+
+/// Rejects every participant in an ownership conflict, retaining unrelated
+/// anchors. The longest active interval also catches nested overlaps.
+fn mark_page_anchor_overlaps(
+    pairs: &[PageAnchorPair],
+    order: impl Iterator<Item = usize>,
+    side: OccurrenceSide,
+    usable: &mut [bool],
+) {
+    let mut furthest: Option<usize> = None;
+    for index in order {
+        let Some(previous_index) = furthest else {
+            furthest = Some(index);
+            continue;
+        };
+        let (previous, current) = match side {
+            OccurrenceSide::Old => (&pairs[previous_index].old, &pairs[index].old),
+            OccurrenceSide::New => (&pairs[previous_index].new, &pairs[index].new),
+        };
+        if previous.block_id != current.block_id {
+            furthest = Some(index);
+            continue;
+        }
+        if current.comparable.start < previous.comparable.end {
+            usable[previous_index] = false;
+            usable[index] = false;
+        }
+        if current.comparable.end > previous.comparable.end {
+            furthest = Some(index);
+        }
+    }
+}
+
+fn build_page_anchor_batch(
+    pairs: Vec<PageAnchorPair>,
+    old: &Side<'_>,
+    new: &Side<'_>,
+    membership: &SpanMembership,
+    primary: Option<&SentenceRecoveryPlan>,
+    budget: &mut RecoveryBudget,
+) -> Option<SentenceRecoveryPlan> {
+    let mut batch = SentenceRecoveryPlan::default();
+    let mut retained_pairs = Vec::new();
+    retained_pairs.try_reserve_exact(pairs.len()).ok()?;
+    for pair in pairs {
+        let old_span_index = *membership.old.get(&BlockId(pair.old.block_id))?;
+        let new_span_index = *membership.new.get(&BlockId(pair.new.block_id))?;
+        if old_span_index != new_span_index {
+            return None;
+        }
+        let old_location = page_anchor_location(
+            old,
+            &pair.old,
+            old_span_index,
+            ChangeOrigin::RangeLocalExact,
+            budget,
+        )?;
+        let new_location = page_anchor_location(
+            new,
+            &pair.new,
+            new_span_index,
+            ChangeOrigin::RangeLocalExact,
+            budget,
+        )?;
+        if primary.is_some_and(|plan| {
+            secondary_location_overlaps(&old_location, &plan.deletion_consumed)
+                || secondary_location_overlaps(&new_location, &plan.insertion_consumed)
+        }) {
+            continue;
+        }
+        if secondary_location_overlaps(&old_location, &batch.deletion_consumed)
+            || secondary_location_overlaps(&new_location, &batch.insertion_consumed)
+        {
+            return None;
+        }
+        let source_tokens = old_location
+            .recovery
+            .source_tokens
+            .checked_add(new_location.recovery.source_tokens)?;
+        if !budget.charge_outputs(2, source_tokens) {
+            return None;
+        }
+        batch.matches.try_reserve(1).ok()?;
+        batch
+            .deletion_consumed
+            .try_reserve_exact(old_location.consumed.len())
+            .ok()?;
+        batch
+            .insertion_consumed
+            .try_reserve_exact(new_location.consumed.len())
+            .ok()?;
+        batch.matches.push(RecoveredExactMatch {
+            old: old_location.recovery,
+            new: new_location.recovery,
+        });
+        batch.deletion_consumed.extend(old_location.consumed);
+        batch.insertion_consumed.extend(new_location.consumed);
+        retained_pairs.push(pair);
+    }
+    // Gap recovery is optional; a failed addition must not discard exact anchors
+    // or earlier gaps whose evidence and ownership have already been committed.
+    let _ = append_page_anchor_gaps(
+        &mut batch,
+        &retained_pairs,
+        old,
+        new,
+        membership,
+        primary,
+        budget,
+    );
+    batch
+        .anchored_replacements
+        .sort_unstable_by_key(|replacement| replacement.old.span_index);
+    normalize_recovery_ranges(&mut batch).then_some(batch)
+}
+
+fn append_page_anchor_gaps(
+    batch: &mut SentenceRecoveryPlan,
+    pairs: &[PageAnchorPair],
+    old: &Side<'_>,
+    new: &Side<'_>,
+    membership: &SpanMembership,
+    primary: Option<&SentenceRecoveryPlan>,
+    budget: &mut RecoveryBudget,
+) -> Option<()> {
+    for window in pairs.windows(2) {
+        let [before, after] = window else {
+            continue;
+        };
+        if !page_anchor_pair_gap_is_eligible(before, after, old, new, membership)? {
+            continue;
+        }
+        let old_gap = before.old.comparable.end..after.old.comparable.start;
+        let new_gap = before.new.comparable.end..after.new.comparable.start;
+        let old_block_index = *old.index.get(&BlockId(before.old.block_id))?;
+        let new_block_index = *new.index.get(&BlockId(before.new.block_id))?;
+        let old_tokens = old.canonical.get(old_block_index)?.get(old_gap.clone())?;
+        let new_tokens = new.canonical.get(new_block_index)?.get(new_gap.clone())?;
+        if old_tokens.is_empty() || new_tokens.is_empty() {
+            continue;
+        }
+        let old_span_index = *membership.old.get(&BlockId(before.old.block_id))?;
+        let old_location = page_anchor_location(
+            old,
+            &PageAnchorRange {
+                block_id: before.old.block_id,
+                comparable: old_gap,
+                pages: None,
+            },
+            old_span_index,
+            ChangeOrigin::AnchoredGap,
+            budget,
+        )?;
+        let new_span_index = *membership.new.get(&BlockId(before.new.block_id))?;
+        let new_location = page_anchor_location(
+            new,
+            &PageAnchorRange {
+                block_id: before.new.block_id,
+                comparable: new_gap,
+                pages: None,
+            },
+            new_span_index,
+            ChangeOrigin::AnchoredGap,
+            budget,
+        )?;
+        if primary.is_some_and(|plan| {
+            secondary_location_overlaps(&old_location, &plan.deletion_consumed)
+                || secondary_location_overlaps(&new_location, &plan.insertion_consumed)
+        }) || secondary_location_overlaps(&old_location, &batch.deletion_consumed)
+            || secondary_location_overlaps(&new_location, &batch.insertion_consumed)
+        {
+            continue;
+        }
+        let source_tokens = old_location
+            .recovery
+            .source_tokens
+            .checked_add(new_location.recovery.source_tokens)?;
+        if !budget.charge_outputs(2, source_tokens) {
+            return None;
+        }
+        let ranges_equal = old_tokens == new_tokens;
+        let old_consumed = old_location.consumed;
+        let new_consumed = new_location.consumed;
+        batch
+            .deletion_consumed
+            .try_reserve_exact(old_consumed.len())
+            .ok()?;
+        batch
+            .insertion_consumed
+            .try_reserve_exact(new_consumed.len())
+            .ok()?;
+        if ranges_equal {
+            batch.matches.try_reserve(1).ok()?;
+            batch.matches.push(RecoveredExactMatch {
+                old: RecoveredSentence {
+                    origin: ChangeOrigin::RangeLocalExact,
+                    ..old_location.recovery
+                },
+                new: RecoveredSentence {
+                    origin: ChangeOrigin::RangeLocalExact,
+                    ..new_location.recovery
+                },
+            });
+        } else {
+            batch.anchored_replacements.try_reserve(1).ok()?;
+            let mut replacement_old_consumed = Vec::new();
+            replacement_old_consumed
+                .try_reserve_exact(old_consumed.len())
+                .ok()?;
+            replacement_old_consumed.extend_from_slice(&old_consumed);
+            let mut replacement_new_consumed = Vec::new();
+            replacement_new_consumed
+                .try_reserve_exact(new_consumed.len())
+                .ok()?;
+            replacement_new_consumed.extend_from_slice(&new_consumed);
+            batch.anchored_replacements.push(AnchoredGapReplacement {
+                old: old_location.recovery,
+                new: new_location.recovery,
+                old_consumed: replacement_old_consumed,
+                new_consumed: replacement_new_consumed,
+                old_before: before.old.clone(),
+                old_after: after.old.clone(),
+                new_before: before.new.clone(),
+                new_after: after.new.clone(),
+                edits: None,
+            });
+        }
+        batch.deletion_consumed.extend(old_consumed);
+        batch.insertion_consumed.extend(new_consumed);
+    }
+    Some(())
+}
+
+fn page_anchor_pair_gap_is_eligible(
+    before: &PageAnchorPair,
+    after: &PageAnchorPair,
+    old: &Side<'_>,
+    new: &Side<'_>,
+    membership: &SpanMembership,
+) -> Option<bool> {
+    if before.old.block_id != after.old.block_id
+        || before.new.block_id != after.new.block_id
+        || membership.old.get(&BlockId(before.old.block_id))
+            != membership.old.get(&BlockId(after.old.block_id))
+        || membership.new.get(&BlockId(before.new.block_id))
+            != membership.new.get(&BlockId(after.new.block_id))
+    {
+        return Some(false);
+    }
+    let old_block_index = *old.index.get(&BlockId(before.old.block_id))?;
+    let new_block_index = *new.index.get(&BlockId(before.new.block_id))?;
+    if old.blocks.get(old_block_index)?.role != new.blocks.get(new_block_index)?.role
+        || before.old.comparable.end >= after.old.comparable.start
+        || before.new.comparable.end >= after.new.comparable.start
+    {
+        return Some(false);
+    }
+    let old_gap_len = after.old.comparable.start - before.old.comparable.end;
+    let new_gap_len = after.new.comparable.start - before.new.comparable.end;
+    let old_anchor_limit = (before.old.comparable.end - before.old.comparable.start)
+        .min(after.old.comparable.end - after.old.comparable.start);
+    let new_anchor_limit = (before.new.comparable.end - before.new.comparable.start)
+        .min(after.new.comparable.end - after.new.comparable.start);
+    Some(old_gap_len <= old_anchor_limit && new_gap_len <= new_anchor_limit)
+}
+
+fn page_anchor_location(
+    side: &Side<'_>,
+    range: &PageAnchorRange,
+    span_index: usize,
+    origin: ChangeOrigin,
+    budget: &mut RecoveryBudget,
+) -> Option<SentenceLocation> {
+    let block_index = side.index.get(&BlockId(range.block_id)).copied()?;
+    let block = side.blocks.get(block_index)?;
+    let tokens = side.canonical.get(block_index)?;
+    if range.comparable.end > tokens.len()
+        || range.comparable.start >= range.comparable.end
+        || range.comparable.end > block.canonical.text.chars().count()
+        || !budget.charge_location_metadata(1, 1)
+    {
+        return None;
+    }
+    let canonical = ScalarRange {
+        start: range.comparable.start,
+        end: range.comparable.end,
     };
-    let _ = commit_secondary_exact_batch(accepted, batch);
+    let comparable = TokenRange {
+        start: range.comparable.start,
+        end: range.comparable.end,
+    };
+    let mut blocks = Vec::new();
+    blocks.try_reserve_exact(1).ok()?;
+    blocks.push(block.block);
+    let mut consumed = Vec::new();
+    consumed.try_reserve_exact(1).ok()?;
+    consumed.push(LocalSentenceRange {
+        block: block.block,
+        canonical,
+        comparable,
+    });
+    Some(SentenceLocation {
+        recovery: RecoveredSentence {
+            origin,
+            span_index,
+            kind: RecoveryUnitKind::Sentence,
+            role: block.role.into(),
+            blocks,
+            separator: None,
+            canonical,
+            comparable,
+            source_tokens: range.comparable.end - range.comparable.start,
+        },
+        consumed,
+    })
 }
 
 fn commit_secondary_exact_batch(
     accepted: &mut SentenceRecoveryBuildOutcome,
     batch: SentenceRecoveryPlan,
 ) -> bool {
-    if !batch.has_exact_matches() {
+    if !batch.has_exact_matches() && batch.anchored_replacements.is_empty() {
         return true;
     }
 
@@ -12386,6 +13005,10 @@ fn commit_secondary_exact_batch(
             .cross_span_match_new
             .try_reserve_exact(batch.cross_span_match_new.len())
             .is_err()
+        || plan
+            .anchored_replacements
+            .try_reserve_exact(batch.anchored_replacements.len())
+            .is_err()
     {
         accepted.plan = had_primary.then_some(plan);
         return false;
@@ -12393,6 +13016,8 @@ fn commit_secondary_exact_batch(
     plan.matches.extend(batch.matches);
     plan.cross_span_match_old.extend(batch.cross_span_match_old);
     plan.cross_span_match_new.extend(batch.cross_span_match_new);
+    plan.anchored_replacements
+        .extend(batch.anchored_replacements);
     plan.deletion_consumed = deletion_consumed;
     plan.insertion_consumed = insertion_consumed;
     plan.matches
@@ -12401,6 +13026,8 @@ fn commit_secondary_exact_batch(
         .sort_unstable_by_key(|recovery| recovery.span_index);
     plan.cross_span_match_new
         .sort_unstable_by_key(|recovery| recovery.span_index);
+    plan.anchored_replacements
+        .sort_unstable_by_key(|replacement| replacement.old.span_index);
     accepted.plan = Some(plan);
     if let Some(diagnostics) = accepted.diagnostics.as_mut() {
         if diagnostics.metrics.remainder_attribution_complete == Some(true) {
@@ -14941,7 +15568,14 @@ fn span_membership(alignment: &Alignment) -> Option<SpanMembership> {
 }
 
 fn is_sentence_recovery_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
-    kind == AlignmentKind::Unresolved && evidence == [AlignmentEvidence::ReadingOrderUnknown]
+    kind == AlignmentKind::Unresolved
+        && (evidence == [AlignmentEvidence::ReadingOrderUnknown]
+            || evidence
+                == [
+                    AlignmentEvidence::TextSimilarity,
+                    AlignmentEvidence::CandidateCompetition,
+                    AlignmentEvidence::ReadingOrderInferred,
+                ])
 }
 
 fn is_presence_ownership_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
@@ -32236,6 +32870,631 @@ mod tests {
                 }],
             }),
         }
+    }
+
+    fn page_anchor_test_alignment(old: Vec<BlockId>, new: Vec<BlockId>) -> Alignment {
+        Alignment {
+            spans: vec![crate::alignment::AlignmentSpan {
+                kind: AlignmentKind::Unresolved,
+                old,
+                new,
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: crate::alignment::AlignmentConfidence::Low,
+                evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+                old_separator: None,
+                new_separator: None,
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
+    fn page_anchor_test_side<'a>(blocks: &'a [BlockText]) -> Side<'a> {
+        let canonical = blocks
+            .iter()
+            .map(|block| block.matching_tokens.clone())
+            .collect::<Vec<_>>();
+        let total_tokens = canonical.iter().map(Vec::len).sum();
+        Side {
+            blocks,
+            index: blocks
+                .iter()
+                .enumerate()
+                .map(|(index, block)| (block.block, index))
+                .collect(),
+            canonical,
+            total_tokens,
+        }
+    }
+
+    fn page_anchor_fixture_text(prefix: &str, suffix: &str) -> String {
+        let shared = (0..128)
+            .map(|index| char::from_u32(0x400 + index).expect("test scalar is valid"))
+            .collect::<String>();
+        format!("{prefix} {shared} {suffix}")
+    }
+
+    fn page_anchor_shared_text() -> String {
+        (0..128)
+            .map(|index| char::from_u32(0x400 + index).expect("test scalar is valid"))
+            .collect()
+    }
+
+    fn page_anchor_test_input<'a>(
+        old_intervals: &'a [Option<TrustedRunInterval>],
+        new_intervals: &'a [Option<TrustedRunInterval>],
+    ) -> SentenceRecoveryInput<'a> {
+        SentenceRecoveryInput {
+            old_trusted_run_intervals: old_intervals,
+            new_trusted_run_intervals: new_intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 8,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        }
+    }
+
+    fn page_anchor_test_membership(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+    ) -> SpanMembership {
+        SpanMembership {
+            old: old_blocks.iter().map(|block| (block.block, 0)).collect(),
+            new: new_blocks.iter().map(|block| (block.block, 0)).collect(),
+            recovery_spans: vec![true],
+            presence_spans: vec![true],
+        }
+    }
+
+    fn page_anchor_test_pair(
+        old_block: u64,
+        old: Range<usize>,
+        new_block: u64,
+        new: Range<usize>,
+    ) -> PageAnchorPair {
+        PageAnchorPair {
+            old: PageAnchorRange {
+                block_id: old_block,
+                comparable: old,
+                pages: None,
+            },
+            new: PageAnchorRange {
+                block_id: new_block,
+                comparable: new,
+                pages: None,
+            },
+        }
+    }
+
+    fn manual_page_anchor_batch(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        pairs: Vec<PageAnchorPair>,
+        max_tokens: usize,
+        primary: Option<&SentenceRecoveryPlan>,
+    ) -> Option<SentenceRecoveryPlan> {
+        let old = page_anchor_test_side(old_blocks);
+        let new = page_anchor_test_side(new_blocks);
+        let membership = page_anchor_test_membership(old_blocks, new_blocks);
+        let mut budget = RecoveryBudget::new(old.total_tokens, new.total_tokens, max_tokens, 1)?;
+        build_page_anchor_batch(pairs, &old, &new, &membership, primary, &mut budget)
+    }
+
+    fn manual_page_anchor_blocks() -> (Vec<BlockText>, Vec<BlockText>) {
+        (
+            vec![collection_test_block(1, "AAxxCC", None)],
+            vec![collection_test_block(2, "AAyyCC", None)],
+        )
+    }
+
+    #[test]
+    fn page_anchor_recovers_exact_subblock_with_different_boundaries() {
+        let old_text = page_anchor_fixture_text("aaaaaaaaaa.", "old tail.");
+        let new_text = page_anchor_fixture_text("bbbbbbbbbbb", "new tail.");
+        let old_blocks = vec![collection_test_block(1, &old_text, None)];
+        let new_blocks = vec![collection_test_block(2, &new_text, None)];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1)];
+        let new_intervals = [interval(2, 0, 1)];
+        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
+        let input = page_anchor_test_input(&old_intervals, &new_intervals);
+
+        let mut accepted = SentenceRecoveryBuildOutcome::default();
+        append_secondary_range_local_exact_matches(
+            &mut accepted,
+            &old,
+            &new,
+            &alignment,
+            input,
+            512,
+        );
+        let batch = accepted.plan.expect("page anchor selection is complete");
+
+        assert_eq!(batch.matches.len(), 1);
+        assert_eq!(batch.matches[0].old.span_index, 0);
+        assert!(batch.matches[0].old.comparable.start > 0);
+        assert_eq!(
+            batch.matches[0].old.source_tokens,
+            batch.matches[0].new.source_tokens
+        );
+    }
+
+    #[test]
+    fn page_anchor_candidate_handles_case_change_and_two_scalar_punctuation() {
+        let shared = page_anchor_shared_text();
+        let old_text = format!("Case。！ {shared}");
+        let new_text = format!("case。！ {shared}");
+        let old_blocks = vec![collection_test_block(1, &old_text, None)];
+        let new_blocks = vec![collection_test_block(2, &new_text, None)];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1)];
+        let new_intervals = [interval(2, 0, 1)];
+        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
+
+        let batch = page_anchor_exact_batch(
+            &old,
+            &new,
+            &alignment,
+            page_anchor_test_input(&old_intervals, &new_intervals),
+            512,
+            None,
+        )
+        .expect("case-sensitive scalar anchors remain selectable");
+
+        assert_eq!(batch.matches.len(), 1);
+        assert!(batch.matches[0].old.comparable.start > 0);
+        assert_eq!(
+            batch.matches[0].old.source_tokens,
+            batch.matches[0].new.source_tokens
+        );
+    }
+
+    #[test]
+    fn page_anchor_batch_keeps_equal_adjacent_gap_as_exact_match() {
+        let old_blocks = vec![collection_test_block(1, "AAxxCC", None)];
+        let new_blocks = vec![collection_test_block(2, "AAxxCC", None)];
+        let pairs = vec![
+            page_anchor_test_pair(1, 0..2, 2, 0..2),
+            page_anchor_test_pair(1, 4..6, 2, 4..6),
+        ];
+
+        let batch = manual_page_anchor_batch(&old_blocks, &new_blocks, pairs, 128, None)
+            .expect("equal gap batch is complete");
+
+        assert_eq!(batch.matches.len(), 3);
+        assert!(batch.anchored_replacements.is_empty());
+        assert_eq!(batch.deletion_consumed.len(), 3);
+        assert_eq!(batch.insertion_consumed.len(), 3);
+    }
+
+    #[test]
+    fn page_anchor_batch_without_adjacent_edge_has_no_gap_replacement() {
+        let old_blocks = vec![collection_test_block(1, "AAxxCC", None)];
+        let new_blocks = vec![collection_test_block(2, "AAyyCC", None)];
+        let pairs = vec![page_anchor_test_pair(1, 0..2, 2, 0..2)];
+
+        let batch = manual_page_anchor_batch(&old_blocks, &new_blocks, pairs, 128, None)
+            .expect("single anchor batch is complete");
+
+        assert_eq!(batch.matches.len(), 1);
+        assert!(batch.anchored_replacements.is_empty());
+    }
+
+    #[test]
+    fn page_anchor_batch_converts_different_adjacent_gap_to_anchored_replacement() {
+        let (old_blocks, new_blocks) = manual_page_anchor_blocks();
+        let pairs = vec![
+            page_anchor_test_pair(1, 0..2, 2, 0..2),
+            page_anchor_test_pair(1, 4..6, 2, 4..6),
+        ];
+
+        let batch = manual_page_anchor_batch(&old_blocks, &new_blocks, pairs, 128, None)
+            .expect("differing gap batch is complete");
+        let replacement = batch
+            .anchored_replacements
+            .first()
+            .expect("differing gap is retained");
+
+        assert_eq!(batch.matches.len(), 2);
+        assert_eq!(replacement.old.origin, ChangeOrigin::AnchoredGap);
+        assert_eq!(replacement.new.origin, ChangeOrigin::AnchoredGap);
+        assert_eq!(replacement.old.comparable, TokenRange { start: 2, end: 4 });
+        assert_eq!(replacement.new.comparable, TokenRange { start: 2, end: 4 });
+        assert_eq!(replacement.old_before.comparable, 0..2);
+        assert_eq!(replacement.old_after.comparable, 4..6);
+        assert_eq!(replacement.new_before.comparable, 0..2);
+        assert_eq!(replacement.new_after.comparable, 4..6);
+    }
+
+    #[test]
+    fn secondary_commit_merges_anchored_only_batch_into_primary_plan() {
+        let (old_blocks, new_blocks) = manual_page_anchor_blocks();
+        let pairs = vec![
+            page_anchor_test_pair(1, 0..2, 2, 0..2),
+            page_anchor_test_pair(1, 4..6, 2, 4..6),
+        ];
+        let mut batch = manual_page_anchor_batch(&old_blocks, &new_blocks, pairs, 128, None)
+            .expect("differing gap batch is complete");
+        batch.matches.clear();
+        let mut accepted = SentenceRecoveryBuildOutcome {
+            plan: Some(fallback_test_plan(42)),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+
+        assert!(commit_secondary_exact_batch(&mut accepted, batch));
+
+        let plan = accepted.plan.expect("primary and anchored plans remain");
+        assert_eq!(
+            plan.cross_span_replacement_new_spans,
+            [plan_block_marker(42)]
+        );
+        assert_eq!(plan.deletions.len(), 1);
+        assert_eq!(plan.anchored_replacements.len(), 1);
+        assert!(plan.matches.is_empty());
+    }
+
+    #[test]
+    fn page_anchor_batch_rejects_consumed_primary_ranges_atomically() {
+        let (old_blocks, new_blocks) = manual_page_anchor_blocks();
+        let pairs = vec![
+            page_anchor_test_pair(1, 0..2, 2, 0..2),
+            page_anchor_test_pair(1, 4..6, 2, 4..6),
+        ];
+        let primary = SentenceRecoveryPlan {
+            deletion_consumed: vec![LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 0, end: 6 },
+                comparable: TokenRange { start: 0, end: 6 },
+            }],
+            insertion_consumed: vec![LocalSentenceRange {
+                block: BlockId(2),
+                canonical: ScalarRange { start: 0, end: 6 },
+                comparable: TokenRange { start: 0, end: 6 },
+            }],
+            ..SentenceRecoveryPlan::default()
+        };
+
+        let batch = manual_page_anchor_batch(&old_blocks, &new_blocks, pairs, 128, Some(&primary))
+            .expect("primary overlap is a complete batch veto");
+
+        assert!(batch.matches.is_empty());
+        assert!(batch.anchored_replacements.is_empty());
+        assert!(batch.deletion_consumed.is_empty());
+        assert!(batch.insertion_consumed.is_empty());
+    }
+
+    #[test]
+    fn page_anchor_candidates_mark_unsupported_tokens_ineligible() {
+        let mut old_block = collection_test_block(1, &page_anchor_shared_text(), None);
+        old_block.matching_tokens[0] = ComparableToken::Unmapped {
+            font_hash: FontProgramHash(vec![1]),
+            glyph_id: 1,
+        };
+        let new_blocks = vec![collection_test_block(2, &page_anchor_shared_text(), None)];
+        let old_blocks = vec![old_block];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let membership = page_anchor_test_membership(&old_blocks, &new_blocks);
+        let old_intervals = [interval(1, 0, 1)];
+        let new_intervals = [interval(2, 0, 1)];
+
+        let candidates = page_anchor_candidates(
+            &old,
+            &old_intervals,
+            &membership.old,
+            &membership.recovery_spans,
+        )
+        .expect("unsupported candidate census is complete");
+        assert!(!candidates[0].eligible);
+
+        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
+        let batch = page_anchor_exact_batch(
+            &old,
+            &new,
+            &alignment,
+            page_anchor_test_input(&old_intervals, &new_intervals),
+            1_024,
+            None,
+        )
+        .expect("unsupported candidate remains in the census");
+        assert!(batch.matches.is_empty());
+        assert!(batch.anchored_replacements.is_empty());
+    }
+
+    #[test]
+    fn page_anchor_candidates_reject_crossing_pairs_and_different_partners() {
+        let shared = page_anchor_shared_text();
+        let old_blocks = vec![collection_test_block(1, &shared, None)];
+        let new_blocks = vec![collection_test_block(2, &shared, None)];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let membership = page_anchor_test_membership(&old_blocks, &new_blocks);
+        let old_intervals = [interval(1, 0, 1)];
+        let new_intervals = [interval(2, 0, 1)];
+        let input = page_anchor_test_input(&old_intervals, &new_intervals);
+        let mut crossing = vec![
+            page_anchor_test_pair(1, 0..8, 2, 8..16),
+            page_anchor_test_pair(1, 8..16, 2, 0..8),
+        ];
+
+        assert!(retain_unambiguous_page_anchors(
+            &mut crossing,
+            &old,
+            &new,
+            &membership,
+            input,
+        ));
+        assert!(crossing.is_empty());
+
+        let mut role_mismatched = new_blocks.clone();
+        role_mismatched[0].role = BlockRole::RepeatedHeader;
+        let mismatched = page_anchor_exact_batch(
+            &old,
+            &page_anchor_test_side(&role_mismatched),
+            &page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]),
+            page_anchor_test_input(&[interval(1, 0, 1)], &[interval(2, 0, 1)]),
+            1_024,
+            None,
+        )
+        .expect("role mismatch is a complete partner veto");
+        assert!(mismatched.matches.is_empty());
+        assert!(mismatched.anchored_replacements.is_empty());
+    }
+
+    #[test]
+    fn page_anchor_batch_fails_closed_when_output_budget_is_exhausted() {
+        let (old_blocks, new_blocks) = manual_page_anchor_blocks();
+        let pairs = vec![page_anchor_test_pair(1, 0..2, 2, 0..2)];
+
+        assert!(manual_page_anchor_batch(&old_blocks, &new_blocks, pairs, 8, None).is_none());
+    }
+
+    #[test]
+    fn page_anchor_keeps_exact_matches_when_gap_output_budget_is_exhausted() {
+        let old_blocks = [collection_test_block(1, "ABCDEFGHxIJKLMNOP", None)];
+        let new_blocks = [collection_test_block(2, "ABCDEFGHyIJKLMNOP", None)];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let membership = page_anchor_test_membership(&old_blocks, &new_blocks);
+        let mut budget = RecoveryBudget::new(17, 17, 34, 8).expect("input fits");
+        let pairs = vec![
+            page_anchor_test_pair(1, 0..8, 2, 0..8),
+            page_anchor_test_pair(1, 9..17, 2, 9..17),
+        ];
+
+        let batch = build_page_anchor_batch(pairs, &old, &new, &membership, None, &mut budget)
+            .expect("optional gap failure retains exact anchors");
+
+        assert_eq!(batch.matches.len(), 2);
+        assert!(batch.anchored_replacements.is_empty());
+        assert_eq!(budget.output_ranges, 4);
+        assert_eq!(budget.output_tokens, 32);
+        assert_eq!(batch.deletion_consumed.len(), 2);
+        assert_eq!(batch.insertion_consumed.len(), 2);
+        assert_eq!(
+            batch.matches[0].old.comparable,
+            TokenRange { start: 0, end: 8 }
+        );
+        assert_eq!(
+            batch.matches[1].old.comparable,
+            TokenRange { start: 9, end: 17 }
+        );
+    }
+
+    #[test]
+    fn page_anchor_ineligible_duplicate_vetoes_eligible_block() {
+        let text = page_anchor_shared_text();
+        let mut ineligible = collection_test_block(2, &text, None);
+        add_test_issue(&mut ineligible, ScalarRange { start: 0, end: 1 }, 0);
+        let old_blocks = vec![collection_test_block(1, &text, None), ineligible];
+        let new_blocks = vec![collection_test_block(3, &text, None)];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2)];
+        let new_intervals = [interval(2, 0, 1)];
+        let alignment = page_anchor_test_alignment(vec![BlockId(1), BlockId(2)], vec![BlockId(3)]);
+        let input = page_anchor_test_input(&old_intervals, &new_intervals);
+
+        let batch = page_anchor_exact_batch(&old, &new, &alignment, input, 1_024, None)
+            .expect("duplicate census is complete");
+
+        assert!(!batch.has_exact_matches());
+    }
+
+    #[test]
+    fn page_anchor_does_not_require_order_between_independent_trusted_blocks() {
+        let text = |base: u32| {
+            (0..40u32)
+                .map(|offset| char::from_u32(base + offset).expect("test scalar"))
+                .collect::<String>()
+        };
+        let left = text(0x400);
+        let right = text(0x600);
+        let old_blocks = vec![
+            collection_test_block(1, &left, None),
+            collection_test_block(2, &right, None),
+        ];
+        let new_blocks = vec![
+            collection_test_block(3, &right, None),
+            collection_test_block(4, &left, None),
+        ];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(2, 0, 1)];
+        let new_intervals = [interval(3, 0, 1), interval(4, 0, 1)];
+        let alignment =
+            page_anchor_test_alignment(vec![BlockId(1), BlockId(2)], vec![BlockId(3), BlockId(4)]);
+        let batch = page_anchor_exact_batch(
+            &old,
+            &new,
+            &alignment,
+            page_anchor_test_input(&old_intervals, &new_intervals),
+            512,
+            None,
+        )
+        .expect("independent exact source ranges");
+        assert_eq!(batch.matches.len(), 2);
+        assert_eq!(batch.matches[0].old.blocks, [BlockId(1)]);
+        assert_eq!(batch.matches[0].new.blocks, [BlockId(4)]);
+        assert_eq!(batch.matches[1].old.blocks, [BlockId(2)]);
+        assert_eq!(batch.matches[1].new.blocks, [BlockId(3)]);
+    }
+
+    #[test]
+    fn page_anchor_preserves_order_within_proven_runs() {
+        let left = page_anchor_shared_text();
+        let right = (0..128)
+            .map(|offset| char::from_u32(0x600 + offset).expect("test scalar"))
+            .collect::<String>();
+        for split_blocks in [false, true] {
+            for reversed in [false, true] {
+                let (new_left, new_right) = if reversed {
+                    (&right, &left)
+                } else {
+                    (&left, &right)
+                };
+                let (old_blocks, new_blocks, old_intervals, new_intervals) = if split_blocks {
+                    (
+                        vec![
+                            collection_test_block(1, &left, None),
+                            collection_test_block(2, &right, None),
+                        ],
+                        vec![
+                            collection_test_block(3, new_left, None),
+                            collection_test_block(4, new_right, None),
+                        ],
+                        vec![interval(1, 0, 1), interval(1, 1, 2)],
+                        vec![interval(2, 0, 1), interval(2, 1, 2)],
+                    )
+                } else {
+                    (
+                        vec![collection_test_block(1, &format!("{left}{right}"), None)],
+                        vec![collection_test_block(
+                            3,
+                            &format!("{new_left}{new_right}"),
+                            None,
+                        )],
+                        vec![interval(1, 0, 1)],
+                        vec![interval(2, 0, 1)],
+                    )
+                };
+                let alignment = page_anchor_test_alignment(
+                    old_blocks.iter().map(|block| block.block).collect(),
+                    new_blocks.iter().map(|block| block.block).collect(),
+                );
+                let batch = page_anchor_exact_batch(
+                    &page_anchor_test_side(&old_blocks),
+                    &page_anchor_test_side(&new_blocks),
+                    &alignment,
+                    page_anchor_test_input(&old_intervals, &new_intervals),
+                    2_048,
+                    None,
+                )
+                .expect("complete anchor selection");
+                assert_eq!(
+                    batch.has_exact_matches(),
+                    !reversed,
+                    "split_blocks={split_blocks}, reversed={reversed}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn page_anchor_rejects_budget_that_cannot_cover_both_sides() {
+        let old_text = page_anchor_fixture_text("Old prefix", "old tail.");
+        let new_text = page_anchor_fixture_text("New prefix", "new tail.");
+        let old_blocks = vec![collection_test_block(1, &old_text, None)];
+        let new_blocks = vec![collection_test_block(2, &new_text, None)];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1)];
+        let new_intervals = [interval(2, 0, 1)];
+        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
+        let input = page_anchor_test_input(&old_intervals, &new_intervals);
+
+        assert!(
+            page_anchor_exact_batch(
+                &old,
+                &new,
+                &alignment,
+                input,
+                old.total_tokens + new.total_tokens - 1,
+                None,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn page_anchor_conflict_does_not_discard_independent_source_evidence() {
+        let shared = (0..40)
+            .map(|offset| char::from_u32(0x400 + offset).expect("test scalar"))
+            .collect::<String>();
+        let old_blocks = vec![
+            collection_test_block(1, "0123456789", None),
+            collection_test_block(2, &shared, None),
+        ];
+        let new_blocks = vec![
+            collection_test_block(3, "01234567x23456789", None),
+            collection_test_block(4, &shared, None),
+        ];
+        let old = page_anchor_test_side(&old_blocks);
+        let new = page_anchor_test_side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(2, 0, 1)];
+        let new_intervals = [interval(3, 0, 1), interval(4, 0, 1)];
+        let alignment =
+            page_anchor_test_alignment(vec![BlockId(1), BlockId(2)], vec![BlockId(3), BlockId(4)]);
+        let batch = page_anchor_exact_batch(
+            &old,
+            &new,
+            &alignment,
+            page_anchor_test_input(&old_intervals, &new_intervals),
+            512,
+            None,
+        )
+        .expect("conflicts are local to their source ranges");
+        assert_eq!(batch.matches.len(), 1);
+        assert_eq!(batch.matches[0].old.blocks, [BlockId(2)]);
+        assert_eq!(batch.matches[0].new.blocks, [BlockId(4)]);
+    }
+
+    #[test]
+    fn page_anchor_rejects_invalid_intervals_and_missing_source_evidence() {
+        let text = page_anchor_fixture_text("Shared source", "shared tail.");
+        let mut old_blocks = vec![collection_test_block(1, &text, None)];
+        let new_blocks = vec![collection_test_block(2, &text, None)];
+        let new = page_anchor_test_side(&new_blocks);
+        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
+        let malformed = [interval(1, 1, 1)];
+        let valid = [interval(2, 0, 1)];
+        assert!(
+            page_anchor_exact_batch(
+                &page_anchor_test_side(&old_blocks),
+                &new,
+                &alignment,
+                page_anchor_test_input(&malformed, &valid),
+                512,
+                None,
+            )
+            .is_none()
+        );
+        old_blocks[0].canonical.source_map.clear();
+        let batch = page_anchor_exact_batch(
+            &page_anchor_test_side(&old_blocks),
+            &new,
+            &alignment,
+            page_anchor_test_input(&valid, &valid),
+            512,
+            None,
+        )
+        .expect("missing sources remain in the census but are ineligible");
+        assert!(batch.matches.is_empty());
     }
 
     fn collect_test_occurrences(

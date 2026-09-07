@@ -1,0 +1,26 @@
+{
+  "head": "2ae1d71aa8a3332b6250336a6badcd93147d330e",
+  "binary_sha256": "b2d7aca4b0a7828d282790d39e8e1c7d9a8aae6af4faeac73cd60eae6bcf787a",
+  "source_sha256": {
+    "crates/pdfdelta-core/src/alignment/ordered.rs": "d9f1263ff0c846834321d5450a914dd9a3e61b99b2a1eb4d4831791e2aa12507",
+    "crates/pdfdelta-core/src/diff/mod.rs": "4209cca73c382ad594aeb1016118e928bb8f1c9cfdfd3a0431c6b74b848b2655",
+    "crates/pdfdelta-core/src/diff/recovery/mod.rs": "094b0b892a5da4d611c34214aee0b30f1581aa15cdcec75e8e8364eb76fb9086",
+    "crates/pdfdelta-core/src/diff/sentence.rs": "0f8268335359faf7072ef6fce6a2a7c71c210f0c3a8d03c1bb66b23319c087ee",
+    "crates/pdfdelta-core/src/layout/region.rs": "3fa9c653e85bd4c7dfc51eb7b2a2bcccc9bdeb3447e043f900916155f37ad332",
+    "crates/pdfdelta-core/src/pipeline.rs": "39d3faebbfe546568da7da3d332dc99ed8da87967c60aba2b0d31904b4e081ac",
+    "crates/pdfdelta-core/tests/pipeline_fixture.rs": "615d2759a937e2e7d71b141f622b9c4e9c683e91f2b6f1f061976f66d88c910e",
+    "crates/pdfdelta-core/src/diff/recovery/page_anchor.rs": "c1539515ceccf83fb054e13250cd159c688c1bc7704ec42593f59d0b79881c35",
+    "crates/pdfdelta-bench/src/revisions.rs": "68c38f02e63e9d1c8c68556651f1df49f73a949d772e1f70c3738e0de7dca342",
+    "crates/pdfdelta-bench/src/revision_scopes.rs": "60c9cc2a0e7e088825ed6118f349139ff0d2c199c7724c8b48da6855a2c49fd3",
+    "benchmark/realworld/expected/nist-sp800-57-part1-r4-to-r5.json": "15a938df5370fd1bc53897807f02edbe2dc598067dec6f6003ea7feda58b4948"
+  },
+  "baseline_engine_source": "../baseline-source.json",
+  "baseline_binary_sha256": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+  "annotation_reference": "../sp80057-annotation-review/corrected-expected.json",
+  "checks": {
+    "format": "passed",
+    "clippy": "passed",
+    "workspace_tests": 1968
+  },
+  "code_patch_sha256": "f580b6e19ff1b26c0bc43caa765db38ea8eef1288aff739ffdaeb6c480408304"
+}

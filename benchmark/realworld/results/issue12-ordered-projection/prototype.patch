@@ -1,0 +1,3615 @@
+diff --git a/crates/pdfdelta-core/src/alignment/mod.rs b/crates/pdfdelta-core/src/alignment/mod.rs
+index b008908..23681e6 100644
+--- a/crates/pdfdelta-core/src/alignment/mod.rs
++++ b/crates/pdfdelta-core/src/alignment/mod.rs
+@@ -18,10 +18,11 @@ pub use features::{
+     BlockFeatures, ExactHash, NGram, NGramCounts, NGramSet, build_block_features, dice_similarity,
+     estimate_ngram_token_elements, multiset_dice_similarity,
+ };
++pub(crate) use ordered::align_ordered_with_metrics_and_gap_plan;
+ pub(crate) use ordered::validate_alignment_options;
+ pub use ordered::{
+     Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
+     AlignmentSpan, align_ordered,
+ };
+-pub(crate) use ordered::{align_ordered_with_metrics_and_gap_plan, plan_ordered_gaps};
++pub(crate) use ordered::{OrderedProjection, merge_excluded_unresolved};
+ pub use score::BlockSeparator;
+diff --git a/crates/pdfdelta-core/src/alignment/ordered.rs b/crates/pdfdelta-core/src/alignment/ordered.rs
+index 0e76f80..ff26cfd 100644
+--- a/crates/pdfdelta-core/src/alignment/ordered.rs
++++ b/crates/pdfdelta-core/src/alignment/ordered.rs
+@@ -65,6 +65,9 @@ pub enum AlignmentEvidence {
+     /// Unlike [`ReadingOrderUnknown`](Self::ReadingOrderUnknown), this does
+     /// not force the window `Unresolved`; it only caps confidence.
+     ReadingOrderInferred,
++    /// The span was aligned within a partial reading-order projection while
++    /// omitted source blocks remain unresolved elsewhere.
++    ReadingOrderPartial,
+     MoveCandidate,
+     CandidateSource(CandidateSource),
+ }
+@@ -240,6 +243,7 @@ pub(crate) struct AlignmentAttempt {
+ /// One validated anchor decision shared by candidate indexing and alignment.
+ pub(crate) struct AlignmentGapPlan {
+     all_anchors: Vec<ExactAnchor>,
++    secondary_anchors: Vec<ExactAnchor>,
+     main_anchors: Vec<ExactAnchor>,
+     move_candidates: Vec<ExactAnchor>,
+     windows: Vec<AnchorIntervalWindow>,
+@@ -311,11 +315,50 @@ pub(crate) fn plan_ordered_gaps(
+     new_uncertain_indices: &[usize],
+     old_inferred_indices: &[usize],
+     new_inferred_indices: &[usize],
++) -> Result<AlignmentGapPlan> {
++    plan_ordered_gaps_with_anchor_census(
++        old,
++        new,
++        old,
++        new,
++        options,
++        old_gap_boundaries,
++        new_gap_boundaries,
++        old_extraction_uncertain_indices,
++        new_extraction_uncertain_indices,
++        old_uncertain_indices,
++        new_uncertain_indices,
++        old_inferred_indices,
++        new_inferred_indices,
++    )
++}
++
++/// Builds a gap plan while taking exact-anchor uniqueness from the supplied
++/// full input feature slices. The working slices may be projections that omit
++/// blocks whose source order is unknown.
++#[allow(clippy::too_many_arguments)]
++fn plan_ordered_gaps_with_anchor_census(
++    old: &[BlockFeatures],
++    new: &[BlockFeatures],
++    anchor_old: &[BlockFeatures],
++    anchor_new: &[BlockFeatures],
++    options: AlignmentOptions,
++    old_gap_boundaries: &[usize],
++    new_gap_boundaries: &[usize],
++    old_extraction_uncertain_indices: &[usize],
++    new_extraction_uncertain_indices: &[usize],
++    old_uncertain_indices: &[usize],
++    new_uncertain_indices: &[usize],
++    old_inferred_indices: &[usize],
++    new_inferred_indices: &[usize],
+ ) -> Result<AlignmentGapPlan> {
+     validate_alignment_options(options)?;
+     validate_features("old", old)?;
+     validate_features("new", new)?;
++    validate_features("anchor old", anchor_old)?;
++    validate_features("anchor new", anchor_new)?;
+     validate_shared_ngram_size(old, new)?;
++    validate_shared_ngram_size(anchor_old, anchor_new)?;
+     validate_gap_boundaries("old", old_gap_boundaries, old.len())?;
+     validate_gap_boundaries("new", new_gap_boundaries, new.len())?;
+     validate_uncertain_indices(
+@@ -345,6 +388,7 @@ pub(crate) fn plan_ordered_gaps(
+     {
+         return Ok(AlignmentGapPlan {
+             all_anchors: Vec::new(),
++            secondary_anchors: Vec::new(),
+             main_anchors: Vec::new(),
+             move_candidates: Vec::new(),
+             windows: Vec::new(),
+@@ -376,13 +420,27 @@ pub(crate) fn plan_ordered_gaps(
+         .chain(new_extraction_uncertain_indices)
+         .copied()
+         .collect::<HashSet<_>>();
+-    let all_anchors = primary_exact_anchors(old, new, options.anchor_min_tokens)?
+-        .into_iter()
+-        .filter(|anchor| {
+-            !uncertain_old.contains(&old_indices[&anchor.old])
+-                && !uncertain_new.contains(&new_indices[&anchor.new])
+-        })
+-        .collect::<Vec<_>>();
++    let all_anchors = filter_anchor_census(
++        primary_exact_anchors(anchor_old, anchor_new, options.anchor_min_tokens)?,
++        &old_indices,
++        &new_indices,
++        &uncertain_old,
++        &uncertain_new,
++    )?;
++    let secondary_anchors = filter_anchor_census(
++        exact_anchors(anchor_old, anchor_new, 1)?,
++        &old_indices,
++        &new_indices,
++        &uncertain_old,
++        &uncertain_new,
++    )?;
++    let reading_order_anchors = filter_anchor_census(
++        exact_anchors(anchor_old, anchor_new, READING_ORDER_BOUNDARY_MIN_TOKENS)?,
++        &old_indices,
++        &new_indices,
++        &uncertain_old,
++        &uncertain_new,
++    )?;
+     let chain = select_monotone_anchor_chain(&all_anchors, old, new)?;
+     let main_anchors = chain.main_chain;
+     let windows = partition_anchor_windows(&main_anchors, old, new)?;
+@@ -421,6 +479,7 @@ pub(crate) fn plan_ordered_gaps(
+         old,
+         new,
+         &all_anchors,
++        &reading_order_anchors,
+         windows,
+         forced_windows,
+         &uncertain_old,
+@@ -460,6 +519,7 @@ pub(crate) fn plan_ordered_gaps(
+ 
+     Ok(AlignmentGapPlan {
+         all_anchors,
++        secondary_anchors,
+         main_anchors,
+         move_candidates: chain.move_candidates,
+         windows,
+@@ -471,6 +531,304 @@ pub(crate) fn plan_ordered_gaps(
+     })
+ }
+ 
++/// A bounded feature view that removes source blocks whose reading order is
++/// not globally proven while retaining their identifiers for explicit
++/// unresolved reporting.
++pub(crate) struct OrderedProjection {
++    pub(crate) old: Vec<BlockFeatures>,
++    pub(crate) new: Vec<BlockFeatures>,
++    pub(crate) gap_plan: AlignmentGapPlan,
++    pub(crate) excluded_old: Vec<BlockId>,
++    pub(crate) excluded_new: Vec<BlockId>,
++}
++
++impl OrderedProjection {
++    /// Projects the working feature slices and remaps extraction/layout
++    /// metadata to the projected indices. Exact-anchor uniqueness is measured
++    /// against the complete input slices before excluded blocks are filtered.
++    #[allow(clippy::too_many_arguments)]
++    pub(crate) fn new(
++        old: &[BlockFeatures],
++        new: &[BlockFeatures],
++        options: AlignmentOptions,
++        old_gap_boundaries: &[usize],
++        new_gap_boundaries: &[usize],
++        old_extraction_uncertain_indices: &[usize],
++        new_extraction_uncertain_indices: &[usize],
++        old_excluded_indices: &[usize],
++        new_excluded_indices: &[usize],
++        old_inferred_indices: &[usize],
++        new_inferred_indices: &[usize],
++    ) -> Result<Self> {
++        validate_alignment_options(options)?;
++        validate_features("old", old)?;
++        validate_features("new", new)?;
++        validate_shared_ngram_size(old, new)?;
++        validate_gap_boundaries("old", old_gap_boundaries, old.len())?;
++        validate_gap_boundaries("new", new_gap_boundaries, new.len())?;
++        validate_uncertain_indices(
++            "old extraction",
++            old_extraction_uncertain_indices,
++            old.len(),
++        )?;
++        validate_uncertain_indices(
++            "new extraction",
++            new_extraction_uncertain_indices,
++            new.len(),
++        )?;
++        validate_uncertain_indices("old inferred", old_inferred_indices, old.len())?;
++        validate_uncertain_indices("new inferred", new_inferred_indices, new.len())?;
++
++        let old_excluded = ExcludedIndices::new("old", old_excluded_indices, old.len())?;
++        let new_excluded = ExcludedIndices::new("new", new_excluded_indices, new.len())?;
++        let (projected_old, excluded_old) = project_features(old, &old_excluded, "old")?;
++        let (projected_new, excluded_new) = project_features(new, &new_excluded, "new")?;
++        let old_gap_boundaries = remap_boundaries(
++            old_gap_boundaries,
++            &old_excluded,
++            "old extraction gap boundary",
++        )?;
++        let new_gap_boundaries = remap_boundaries(
++            new_gap_boundaries,
++            &new_excluded,
++            "new extraction gap boundary",
++        )?;
++        let (old_extraction_uncertain_indices, old_extraction_boundaries) =
++            remap_extraction_uncertain_indices(
++                old_extraction_uncertain_indices,
++                &old_excluded,
++                "old extraction uncertain block index",
++            )?;
++        let (new_extraction_uncertain_indices, new_extraction_boundaries) =
++            remap_extraction_uncertain_indices(
++                new_extraction_uncertain_indices,
++                &new_excluded,
++                "new extraction uncertain block index",
++            )?;
++        let mut old_gap_boundaries = merge_boundaries(
++            old_gap_boundaries,
++            old_extraction_boundaries,
++            "old extraction gap boundaries",
++        )?;
++        let mut new_gap_boundaries = merge_boundaries(
++            new_gap_boundaries,
++            new_extraction_boundaries,
++            "new extraction gap boundaries",
++        )?;
++        old_gap_boundaries.sort_unstable();
++        new_gap_boundaries.sort_unstable();
++        let old_inferred_indices = remap_retained_indices(
++            old_inferred_indices,
++            &old_excluded,
++            "old inferred block index",
++        )?;
++        let new_inferred_indices = remap_retained_indices(
++            new_inferred_indices,
++            &new_excluded,
++            "new inferred block index",
++        )?;
++        let gap_plan = plan_ordered_gaps_with_anchor_census(
++            &projected_old,
++            &projected_new,
++            old,
++            new,
++            options,
++            &old_gap_boundaries,
++            &new_gap_boundaries,
++            &old_extraction_uncertain_indices,
++            &new_extraction_uncertain_indices,
++            &[],
++            &[],
++            &old_inferred_indices,
++            &new_inferred_indices,
++        )?;
++
++        Ok(Self {
++            old: projected_old,
++            new: projected_new,
++            gap_plan,
++            excluded_old,
++            excluded_new,
++        })
++    }
++}
++
++struct ExcludedIndices {
++    sorted: Vec<usize>,
++}
++
++impl ExcludedIndices {
++    fn new(side: &str, indices: &[usize], block_count: usize) -> Result<Self> {
++        let mut sorted = Vec::new();
++        sorted
++            .try_reserve_exact(indices.len())
++            .map_err(|_| Error::LimitExceeded {
++                resource: "ordered projection excluded indices",
++                limit: indices.len(),
++            })?;
++        sorted.extend_from_slice(indices);
++        if sorted.iter().any(|&index| index >= block_count) {
++            return Err(Error::Unresolved(format!(
++                "{side} excluded block index exceeds the normalized block count"
++            )));
++        }
++        sorted.sort_unstable();
++        if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
++            return Err(Error::Unresolved(format!(
++                "duplicate {side} excluded block index"
++            )));
++        }
++        Ok(Self { sorted })
++    }
++
++    fn contains(&self, index: usize) -> bool {
++        self.sorted.binary_search(&index).is_ok()
++    }
++
++    fn remap_index(&self, index: usize) -> usize {
++        index - self.sorted.partition_point(|&excluded| excluded < index)
++    }
++
++    fn remap_boundary(&self, boundary: usize) -> usize {
++        boundary - self.sorted.partition_point(|&excluded| excluded < boundary)
++    }
++}
++
++fn project_features(
++    features: &[BlockFeatures],
++    excluded: &ExcludedIndices,
++    side: &str,
++) -> Result<(Vec<BlockFeatures>, Vec<BlockId>)> {
++    let retained_count =
++        features
++            .len()
++            .checked_sub(excluded.sorted.len())
++            .ok_or(Error::LimitExceeded {
++                resource: "ordered feature projection",
++                limit: features.len(),
++            })?;
++    let mut projected = Vec::new();
++    projected
++        .try_reserve_exact(retained_count)
++        .map_err(|_| Error::LimitExceeded {
++            resource: "ordered feature projection",
++            limit: retained_count,
++        })?;
++    let mut excluded_ids = Vec::new();
++    excluded_ids
++        .try_reserve_exact(excluded.sorted.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource: "ordered projection excluded block ids",
++            limit: excluded.sorted.len(),
++        })?;
++    for (index, feature) in features.iter().enumerate() {
++        if excluded.contains(index) {
++            excluded_ids.push(feature.block);
++        } else {
++            projected.push(feature.clone());
++        }
++    }
++    if projected.len() != retained_count || excluded_ids.len() != excluded.sorted.len() {
++        return Err(Error::Unresolved(format!(
++            "{side} ordered projection retained an unexpected block count"
++        )));
++    }
++    Ok((projected, excluded_ids))
++}
++
++fn remap_boundaries(
++    boundaries: &[usize],
++    excluded: &ExcludedIndices,
++    resource: &'static str,
++) -> Result<Vec<usize>> {
++    let mut remapped = Vec::new();
++    remapped
++        .try_reserve_exact(boundaries.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource,
++            limit: boundaries.len(),
++        })?;
++    remapped.extend(
++        boundaries
++            .iter()
++            .map(|&boundary| excluded.remap_boundary(boundary)),
++    );
++    remapped.sort_unstable();
++    remapped.dedup();
++    Ok(remapped)
++}
++
++fn remap_extraction_uncertain_indices(
++    indices: &[usize],
++    excluded: &ExcludedIndices,
++    resource: &'static str,
++) -> Result<(Vec<usize>, Vec<usize>)> {
++    let mut remapped = Vec::new();
++    remapped
++        .try_reserve_exact(indices.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource,
++            limit: indices.len(),
++        })?;
++    let mut boundaries = Vec::new();
++    boundaries
++        .try_reserve_exact(indices.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource,
++            limit: indices.len(),
++        })?;
++    for &index in indices {
++        if excluded.contains(index) {
++            boundaries.push(excluded.remap_boundary(index));
++        } else {
++            remapped.push(excluded.remap_index(index));
++        }
++    }
++    remapped.sort_unstable();
++    remapped.dedup();
++    boundaries.sort_unstable();
++    boundaries.dedup();
++    Ok((remapped, boundaries))
++}
++
++fn remap_retained_indices(
++    indices: &[usize],
++    excluded: &ExcludedIndices,
++    resource: &'static str,
++) -> Result<Vec<usize>> {
++    let mut remapped = Vec::new();
++    remapped
++        .try_reserve_exact(indices.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource,
++            limit: indices.len(),
++        })?;
++    for &index in indices {
++        if !excluded.contains(index) {
++            remapped.push(excluded.remap_index(index));
++        }
++    }
++    remapped.sort_unstable();
++    remapped.dedup();
++    Ok(remapped)
++}
++
++fn merge_boundaries(
++    mut left: Vec<usize>,
++    right: Vec<usize>,
++    resource: &'static str,
++) -> Result<Vec<usize>> {
++    left.try_reserve(right.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource,
++            limit: left.len().saturating_add(right.len()),
++        })?;
++    left.extend(right);
++    left.sort_unstable();
++    left.dedup();
++    Ok(left)
++}
++
+ /// Aligns with a precomputed gap plan so candidate indexing and alignment use
+ /// the same anchor-window decision.
+ pub(crate) fn align_ordered_with_metrics_and_gap_plan(
+@@ -566,6 +924,7 @@ fn align_ordered_inner(
+         new,
+         &plan.all_anchors,
+         &interval_anchors,
++        &plan.secondary_anchors,
+         &old_indices,
+         &new_indices,
+     )?;
+@@ -647,22 +1006,13 @@ fn align_ordered_inner(
+     })
+ }
+ 
+-/// Caps confidence to `Low` and tags evidence for every resolved span
+-/// touching a geometrically inferred reading order on either side.
+-///
+-/// Unlike a forced `ReadingOrderUnknown` window, inferred-order blocks stay
+-/// eligible for anchoring and their windows stay resolvable; this is the
+-/// only place their extra doubt reaches the alignment result, so every
+-/// downstream `Change`/`FormattingChange` derived from `span.confidence`
+-/// inherits it.
++/// Caps confidence and records inference for resolved spans and unresolved
++/// candidate competitions that touch a geometrically inferred reading order.
+ ///
+-/// Skips `Unresolved` spans deliberately: their `confidence` never reaches a
+-/// `Change`, and a large forced `ReadingOrderUnknown` window can incidentally
+-/// span unrelated inferred-order blocks elsewhere in the document. Tagging
+-/// it here would corrupt the exact-evidence gate the sentence-recovery
+-/// fallback uses to decide which unresolved windows it may still recover
+-/// (`diff::sentence::is_sentence_recovery_span`, which requires evidence to
+-/// be exactly `[ReadingOrderUnknown]`).
++/// Candidate competition rejects a parent correspondence, but does not invalidate
++/// independent sentence or running-matter recovery. Preserve inference there so
++/// recovery remains available when layout becomes more informative. Other unresolved
++/// causes retain their exact evidence, particularly reading-order and extraction gaps.
+ fn cap_confidence_for_inferred_reading_order(
+     spans: &mut [AlignmentSpan],
+     inferred_old: &HashSet<BlockId>,
+@@ -672,12 +1022,13 @@ fn cap_confidence_for_inferred_reading_order(
+         return;
+     }
+     for span in spans {
+-        // Do not tag Unresolved spans: measured on nist-csf-v1-1-to-v2-0,
+-        // doing so collapsed coverage from ~69% to ~0.03% by disqualifying
+-        // the single page-wide `ReadingOrderUnknown` window from sentence
+-        // recovery (see the exact-evidence gate this function's doc
+-        // references). Keep this guard.
+-        if span.kind == AlignmentKind::Unresolved {
++        if span.kind == AlignmentKind::Unresolved
++            && span.evidence
++                != [
++                    AlignmentEvidence::TextSimilarity,
++                    AlignmentEvidence::CandidateCompetition,
++                ]
++        {
+             continue;
+         }
+         let intersects_inferred_order = span.old.iter().any(|block| inferred_old.contains(block))
+@@ -712,6 +1063,34 @@ fn validate_uncertain_indices(side: &str, indices: &[usize], block_count: usize)
+     Ok(())
+ }
+ 
++fn filter_anchor_census(
++    anchors: Vec<ExactAnchor>,
++    old_indices: &HashMap<BlockId, usize>,
++    new_indices: &HashMap<BlockId, usize>,
++    uncertain_old: &HashSet<usize>,
++    uncertain_new: &HashSet<usize>,
++) -> Result<Vec<ExactAnchor>> {
++    let mut filtered = Vec::new();
++    filtered
++        .try_reserve_exact(anchors.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource: "ordered anchor census",
++            limit: anchors.len(),
++        })?;
++    for anchor in anchors {
++        let Some(&old_index) = old_indices.get(&anchor.old) else {
++            continue;
++        };
++        let Some(&new_index) = new_indices.get(&anchor.new) else {
++            continue;
++        };
++        if !uncertain_old.contains(&old_index) && !uncertain_new.contains(&new_index) {
++            filtered.push(anchor);
++        }
++    }
++    Ok(filtered)
++}
++
+ fn forced_window_indices(
+     main_anchors: &[ExactAnchor],
+     old_boundaries: &[usize],
+@@ -761,6 +1140,7 @@ fn refine_reading_order_windows(
+     old: &[BlockFeatures],
+     new: &[BlockFeatures],
+     primary_anchors: &[ExactAnchor],
++    secondary_anchors: &[ExactAnchor],
+     windows: Vec<AnchorIntervalWindow>,
+     forced_windows: BTreeMap<usize, ForcedWindowCauses>,
+     uncertain_old: &HashSet<usize>,
+@@ -777,8 +1157,9 @@ fn refine_reading_order_windows(
+         .iter()
+         .map(|anchor| anchor.old)
+         .collect::<HashSet<_>>();
+-    let secondary = exact_anchors(old, new, READING_ORDER_BOUNDARY_MIN_TOKENS)?
+-        .into_iter()
++    let secondary = secondary_anchors
++        .iter()
++        .copied()
+         .filter(|anchor| {
+             !primary_old.contains(&anchor.old)
+                 && !uncertain_old.contains(&old_indices[&anchor.old])
+@@ -889,6 +1270,7 @@ fn secondary_anchor_chains(
+     new: &[BlockFeatures],
+     primary_anchors: &[ExactAnchor],
+     interval_anchors: &[ExactAnchor],
++    secondary_anchors: &[ExactAnchor],
+     old_indices: &HashMap<BlockId, usize>,
+     new_indices: &HashMap<BlockId, usize>,
+ ) -> Result<Vec<Vec<ExactAnchor>>> {
+@@ -906,8 +1288,9 @@ fn secondary_anchor_chains(
+         .map(|anchor| new_indices[&anchor.new])
+         .collect::<Vec<_>>();
+     let mut candidates = vec![Vec::new(); interval_anchors.len() + 1];
+-    for anchor in exact_anchors(old, new, 1)?
+-        .into_iter()
++    for anchor in secondary_anchors
++        .iter()
++        .copied()
+         .filter(|anchor| !primary_old.contains(&anchor.old))
+     {
+         let old_interval =
+@@ -1947,6 +2330,349 @@ fn unresolved_span_with_evidence(
+     }
+ }
+ 
++struct SourceLayout<'a> {
++    ids: &'a [BlockId],
++    positions: HashMap<BlockId, usize>,
++    excluded: HashSet<BlockId>,
++}
++
++impl<'a> SourceLayout<'a> {
++    fn new(side: &str, ids: &'a [BlockId], excluded: &[BlockId]) -> Result<Self> {
++        let mut positions = HashMap::new();
++        positions
++            .try_reserve(ids.len())
++            .map_err(|_| Error::LimitExceeded {
++                resource: "ordered source layout",
++                limit: ids.len(),
++            })?;
++        for (position, &block) in ids.iter().enumerate() {
++            if positions.insert(block, position).is_some() {
++                return Err(Error::Unresolved(format!(
++                    "duplicate {side} source block id {}",
++                    block.0
++                )));
++            }
++        }
++        let mut excluded_set = HashSet::new();
++        excluded_set
++            .try_reserve(excluded.len())
++            .map_err(|_| Error::LimitExceeded {
++                resource: "ordered excluded source ids",
++                limit: excluded.len(),
++            })?;
++        for &block in excluded {
++            if !positions.contains_key(&block) {
++                return Err(Error::Unresolved(format!(
++                    "excluded {side} source block {} is missing from the full source",
++                    block.0
++                )));
++            }
++            if !excluded_set.insert(block) {
++                return Err(Error::Unresolved(format!(
++                    "duplicate excluded {side} source block id {}",
++                    block.0
++                )));
++            }
++        }
++        Ok(Self {
++            ids,
++            positions,
++            excluded: excluded_set,
++        })
++    }
++
++    fn position(&self, block: BlockId, side: &str) -> Result<usize> {
++        self.positions.get(&block).copied().ok_or_else(|| {
++            Error::Unresolved(format!(
++                "alignment references unknown {side} source block {}",
++                block.0
++            ))
++        })
++    }
++
++    fn take_before(&self, cursor: &mut usize, target: usize, side: &str) -> Result<Vec<BlockId>> {
++        if target < *cursor {
++            return Err(Error::Unresolved(format!(
++                "alignment {side} source order moved backwards"
++            )));
++        }
++        let mut excluded = Vec::new();
++        excluded
++            .try_reserve(target - *cursor)
++            .map_err(|_| Error::LimitExceeded {
++                resource: "ordered excluded unresolved span",
++                limit: target - *cursor,
++            })?;
++        for &block in &self.ids[*cursor..target] {
++            if self.excluded.contains(&block) {
++                excluded.push(block);
++            } else {
++                return Err(Error::Unresolved(format!(
++                    "alignment skipped {side} source block {}",
++                    block.0
++                )));
++            }
++        }
++        *cursor = target;
++        Ok(excluded)
++    }
++
++    fn take_trailing(&self, cursor: &mut usize, side: &str) -> Result<Vec<BlockId>> {
++        self.take_before(cursor, self.ids.len(), side)
++    }
++}
++
++struct SourceSpanInfo {
++    positions: Vec<usize>,
++    crosses_excluded: bool,
++}
++
++fn source_span_info(
++    blocks: &[BlockId],
++    source: &SourceLayout<'_>,
++    side: &str,
++) -> Result<SourceSpanInfo> {
++    let mut positions = Vec::new();
++    positions
++        .try_reserve_exact(blocks.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource: "ordered source span positions",
++            limit: blocks.len(),
++        })?;
++    for &block in blocks {
++        if source.excluded.contains(&block) {
++            return Err(Error::Unresolved(format!(
++                "projected alignment retained excluded {side} source block {}",
++                block.0
++            )));
++        }
++        let position = source.position(block, side)?;
++        if positions.last().is_some_and(|last| *last >= position) {
++            return Err(Error::Unresolved(format!(
++                "alignment {side} source span is not strictly ordered"
++            )));
++        }
++        positions.push(position);
++    }
++    let Some((&first, &last)) = positions.first().zip(positions.last()) else {
++        return Ok(SourceSpanInfo {
++            positions,
++            crosses_excluded: false,
++        });
++    };
++    let mut block_index = 0;
++    let mut crosses_excluded = false;
++    for &block in &source.ids[first..=last] {
++        if source.excluded.contains(&block) {
++            crosses_excluded = true;
++            continue;
++        }
++        if blocks.get(block_index) != Some(&block) {
++            return Err(Error::Unresolved(format!(
++                "alignment {side} source span skips a retained source block"
++            )));
++        }
++        block_index += 1;
++    }
++    if block_index != blocks.len() {
++        return Err(Error::Unresolved(format!(
++            "alignment {side} source span does not cover its source range"
++        )));
++    }
++    Ok(SourceSpanInfo {
++        positions,
++        crosses_excluded,
++    })
++}
++
++struct AlignmentSourceInfo {
++    old: SourceSpanInfo,
++    new: SourceSpanInfo,
++}
++
++fn add_unresolved_evidence(evidence: &mut Vec<AlignmentEvidence>, extraction_gap: bool) {
++    if extraction_gap && !evidence.contains(&AlignmentEvidence::ExtractionGap) {
++        evidence.push(AlignmentEvidence::ExtractionGap);
++    }
++    if !evidence.contains(&AlignmentEvidence::ReadingOrderUnknown) {
++        evidence.push(AlignmentEvidence::ReadingOrderUnknown);
++    }
++}
++
++fn add_partial_evidence(span: &mut AlignmentSpan) {
++    if !span
++        .evidence
++        .contains(&AlignmentEvidence::ReadingOrderPartial)
++    {
++        span.evidence.push(AlignmentEvidence::ReadingOrderPartial);
++    }
++}
++
++fn excluded_span(old: Vec<BlockId>, new: Vec<BlockId>, extraction_gap: bool) -> AlignmentSpan {
++    let mut evidence = Vec::with_capacity(2);
++    add_unresolved_evidence(&mut evidence, extraction_gap);
++    AlignmentSpan {
++        kind: AlignmentKind::Unresolved,
++        old,
++        new,
++        score: 0.0,
++        canonical_similarity: 0.0,
++        score_margin: None,
++        confidence: AlignmentConfidence::Low,
++        evidence,
++        old_separator: None,
++        new_separator: None,
++    }
++}
++
++fn crossed_unresolved_span(
++    mut span: AlignmentSpan,
++    old: Vec<BlockId>,
++    new: Vec<BlockId>,
++    extraction_gap: bool,
++) -> AlignmentSpan {
++    span.evidence.clear();
++    add_unresolved_evidence(&mut span.evidence, extraction_gap);
++    span.kind = AlignmentKind::Unresolved;
++    span.old = old;
++    span.new = new;
++    span.score = 0.0;
++    span.canonical_similarity = 0.0;
++    span.score_margin = None;
++    span.confidence = AlignmentConfidence::Low;
++    span.old_separator = None;
++    span.new_separator = None;
++    span
++}
++
++fn source_targets(
++    infos: &[AlignmentSourceInfo],
++    old: bool,
++    source_len: usize,
++) -> Result<Vec<usize>> {
++    let mut targets = Vec::new();
++    targets
++        .try_reserve_exact(infos.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource: "ordered source span targets",
++            limit: infos.len(),
++        })?;
++    targets.resize(infos.len(), source_len);
++    let mut next = source_len;
++    for (index, info) in infos.iter().enumerate().rev() {
++        let positions = if old {
++            &info.old.positions
++        } else {
++            &info.new.positions
++        };
++        if let Some(&first) = positions.first() {
++            next = first;
++        }
++        targets[index] = next;
++    }
++    Ok(targets)
++}
++
++fn source_range_ids(source: &SourceLayout<'_>, positions: &[usize]) -> Vec<BlockId> {
++    let Some((&first, &last)) = positions.first().zip(positions.last()) else {
++        return Vec::new();
++    };
++    source.ids[first..=last].to_vec()
++}
++
++/// Restores omitted source blocks at their original positions in the
++/// alignment. A projected span crossing an omitted block is downgraded to one
++/// unresolved span so source consumption remains exact.
++pub(crate) fn merge_excluded_unresolved(
++    alignment: &mut Alignment,
++    original_old: &[BlockId],
++    original_new: &[BlockId],
++    excluded_old: &[BlockId],
++    excluded_new: &[BlockId],
++    extraction_gap: bool,
++) -> Result<()> {
++    if excluded_old.is_empty() && excluded_new.is_empty() {
++        return Ok(());
++    }
++    let old_source = SourceLayout::new("old", original_old, excluded_old)?;
++    let new_source = SourceLayout::new("new", original_new, excluded_new)?;
++    let mut infos = Vec::new();
++    infos
++        .try_reserve_exact(alignment.spans.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource: "ordered source span positions",
++            limit: alignment.spans.len(),
++        })?;
++    for span in &alignment.spans {
++        if span.old.is_empty() && span.new.is_empty() {
++            return Err(Error::Unresolved(
++                "alignment contains an empty span".to_owned(),
++            ));
++        }
++        infos.push(AlignmentSourceInfo {
++            old: source_span_info(&span.old, &old_source, "old")?,
++            new: source_span_info(&span.new, &new_source, "new")?,
++        });
++    }
++
++    let extra_capacity = excluded_old
++        .len()
++        .checked_add(excluded_new.len())
++        .and_then(|count| alignment.spans.len().checked_add(count))
++        .and_then(|count| count.checked_add(1))
++        .ok_or(Error::LimitExceeded {
++            resource: "ordered excluded unresolved span",
++            limit: usize::MAX,
++        })?;
++    let mut output = Vec::new();
++    output
++        .try_reserve_exact(extra_capacity)
++        .map_err(|_| Error::LimitExceeded {
++            resource: "ordered excluded unresolved span",
++            limit: extra_capacity,
++        })?;
++    let old_targets = source_targets(&infos, true, old_source.ids.len())?;
++    let new_targets = source_targets(&infos, false, new_source.ids.len())?;
++    let mut old_cursor = 0;
++    let mut new_cursor = 0;
++    for (index, mut span) in alignment.spans.iter().cloned().enumerate() {
++        let info = &infos[index];
++        let old_target = old_targets[index];
++        let new_target = new_targets[index];
++        let old_prefix = old_source.take_before(&mut old_cursor, old_target, "old")?;
++        let new_prefix = new_source.take_before(&mut new_cursor, new_target, "new")?;
++        if !old_prefix.is_empty() || !new_prefix.is_empty() {
++            output.push(excluded_span(old_prefix, new_prefix, extraction_gap));
++        }
++
++        add_partial_evidence(&mut span);
++        let crosses_excluded = info.old.crosses_excluded || info.new.crosses_excluded;
++        if crosses_excluded {
++            output.push(crossed_unresolved_span(
++                span,
++                source_range_ids(&old_source, &info.old.positions),
++                source_range_ids(&new_source, &info.new.positions),
++                extraction_gap,
++            ));
++        } else {
++            output.push(span);
++        }
++        if let Some(&last) = info.old.positions.last() {
++            old_cursor = last + 1;
++        }
++        if let Some(&last) = info.new.positions.last() {
++            new_cursor = last + 1;
++        }
++    }
++    let old_trailing = old_source.take_trailing(&mut old_cursor, "old")?;
++    let new_trailing = new_source.take_trailing(&mut new_cursor, "new")?;
++    if !old_trailing.is_empty() || !new_trailing.is_empty() {
++        output.push(excluded_span(old_trailing, new_trailing, extraction_gap));
++    }
++    alignment.spans = output;
++    Ok(())
++}
++
+ fn preserve_move_candidates(
+     old: &[BlockFeatures],
+     new: &[BlockFeatures],
+@@ -2297,6 +3023,29 @@ mod tests {
+         f
+     }
+ 
++    fn simple_match(old: &[u64], new: &[u64]) -> AlignmentSpan {
++        AlignmentSpan {
++            kind: AlignmentKind::Match,
++            old: old.iter().copied().map(BlockId).collect(),
++            new: new.iter().copied().map(BlockId).collect(),
++            score: 1.0,
++            canonical_similarity: 1.0,
++            score_margin: None,
++            confidence: AlignmentConfidence::High,
++            evidence: vec![AlignmentEvidence::ExactCanonical],
++            old_separator: (old.len() > 1).then_some(BlockSeparator::Space),
++            new_separator: (new.len() > 1).then_some(BlockSeparator::Space),
++        }
++    }
++
++    fn simple_alignment(spans: Vec<AlignmentSpan>) -> Alignment {
++        Alignment {
++            spans,
++            main_anchors: Vec::new(),
++            move_candidates: Vec::new(),
++        }
++    }
++
+     fn candidate_map(edges: &[(u64, u64)]) -> CandidateMap {
+         let mut candidates = CandidateMap::new();
+         for &(old, new) in edges {
+@@ -3686,4 +4435,412 @@ mod tests {
+                 .contains(&AlignmentEvidence::NeighborConsistency)
+         );
+     }
++
++    #[test]
++    fn ordered_projection_keeps_proven_blocks_and_full_anchor_order() {
++        let old = [feature(1, 10), feature(2, 20), feature(3, 30)];
++        let new = [feature(101, 10), feature(102, 20), feature(103, 30)];
++        let projection = OrderedProjection::new(
++            &old,
++            &new,
++            AlignmentOptions {
++                anchor_min_tokens: 1,
++                ..AlignmentOptions::default()
++            },
++            &[],
++            &[],
++            &[],
++            &[],
++            &[1],
++            &[1],
++            &[],
++            &[],
++        )
++        .expect("projection should accept one omitted middle block");
++
++        assert_eq!(
++            projection
++                .old
++                .iter()
++                .map(|feature| feature.block)
++                .collect::<Vec<_>>(),
++            [BlockId(1), BlockId(3)]
++        );
++        assert_eq!(projection.excluded_old, [BlockId(2)]);
++        assert_eq!(projection.excluded_new, [BlockId(102)]);
++        assert_eq!(
++            projection.gap_plan.main_anchors,
++            [
++                ExactAnchor {
++                    old: BlockId(1),
++                    new: BlockId(101),
++                },
++                ExactAnchor {
++                    old: BlockId(3),
++                    new: BlockId(103),
++                },
++            ]
++        );
++    }
++
++    #[test]
++    fn ordered_projection_does_not_make_excluded_duplicate_anchor_unique() {
++        let old = [feature(1, 10), feature(2, 10)];
++        let new = [feature(101, 10)];
++        let projection = OrderedProjection::new(
++            &old,
++            &new,
++            AlignmentOptions {
++                anchor_min_tokens: 1,
++                ..AlignmentOptions::default()
++            },
++            &[],
++            &[],
++            &[],
++            &[],
++            &[1],
++            &[],
++            &[],
++            &[],
++        )
++        .expect("projection should accept duplicate source blocks");
++
++        assert!(projection.gap_plan.main_anchors.is_empty());
++        assert!(projection.gap_plan.secondary_anchors.is_empty());
++    }
++
++    #[test]
++    fn ordered_projection_remaps_extraction_uncertainty_as_a_forced_boundary() {
++        let old = [feature(1, 10), feature(2, 20), feature(3, 30)];
++        let new = [feature(101, 10), feature(102, 20), feature(103, 30)];
++        let projection = OrderedProjection::new(
++            &old,
++            &new,
++            AlignmentOptions {
++                anchor_min_tokens: 1,
++                ..AlignmentOptions::default()
++            },
++            &[],
++            &[],
++            &[1],
++            &[1],
++            &[1],
++            &[1],
++            &[],
++            &[],
++        )
++        .expect("omitted extraction-uncertain blocks should remap safely");
++
++        assert_eq!(projection.old.len(), 2);
++        assert!(
++            projection
++                .gap_plan
++                .forced_windows
++                .values()
++                .any(|causes| { causes.evidence() == [AlignmentEvidence::ExtractionGap] })
++        );
++    }
++
++    #[test]
++    fn ordered_projection_remaps_inferred_indices_and_caps_alignment_confidence() {
++        let old = [feature(1, 10), feature(2, 20), feature(3, 30)];
++        let new = [feature(101, 10), feature(102, 20), feature(103, 30)];
++        let projection = OrderedProjection::new(
++            &old,
++            &new,
++            AlignmentOptions {
++                anchor_min_tokens: 1,
++                ..AlignmentOptions::default()
++            },
++            &[],
++            &[],
++            &[],
++            &[],
++            &[1],
++            &[1],
++            &[2],
++            &[2],
++        )
++        .expect("inferred indices should remap after projection");
++        let OrderedProjection {
++            old: projected_old,
++            new: projected_new,
++            gap_plan,
++            ..
++        } = projection;
++        let alignment = align_ordered_with_metrics_and_gap_plan(
++            &projected_old,
++            &projected_new,
++            &ReplacementGenerator,
++            AlignmentOptions {
++                anchor_min_tokens: 1,
++                ..AlignmentOptions::default()
++            },
++            gap_plan,
++        )
++        .result
++        .expect("projected anchors should remain alignable");
++        let inferred = alignment
++            .spans
++            .iter()
++            .find(|span| span.old == [BlockId(3)])
++            .expect("remapped inferred block should remain in the alignment");
++        assert_eq!(inferred.confidence, AlignmentConfidence::Low);
++        assert!(
++            inferred
++                .evidence
++                .contains(&AlignmentEvidence::ReadingOrderInferred)
++        );
++    }
++
++    #[test]
++    fn ordered_projection_rejects_invalid_excluded_indices_and_limits() {
++        let old = [feature(1, 10), feature(2, 20)];
++        let new = [feature(101, 10), feature(102, 20)];
++        let options = AlignmentOptions {
++            anchor_min_tokens: 1,
++            ..AlignmentOptions::default()
++        };
++        for excluded in [[1, 1].as_slice(), [2].as_slice()] {
++            assert!(matches!(
++                OrderedProjection::new(
++                    &old,
++                    &new,
++                    options,
++                    &[],
++                    &[],
++                    &[],
++                    &[],
++                    excluded,
++                    &[],
++                    &[],
++                    &[]
++                ),
++                Err(Error::Unresolved(_))
++            ));
++        }
++        assert!(matches!(
++            OrderedProjection::new(
++                &old,
++                &new,
++                AlignmentOptions {
++                    max_dp_cells: 0,
++                    ..options
++                },
++                &[],
++                &[],
++                &[],
++                &[],
++                &[],
++                &[],
++                &[],
++                &[],
++            ),
++            Err(Error::InvalidConfiguration(_))
++        ));
++    }
++
++    #[test]
++    fn merge_excluded_source_interleaves_a_middle_chunk() {
++        let mut alignment =
++            simple_alignment(vec![simple_match(&[1], &[101]), simple_match(&[3], &[103])]);
++
++        merge_excluded_unresolved(
++            &mut alignment,
++            &[BlockId(1), BlockId(2), BlockId(3)],
++            &[BlockId(101), BlockId(102), BlockId(103)],
++            &[BlockId(2)],
++            &[BlockId(102)],
++            false,
++        )
++        .expect("middle excluded source should be interleaved");
++
++        assert_eq!(alignment.spans.len(), 3);
++        assert_eq!(alignment.spans[0].old, [BlockId(1)]);
++        assert_eq!(alignment.spans[1].kind, AlignmentKind::Unresolved);
++        assert_eq!(alignment.spans[1].old, [BlockId(2)]);
++        assert_eq!(alignment.spans[1].new, [BlockId(102)]);
++        assert_eq!(alignment.spans[2].old, [BlockId(3)]);
++        assert!(
++            alignment.spans[0]
++                .evidence
++                .contains(&AlignmentEvidence::ReadingOrderPartial)
++        );
++    }
++
++    #[test]
++    fn merge_excluded_source_keeps_different_side_slots_ordered() {
++        let mut alignment =
++            simple_alignment(vec![simple_match(&[1], &[101]), simple_match(&[3], &[102])]);
++
++        merge_excluded_unresolved(
++            &mut alignment,
++            &[BlockId(1), BlockId(2), BlockId(3)],
++            &[BlockId(101), BlockId(102), BlockId(103)],
++            &[BlockId(2)],
++            &[BlockId(103)],
++            false,
++        )
++        .expect("different source slots should remain ordered");
++
++        assert_eq!(alignment.spans.len(), 4);
++        assert_eq!(alignment.spans[0].old, [BlockId(1)]);
++        assert_eq!(alignment.spans[1].old, [BlockId(2)]);
++        assert_eq!(alignment.spans[1].new, Vec::<BlockId>::new());
++        assert_eq!(alignment.spans[2].old, [BlockId(3)]);
++        assert_eq!(alignment.spans[2].new, [BlockId(102)]);
++        assert_eq!(alignment.spans[3].old, Vec::<BlockId>::new());
++        assert_eq!(alignment.spans[3].new, [BlockId(103)]);
++    }
++
++    #[test]
++    fn merge_excluded_source_downgrades_a_crossing_projected_merge() {
++        let mut alignment = simple_alignment(vec![simple_match(&[1, 3], &[101, 103])]);
++
++        merge_excluded_unresolved(
++            &mut alignment,
++            &[BlockId(1), BlockId(2), BlockId(3)],
++            &[BlockId(101), BlockId(103)],
++            &[BlockId(2)],
++            &[],
++            false,
++        )
++        .expect("crossing projected merge should remain source-complete");
++
++        assert_eq!(alignment.spans.len(), 1);
++        assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
++        assert_eq!(alignment.spans[0].old, [BlockId(1), BlockId(2), BlockId(3)]);
++        assert_eq!(alignment.spans[0].new, [BlockId(101), BlockId(103)]);
++        assert!(
++            alignment.spans[0]
++                .evidence
++                .contains(&AlignmentEvidence::ReadingOrderUnknown)
++        );
++        assert_eq!(
++            alignment.spans[0].evidence,
++            [AlignmentEvidence::ReadingOrderUnknown]
++        );
++    }
++
++    #[test]
++    fn merge_excluded_source_preserves_alignment_on_source_order_error() {
++        let original =
++            simple_alignment(vec![simple_match(&[1], &[101]), simple_match(&[4], &[104])]);
++        let mut alignment = original.clone();
++
++        assert!(matches!(
++            merge_excluded_unresolved(
++                &mut alignment,
++                &[BlockId(1), BlockId(2), BlockId(3), BlockId(4)],
++                &[BlockId(101), BlockId(102), BlockId(103), BlockId(104)],
++                &[BlockId(2)],
++                &[],
++                false,
++            ),
++            Err(Error::Unresolved(_))
++        ));
++        assert_eq!(alignment, original);
++    }
++
++    #[test]
++    fn merge_without_exclusions_preserves_alignment_exactly() {
++        let original = simple_alignment(vec![simple_match(&[1], &[101])]);
++        let mut alignment = original.clone();
++
++        merge_excluded_unresolved(
++            &mut alignment,
++            &[BlockId(1)],
++            &[BlockId(101)],
++            &[],
++            &[],
++            true,
++        )
++        .expect("no exclusions should be a no-op");
++
++        assert_eq!(alignment, original);
++    }
++
++    #[test]
++    fn excluded_identity_source_is_reported_as_reading_order_unknown() {
++        let identity_source = [feature(1, 10), feature(2, 20)];
++        let projection = OrderedProjection::new(
++            &identity_source,
++            &identity_source,
++            AlignmentOptions::default(),
++            &[],
++            &[],
++            &[],
++            &[],
++            &[1],
++            &[1],
++            &[],
++            &[],
++        )
++        .expect("identity projection should retain its exclusions");
++        let OrderedProjection {
++            old: projected_old,
++            new: projected_new,
++            gap_plan,
++            excluded_old,
++            excluded_new,
++        } = projection;
++        let mut alignment = align_ordered_with_metrics_and_gap_plan(
++            &projected_old,
++            &projected_new,
++            &ReplacementGenerator,
++            AlignmentOptions::default(),
++            gap_plan,
++        )
++        .result
++        .expect("projected identity should use the identity fast path");
++        merge_excluded_unresolved(
++            &mut alignment,
++            &[BlockId(1), BlockId(2)],
++            &[BlockId(1), BlockId(2)],
++            &excluded_old,
++            &excluded_new,
++            true,
++        )
++        .expect("excluded identity source should remain reportable");
++
++        assert_eq!(alignment.spans.len(), 2);
++        assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
++        assert_eq!(alignment.spans[0].old, [BlockId(1)]);
++        assert_eq!(alignment.spans[1].old, [BlockId(2)]);
++        assert_eq!(alignment.spans[1].new, [BlockId(2)]);
++        assert_eq!(
++            alignment.spans[1].evidence,
++            [
++                AlignmentEvidence::ExtractionGap,
++                AlignmentEvidence::ReadingOrderUnknown,
++            ]
++        );
++
++        let mut alignment = Alignment {
++            spans: Vec::new(),
++            main_anchors: Vec::new(),
++            move_candidates: Vec::new(),
++        };
++        merge_excluded_unresolved(
++            &mut alignment,
++            &[BlockId(2)],
++            &[BlockId(102)],
++            &[BlockId(2)],
++            &[BlockId(102)],
++            true,
++        )
++        .expect("excluded source should be appendable");
++
++        assert_eq!(alignment.spans.len(), 1);
++        assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
++        assert_eq!(alignment.spans[0].old, [BlockId(2)]);
++        assert_eq!(alignment.spans[0].new, [BlockId(102)]);
++        assert_eq!(
++            alignment.spans[0].evidence,
++            [
++                AlignmentEvidence::ExtractionGap,
++                AlignmentEvidence::ReadingOrderUnknown,
++            ]
++        );
++    }
+ }
+diff --git a/crates/pdfdelta-core/src/diff/mod.rs b/crates/pdfdelta-core/src/diff/mod.rs
+index f4a2fa1..d112c87 100644
+--- a/crates/pdfdelta-core/src/diff/mod.rs
++++ b/crates/pdfdelta-core/src/diff/mod.rs
+@@ -3102,7 +3102,6 @@ struct RepeatedRecoveryGroup {
+ #[derive(PartialEq, Eq, Hash)]
+ struct RepeatedRecoveryKey {
+     deletion: bool,
+-    unit_kind: sentence::RecoveryUnitKind,
+     role: sentence::OccurrenceRole,
+     tokens: Vec<ComparableToken>,
+ }
+@@ -3178,7 +3177,6 @@ fn group_repeated_recovered_changes(
+                 };
+                 let key = RepeatedRecoveryKey {
+                     deletion: change.event.kind == ChangeKind::Deletion,
+-                    unit_kind: recovered.kind,
+                     role: recovered.role,
+                     tokens: try_recovered_tokens(side, recovered, output_budget)?,
+                 };
+@@ -8823,6 +8821,115 @@ mod tests {
+         assert!(result.unresolved_regions.is_empty());
+     }
+ 
++    #[test]
++    fn repeated_footer_groups_line_and_trusted_tail_occurrences() {
++        let mut old = vec![
++            line_block(1, "Stable review watermark"),
++            line_block(2, "Stable review watermark"),
++        ];
++        for block in &mut old {
++            block.role = BlockRole::RepeatedFooter;
++        }
++        let result = compare_sentence_recovery(
++            &old,
++            &[],
++            &[None, Some(TrustedRunId(1))],
++            &[],
++            5,
++            vec![AlignmentEvidence::ReadingOrderUnknown],
++        );
++        assert_eq!(result.changes.len(), 1);
++        assert_eq!(result.changes[0].occurrences.len(), 2);
++        assert!(result.unresolved_regions.is_empty());
++    }
++
++    #[test]
++    fn inferred_parent_competition_preserves_footer_recovery_without_bypassing_gaps() {
++        let old = repeated_role_blocks(
++            [1, 2],
++            "Stable review watermark.",
++            BlockRole::RepeatedFooter,
++        );
++        let competition = vec![
++            AlignmentEvidence::TextSimilarity,
++            AlignmentEvidence::CandidateCompetition,
++        ];
++        let mut inferred = competition.clone();
++        inferred.push(AlignmentEvidence::ReadingOrderInferred);
++        let mut extraction_gap = inferred.clone();
++        extraction_gap.push(AlignmentEvidence::ExtractionGap);
++        for (evidence, eligible) in [
++            (competition, false),
++            (inferred, true),
++            (extraction_gap, false),
++        ] {
++            let result = compare_sentence_recovery(
++                &old,
++                &[],
++                &[Some(TrustedRunId(1)), Some(TrustedRunId(2))],
++                &[],
++                5,
++                evidence,
++            );
++            if eligible {
++                assert_eq!(result.changes.len(), 1);
++                assert_eq!(result.changes[0].occurrences.len(), 2);
++                assert!(result.unresolved_regions.is_empty());
++            } else {
++                assert!(result.changes.is_empty());
++                assert!(!result.unresolved_regions.is_empty());
++            }
++        }
++    }
++
++    #[test]
++    fn partial_order_scoring_recovery_preserves_other_failure_barriers() {
++        let old = [line_block(1, "The legacy sentence is removed.")];
++        let new = [line_block(2, "A fresh sentence is inserted.")];
++        let partial = vec![
++            AlignmentEvidence::TextSimilarity,
++            AlignmentEvidence::CandidateScoringRejected,
++            AlignmentEvidence::ReadingOrderPartial,
++        ];
++        for barrier in [
++            None,
++            Some(AlignmentEvidence::ExtractionGap),
++            Some(AlignmentEvidence::NormalizationIssue),
++            Some(AlignmentEvidence::DiffRejectedAsImplausible),
++            Some(AlignmentEvidence::DiffEditDistanceExceeded),
++        ] {
++            let mut evidence = partial.clone();
++            evidence.extend(barrier);
++            let result = compare_sentence_recovery(
++                &old,
++                &new,
++                &[Some(TrustedRunId(1))],
++                &[Some(TrustedRunId(2))],
++                5,
++                evidence,
++            );
++            if barrier.is_none() {
++                assert_eq!(result.changes.len(), 2);
++                assert!(
++                    result
++                        .changes
++                        .iter()
++                        .any(|change| change.kind == ChangeKind::Deletion)
++                );
++                assert!(
++                    result
++                        .changes
++                        .iter()
++                        .any(|change| change.kind == ChangeKind::Insertion)
++                );
++                assert!(result.unresolved_regions.is_empty());
++            } else {
++                assert!(result.changes.is_empty(), "barrier={barrier:?}");
++                assert!(!result.unresolved_regions.is_empty());
++            }
++        }
++    }
++
+     #[test]
+     fn repeated_recovery_budget_failure_keeps_all_span_fallbacks() {
+         let old = repeated_role_blocks(
+diff --git a/crates/pdfdelta-core/src/diff/recovery/mod.rs b/crates/pdfdelta-core/src/diff/recovery/mod.rs
+index 0c5289d..e348a36 100644
+--- a/crates/pdfdelta-core/src/diff/recovery/mod.rs
++++ b/crates/pdfdelta-core/src/diff/recovery/mod.rs
+@@ -3,6 +3,7 @@ pub(super) mod container;
+ pub(super) mod fragment_lce;
+ pub(super) mod fragment_proposal;
+ pub(super) mod ownership;
++pub(super) mod page_anchor;
+ pub(super) mod score;
+ pub(super) mod section_pairing;
+ pub(super) mod trusted_residual;
+diff --git a/crates/pdfdelta-core/src/diff/sentence.rs b/crates/pdfdelta-core/src/diff/sentence.rs
+index cc966e7..61d2649 100644
+--- a/crates/pdfdelta-core/src/diff/sentence.rs
++++ b/crates/pdfdelta-core/src/diff/sentence.rs
+@@ -43,6 +43,10 @@ use super::recovery::ownership::{
+     RecoveryEligibleBlock, RecoveryOwnershipLedger, RecoveryOwnershipLimits,
+     RecoveryOwnershipRange, analyze_recovery_ownership_partition, build_recovery_ownership_ledger,
+ };
++use super::recovery::page_anchor::{
++    PageAnchorCandidate, PageAnchorPair, PageAnchorRange, PageAnchorSelectorLimits,
++    select_page_anchors,
++};
+ use super::recovery::score::{
+     CachedSentenceEdgeEvidence, MIN_NEAR_SCORE, MIN_WORD_SCORE_EDGE_EVIDENCE, RelationFloorProbe,
+     basis_points, cached_sentence_edge_evidence, cached_sentence_edge_evidence_from_aligned_facts,
+@@ -3394,17 +3398,16 @@ fn explicit_list_item_start(text: &str) -> Option<usize> {
+     })
+ }
+ 
+-fn short_enumeration_boundaries(
++fn short_enumeration_ranges(
+     text: &str,
+-    output: &mut Vec<GranularBoundary>,
+     budget: &mut GranularDiagnosticBudget,
+-) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
++) -> std::result::Result<Vec<Range<usize>>, RecoveryWatchGranularStopReason> {
+     let Some((delimiter, width)) = text
+         .char_indices()
+         .find(|(_, character)| matches!(character, ':' | '\u{2014}'))
+         .map(|(offset, character)| (offset, character.len_utf8()))
+     else {
+-        return Ok(());
++        return Ok(Vec::new());
+     };
+     let body_start = delimiter
+         .checked_add(width)
+@@ -3428,7 +3431,7 @@ fn short_enumeration_boundaries(
+     for (offset, character) in body.char_indices() {
+         if character == ',' {
+             if ranges.len() == 8 {
+-                return Ok(());
++                return Ok(Vec::new());
+             }
+             ranges.push(start..offset);
+             start = offset + 1;
+@@ -3436,7 +3439,7 @@ fn short_enumeration_boundaries(
+     }
+     ranges.push(start..body.len());
+     if !(2..=8).contains(&ranges.len()) {
+-        return Ok(());
++        return Ok(Vec::new());
+     }
+     let mut adjusted = Vec::new();
+     adjusted
+@@ -3468,17 +3471,24 @@ fn short_enumeration_boundaries(
+             .unicode_words()
+             .count();
+         if !(1..=3).contains(&words) {
+-            return Ok(());
++            return Ok(Vec::new());
+         }
+         adjusted.push(item_start..item_end);
+     }
+-    for range in adjusted {
+-        push_trimmed_boundary(
+-            text,
+-            body_start + range.start..body_start + range.end,
+-            RecoveryWatchUnitKind::ListItem,
+-            output,
+-        )?;
++    for range in &mut adjusted {
++        range.start += body_start;
++        range.end += body_start;
++    }
++    Ok(adjusted)
++}
++
++fn short_enumeration_boundaries(
++    text: &str,
++    output: &mut Vec<GranularBoundary>,
++    budget: &mut GranularDiagnosticBudget,
++) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
++    for range in short_enumeration_ranges(text, budget)? {
++        push_trimmed_boundary(text, range, RecoveryWatchUnitKind::ListItem, output)?;
+     }
+     Ok(())
+ }
+@@ -11809,6 +11819,22 @@ fn canonical_source_map_is_valid(block: &BlockText, scalar_count: usize) -> bool
+     true
+ }
+ 
++fn canonical_source_map_is_exact(block: &BlockText) -> bool {
++    let scalar_count = block.canonical.text.chars().count();
++    let mut next_start = 0usize;
++    for entry in &block.canonical.source_map {
++        if entry.output_range.start != next_start
++            || entry.output_range.start >= entry.output_range.end
++            || entry.output_range.end > scalar_count
++            || entry.source.atoms.is_empty()
++        {
++            return false;
++        }
++        next_start = entry.output_range.end;
++    }
++    next_start == scalar_count
++}
++
+ fn scalar_source_available(
+     block: &BlockText,
+     scalar_index: usize,
+@@ -12336,17 +12362,398 @@ fn append_secondary_range_local_exact_matches(
+     input: SentenceRecoveryInput<'_>,
+     max_tokens: usize,
+ ) {
+-    let Some(batch) = secondary_range_local_exact_batch(
++    if let Some(batch) = secondary_range_local_exact_batch(
+         old,
+         new,
+         alignment,
+         input,
+         max_tokens,
+         accepted.plan.as_ref(),
+-    ) else {
+-        return;
++    ) {
++        let _ = commit_secondary_exact_batch(accepted, batch);
++    }
++    if let Some(batch) = page_anchor_exact_batch(
++        old,
++        new,
++        alignment,
++        input,
++        max_tokens,
++        accepted.plan.as_ref(),
++    ) {
++        let _ = commit_secondary_exact_batch(accepted, batch);
++    }
++}
++
++type PageAnchorRole = (BlockRole, Option<usize>);
++
++fn page_anchor_exact_batch(
++    old: &Side<'_>,
++    new: &Side<'_>,
++    alignment: &Alignment,
++    input: SentenceRecoveryInput<'_>,
++    max_tokens: usize,
++    primary: Option<&SentenceRecoveryPlan>,
++) -> Option<SentenceRecoveryPlan> {
++    let membership = span_membership(alignment)?;
++    let mut budget = RecoveryBudget::new(
++        old.total_tokens,
++        new.total_tokens,
++        max_tokens,
++        input.min_tokens,
++    )?;
++    let limits = page_anchor_selector_limits(&budget)?;
++    let old_candidates = page_anchor_candidates(
++        old,
++        input.old_trusted_run_intervals,
++        &membership.old,
++        &membership.recovery_spans,
++    )?;
++    let new_candidates = page_anchor_candidates(
++        new,
++        input.new_trusted_run_intervals,
++        &membership.new,
++        &membership.recovery_spans,
++    )?;
++    let mut pairs =
++        select_page_anchors(&old_candidates, &new_candidates, input.min_tokens, limits).ok()?;
++    if !retain_unambiguous_page_anchors(&mut pairs, old, new, &membership, input) {
++        return None;
++    }
++    build_page_anchor_batch(pairs, old, new, &membership, primary, &mut budget)
++}
++
++fn page_anchor_selector_limits(budget: &RecoveryBudget) -> Option<PageAnchorSelectorLimits> {
++    let token_work_limit = budget.token_limit.checked_mul(4)?;
++    Some(PageAnchorSelectorLimits {
++        max_blocks_per_side: budget.token_limit,
++        max_scanned_windows_per_side: budget.token_limit,
++        max_scanned_token_work: token_work_limit,
++        max_retained_windows_per_side: budget.token_limit,
++        max_pairs: budget.output_range_limit / 2,
++    })
++}
++
++fn page_anchor_candidates<'side>(
++    side: &'side Side<'_>,
++    trusted_run_intervals: &[Option<TrustedRunInterval>],
++    span_by_block: &HashMap<BlockId, usize>,
++    recovery_spans: &[bool],
++) -> Option<Vec<PageAnchorCandidate<'side, ComparableToken, PageAnchorRole>>> {
++    if trusted_run_intervals.len() != side.blocks.len() {
++        return None;
++    }
++    // This optional stage can run after primary recovery rejected its input.
++    // Validate the same interval contract before trusting a block-local window.
++    stream_plans(trusted_run_intervals)?;
++    let mut candidates = Vec::new();
++    candidates.try_reserve_exact(side.blocks.len()).ok()?;
++    for (block_index, block) in side.blocks.iter().enumerate() {
++        let tokens = side.canonical.get(block_index)?;
++        if tokens.is_empty() {
++            continue;
++        }
++        let span_index = span_by_block.get(&block.block).copied();
++        // A trusted interval is emitted only for a block whose complete line
++        // sequence is contiguous in a proven run, so block-local windows keep
++        // the source order contract of the recovery pipeline.
++        let eligible = trusted_run_intervals
++            .get(block_index)
++            .copied()
++            .flatten()
++            .is_some_and(|interval| interval.start < interval.end)
++            && block.issues.is_empty()
++            && block.canonical.unmapped.is_empty()
++            && span_index
++                .is_some_and(|span_index| recovery_spans.get(span_index).copied().unwrap_or(false))
++            && canonical_source_map_is_exact(block);
++        let pages = (!block.pages.is_empty()).then_some(block.pages.as_slice());
++        candidates.try_reserve(1).ok()?;
++        candidates.push(PageAnchorCandidate::new(
++            block.block.0,
++            (block.role, span_index),
++            pages,
++            tokens,
++            eligible,
++        ));
++    }
++    Some(candidates)
++}
++
++fn retain_unambiguous_page_anchors(
++    pairs: &mut Vec<PageAnchorPair>,
++    old: &Side<'_>,
++    new: &Side<'_>,
++    membership: &SpanMembership,
++    input: SentenceRecoveryInput<'_>,
++) -> bool {
++    for pair in pairs.iter() {
++        let Some(old_block_index) = old.index.get(&BlockId(pair.old.block_id)).copied() else {
++            return false;
++        };
++        let Some(new_block_index) = new.index.get(&BlockId(pair.new.block_id)).copied() else {
++            return false;
++        };
++        let Some(&old_span_index) = membership.old.get(&BlockId(pair.old.block_id)) else {
++            return false;
++        };
++        let Some(&new_span_index) = membership.new.get(&BlockId(pair.new.block_id)) else {
++            return false;
++        };
++        if old_span_index != new_span_index
++            || old.blocks.get(old_block_index).map(|block| block.role)
++                != new.blocks.get(new_block_index).map(|block| block.role)
++            || pair.old.comparable.start >= pair.old.comparable.end
++            || pair.new.comparable.start >= pair.new.comparable.end
++            || pair.old.comparable.end > old.canonical.get(old_block_index).map_or(0, Vec::len)
++            || pair.new.comparable.end > new.canonical.get(new_block_index).map_or(0, Vec::len)
++        {
++            return false;
++        }
++    }
++
++    pairs.sort_unstable_by_key(|pair| {
++        (
++            old.index
++                .get(&BlockId(pair.old.block_id))
++                .copied()
++                .unwrap_or(usize::MAX),
++            pair.old.comparable.start,
++            pair.old.comparable.end,
++            new.index
++                .get(&BlockId(pair.new.block_id))
++                .copied()
++                .unwrap_or(usize::MAX),
++            pair.new.comparable.start,
++            pair.new.comparable.end,
++        )
++    });
++    // Distinct runs have no proven relative order, but anchors within the same
++    // pair of proven runs must not erase an observable rearrangement.
++    let mut usable = Vec::new();
++    if usable.try_reserve_exact(pairs.len()).is_err() {
++        return false;
++    }
++    usable.resize(pairs.len(), true);
++    mark_page_anchor_overlaps(pairs, 0..pairs.len(), OccurrenceSide::Old, &mut usable);
++    let mut new_order = Vec::new();
++    if new_order.try_reserve_exact(pairs.len()).is_err() {
++        return false;
++    }
++    new_order.extend(0..pairs.len());
++    new_order.sort_unstable_by_key(|index| {
++        let pair = &pairs[*index];
++        (
++            new.index
++                .get(&BlockId(pair.new.block_id))
++                .copied()
++                .unwrap_or(usize::MAX),
++            pair.new.comparable.start,
++            pair.new.comparable.end,
++            old.index
++                .get(&BlockId(pair.old.block_id))
++                .copied()
++                .unwrap_or(usize::MAX),
++            pair.old.comparable.start,
++            pair.old.comparable.end,
++        )
++    });
++    mark_page_anchor_overlaps(
++        pairs,
++        new_order.into_iter(),
++        OccurrenceSide::New,
++        &mut usable,
++    );
++    if mark_page_anchor_crossings(pairs, old, new, input, &mut usable).is_none() {
++        return false;
++    }
++    let mut index = 0;
++    pairs.retain(|_| {
++        let keep = usable[index];
++        index += 1;
++        keep
++    });
++    true
++}
++
++fn mark_page_anchor_crossings(
++    pairs: &[PageAnchorPair],
++    old: &Side<'_>,
++    new: &Side<'_>,
++    input: SentenceRecoveryInput<'_>,
++    usable: &mut [bool],
++) -> Option<()> {
++    let mut order = Vec::new();
++    order.try_reserve_exact(pairs.len()).ok()?;
++    for (index, pair) in pairs.iter().enumerate() {
++        let old_index = *old.index.get(&BlockId(pair.old.block_id))?;
++        let new_index = *new.index.get(&BlockId(pair.new.block_id))?;
++        let old_interval = input.old_trusted_run_intervals.get(old_index)?.as_ref()?;
++        let new_interval = input.new_trusted_run_intervals.get(new_index)?.as_ref()?;
++        order.push((
++            (old_interval.run_id.0, new_interval.run_id.0),
++            (old_interval.start, pair.old.comparable.start),
++            (new_interval.start, pair.new.comparable.start),
++            index,
++        ));
++    }
++    order.sort_unstable();
++    let mut start = 0;
++    while start < order.len() {
++        let end = start + order[start..].partition_point(|entry| entry.0 == order[start].0);
++        // Reject both sides of every inversion, including nested inversions.
++        let mut greatest = order[start].2;
++        for entry in &order[start..end] {
++            if entry.2 < greatest {
++                usable[entry.3] = false;
++            }
++            greatest = greatest.max(entry.2);
++        }
++        let mut least = order[end - 1].2;
++        for entry in order[start..end].iter().rev() {
++            if entry.2 > least {
++                usable[entry.3] = false;
++            }
++            least = least.min(entry.2);
++        }
++        start = end;
++    }
++    Some(())
++}
++
++/// Rejects every participant in an ownership conflict, retaining unrelated
++/// anchors. The longest active interval also catches nested overlaps.
++fn mark_page_anchor_overlaps(
++    pairs: &[PageAnchorPair],
++    order: impl Iterator<Item = usize>,
++    side: OccurrenceSide,
++    usable: &mut [bool],
++) {
++    let mut furthest: Option<usize> = None;
++    for index in order {
++        let Some(previous_index) = furthest else {
++            furthest = Some(index);
++            continue;
++        };
++        let (previous, current) = match side {
++            OccurrenceSide::Old => (&pairs[previous_index].old, &pairs[index].old),
++            OccurrenceSide::New => (&pairs[previous_index].new, &pairs[index].new),
++        };
++        if previous.block_id != current.block_id {
++            furthest = Some(index);
++            continue;
++        }
++        if current.comparable.start < previous.comparable.end {
++            usable[previous_index] = false;
++            usable[index] = false;
++        }
++        if current.comparable.end > previous.comparable.end {
++            furthest = Some(index);
++        }
++    }
++}
++
++fn build_page_anchor_batch(
++    pairs: Vec<PageAnchorPair>,
++    old: &Side<'_>,
++    new: &Side<'_>,
++    membership: &SpanMembership,
++    primary: Option<&SentenceRecoveryPlan>,
++    budget: &mut RecoveryBudget,
++) -> Option<SentenceRecoveryPlan> {
++    let mut batch = SentenceRecoveryPlan::default();
++    for pair in pairs {
++        let old_span_index = *membership.old.get(&BlockId(pair.old.block_id))?;
++        let new_span_index = *membership.new.get(&BlockId(pair.new.block_id))?;
++        if old_span_index != new_span_index {
++            return None;
++        }
++        let old_location = page_anchor_location(old, &pair.old, old_span_index, budget)?;
++        let new_location = page_anchor_location(new, &pair.new, new_span_index, budget)?;
++        if primary.is_some_and(|plan| {
++            secondary_location_overlaps(&old_location, &plan.deletion_consumed)
++                || secondary_location_overlaps(&new_location, &plan.insertion_consumed)
++        }) {
++            continue;
++        }
++        if secondary_location_overlaps(&old_location, &batch.deletion_consumed)
++            || secondary_location_overlaps(&new_location, &batch.insertion_consumed)
++        {
++            return None;
++        }
++        let source_tokens = old_location
++            .recovery
++            .source_tokens
++            .checked_add(new_location.recovery.source_tokens)?;
++        if !budget.charge_outputs(2, source_tokens) {
++            return None;
++        }
++        batch.matches.try_reserve(1).ok()?;
++        batch
++            .deletion_consumed
++            .try_reserve_exact(old_location.consumed.len())
++            .ok()?;
++        batch
++            .insertion_consumed
++            .try_reserve_exact(new_location.consumed.len())
++            .ok()?;
++        batch.matches.push(RecoveredExactMatch {
++            old: old_location.recovery,
++            new: new_location.recovery,
++        });
++        batch.deletion_consumed.extend(old_location.consumed);
++        batch.insertion_consumed.extend(new_location.consumed);
++    }
++    normalize_recovery_ranges(&mut batch).then_some(batch)
++}
++
++fn page_anchor_location(
++    side: &Side<'_>,
++    range: &PageAnchorRange,
++    span_index: usize,
++    budget: &mut RecoveryBudget,
++) -> Option<SentenceLocation> {
++    let block_index = side.index.get(&BlockId(range.block_id)).copied()?;
++    let block = side.blocks.get(block_index)?;
++    let tokens = side.canonical.get(block_index)?;
++    if range.comparable.end > tokens.len()
++        || range.comparable.start >= range.comparable.end
++        || range.comparable.end > block.canonical.text.chars().count()
++        || !budget.charge_location_metadata(1, 1)
++    {
++        return None;
++    }
++    let canonical = ScalarRange {
++        start: range.comparable.start,
++        end: range.comparable.end,
+     };
+-    let _ = commit_secondary_exact_batch(accepted, batch);
++    let comparable = TokenRange {
++        start: range.comparable.start,
++        end: range.comparable.end,
++    };
++    let mut blocks = Vec::new();
++    blocks.try_reserve_exact(1).ok()?;
++    blocks.push(block.block);
++    let mut consumed = Vec::new();
++    consumed.try_reserve_exact(1).ok()?;
++    consumed.push(LocalSentenceRange {
++        block: block.block,
++        canonical,
++        comparable,
++    });
++    Some(SentenceLocation {
++        recovery: RecoveredSentence {
++            origin: ChangeOrigin::RangeLocalExact,
++            span_index,
++            kind: RecoveryUnitKind::Sentence,
++            role: block.role.into(),
++            blocks,
++            separator: None,
++            canonical,
++            comparable,
++            source_tokens: range.comparable.end - range.comparable.start,
++        },
++        consumed,
++    })
+ }
+ 
+ fn commit_secondary_exact_batch(
+@@ -14941,7 +15348,37 @@ fn span_membership(alignment: &Alignment) -> Option<SpanMembership> {
+ }
+ 
+ fn is_sentence_recovery_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
+-    kind == AlignmentKind::Unresolved && evidence == [AlignmentEvidence::ReadingOrderUnknown]
++    // Partial-order alignment exposes scoring failures that a fully unknown
++    // window skipped. Retain source-checked recovery without overriding
++    // extraction, normalization, or token-diff failures.
++    kind == AlignmentKind::Unresolved
++        && (evidence == [AlignmentEvidence::ReadingOrderUnknown]
++            || evidence
++                == [
++                    AlignmentEvidence::TextSimilarity,
++                    AlignmentEvidence::CandidateCompetition,
++                    AlignmentEvidence::ReadingOrderInferred,
++                ]
++            || (evidence.contains(&AlignmentEvidence::ReadingOrderPartial)
++                && evidence.iter().any(|value| {
++                    matches!(
++                        value,
++                        AlignmentEvidence::CandidateSetEmpty
++                            | AlignmentEvidence::CandidateScoringRejected
++                            | AlignmentEvidence::CandidateCompetition
++                    )
++                })
++                && evidence.iter().all(|value| {
++                    matches!(
++                        value,
++                        AlignmentEvidence::ReadingOrderPartial
++                            | AlignmentEvidence::ReadingOrderInferred
++                            | AlignmentEvidence::TextSimilarity
++                            | AlignmentEvidence::CandidateSetEmpty
++                            | AlignmentEvidence::CandidateScoringRejected
++                            | AlignmentEvidence::CandidateCompetition
++                    )
++                })))
+ }
+ 
+ fn is_presence_ownership_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
+@@ -32238,6 +32675,315 @@ mod tests {
+         }
+     }
+ 
++    fn page_anchor_test_alignment(old: Vec<BlockId>, new: Vec<BlockId>) -> Alignment {
++        Alignment {
++            spans: vec![crate::alignment::AlignmentSpan {
++                kind: AlignmentKind::Unresolved,
++                old,
++                new,
++                score: 0.0,
++                canonical_similarity: 0.0,
++                score_margin: None,
++                confidence: crate::alignment::AlignmentConfidence::Low,
++                evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
++                old_separator: None,
++                new_separator: None,
++            }],
++            main_anchors: Vec::new(),
++            move_candidates: Vec::new(),
++        }
++    }
++
++    fn page_anchor_test_side<'a>(blocks: &'a [BlockText]) -> Side<'a> {
++        let canonical = blocks
++            .iter()
++            .map(|block| block.matching_tokens.clone())
++            .collect::<Vec<_>>();
++        let total_tokens = canonical.iter().map(Vec::len).sum();
++        Side {
++            blocks,
++            index: blocks
++                .iter()
++                .enumerate()
++                .map(|(index, block)| (block.block, index))
++                .collect(),
++            canonical,
++            total_tokens,
++        }
++    }
++
++    fn page_anchor_fixture_text(prefix: &str, suffix: &str) -> String {
++        let shared = (0..128)
++            .map(|index| char::from_u32(0x400 + index).expect("test scalar is valid"))
++            .collect::<String>();
++        format!("{prefix} {shared} {suffix}")
++    }
++
++    fn page_anchor_shared_text() -> String {
++        (0..128)
++            .map(|index| char::from_u32(0x400 + index).expect("test scalar is valid"))
++            .collect()
++    }
++
++    fn page_anchor_test_input<'a>(
++        old_intervals: &'a [Option<TrustedRunInterval>],
++        new_intervals: &'a [Option<TrustedRunInterval>],
++    ) -> SentenceRecoveryInput<'a> {
++        SentenceRecoveryInput {
++            old_trusted_run_intervals: old_intervals,
++            new_trusted_run_intervals: new_intervals,
++            old_trusted_run_evidence: None,
++            new_trusted_run_evidence: None,
++            min_tokens: 8,
++            enable_known_span_sentence_shadow: false,
++            enable_sentence_edge_gate_shadow: false,
++        }
++    }
++
++    #[test]
++    fn page_anchor_recovers_exact_subblock_with_different_boundaries() {
++        let old_text = page_anchor_fixture_text("aaaaaaaaaa.", "old tail.");
++        let new_text = page_anchor_fixture_text("bbbbbbbbbbb", "new tail.");
++        let old_blocks = vec![collection_test_block(1, &old_text, None)];
++        let new_blocks = vec![collection_test_block(2, &new_text, None)];
++        let old = page_anchor_test_side(&old_blocks);
++        let new = page_anchor_test_side(&new_blocks);
++        let old_intervals = [interval(1, 0, 1)];
++        let new_intervals = [interval(2, 0, 1)];
++        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
++        let input = page_anchor_test_input(&old_intervals, &new_intervals);
++
++        let mut accepted = SentenceRecoveryBuildOutcome::default();
++        append_secondary_range_local_exact_matches(
++            &mut accepted,
++            &old,
++            &new,
++            &alignment,
++            input,
++            512,
++        );
++        let batch = accepted.plan.expect("page anchor selection is complete");
++
++        assert_eq!(batch.matches.len(), 1);
++        assert_eq!(batch.matches[0].old.span_index, 0);
++        assert!(batch.matches[0].old.comparable.start > 0);
++        assert_eq!(
++            batch.matches[0].old.source_tokens,
++            batch.matches[0].new.source_tokens
++        );
++    }
++
++    #[test]
++    fn page_anchor_ineligible_duplicate_vetoes_eligible_block() {
++        let text = page_anchor_shared_text();
++        let mut ineligible = collection_test_block(2, &text, None);
++        add_test_issue(&mut ineligible, ScalarRange { start: 0, end: 1 }, 0);
++        let old_blocks = vec![collection_test_block(1, &text, None), ineligible];
++        let new_blocks = vec![collection_test_block(3, &text, None)];
++        let old = page_anchor_test_side(&old_blocks);
++        let new = page_anchor_test_side(&new_blocks);
++        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2)];
++        let new_intervals = [interval(2, 0, 1)];
++        let alignment = page_anchor_test_alignment(vec![BlockId(1), BlockId(2)], vec![BlockId(3)]);
++        let input = page_anchor_test_input(&old_intervals, &new_intervals);
++
++        let batch = page_anchor_exact_batch(&old, &new, &alignment, input, 1_024, None)
++            .expect("duplicate census is complete");
++
++        assert!(!batch.has_exact_matches());
++    }
++
++    #[test]
++    fn page_anchor_does_not_require_order_between_independent_trusted_blocks() {
++        let text = |base: u32| {
++            (0..40u32)
++                .map(|offset| char::from_u32(base + offset).expect("test scalar"))
++                .collect::<String>()
++        };
++        let left = text(0x400);
++        let right = text(0x600);
++        let old_blocks = vec![
++            collection_test_block(1, &left, None),
++            collection_test_block(2, &right, None),
++        ];
++        let new_blocks = vec![
++            collection_test_block(3, &right, None),
++            collection_test_block(4, &left, None),
++        ];
++        let old = page_anchor_test_side(&old_blocks);
++        let new = page_anchor_test_side(&new_blocks);
++        let old_intervals = [interval(1, 0, 1), interval(2, 0, 1)];
++        let new_intervals = [interval(3, 0, 1), interval(4, 0, 1)];
++        let alignment =
++            page_anchor_test_alignment(vec![BlockId(1), BlockId(2)], vec![BlockId(3), BlockId(4)]);
++        let batch = page_anchor_exact_batch(
++            &old,
++            &new,
++            &alignment,
++            page_anchor_test_input(&old_intervals, &new_intervals),
++            512,
++            None,
++        )
++        .expect("independent exact source ranges");
++        assert_eq!(batch.matches.len(), 2);
++        assert_eq!(batch.matches[0].old.blocks, [BlockId(1)]);
++        assert_eq!(batch.matches[0].new.blocks, [BlockId(4)]);
++        assert_eq!(batch.matches[1].old.blocks, [BlockId(2)]);
++        assert_eq!(batch.matches[1].new.blocks, [BlockId(3)]);
++    }
++
++    #[test]
++    fn page_anchor_preserves_order_within_proven_runs() {
++        let left = page_anchor_shared_text();
++        let right = (0..128)
++            .map(|offset| char::from_u32(0x600 + offset).expect("test scalar"))
++            .collect::<String>();
++        for split_blocks in [false, true] {
++            for reversed in [false, true] {
++                let (new_left, new_right) = if reversed {
++                    (&right, &left)
++                } else {
++                    (&left, &right)
++                };
++                let (old_blocks, new_blocks, old_intervals, new_intervals) = if split_blocks {
++                    (
++                        vec![
++                            collection_test_block(1, &left, None),
++                            collection_test_block(2, &right, None),
++                        ],
++                        vec![
++                            collection_test_block(3, new_left, None),
++                            collection_test_block(4, new_right, None),
++                        ],
++                        vec![interval(1, 0, 1), interval(1, 1, 2)],
++                        vec![interval(2, 0, 1), interval(2, 1, 2)],
++                    )
++                } else {
++                    (
++                        vec![collection_test_block(1, &format!("{left}{right}"), None)],
++                        vec![collection_test_block(
++                            3,
++                            &format!("{new_left}{new_right}"),
++                            None,
++                        )],
++                        vec![interval(1, 0, 1)],
++                        vec![interval(2, 0, 1)],
++                    )
++                };
++                let alignment = page_anchor_test_alignment(
++                    old_blocks.iter().map(|block| block.block).collect(),
++                    new_blocks.iter().map(|block| block.block).collect(),
++                );
++                let batch = page_anchor_exact_batch(
++                    &page_anchor_test_side(&old_blocks),
++                    &page_anchor_test_side(&new_blocks),
++                    &alignment,
++                    page_anchor_test_input(&old_intervals, &new_intervals),
++                    2_048,
++                    None,
++                )
++                .expect("complete anchor selection");
++                assert_eq!(
++                    batch.has_exact_matches(),
++                    !reversed,
++                    "split_blocks={split_blocks}, reversed={reversed}"
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn page_anchor_rejects_budget_that_cannot_cover_both_sides() {
++        let old_text = page_anchor_fixture_text("Old prefix", "old tail.");
++        let new_text = page_anchor_fixture_text("New prefix", "new tail.");
++        let old_blocks = vec![collection_test_block(1, &old_text, None)];
++        let new_blocks = vec![collection_test_block(2, &new_text, None)];
++        let old = page_anchor_test_side(&old_blocks);
++        let new = page_anchor_test_side(&new_blocks);
++        let old_intervals = [interval(1, 0, 1)];
++        let new_intervals = [interval(2, 0, 1)];
++        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
++        let input = page_anchor_test_input(&old_intervals, &new_intervals);
++
++        assert!(
++            page_anchor_exact_batch(
++                &old,
++                &new,
++                &alignment,
++                input,
++                old.total_tokens + new.total_tokens - 1,
++                None,
++            )
++            .is_none()
++        );
++    }
++
++    #[test]
++    fn page_anchor_conflict_does_not_discard_independent_source_evidence() {
++        let shared = (0..40)
++            .map(|offset| char::from_u32(0x400 + offset).expect("test scalar"))
++            .collect::<String>();
++        let old_blocks = vec![
++            collection_test_block(1, "0123456789", None),
++            collection_test_block(2, &shared, None),
++        ];
++        let new_blocks = vec![
++            collection_test_block(3, "01234567x23456789", None),
++            collection_test_block(4, &shared, None),
++        ];
++        let old = page_anchor_test_side(&old_blocks);
++        let new = page_anchor_test_side(&new_blocks);
++        let old_intervals = [interval(1, 0, 1), interval(2, 0, 1)];
++        let new_intervals = [interval(3, 0, 1), interval(4, 0, 1)];
++        let alignment =
++            page_anchor_test_alignment(vec![BlockId(1), BlockId(2)], vec![BlockId(3), BlockId(4)]);
++        let batch = page_anchor_exact_batch(
++            &old,
++            &new,
++            &alignment,
++            page_anchor_test_input(&old_intervals, &new_intervals),
++            512,
++            None,
++        )
++        .expect("conflicts are local to their source ranges");
++        assert_eq!(batch.matches.len(), 1);
++        assert_eq!(batch.matches[0].old.blocks, [BlockId(2)]);
++        assert_eq!(batch.matches[0].new.blocks, [BlockId(4)]);
++    }
++
++    #[test]
++    fn page_anchor_rejects_invalid_intervals_and_missing_source_evidence() {
++        let text = page_anchor_fixture_text("Shared source", "shared tail.");
++        let mut old_blocks = vec![collection_test_block(1, &text, None)];
++        let new_blocks = vec![collection_test_block(2, &text, None)];
++        let new = page_anchor_test_side(&new_blocks);
++        let alignment = page_anchor_test_alignment(vec![BlockId(1)], vec![BlockId(2)]);
++        let malformed = [interval(1, 1, 1)];
++        let valid = [interval(2, 0, 1)];
++        assert!(
++            page_anchor_exact_batch(
++                &page_anchor_test_side(&old_blocks),
++                &new,
++                &alignment,
++                page_anchor_test_input(&malformed, &valid),
++                512,
++                None,
++            )
++            .is_none()
++        );
++        old_blocks[0].canonical.source_map.clear();
++        let batch = page_anchor_exact_batch(
++            &page_anchor_test_side(&old_blocks),
++            &new,
++            &alignment,
++            page_anchor_test_input(&valid, &valid),
++            512,
++            None,
++        )
++        .expect("missing sources remain in the census but are ineligible");
++        assert!(batch.matches.is_empty());
++    }
++
+     fn collect_test_occurrences(
+         parts: &[(&str, Option<Vec<usize>>)],
+         trusted: bool,
+diff --git a/crates/pdfdelta-core/src/layout/block.rs b/crates/pdfdelta-core/src/layout/block.rs
+index a649a47..2a80d78 100644
+--- a/crates/pdfdelta-core/src/layout/block.rs
++++ b/crates/pdfdelta-core/src/layout/block.rs
+@@ -99,6 +99,9 @@ pub(crate) struct BlockReconstruction {
+     pub trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
+     pub trusted_run_descriptors: Vec<TrustedRunDescriptor>,
+     pub trusted_region_edges: Vec<TrustedRegionEdge>,
++    /// Lines participating in a proven or explicitly inferred page traversal.
++    /// Local trusted runs on an otherwise unordered page are not included.
++    pub page_ordered_line_ids: HashSet<LineId>,
+     /// Lines ordered by a geometrically [`Inferred`](super::region::ReadingOrder::Inferred)
+     /// region order rather than a proven one. These lines are ordered, not
+     /// uncertain: they never appear in `issues`, but every change derived
+@@ -284,6 +287,13 @@ pub(crate) fn reconstruct_blocks_with_issues(
+     let mut next_trusted_run_id = 0;
+     let mut issues = Vec::new();
+     let mut inferred_order_line_ids = HashSet::new();
++    let mut page_ordered_line_ids = HashSet::new();
++    page_ordered_line_ids
++        .try_reserve(lines.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource: "page ordered line membership",
++            limit: lines.len(),
++        })?;
+     for (page_num, page_lines) in page_lines_map {
+         let page = PageId(page_num);
+         let page_vector_lines = document
+@@ -326,6 +336,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
+                                 region_id.0
+                             ))
+                         })?;
++                    page_ordered_line_ids.extend(region.line_ids.iter().copied());
+                     append_region_order(
+                         &mut stats_by_line_id,
+                         &mut ordered_stats,
+@@ -346,6 +357,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
+                             ))
+                         })?;
+                     inferred_order_line_ids.extend(region.line_ids.iter().copied());
++                    page_ordered_line_ids.extend(region.line_ids.iter().copied());
+                     append_region_order(
+                         &mut stats_by_line_id,
+                         &mut ordered_stats,
+@@ -354,15 +366,16 @@ pub(crate) fn reconstruct_blocks_with_issues(
+                 }
+             }
+             super::region::ReadingOrder::KnownLines(line_ids) => {
+-                append_region_order(
++                page_ordered_line_ids.extend(line_ids.iter().copied());
++                append_known_line_order(
+                     &mut stats_by_line_id,
+                     &mut ordered_stats,
+-                    line_ids.iter().copied(),
++                    line_ids,
++                    graph
++                        .regions
++                        .iter()
++                        .flat_map(|region| region.line_ids.iter().copied()),
+                 )?;
+-                // A proven line order may still leave unsupported lines out of
+-                // `line_ids`; place them in raw region order so every page line
+-                // is emitted. Their position is not proven, but `uncertain_reason`
+-                // travels with them so block joining still treats them as barriers.
+                 if let Some(reason) = partition.uncertain_reason {
+                     issues.push(LayoutIssue::UnknownReadingOrder {
+                         page,
+@@ -370,15 +383,6 @@ pub(crate) fn reconstruct_blocks_with_issues(
+                         reason,
+                     });
+                 }
+-                for region in &graph.regions {
+-                    let remaining = region
+-                        .line_ids
+-                        .iter()
+-                        .copied()
+-                        .filter(|line_id| stats_by_line_id.contains_key(line_id))
+-                        .collect::<Vec<_>>();
+-                    append_region_order(&mut stats_by_line_id, &mut ordered_stats, remaining)?;
+-                }
+             }
+             super::region::ReadingOrder::Unknown => {
+                 if let Some(reason) = partition.uncertain_reason {
+@@ -473,6 +477,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
+         trusted_run_intervals,
+         trusted_run_descriptors,
+         trusted_region_edges,
++        page_ordered_line_ids,
+         inferred_order_line_ids,
+     })
+ }
+@@ -787,6 +792,47 @@ fn append_region_order<T>(
+     Ok(())
+ }
+ 
++/// Reorders the supported subsequence while retaining omitted lines as barriers
++/// in the raw traversal. A barrier's slot serializes evidence, not proven order.
++/// Moving all omitted lines to the end would permit joins across source gaps.
++fn append_known_line_order<T>(
++    values_by_line_id: &mut HashMap<LineId, T>,
++    ordered_values: &mut Vec<T>,
++    known_order: &[LineId],
++    raw_order: impl IntoIterator<Item = LineId>,
++) -> Result<()> {
++    let mut selected = HashSet::new();
++    selected
++        .try_reserve(known_order.len())
++        .map_err(|_| Error::LimitExceeded {
++            resource: "known line order membership",
++            limit: known_order.len(),
++        })?;
++    selected.extend(known_order.iter().copied());
++    if selected.len() != known_order.len() {
++        return Err(Error::Unresolved(
++            "known line order contains duplicate line ids".to_owned(),
++        ));
++    }
++    let mut known = known_order.iter().copied();
++    for raw_line in raw_order {
++        let line = if selected.remove(&raw_line) {
++            known.next().ok_or_else(|| {
++                Error::Unresolved("raw line order repeats a selected line".to_owned())
++            })?
++        } else {
++            raw_line
++        };
++        append_region_order(values_by_line_id, ordered_values, [line])?;
++    }
++    if known.next().is_some() {
++        return Err(Error::Unresolved(
++            "known line order references a missing raw line".to_owned(),
++        ));
++    }
++    Ok(())
++}
++
+ fn validate_region_order<T>(
+     values_by_line_id: &HashMap<LineId, T>,
+     ordered_values: &[T],
+@@ -2115,6 +2161,42 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn known_line_order_retains_omitted_source_barriers() {
++        let mut values = (1..=5)
++            .map(|id| (LineId(id), id))
++            .collect::<HashMap<_, _>>();
++        let mut ordered = Vec::new();
++        append_known_line_order(
++            &mut values,
++            &mut ordered,
++            &[LineId(1), LineId(2), LineId(4), LineId(5)],
++            [LineId(1), LineId(4), LineId(3), LineId(2), LineId(5)],
++        )
++        .expect("supported order with an omitted middle line");
++        assert_eq!(ordered, vec![1, 2, 3, 4, 5]);
++        assert!(values.is_empty());
++        let barriers = ordered
++            .iter()
++            .enumerate()
++            .filter_map(|(index, id)| (*id == 3).then_some(index))
++            .collect();
++        assert!(crosses_partial_uncertainty(1, 3, &barriers));
++    }
++
++    #[test]
++    fn known_line_order_rejects_duplicate_and_missing_membership() {
++        for (known, raw) in [
++            (vec![LineId(1), LineId(1)], vec![LineId(1), LineId(2)]),
++            (vec![LineId(1), LineId(2)], vec![LineId(1), LineId(1)]),
++            (vec![LineId(1), LineId(3)], vec![LineId(1), LineId(2)]),
++        ] {
++            let mut values = HashMap::from([(LineId(1), 1), (LineId(2), 2)]);
++            let result = append_known_line_order(&mut values, &mut Vec::new(), &known, raw);
++            assert!(matches!(result, Err(Error::Unresolved(_))));
++        }
++    }
++
+     #[test]
+     fn one_partial_uncertain_line_splits_trusted_runs() {
+         let uncertain = BTreeSet::from([2]);
+diff --git a/crates/pdfdelta-core/src/layout/region.rs b/crates/pdfdelta-core/src/layout/region.rs
+index 8a20def..c049a3d 100644
+--- a/crates/pdfdelta-core/src/layout/region.rs
++++ b/crates/pdfdelta-core/src/layout/region.rs
+@@ -35,10 +35,11 @@ pub struct Region {
+ #[non_exhaustive]
+ pub enum ReadingOrder {
+     Known(Vec<RegionId>),
+-    /// A row-major order proven across parallel regions. Region order alone
+-    /// cannot represent alternating label/value or old/new rows.
++    /// A proven order of supported lines. This can express row-major order
++    /// across parallel regions or omit lines whose position remains unknown.
+     KnownLines(Vec<LineId>),
+-    /// A region order that geometry (XY-Cut spatial relations) determines
++    /// A region traversal whose order geometry (including vertically disjoint
++    /// render runs inside a single region) determines
+     /// uniquely, but that the content stream's render order does not agree
+     /// with. Unlike [`Known`](ReadingOrder::Known), no render-order evidence
+     /// corroborates this order: it is usable for comparison because the
+@@ -171,8 +172,9 @@ pub(crate) enum UncertainLineReason {
+ 
+ /// A maximal contiguous selected segment within one leaf region.
+ ///
+-/// Relative order between separate runs is unknown. Unsupported or dropped
+-/// lines are barriers and never occur between members of one run.
++/// Run membership alone does not establish order between separate runs.
++/// Unsupported or dropped lines never occur between members of one run;
++/// a separate page-level traversal can order the supported subsequence.
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub(crate) struct TrustedLineRun {
+     pub line_ids: Vec<LineId>,
+@@ -225,6 +227,17 @@ fn classify_reading_order(
+         .iter()
+         .map(|line| (line.id, *line))
+         .collect::<HashMap<_, _>>();
++    if let [region] = regions
++        && let Some(trusted_runs) = vertically_ordered_render_runs(region, &lines_by_id)
++    {
++        return Ok(ReadingOrderClassification {
++            reading_order: ReadingOrder::Inferred(vec![region.id]),
++            uncertain_line_ids: Vec::new(),
++            uncertain_reason: None,
++            trusted_run_provenance: trusted_run_provenance(&trusted_runs, regions, &lines_by_id)?,
++            trusted_runs,
++        });
++    }
+     let supported_regions = regions
+         .iter()
+         .filter_map(|region| {
+@@ -306,19 +319,32 @@ fn classify_reading_order(
+                 };
+                 (supported_order, Vec::new(), None, trusted_runs)
+             } else {
+-                // When region order is known but contains unsupported lines, scope uncertainty
+-                // only to those unsupported lines rather than invalidating proven runs.
+-                //
+-                // A line-level order (KnownLines) already contains only trusted lines:
+-                // parallel_row_order runs on the pre-filtered supported regions, so the
+-                // order itself is proven and can be forwarded to block reconstruction
+-                // unchanged. A region-level order (Known) cannot be forwarded the same
+-                // way: block reconstruction resolves each region id against the raw,
+-                // unfiltered partition, so it would replay the untrusted lines in
+-                // whatever order XY-Cut happened to assign them instead of the proven
+-                // one. Fall back to Unknown for that case rather than inventing an order.
++                // Resolve the proven region traversal against supported regions,
++                // never raw regions that still contain lines of unknown position.
++                // Reconstruction preserves omitted source lines as join barriers.
+                 let reading_order = match &supported_order {
+                     ReadingOrder::KnownLines(line_ids) if !line_ids.is_empty() => supported_order,
++                    ReadingOrder::Known(region_ids) => {
++                        let mut line_ids = Vec::new();
++                        line_ids
++                            .try_reserve_exact(trusted_line_ids.len())
++                            .map_err(|_| Error::LimitExceeded {
++                                resource: "supported line order",
++                                limit: trusted_line_ids.len(),
++                            })?;
++                        for region_id in region_ids {
++                            let region = supported_regions
++                                .iter()
++                                .find(|region| region.id == *region_id)
++                                .ok_or_else(|| {
++                                    Error::Unresolved(
++                                        "supported order references a missing region".to_owned(),
++                                    )
++                                })?;
++                            line_ids.extend(region.line_ids.iter().copied());
++                        }
++                        ReadingOrder::KnownLines(line_ids)
++                    }
+                     _ => ReadingOrder::Unknown,
+                 };
+                 (
+@@ -541,19 +567,28 @@ fn classify_supported_region_order(
+         if let Some(order) = parallel_row_order(left, right, edges, lines_by_id, vector_lines) {
+             return ReadingOrder::KnownLines(order);
+         }
+-        // Ordinary side-by-side columns share a horizontal band, so a
+-        // row-major reading across them is just as coherent as the
+-        // column-major one XY-Cut happened to record: geometry alone cannot
+-        // pick between them, and the render-order dissent could equally be
+-        // proof of the row-major reading. Only a vertically disjoint pair
+-        // (one strictly above the other) leaves no such alternative.
+-        return if geometry_orders_two_columns
+-            && bboxes_are_vertically_disjoint(left.bbox, right.bbox)
+-        {
+-            ReadingOrder::Inferred(vec![left.id, right.id])
+-        } else {
+-            ReadingOrder::Unknown
+-        };
++        if geometry_orders_two_columns {
++            // Ordinary side-by-side columns share a horizontal band, so a
++            // row-major reading across them is just as coherent as the
++            // column-major one XY-Cut happened to record. Only a vertically
++            // disjoint pair leaves no such alternative.
++            return if bboxes_are_vertically_disjoint(left.bbox, right.bbox) {
++                ReadingOrder::Inferred(vec![left.id, right.id])
++            } else {
++                ReadingOrder::Unknown
++            };
++        }
++        // Neither a proven two-column pair nor a parallel-row table: fall
++        // through to the same general spatial-order path the N-region case
++        // below uses, rather than giving up here. That path is what
++        // correctly handles a vertically stacked two-region partition (body
++        // over footer): `is_supported_two_column_graph` never admits it
++        // since it requires `LeftOf`/`RightOf`, not `Above`/`Below`, so an
++        // ordinary side-by-side pair (which shares a horizontal band, and
++        // so admits a row-major reading as coherent as the column-major
++        // one) and a vertically disjoint stack (which admits no such
++        // alternative) must not be conflated by returning `Unknown` here
++        // unconditionally.
+     }
+ 
+     if let Some(order) = banded_two_column_order(regions, edges, lines_by_id)
+@@ -599,6 +634,65 @@ fn bboxes_are_vertically_disjoint(left: Rect, right: Rect) -> bool {
+     overlap <= tolerance
+ }
+ 
++fn vertically_ordered_render_runs(
++    region: &Region,
++    lines: &HashMap<LineId, &Line>,
++) -> Option<Vec<TrustedLineRun>> {
++    if region.line_ids.is_empty()
++        || region
++            .line_ids
++            .iter()
++            .any(|id| !lines.get(id).is_some_and(|line| line_is_supported(line)))
++    {
++        return None;
++    }
++    let chunks = region
++        .line_ids
++        .chunk_by(|left, right| lines[left].render_order.end() < lines[right].render_order.start())
++        .collect::<Vec<_>>();
++    if chunks.len() < 2 {
++        return None;
++    }
++    // Interleaved render intervals do not establish independent runs.
++    let mut render_ranges = chunks
++        .iter()
++        .map(|chunk| {
++            (
++                *lines[&chunk[0]].render_order.start(),
++                *lines[&chunk[chunk.len() - 1]].render_order.end(),
++            )
++        })
++        .collect::<Vec<_>>();
++    render_ranges.sort_unstable();
++    if render_ranges.windows(2).any(|pair| pair[0].1 >= pair[1].0) {
++        return None;
++    }
++    let mut previous_bbox: Option<Rect> = None;
++    let mut runs = Vec::new();
++    for chunk in chunks {
++        let bbox = line_ids_bounding_box(chunk, lines);
++        if previous_bbox.is_some_and(|previous| {
++            previous.max.y <= bbox.max.y || !bboxes_are_vertically_disjoint(previous, bbox)
++        }) {
++            return None;
++        }
++        let segment = Region {
++            id: region.id,
++            page: region.page,
++            bbox,
++            line_ids: chunk.to_vec(),
++        };
++        if !region_lines_are_monotone(&segment, lines) {
++            return None;
++        }
++        runs.push(TrustedLineRun {
++            line_ids: segment.line_ids,
++        });
++        previous_bbox = Some(bbox);
++    }
++    Some(runs)
++}
++
+ fn trusted_region_line_ids(region: &Region, lines: &HashMap<LineId, &Line>) -> Vec<LineId> {
+     let supported = region
+         .line_ids
+@@ -1739,7 +1833,10 @@ mod tests {
+ 
+         let partition = partition(&lines);
+ 
+-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::KnownLines(vec![LineId(1), LineId(3)])
++        );
+         assert_eq!(partition.uncertain_line_ids, vec![LineId(2)]);
+         assert_eq!(
+             partition.trusted_runs,
+@@ -1838,7 +1935,7 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn ambiguous_vertical_overlap_chain_remains_unknown() {
++    fn ambiguous_vertical_overlap_chain_preserves_only_supported_order() {
+         let mut lines = vec![
+             line(1, 10.0, 10.0, 20.0, 20.0),
+             line(3, 30.0, 8.0, 40.0, 20.0),
+@@ -1850,12 +1947,15 @@ mod tests {
+ 
+         let partition = partition(&lines);
+ 
+-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+-        assert!(!partition.uncertain_line_ids.is_empty());
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::KnownLines(vec![LineId(1), LineId(2)])
++        );
++        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
+     }
+ 
+     #[test]
+-    fn vertically_offset_overlapping_lines_remain_unknown() {
++    fn vertically_offset_overlapping_line_remains_outside_known_order() {
+         let lines = vec![
+             line(1, 10.0, 10.0, 20.0, 20.0),
+             line(2, 30.0, 8.0, 100.0, 20.1),
+@@ -1863,7 +1963,12 @@ mod tests {
+         let line_refs = lines.iter().collect::<Vec<_>>();
+ 
+         assert_eq!(proven_row_cluster_order(&line_refs), None);
+-        assert_eq!(partition(&lines).graph.reading_order, ReadingOrder::Unknown);
++        let partition = partition(&lines);
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::KnownLines(vec![LineId(1)])
++        );
++        assert_eq!(partition.uncertain_line_ids, vec![LineId(2)]);
+     }
+ 
+     #[test]
+@@ -1883,18 +1988,26 @@ mod tests {
+             partition.graph.regions[0].line_ids,
+             [LineId(1), LineId(2), LineId(3)]
+         );
+-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+-        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::Inferred(vec![RegionId(1)])
++        );
++        assert!(partition.uncertain_line_ids.is_empty());
+         assert_eq!(
+             partition.trusted_runs,
+-            vec![TrustedLineRun {
+-                line_ids: vec![LineId(1), LineId(2)],
+-            }]
++            vec![
++                TrustedLineRun {
++                    line_ids: vec![LineId(1), LineId(2)],
++                },
++                TrustedLineRun {
++                    line_ids: vec![LineId(3)]
++                }
++            ]
+         );
+     }
+ 
+     #[test]
+-    fn single_leaf_scopes_uncertainty_to_footer_first_lines() {
++    fn single_leaf_infers_order_between_vertically_disjoint_render_runs() {
+         let mut lines = vec![
+             line(1, 50.0, 700.0, 250.0, 710.0),
+             line(2, 50.0, 680.0, 250.0, 690.0),
+@@ -1906,22 +2019,48 @@ mod tests {
+ 
+         let partition = partition(&lines);
+ 
+-        // One leaf has no inter-region order to prove; the footer emitted
+-        // before the body is the only unproven position. The body run stays
+-        // proven instead of being invalidated with the whole page.
+         assert_eq!(partition.graph.regions.len(), 1);
+-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+-        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::Inferred(vec![RegionId(1)])
++        );
++        assert!(partition.uncertain_line_ids.is_empty());
++        // Geometry orders the runs; render evidence proves only each run's interior.
+         assert_eq!(
+             partition.trusted_runs,
+-            vec![TrustedLineRun {
+-                line_ids: vec![LineId(1), LineId(2)],
+-            }]
++            vec![
++                TrustedLineRun {
++                    line_ids: vec![LineId(1), LineId(2)]
++                },
++                TrustedLineRun {
++                    line_ids: vec![LineId(3)]
++                },
++            ]
+         );
+     }
+ 
+     #[test]
+-    fn horizontally_overlapping_row_lines_remain_unknown() {
++    fn overlapping_render_run_in_a_single_leaf_remains_outside_known_order() {
++        let mut lines = vec![
++            line(1, 50.0, 700.0, 250.0, 710.0),
++            line(2, 50.0, 680.0, 250.0, 690.0),
++            line(3, 50.0, 675.0, 250.0, 685.0),
++        ];
++        lines[0].render_order = 2..=2;
++        lines[1].render_order = 3..=3;
++        lines[2].render_order = 1..=1;
++
++        let partition = partition(&lines);
++        assert_eq!(partition.graph.regions.len(), 1);
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::KnownLines(vec![LineId(1), LineId(2)])
++        );
++        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
++    }
++
++    #[test]
++    fn horizontally_overlapping_row_line_remains_outside_known_order() {
+         let lines = vec![
+             line(2, 10.0, 10.0, 60.0, 20.0),
+             line(1, 50.0, 10.0, 100.0, 20.0),
+@@ -1929,8 +2068,11 @@ mod tests {
+ 
+         let partition = partition(&lines);
+ 
+-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+-        assert!(!partition.uncertain_line_ids.is_empty());
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::KnownLines(vec![LineId(1)])
++        );
++        assert_eq!(partition.uncertain_line_ids, vec![LineId(2)]);
+     }
+ 
+     #[test]
+@@ -1943,7 +2085,12 @@ mod tests {
+         let line_refs = lines.iter().collect::<Vec<_>>();
+ 
+         assert_eq!(proven_row_cluster_order(&line_refs), None);
+-        assert_eq!(partition(&lines).graph.reading_order, ReadingOrder::Unknown);
++        let partition = partition(&lines);
++        assert_eq!(
++            partition.graph.reading_order,
++            ReadingOrder::KnownLines(vec![LineId(1)])
++        );
++        assert_eq!(partition.uncertain_line_ids, vec![LineId(2)]);
+     }
+ 
+     #[test]
+@@ -2012,6 +2159,61 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn vertically_disjoint_two_region_stack_with_agreeing_render_order_is_known() {
++        let lines = [
++            rendered_line(1, 0, 50.0, 700.0),
++            rendered_line(2, 1, 50.0, 500.0),
++        ];
++        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
++        let regions = [
++            leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 700.0)),
++            leaf_region_with_bbox(2, &[2], rendered_line_bbox(50.0, 500.0)),
++        ];
++        let edges = [
++            (RegionId(1), RegionId(2), RegionRelation::Above),
++            (RegionId(2), RegionId(1), RegionRelation::Below),
++        ];
++
++        // A two-region partition can be a vertical stack (`Above`/`Below`)
++        // rather than a two-column pair (`LeftOf`/`RightOf`), so
++        // `is_supported_two_column_graph` never admits it and the
++        // two-region branch falls through to the shared spatial-order path
++        // below. Render order already agrees with the unique top-to-bottom
++        // order here, so it is fully proven, not merely inferred.
++        assert_eq!(
++            classify_supported_region_order(&regions, &edges, &lines_by_id, &[]),
++            ReadingOrder::Known(vec![RegionId(1), RegionId(2)])
++        );
++    }
++
++    #[test]
++    fn vertically_disjoint_two_region_stack_with_dissenting_render_order_is_inferred() {
++        let lines = [
++            rendered_line(1, 1, 50.0, 700.0),
++            rendered_line(2, 0, 50.0, 500.0),
++        ];
++        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
++        let regions = [
++            leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 700.0)),
++            leaf_region_with_bbox(2, &[2], rendered_line_bbox(50.0, 500.0)),
++        ];
++        let edges = [
++            (RegionId(1), RegionId(2), RegionRelation::Above),
++            (RegionId(2), RegionId(1), RegionRelation::Below),
++        ];
++
++        // Same vertical stack, but the bottom region (e.g. a footer)
++        // rendered before the top one. The topological order is still
++        // uniquely [1, 2] and both regions are internally monotone (one
++        // line each), but render order now dissents, so the shared
++        // spatial-order path infers the order instead of proving it.
++        assert_eq!(
++            classify_supported_region_order(&regions, &edges, &lines_by_id, &[]),
++            ReadingOrder::Inferred(vec![RegionId(1), RegionId(2)])
++        );
++    }
++
+     #[test]
+     fn geometry_infers_a_header_body_footer_stack_the_render_stream_disagrees_with() {
+         let lines = [
+diff --git a/crates/pdfdelta-core/src/pipeline.rs b/crates/pdfdelta-core/src/pipeline.rs
+index f0ce57b..99fae7b 100644
+--- a/crates/pdfdelta-core/src/pipeline.rs
++++ b/crates/pdfdelta-core/src/pipeline.rs
+@@ -1,16 +1,16 @@
+ use crate::{
+     Error, Result,
+     alignment::{
+-        Alignment, AlignmentOptions, InvertedIndexCandidateGenerator,
++        Alignment, AlignmentOptions, InvertedIndexCandidateGenerator, OrderedProjection,
+         align_ordered_with_metrics_and_gap_plan, build_block_features,
+-        estimate_ngram_token_elements, plan_ordered_gaps, validate_alignment_options,
++        estimate_ngram_token_elements, merge_excluded_unresolved, validate_alignment_options,
+         validate_ngram_size,
+     },
+     diff::{
+-        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff, RecoveredAtomicDiff,
+-        RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics, RecoveryWatchQuery,
+-        SentenceRecoveryInput, SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
+-        compare_aligned_with_atomic_edits,
++        Comparison, Confidence, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff,
++        RecoveredAtomicDiff, RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics,
++        RecoveryWatchQuery, SentenceRecoveryInput, SentenceRecoveryMetrics,
++        TrustedRunRecoveryInput, compare_aligned, compare_aligned_with_atomic_edits,
+         compare_aligned_with_known_span_sentence_shadow_diagnostics,
+         compare_aligned_with_recovery_watch_diagnostics,
+         compare_aligned_with_sentence_recovery_metrics,
+@@ -770,7 +770,7 @@ fn compare_validated_glyph_documents_inner(
+     let new_prepared = prepare(new, options, DocumentSide::New, diagnostics)?;
+     let PreparedDocument {
+         blocks: old,
+-        uncertain_block_indices: old_uncertain_block_indices,
++        projection_excluded_block_indices: old_projection_excluded_block_indices,
+         inferred_order_block_indices: old_inferred_order_block_indices,
+         trusted_run_intervals: old_trusted_run_intervals,
+         trusted_run_descriptors: old_trusted_run_descriptors,
+@@ -778,7 +778,7 @@ fn compare_validated_glyph_documents_inner(
+     } = old_prepared;
+     let PreparedDocument {
+         blocks: new,
+-        uncertain_block_indices: new_uncertain_block_indices,
++        projection_excluded_block_indices: new_projection_excluded_block_indices,
+         inferred_order_block_indices: new_inferred_order_block_indices,
+         trusted_run_intervals: new_trusted_run_intervals,
+         trusted_run_descriptors: new_trusted_run_descriptors,
+@@ -833,11 +833,11 @@ fn compare_validated_glyph_documents_inner(
+             ..PipelineMetrics::default()
+         },
+     );
+-    let gap_plan = phase_result(
++    let projection = phase_result(
+         diagnostics,
+         PipelinePhase::Alignment,
+         None,
+-        plan_ordered_gaps(
++        OrderedProjection::new(
+             &old_features,
+             &new_features,
+             options.alignment,
+@@ -845,12 +845,26 @@ fn compare_validated_glyph_documents_inner(
+             &new_gap_boundaries,
+             &old_extraction_uncertain_block_indices,
+             &new_extraction_uncertain_block_indices,
+-            &old_uncertain_block_indices,
+-            &new_uncertain_block_indices,
++            &old_projection_excluded_block_indices,
++            &new_projection_excluded_block_indices,
+             &old_inferred_order_block_indices,
+             &new_inferred_order_block_indices,
+         ),
+     )?;
++    drop(old_features);
++    drop(new_features);
++    let OrderedProjection {
++        old: old_features,
++        new: new_features,
++        gap_plan,
++        excluded_old,
++        excluded_new,
++    } = projection;
++    // Excluded layout evidence cannot narrow the scope of an extraction gap.
++    let excluded_extraction_gap = !old_gap_boundaries.is_empty()
++        || !new_gap_boundaries.is_empty()
++        || !old_extraction_uncertain_block_indices.is_empty()
++        || !new_extraction_uncertain_block_indices.is_empty();
+     let indexed_new_features = new_features
+         .iter()
+         .filter(|features| gap_plan.allows_new_block(features.block))
+@@ -878,7 +892,24 @@ fn compare_validated_glyph_documents_inner(
+         gap_plan,
+     );
+     let alignment = match attempt.result {
+-        Ok(alignment) => {
++        Ok(mut alignment) => {
++            if !excluded_old.is_empty() || !excluded_new.is_empty() {
++                let original_old = old.iter().map(|block| block.block).collect::<Vec<_>>();
++                let original_new = new.iter().map(|block| block.block).collect::<Vec<_>>();
++                phase_result(
++                    diagnostics,
++                    PipelinePhase::Alignment,
++                    None,
++                    merge_excluded_unresolved(
++                        &mut alignment,
++                        &original_old,
++                        &original_new,
++                        &excluded_old,
++                        &excluded_new,
++                        excluded_extraction_gap,
++                    ),
++                )?;
++            }
+             diagnostics.completed(
+                 PipelinePhase::Alignment,
+                 None,
+@@ -1053,7 +1084,7 @@ fn compare_validated_glyph_documents_inner(
+             .map(|comparison| (comparison, None, None, Vec::new(), Vec::new(), None))
+     };
+     let (
+-        comparison,
++        mut comparison,
+         sentence_recovery_metrics,
+         recovery_watch_diagnostics,
+         matched_atomic_diffs,
+@@ -1065,6 +1096,13 @@ fn compare_validated_glyph_documents_inner(
+         None,
+         comparison_result,
+     )?;
++    demote_inferred_order_changes(
++        &mut comparison,
++        &old,
++        &new,
++        &old_inferred_order_block_indices,
++        &new_inferred_order_block_indices,
++    );
+     diagnostics.completed(
+         PipelinePhase::ExactDiff,
+         None,
+@@ -1089,6 +1127,50 @@ fn compare_validated_glyph_documents_inner(
+     })
+ }
+ 
++// Recovery eligibility depends on its uncertainty evidence. Apply the source
++// inference cap to final events without replacing that evidence.
++fn demote_inferred_order_changes(
++    comparison: &mut Comparison,
++    old: &[BlockText],
++    new: &[BlockText],
++    old_inferred: &[usize],
++    new_inferred: &[usize],
++) {
++    if old_inferred.is_empty() && new_inferred.is_empty() {
++        return;
++    }
++    let old_blocks = old_inferred
++        .iter()
++        .map(|&index| old[index].block)
++        .collect::<std::collections::HashSet<_>>();
++    let new_blocks = new_inferred
++        .iter()
++        .map(|&index| new[index].block)
++        .collect::<std::collections::HashSet<_>>();
++    let touches_inferred = |old_span: Option<&crate::diff::TextSpan>,
++                            new_span: Option<&crate::diff::TextSpan>| {
++        old_span.is_some_and(|span| span.blocks.iter().any(|id| old_blocks.contains(id)))
++            || new_span.is_some_and(|span| span.blocks.iter().any(|id| new_blocks.contains(id)))
++    };
++    for change in &mut comparison.changes {
++        if change.occurrences.iter().any(|occurrence| {
++            touches_inferred(occurrence.old_span.as_ref(), occurrence.new_span.as_ref())
++        }) {
++            change.confidence = Confidence::Low;
++        }
++    }
++    for change in &mut comparison.formatting_changes {
++        if touches_inferred(Some(&change.old_span), Some(&change.new_span)) {
++            change.confidence = Confidence::Low;
++        }
++    }
++    for region in &mut comparison.proven_changed_regions {
++        if touches_inferred(region.old_span.as_ref(), region.new_span.as_ref()) {
++            region.confidence = Confidence::Low;
++        }
++    }
++}
++
+ #[derive(Clone, Copy)]
+ enum LocalizedIssueBoundary {
+     Page(usize),
+@@ -1414,6 +1496,7 @@ fn prepare(
+     let trusted_run_descriptors = reconstruction.trusted_run_descriptors;
+     let trusted_region_edges = reconstruction.trusted_region_edges;
+     let inferred_order_line_ids = reconstruction.inferred_order_line_ids;
++    let page_ordered_line_ids = reconstruction.page_ordered_line_ids;
+     let mut uncertain_inter_region = 0usize;
+     let mut uncertain_render_disorder = 0usize;
+     let mut uncertain_untrusted_known = 0usize;
+@@ -1490,31 +1573,16 @@ fn prepare(
+             ..PipelineMetrics::default()
+         },
+     );
+-    let uncertain_line_ids = reconstruction
+-        .issues
+-        .into_iter()
+-        .flat_map(|issue| match issue {
+-            LayoutIssue::UnknownReadingOrder {
+-                page: _,
+-                line_ids,
+-                reason: _,
+-            } => line_ids,
+-        })
+-        .collect::<std::collections::HashSet<_>>();
+-    let uncertain_blocks = blocks
++    let projection_excluded_block_indices = blocks
+         .iter()
+-        .filter(|block| {
+-            block
++        .enumerate()
++        .filter_map(|(index, block)| {
++            (!block
+                 .lines
+                 .iter()
+-                .any(|line_id| uncertain_line_ids.contains(line_id))
++                .all(|line_id| page_ordered_line_ids.contains(line_id)))
++            .then_some(index)
+         })
+-        .map(|block| block.id)
+-        .collect::<std::collections::HashSet<_>>();
+-    let uncertain_block_indices = normalized
+-        .iter()
+-        .enumerate()
+-        .filter_map(|(index, block)| uncertain_blocks.contains(&block.block).then_some(index))
+         .collect();
+     let inferred_order_blocks = blocks
+         .iter()
+@@ -1537,7 +1605,7 @@ fn prepare(
+         .collect();
+     Ok(PreparedDocument {
+         blocks: normalized,
+-        uncertain_block_indices,
++        projection_excluded_block_indices,
+         inferred_order_block_indices,
+         trusted_run_intervals,
+         trusted_run_descriptors,
+@@ -1547,7 +1615,9 @@ fn prepare(
+ 
+ struct PreparedDocument {
+     blocks: Vec<BlockText>,
+-    uncertain_block_indices: Vec<usize>,
++    /// Blocks outside the page-level ordered subset, including locally trusted
++    /// runs whose relative order on an otherwise unknown page is unproven.
++    projection_excluded_block_indices: Vec<usize>,
+     /// Blocks placed by a geometrically inferred region order rather than a
+     /// proven one; not excluded from anchoring, but every change whose span
+     /// intersects one of them must be reported at low confidence.
+@@ -1593,9 +1663,8 @@ mod tests {
+         pdf::ObjectRef,
+     };
+ 
+-    #[test]
+-    fn prepared_document_retains_trusted_run_descriptors() {
+-        let document = Document::new(vec![Glyph {
++    fn single_glyph_document() -> Document<Glyph> {
++        Document::new(vec![Glyph {
+             id: GlyphId(1),
+             text: DecodedText::Mapped("A".to_owned()),
+             raw_code: vec![b'A'],
+@@ -1619,7 +1688,12 @@ mod tests {
+                 },
+                 operator_index: 0,
+             },
+-        }]);
++        }])
++    }
++
++    #[test]
++    fn prepared_document_retains_trusted_run_descriptors() {
++        let document = single_glyph_document();
+         let mut diagnostics = PipelineDiagnostics::new();
+ 
+         let prepared = prepare(
+@@ -1638,12 +1712,161 @@ mod tests {
+         assert_eq!(descriptor.trusted_block_indices, vec![0]);
+         assert_eq!(descriptor.role, Some(BlockRole::Body));
+         assert!(prepared.trusted_region_edges.is_empty());
++        assert!(prepared.projection_excluded_block_indices.is_empty());
+         assert_eq!(
+             prepared.trusted_run_intervals[0].map(|run| run.run_id),
+             Some(descriptor.id)
+         );
+     }
+ 
++    #[test]
++    fn projection_preserves_the_omitted_middle_line_as_separate_source() {
++        let template = single_glyph_document().into_items().remove(0);
++        let document = Document::new(
++            [(100.0, 0, "A"), (80.0, 10, "U"), (60.0, 2, "B")]
++                .into_iter()
++                .enumerate()
++                .map(|(index, (y, render, text))| {
++                    let mut glyph = template.clone();
++                    glyph.id = GlyphId(index as u64);
++                    glyph.text = DecodedText::Mapped(text.to_owned());
++                    glyph.raw_code = text.as_bytes().to_vec();
++                    glyph.bbox.min.y = y;
++                    glyph.bbox.max.y = y + 10.0;
++                    glyph.baseline.y = y;
++                    glyph.render_order = render;
++                    glyph
++                })
++                .collect(),
++        );
++        let prepared = prepare(
++            &document,
++            PipelineOptions::default(),
++            DocumentSide::Old,
++            &mut PipelineDiagnostics::new(),
++        )
++        .expect("partial known page should prepare");
++        assert_eq!(prepared.blocks.len(), 3);
++        assert_eq!(
++            prepared
++                .blocks
++                .iter()
++                .map(|block| block.canonical.text.as_str())
++                .collect::<Vec<_>>(),
++            ["A", "U", "B"]
++        );
++        assert_eq!(prepared.projection_excluded_block_indices, [1]);
++    }
++
++    #[test]
++    fn projection_excludes_locally_trusted_runs_on_an_unordered_page() {
++        let template = single_glyph_document().into_items().remove(0);
++        let document = Document::new(
++            (0..6)
++                .map(|index| {
++                    let mut glyph = template.clone();
++                    glyph.id = GlyphId(index);
++                    let x = if index % 2 == 0 { 50.0 } else { 250.0 };
++                    // Stagger the columns so parallel-row proof does not establish
++                    // their global order, while each column remains monotone.
++                    let y = 300.0 - (index / 2) as f64 * 40.0 - (index % 2) as f64 * 8.0;
++                    glyph.bbox = Rect {
++                        min: Vec2 { x, y },
++                        max: Vec2 {
++                            x: x + 10.0,
++                            y: y + 10.0,
++                        },
++                    };
++                    glyph.baseline = Vec2 { x, y };
++                    glyph.render_order = index as u32;
++                    glyph
++                })
++                .collect(),
++        );
++        let prepared = prepare(
++            &document,
++            PipelineOptions::default(),
++            DocumentSide::Old,
++            &mut PipelineDiagnostics::new(),
++        )
++        .expect("unordered columns retain local runs");
++        assert!(!prepared.blocks.is_empty());
++        assert!(prepared.trusted_run_intervals.iter().any(Option::is_some));
++        assert_eq!(
++            prepared.projection_excluded_block_indices,
++            (0..prepared.blocks.len()).collect::<Vec<_>>()
++        );
++    }
++
++    #[test]
++    fn inferred_order_caps_changed_region_confidence_on_either_source_side() {
++        use crate::diff::{
++            ChangedRegionProof, Coverage, ProvenChangedRegion, TextSpan, TokenRange,
++        };
++        use crate::normalize::ScalarRange;
++
++        let prepared = prepare(
++            &single_glyph_document(),
++            PipelineOptions::default(),
++            DocumentSide::Old,
++            &mut PipelineDiagnostics::new(),
++        )
++        .expect("source fixture should prepare");
++        let span = TextSpan {
++            blocks: vec![prepared.blocks[0].block],
++            separator: None,
++            canonical_range: ScalarRange { start: 0, end: 1 },
++            comparable_range: TokenRange { start: 0, end: 1 },
++        };
++        let coverage = Coverage {
++            resolved_tokens: 0,
++            total_tokens: 1,
++            ratio: Some(0.0),
++        };
++        for (old_inferred, new_inferred, expected) in [
++            (&[0][..], &[][..], [Confidence::Low, Confidence::High]),
++            (&[][..], &[0][..], [Confidence::High, Confidence::Low]),
++            (&[][..], &[][..], [Confidence::High, Confidence::High]),
++        ] {
++            let mut comparison = Comparison {
++                changes: Vec::new(),
++                formatting_changes: Vec::new(),
++                unresolved_regions: Vec::new(),
++                proven_changed_regions: vec![
++                    ProvenChangedRegion {
++                        old_span: Some(span.clone()),
++                        new_span: None,
++                        proof: ChangedRegionProof::OneSidedNonEmptyRange,
++                        confidence: Confidence::High,
++                    },
++                    ProvenChangedRegion {
++                        old_span: None,
++                        new_span: Some(span.clone()),
++                        proof: ChangedRegionProof::OneSidedNonEmptyRange,
++                        confidence: Confidence::High,
++                    },
++                ],
++                old_coverage: coverage,
++                new_coverage: coverage,
++            };
++            demote_inferred_order_changes(
++                &mut comparison,
++                &prepared.blocks,
++                &prepared.blocks,
++                old_inferred,
++                new_inferred,
++            );
++            assert_eq!(
++                comparison
++                    .proven_changed_regions
++                    .iter()
++                    .map(|region| region.confidence)
++                    .collect::<Vec<_>>(),
++                expected,
++            );
++        }
++    }
++
+     #[test]
+     fn trusted_run_interval_metadata_must_match_block_count() {
+         validate_trusted_run_interval_count(2, 2).expect("parallel metadata should be accepted");
+diff --git a/crates/pdfdelta-core/src/report/json.rs b/crates/pdfdelta-core/src/report/json.rs
+index 40a4dab..259e743 100644
+--- a/crates/pdfdelta-core/src/report/json.rs
++++ b/crates/pdfdelta-core/src/report/json.rs
+@@ -566,6 +566,7 @@ fn evidence(value: AlignmentEvidence) -> String {
+         AlignmentEvidence::ExtractionGap => "extraction_gap".to_owned(),
+         AlignmentEvidence::ReadingOrderUnknown => "reading_order_unknown".to_owned(),
+         AlignmentEvidence::ReadingOrderInferred => "reading_order_inferred".to_owned(),
++        AlignmentEvidence::ReadingOrderPartial => "reading_order_partial".to_owned(),
+         AlignmentEvidence::MoveCandidate => "move_candidate".to_owned(),
+         AlignmentEvidence::CandidateSource(source) => {
+             format!("candidate_source:{}", candidate_source(source))
+diff --git a/crates/pdfdelta-core/tests/pipeline_fixture.rs b/crates/pdfdelta-core/tests/pipeline_fixture.rs
+index 1317089..0e3ee6d 100644
+--- a/crates/pdfdelta-core/tests/pipeline_fixture.rs
++++ b/crates/pdfdelta-core/tests/pipeline_fixture.rs
+@@ -494,6 +494,143 @@ fn supported_sentence_recovers_beside_mixed_orientation_text() -> Result<()> {
+     Ok(())
+ }
+ 
++#[test]
++fn inferred_order_remains_low_confidence_through_sentence_recovery() -> Result<()> {
++    let old = document(&[
++        line_at("Left alpha context remains open", 0, 0.0, 300.0),
++        line_at("Right alpha context remains open", 0, 400.0, 300.0),
++        line_at("Left alpha remainder stays open", 0, 0.0, 288.0),
++        line_at("Right alpha remainder stays open", 0, 400.0, 288.0),
++        line("A distant appendix explains orbital mechanics", 1, 100.0),
++        line("and archived calculations use cobalt notation.", 1, 88.0),
++        line(
++            "Released widgets retain a robust catalog code of 10",
++            1,
++            600.0,
++        ),
++        line(
++            "and operators apply durable labels before shipment.",
++            1,
++            588.0,
++        ),
++    ]);
++    let new = document(&[
++        line_at("Left beta context remains open", 0, 0.0, 300.0),
++        line_at("Right beta context remains open", 0, 400.0, 300.0),
++        line_at("Left beta remainder stays open", 0, 0.0, 288.0),
++        line_at("Right beta remainder stays open", 0, 400.0, 288.0),
++        line("A distant appendix explains orbital mechanics", 1, 100.0),
++        line("and archived calculations use cobalt notation.", 1, 88.0),
++        line(
++            "Released widgets retain a robust catalog code of 20",
++            1,
++            600.0,
++        ),
++        line(
++            "and operators apply durable labels before shipment.",
++            1,
++            588.0,
++        ),
++    ]);
++    let old_lines = reconstruct_lines(&old, LineOptions::default())?
++        .into_iter()
++        .filter(|line| line.page == PageId(1))
++        .collect::<Vec<_>>();
++    let graph = pdfdelta_core::layout::partition_regions(
++        PageId(1),
++        &old_lines,
++        pdfdelta_core::layout::RegionOptions::default(),
++    )?;
++    assert!(matches!(
++        graph.reading_order,
++        pdfdelta_core::layout::ReadingOrder::Inferred(_)
++    ));
++    let mut diagnostics = PipelineDiagnostics::new();
++    let traced = compare_extraction_outcomes_with_atomic_edits(
++        ExtractionOutcome::complete(old),
++        ExtractionOutcome::complete(new),
++        PipelineOptions::default(),
++        &mut diagnostics,
++    )?;
++    assert!(!traced.recovered_atomic_diffs.is_empty());
++    let inferred_blocks = traced
++        .outcome
++        .old_blocks
++        .iter()
++        .filter(|block| block.pages.contains(&1))
++        .map(|block| block.block)
++        .collect::<std::collections::HashSet<_>>();
++    assert!(traced.recovered_atomic_diffs.iter().any(|recovered| {
++        recovered
++            .old_context
++            .blocks
++            .iter()
++            .any(|block| inferred_blocks.contains(block))
++    }));
++    let recovered = traced
++        .outcome
++        .comparison
++        .changes
++        .iter()
++        .filter(|change| {
++            change.occurrences.iter().any(|occurrence| {
++                occurrence.old_span.as_ref().is_some_and(|span| {
++                    span.blocks
++                        .iter()
++                        .any(|block| inferred_blocks.contains(block))
++                })
++            })
++        })
++        .collect::<Vec<_>>();
++    assert!(!recovered.is_empty());
++    assert!(
++        recovered
++            .iter()
++            .all(|change| change.confidence == Confidence::Low),
++        "inferred-order recovery must remain low confidence: {recovered:?}"
++    );
++    Ok(())
++}
++
++#[test]
++fn single_leaf_inferred_order_reports_changes_at_low_confidence() -> Result<()> {
++    let old = document(&[
++        line("A stable footer remains here.", 0, 100.0),
++        line("A stable heading opens the catalog.", 0, 700.0),
++        line("Released widgets retain catalog code 10", 0, 600.0),
++        line("and operators apply labels before shipment.", 0, 588.0),
++    ]);
++    let new = document(&[
++        line("A stable footer remains here.", 0, 100.0),
++        line("A stable heading opens the catalog.", 0, 700.0),
++        line("Released widgets retain catalog code 20", 0, 600.0),
++        line("and operators apply labels before shipment.", 0, 588.0),
++    ]);
++    let lines = reconstruct_lines(&old, LineOptions::default())?;
++    let graph = pdfdelta_core::layout::partition_regions(
++        PageId(0),
++        &lines,
++        pdfdelta_core::layout::RegionOptions::default(),
++    )?;
++    assert_eq!(graph.regions.len(), 1);
++    assert!(matches!(
++        graph.reading_order,
++        pdfdelta_core::layout::ReadingOrder::Inferred(_)
++    ));
++    let mut diagnostics = PipelineDiagnostics::new();
++    let traced = compare_extraction_outcomes_with_atomic_edits(
++        ExtractionOutcome::complete(old),
++        ExtractionOutcome::complete(new),
++        PipelineOptions::default(),
++        &mut diagnostics,
++    )?;
++    let comparison = &traced.outcome.comparison;
++    assert_eq!(comparison.changes.len(), 1);
++    assert_eq!(comparison.changes[0].confidence, Confidence::Low);
++    assert!(comparison.unresolved_regions.is_empty());
++    Ok(())
++}
++
+ #[test]
+ fn partial_render_order_uncertainty_recovers_one_line_beside_a_safe_replacement() -> Result<()> {
+     let old = document(&[

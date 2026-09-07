@@ -1,0 +1,825 @@
+//! Bounded exact sub-block anchors backed by the caller's block sources.
+//!
+//! A window is exactly `min_window_tokens` comparable tokens from one supplied
+//! block. The uniqueness census includes every supplied block, including
+//! ineligible and role-incompatible blocks. Consequently, uniqueness is within
+//! all supplied block windows, never within arbitrary cross-block concatenations.
+
+use std::{
+    collections::hash_map::DefaultHasher,
+    collections::{HashMap, HashSet},
+    hash::{Hash, Hasher},
+    ops::Range,
+};
+
+/// One caller-owned block that may contribute exact anchor windows.
+#[derive(Debug)]
+pub struct PageAnchorCandidate<'a, T, R> {
+    /// Stable identity used to retain source ownership in the result.
+    pub block_id: u64,
+    /// Role identity. Pairing requires exact role equality after the census.
+    pub role: R,
+    /// Sorted, nonempty page numbers when page evidence is available.
+    pub pages: Option<&'a [u32]>,
+    /// Comparable tokens belonging to this block only.
+    pub comparable_tokens: &'a [T],
+    /// Whether this block may be returned after global uniqueness is proven.
+    pub eligible: bool,
+}
+
+impl<'a, T, R> PageAnchorCandidate<'a, T, R> {
+    pub fn new(
+        block_id: u64,
+        role: R,
+        pages: Option<&'a [u32]>,
+        comparable_tokens: &'a [T],
+        eligible: bool,
+    ) -> Self {
+        Self {
+            block_id,
+            role,
+            pages,
+            comparable_tokens,
+            eligible,
+        }
+    }
+}
+
+/// Hard bounds for one selector invocation. Window and block bounds apply per
+/// side; token work covers both sides and exact merge verification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PageAnchorSelectorLimits {
+    pub max_blocks_per_side: usize,
+    pub max_scanned_windows_per_side: usize,
+    pub max_scanned_token_work: usize,
+    pub max_retained_windows_per_side: usize,
+    pub max_pairs: usize,
+}
+
+/// Resource whose configured bound prevented a complete result.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageAnchorSelectorResource {
+    Blocks,
+    ScannedWindows,
+    TokenWork,
+    RetainedWindows,
+    Pairs,
+    Allocation,
+}
+
+/// Side containing invalid candidate evidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageAnchorSide {
+    Old,
+    New,
+}
+
+/// Invalid block evidence detected before selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageAnchorCandidateError {
+    DuplicateId,
+    EmptyTokens,
+    EmptyPages,
+    PagesNotStrictlyIncreasing,
+}
+
+/// Failure. No partial selection is returned.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageAnchorSelectorError {
+    InvalidMinimumLength,
+    Limit(PageAnchorSelectorResource),
+    CounterOverflow,
+    InvariantViolation,
+    InvalidCandidate {
+        side: PageAnchorSide,
+        block_id: u64,
+        reason: PageAnchorCandidateError,
+    },
+}
+
+/// Inclusive page bounds inherited from one source-backed block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PageAnchorPageBounds {
+    pub first_page: u32,
+    pub last_page: u32,
+}
+
+/// One half-open comparable-token range retained with its source block.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PageAnchorRange {
+    pub block_id: u64,
+    pub comparable: Range<usize>,
+    pub pages: Option<PageAnchorPageBounds>,
+}
+
+/// One exact old/new anchor relation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PageAnchorPair {
+    pub old: PageAnchorRange,
+    pub new: PageAnchorRange,
+}
+
+struct WindowOccurrence<'a, T> {
+    fingerprint: u64,
+    tokens: &'a [T],
+    block_id: u64,
+    block_index: usize,
+    start: usize,
+    count: usize,
+}
+
+impl<T> Copy for WindowOccurrence<'_, T> {}
+
+impl<T> Clone for WindowOccurrence<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+struct WindowIndex<'a, T> {
+    buckets: HashMap<u64, Vec<WindowOccurrence<'a, T>>>,
+    retained_windows: usize,
+}
+
+#[derive(Clone, Copy)]
+struct ScanStats {
+    windows: usize,
+    token_work: usize,
+}
+
+struct TokenBudget {
+    limit: usize,
+    used: usize,
+}
+
+impl TokenBudget {
+    fn new(limit: usize) -> Self {
+        Self { limit, used: 0 }
+    }
+
+    fn charge(&mut self, amount: usize) -> Result<(), PageAnchorSelectorError> {
+        let next = self
+            .used
+            .checked_add(amount)
+            .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+        if next > self.limit {
+            return Err(PageAnchorSelectorError::Limit(
+                PageAnchorSelectorResource::TokenWork,
+            ));
+        }
+        self.used = next;
+        Ok(())
+    }
+}
+
+/// Finds exact windows that occur once on each side, then retains eligible
+/// windows whose roles also match.
+///
+/// Every window is block-local and has exactly `min_window_tokens` tokens.
+/// Global multiplicity is counted before eligibility and role checks. Windows
+/// that overlap may be merged only for the same old/new block pair and the same
+/// offset diagonal; the merged token ranges are compared again before release.
+/// Disjoint windows remain separate source-backed ranges.
+pub fn select_page_anchors<T: Eq + Hash, R: Eq>(
+    old: &[PageAnchorCandidate<'_, T, R>],
+    new: &[PageAnchorCandidate<'_, T, R>],
+    min_window_tokens: usize,
+    limits: PageAnchorSelectorLimits,
+) -> Result<Vec<PageAnchorPair>, PageAnchorSelectorError> {
+    if min_window_tokens == 0 {
+        return Err(PageAnchorSelectorError::InvalidMinimumLength);
+    }
+
+    let old_stats = validate_side(old, PageAnchorSide::Old, min_window_tokens, limits)?;
+    let new_stats = validate_side(new, PageAnchorSide::New, min_window_tokens, limits)?;
+    let scan_token_work = old_stats
+        .token_work
+        .checked_add(new_stats.token_work)
+        .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+    if scan_token_work > limits.max_scanned_token_work {
+        return Err(PageAnchorSelectorError::Limit(
+            PageAnchorSelectorResource::TokenWork,
+        ));
+    }
+
+    let mut token_budget = TokenBudget::new(limits.max_scanned_token_work);
+    let old_index = build_index(old, min_window_tokens, old_stats, limits, &mut token_budget)?;
+    let new_index = build_index(new, min_window_tokens, new_stats, limits, &mut token_budget)?;
+    let old_windows = unique_occurrences(&old_index)?;
+
+    let mut raw_pairs = Vec::new();
+    raw_pairs
+        .try_reserve_exact(old_windows.len())
+        .map_err(|_| PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation))?;
+    for old_window in old_windows {
+        if old_window.count != 1 {
+            continue;
+        }
+        let Some(new_bucket) = new_index.buckets.get(&old_window.fingerprint) else {
+            continue;
+        };
+        let mut exact_new = None;
+        for new_window in new_bucket {
+            if new_window.count != 1
+                || !exact_tokens(old_window.tokens, new_window.tokens, &mut token_budget)?
+            {
+                continue;
+            }
+            if exact_new.replace(*new_window).is_some() {
+                return Err(PageAnchorSelectorError::InvariantViolation);
+            }
+        }
+        let Some(new_window) = exact_new else {
+            continue;
+        };
+        let old_candidate = old
+            .get(old_window.block_index)
+            .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+        let new_candidate = new
+            .get(new_window.block_index)
+            .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+        if !old_candidate.eligible
+            || !new_candidate.eligible
+            || old_candidate.role != new_candidate.role
+        {
+            continue;
+        }
+        raw_pairs.push(RawPair {
+            old_block_index: old_window.block_index,
+            new_block_index: new_window.block_index,
+            old: old_window.start
+                ..old_window
+                    .start
+                    .checked_add(min_window_tokens)
+                    .ok_or(PageAnchorSelectorError::CounterOverflow)?,
+            new: new_window.start
+                ..new_window
+                    .start
+                    .checked_add(min_window_tokens)
+                    .ok_or(PageAnchorSelectorError::CounterOverflow)?,
+        });
+    }
+
+    merge_pairs(raw_pairs, old, new, limits.max_pairs, &mut token_budget)
+}
+
+fn validate_side<T, R>(
+    candidates: &[PageAnchorCandidate<'_, T, R>],
+    side: PageAnchorSide,
+    min_window_tokens: usize,
+    limits: PageAnchorSelectorLimits,
+) -> Result<ScanStats, PageAnchorSelectorError> {
+    if candidates.len() > limits.max_blocks_per_side {
+        return Err(PageAnchorSelectorError::Limit(
+            PageAnchorSelectorResource::Blocks,
+        ));
+    }
+    let mut ids = HashSet::new();
+    ids.try_reserve(candidates.len())
+        .map_err(|_| PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation))?;
+    let mut windows = 0usize;
+    let mut token_work = 0usize;
+    for candidate in candidates {
+        let reason = if !ids.insert(candidate.block_id) {
+            Some(PageAnchorCandidateError::DuplicateId)
+        } else if candidate.comparable_tokens.is_empty() {
+            Some(PageAnchorCandidateError::EmptyTokens)
+        } else if let Some(pages) = candidate.pages {
+            if pages.is_empty() {
+                Some(PageAnchorCandidateError::EmptyPages)
+            } else if pages.windows(2).any(|pair| pair[0] >= pair[1]) {
+                Some(PageAnchorCandidateError::PagesNotStrictlyIncreasing)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            return Err(PageAnchorSelectorError::InvalidCandidate {
+                side,
+                block_id: candidate.block_id,
+                reason,
+            });
+        }
+        let candidate_windows = window_count(candidate.comparable_tokens.len(), min_window_tokens)?;
+        windows = windows
+            .checked_add(candidate_windows)
+            .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+        // The production scan hashes each source token once and derives the
+        // fixed-length window fingerprints by rolling them. Exact token work
+        // for duplicate fingerprints is charged separately during indexing.
+        token_work = token_work
+            .checked_add(candidate.comparable_tokens.len())
+            .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+    }
+    if windows > limits.max_scanned_windows_per_side {
+        return Err(PageAnchorSelectorError::Limit(
+            PageAnchorSelectorResource::ScannedWindows,
+        ));
+    }
+    Ok(ScanStats {
+        windows,
+        token_work,
+    })
+}
+
+fn window_count(
+    token_count: usize,
+    min_window_tokens: usize,
+) -> Result<usize, PageAnchorSelectorError> {
+    token_count
+        .checked_sub(min_window_tokens)
+        .map_or(Ok(0), |remaining| {
+            remaining
+                .checked_add(1)
+                .ok_or(PageAnchorSelectorError::CounterOverflow)
+        })
+}
+
+fn build_index<'a, T: Eq + Hash, R>(
+    candidates: &[PageAnchorCandidate<'a, T, R>],
+    min_window_tokens: usize,
+    stats: ScanStats,
+    limits: PageAnchorSelectorLimits,
+    token_budget: &mut TokenBudget,
+) -> Result<WindowIndex<'a, T>, PageAnchorSelectorError> {
+    let mut buckets = HashMap::new();
+    buckets
+        .try_reserve(stats.windows.min(limits.max_retained_windows_per_side))
+        .map_err(|_| PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation))?;
+    let mut index = WindowIndex {
+        buckets,
+        retained_windows: 0,
+    };
+
+    let rolling_base = 0x9e37_79b1_85eb_ca87u64;
+    let highest_power = rolling_powers(min_window_tokens, rolling_base);
+    for (block_index, candidate) in candidates.iter().enumerate() {
+        let count = window_count(candidate.comparable_tokens.len(), min_window_tokens)?;
+        if count == 0 {
+            continue;
+        }
+        let token_hashes = token_hashes(candidate.comparable_tokens, token_budget)?;
+        let mut fingerprint =
+            rolling_window_fingerprint(&token_hashes, min_window_tokens, rolling_base)?;
+        for start in 0..count {
+            let end = start
+                .checked_add(min_window_tokens)
+                .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+            if start > 0 {
+                let outgoing = token_hashes[start - 1];
+                fingerprint = fingerprint
+                    .wrapping_sub(outgoing.wrapping_mul(highest_power))
+                    .wrapping_mul(rolling_base)
+                    .wrapping_add(token_hashes[end - 1]);
+            }
+            let tokens = candidate
+                .comparable_tokens
+                .get(start..end)
+                .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+            let Some(bucket) = index.buckets.get_mut(&fingerprint) else {
+                if index.retained_windows >= limits.max_retained_windows_per_side {
+                    return Err(PageAnchorSelectorError::Limit(
+                        PageAnchorSelectorResource::RetainedWindows,
+                    ));
+                }
+                index.buckets.try_reserve(1).map_err(|_| {
+                    PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation)
+                })?;
+                let mut bucket = Vec::new();
+                bucket.try_reserve(1).map_err(|_| {
+                    PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation)
+                })?;
+                bucket.push(WindowOccurrence {
+                    fingerprint,
+                    tokens,
+                    block_id: candidate.block_id,
+                    block_index,
+                    start,
+                    count: 1,
+                });
+                index.buckets.insert(fingerprint, bucket);
+                index.retained_windows = index
+                    .retained_windows
+                    .checked_add(1)
+                    .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+                continue;
+            };
+
+            let mut found = false;
+            for occurrence in bucket.iter_mut() {
+                if exact_tokens(tokens, occurrence.tokens, token_budget)? {
+                    occurrence.count = occurrence
+                        .count
+                        .checked_add(1)
+                        .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                continue;
+            }
+            if index.retained_windows >= limits.max_retained_windows_per_side {
+                return Err(PageAnchorSelectorError::Limit(
+                    PageAnchorSelectorResource::RetainedWindows,
+                ));
+            }
+            bucket.try_reserve(1).map_err(|_| {
+                PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation)
+            })?;
+            bucket.push(WindowOccurrence {
+                fingerprint,
+                tokens,
+                block_id: candidate.block_id,
+                block_index,
+                start,
+                count: 1,
+            });
+            index.retained_windows = index
+                .retained_windows
+                .checked_add(1)
+                .ok_or(PageAnchorSelectorError::CounterOverflow)?;
+        }
+    }
+    Ok(index)
+}
+
+fn token_hashes<T: Hash>(
+    tokens: &[T],
+    token_budget: &mut TokenBudget,
+) -> Result<Vec<u64>, PageAnchorSelectorError> {
+    let mut hashes = Vec::new();
+    hashes
+        .try_reserve_exact(tokens.len())
+        .map_err(|_| PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation))?;
+    for token in tokens {
+        token_budget.charge(1)?;
+        let mut hasher = DefaultHasher::new();
+        token.hash(&mut hasher);
+        hashes.push(hasher.finish());
+    }
+    Ok(hashes)
+}
+
+fn rolling_powers(window_len: usize, base: u64) -> u64 {
+    (1..window_len).fold(1u64, |power, _| power.wrapping_mul(base))
+}
+
+fn rolling_window_fingerprint(
+    token_hashes: &[u64],
+    window_len: usize,
+    base: u64,
+) -> Result<u64, PageAnchorSelectorError> {
+    let window = token_hashes
+        .get(..window_len)
+        .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+    Ok(window.iter().fold(0u64, |fingerprint, token| {
+        fingerprint.wrapping_mul(base).wrapping_add(*token)
+    }))
+}
+
+fn exact_tokens<T: Eq>(
+    left: &[T],
+    right: &[T],
+    token_budget: &mut TokenBudget,
+) -> Result<bool, PageAnchorSelectorError> {
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (left, right) in left.iter().zip(right) {
+        token_budget.charge(1)?;
+        if left != right {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn unique_occurrences<'a, T>(
+    index: &WindowIndex<'a, T>,
+) -> Result<Vec<WindowOccurrence<'a, T>>, PageAnchorSelectorError> {
+    let mut occurrences = Vec::new();
+    occurrences
+        .try_reserve_exact(index.retained_windows)
+        .map_err(|_| PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation))?;
+    occurrences.extend(
+        index
+            .buckets
+            .values()
+            .flat_map(|bucket| bucket.iter().copied()),
+    );
+    occurrences.sort_unstable_by_key(|occurrence| {
+        (
+            occurrence.block_id,
+            occurrence.start,
+            occurrence.fingerprint,
+            occurrence.block_index,
+        )
+    });
+    Ok(occurrences)
+}
+
+#[derive(Clone)]
+struct RawPair {
+    old_block_index: usize,
+    new_block_index: usize,
+    old: Range<usize>,
+    new: Range<usize>,
+}
+
+fn merge_pairs<T: Eq, R>(
+    mut raw_pairs: Vec<RawPair>,
+    old: &[PageAnchorCandidate<'_, T, R>],
+    new: &[PageAnchorCandidate<'_, T, R>],
+    max_pairs: usize,
+    token_budget: &mut TokenBudget,
+) -> Result<Vec<PageAnchorPair>, PageAnchorSelectorError> {
+    raw_pairs.sort_unstable_by_key(|pair| {
+        let old_candidate = &old[pair.old_block_index];
+        let new_candidate = &new[pair.new_block_index];
+        let (old_diagonal_negative, diagonal) = diagonal(&pair.old, &pair.new);
+        (
+            old_candidate.block_id,
+            new_candidate.block_id,
+            old_diagonal_negative,
+            diagonal,
+            pair.old.start,
+            pair.new.start,
+            pair.old.end,
+            pair.new.end,
+        )
+    });
+    let mut merged = Vec::new();
+    merged
+        .try_reserve_exact(raw_pairs.len().min(max_pairs))
+        .map_err(|_| PageAnchorSelectorError::Limit(PageAnchorSelectorResource::Allocation))?;
+    for raw in raw_pairs {
+        let old_candidate = old
+            .get(raw.old_block_index)
+            .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+        let new_candidate = new
+            .get(raw.new_block_index)
+            .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+        let pair = PageAnchorPair {
+            old: source_range(old_candidate, raw.old.clone()),
+            new: source_range(new_candidate, raw.new.clone()),
+        };
+        if merged
+            .last()
+            .is_some_and(|previous| can_merge(previous, &pair))
+        {
+            let previous = merged
+                .last()
+                .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+            let old_start = previous.old.comparable.start.min(pair.old.comparable.start);
+            let old_end = previous.old.comparable.end.max(pair.old.comparable.end);
+            let new_start = previous.new.comparable.start.min(pair.new.comparable.start);
+            let new_end = previous.new.comparable.end.max(pair.new.comparable.end);
+            let old_tokens = old_candidate
+                .comparable_tokens
+                .get(old_start..old_end)
+                .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+            let new_tokens = new_candidate
+                .comparable_tokens
+                .get(new_start..new_end)
+                .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+            if !exact_tokens(old_tokens, new_tokens, token_budget)? {
+                return Err(PageAnchorSelectorError::InvariantViolation);
+            }
+            let previous = merged
+                .last_mut()
+                .ok_or(PageAnchorSelectorError::InvariantViolation)?;
+            previous.old.comparable = old_start..old_end;
+            previous.new.comparable = new_start..new_end;
+            continue;
+        }
+        if merged.len() >= max_pairs {
+            return Err(PageAnchorSelectorError::Limit(
+                PageAnchorSelectorResource::Pairs,
+            ));
+        }
+        merged.push(pair);
+    }
+    merged.sort_unstable_by_key(|pair| {
+        (
+            pair.old.block_id,
+            pair.old.comparable.start,
+            pair.old.comparable.end,
+            pair.new.block_id,
+            pair.new.comparable.start,
+            pair.new.comparable.end,
+        )
+    });
+    Ok(merged)
+}
+
+fn source_range<T, R>(
+    candidate: &PageAnchorCandidate<'_, T, R>,
+    comparable: Range<usize>,
+) -> PageAnchorRange {
+    PageAnchorRange {
+        block_id: candidate.block_id,
+        comparable,
+        pages: candidate.pages.map(|pages| PageAnchorPageBounds {
+            first_page: pages[0],
+            last_page: pages[pages.len() - 1],
+        }),
+    }
+}
+
+fn diagonal(old: &Range<usize>, new: &Range<usize>) -> (bool, usize) {
+    if old.start >= new.start {
+        (false, old.start - new.start)
+    } else {
+        (true, new.start - old.start)
+    }
+}
+
+fn can_merge(left: &PageAnchorPair, right: &PageAnchorPair) -> bool {
+    left.old.block_id == right.old.block_id
+        && left.new.block_id == right.new.block_id
+        && diagonal(&left.old.comparable, &left.new.comparable)
+            == diagonal(&right.old.comparable, &right.new.comparable)
+        && ranges_overlap(&left.old.comparable, &right.old.comparable)
+        && ranges_overlap(&left.new.comparable, &right.new.comparable)
+}
+
+fn ranges_overlap(left: &Range<usize>, right: &Range<usize>) -> bool {
+    left.start < right.end && right.start < left.end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::hash::Hasher;
+
+    const LIMITS: PageAnchorSelectorLimits = PageAnchorSelectorLimits {
+        max_blocks_per_side: 32,
+        max_scanned_windows_per_side: 256,
+        max_scanned_token_work: 16_384,
+        max_retained_windows_per_side: 256,
+        max_pairs: 64,
+    };
+
+    fn candidate<'a>(
+        block_id: u64,
+        role: u8,
+        pages: Option<&'a [u32]>,
+        tokens: &'a [u8],
+        eligible: bool,
+    ) -> PageAnchorCandidate<'a, u8, u8> {
+        PageAnchorCandidate::new(block_id, role, pages, tokens, eligible)
+    }
+
+    #[test]
+    fn unique_window_retains_source_and_page_bounds() {
+        let old = [candidate(10, 1, Some(&[4, 9]), b"abc", true)];
+        let new = [candidate(20, 1, None, b"abc", true)];
+        let pairs = select_page_anchors(&old, &new, 3, LIMITS).expect("selection succeeds");
+        assert_eq!(pairs[0].old.block_id, 10);
+        assert_eq!(pairs[0].old.comparable, 0..3);
+        assert_eq!(
+            pairs[0].old.pages,
+            Some(PageAnchorPageBounds {
+                first_page: 4,
+                last_page: 9
+            })
+        );
+        assert_eq!(pairs[0].new.comparable, 0..3);
+    }
+
+    #[test]
+    fn duplicate_ineligible_block_vetoes_eligible_pair() {
+        let old = [
+            candidate(1, 1, None, b"abc", true),
+            candidate(2, 1, None, b"abc", false),
+        ];
+        let new = [candidate(3, 1, None, b"abc", true)];
+        let pairs = select_page_anchors(&old, &new, 3, LIMITS).expect("selection succeeds");
+        assert!(pairs.is_empty());
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct ConstantHash(u8);
+
+    impl Hash for ConstantHash {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            0u8.hash(state);
+        }
+    }
+
+    #[test]
+    fn hash_collision_still_requires_exact_tokens() {
+        let old_tokens = [ConstantHash(1), ConstantHash(2), ConstantHash(3)];
+        let new_tokens = [ConstantHash(7), ConstantHash(8), ConstantHash(9)];
+        let old = [PageAnchorCandidate::new(1, 0, None, &old_tokens, true)];
+        let new = [PageAnchorCandidate::new(2, 0, None, &new_tokens, true)];
+        assert!(
+            select_page_anchors(&old, &new, 3, LIMITS)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn duplicate_role_block_counts_before_role_filter() {
+        let old = [
+            candidate(1, 1, None, b"abc", true),
+            candidate(2, 2, None, b"abc", true),
+        ];
+        let new = [candidate(3, 1, None, b"abc", true)];
+        assert!(
+            select_page_anchors(&old, &new, 3, LIMITS)
+                .expect("selection succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn overlapping_windows_merge_on_one_diagonal() {
+        let old = [candidate(1, 0, None, b"abcde", true)];
+        let new = [candidate(2, 0, None, b"abcde", true)];
+        let pairs = select_page_anchors(&old, &new, 3, LIMITS).expect("selection succeeds");
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].old.comparable, 0..5);
+        assert_eq!(pairs[0].new.comparable, 0..5);
+    }
+
+    #[test]
+    fn unequal_aligned_offsets_remain_disjoint_segments() {
+        let old = [candidate(1, 0, None, b"abcd", true)];
+        let new = [candidate(2, 0, None, b"xabcybcd", true)];
+        let pairs = select_page_anchors(&old, &new, 3, LIMITS).expect("selection succeeds");
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0].old.comparable, 0..3);
+        assert_eq!(pairs[1].old.comparable, 1..4);
+        assert_ne!(
+            diagonal(&pairs[0].old.comparable, &pairs[0].new.comparable),
+            diagonal(&pairs[1].old.comparable, &pairs[1].new.comparable)
+        );
+    }
+
+    #[test]
+    fn repeated_windows_do_not_hide_a_later_unique_anchor() {
+        let old = [candidate(1, 0, None, b"abababcde", true)];
+        let new = [candidate(2, 0, None, b"xbcde", true)];
+        let pairs = select_page_anchors(&old, &new, 3, LIMITS).expect("selection succeeds");
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].old.comparable, 5..9);
+        assert_eq!(pairs[0].new.comparable, 1..5);
+    }
+
+    #[test]
+    fn malformed_pages_and_ids_are_rejected() {
+        let duplicate_ids = [
+            candidate(1, 0, None, b"abc", true),
+            candidate(1, 0, None, b"def", true),
+        ];
+        let other = [candidate(2, 0, None, b"abc", true)];
+        assert!(matches!(
+            select_page_anchors(&duplicate_ids, &other, 3, LIMITS),
+            Err(PageAnchorSelectorError::InvalidCandidate {
+                reason: PageAnchorCandidateError::DuplicateId,
+                ..
+            })
+        ));
+
+        let malformed_pages = [candidate(3, 0, Some(&[2, 1]), b"abc", true)];
+        assert!(matches!(
+            select_page_anchors(&malformed_pages, &other, 3, LIMITS),
+            Err(PageAnchorSelectorError::InvalidCandidate {
+                reason: PageAnchorCandidateError::PagesNotStrictlyIncreasing,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn budget_failure_is_fail_closed() {
+        let old = [candidate(1, 0, None, b"abcd", true)];
+        let new = [candidate(2, 0, None, b"abcd", true)];
+        let limits = PageAnchorSelectorLimits {
+            max_scanned_windows_per_side: 1,
+            ..LIMITS
+        };
+        assert_eq!(
+            select_page_anchors(&old, &new, 3, limits),
+            Err(PageAnchorSelectorError::Limit(
+                PageAnchorSelectorResource::ScannedWindows
+            ))
+        );
+
+        let limits = PageAnchorSelectorLimits {
+            max_scanned_token_work: 5,
+            ..LIMITS
+        };
+        assert_eq!(
+            select_page_anchors(&old, &new, 3, limits),
+            Err(PageAnchorSelectorError::Limit(
+                PageAnchorSelectorResource::TokenWork
+            ))
+        );
+    }
+}

@@ -1,0 +1,15 @@
+{
+  "head": "2ae1d71aa8a3332b6250336a6badcd93147d330e",
+  "binary_sha256": "b7b8be724cae9207e567f5b771b303a5c125bbaa3297964061cdfb8168f35a59",
+  "source_sha256": {
+    "crates/pdfdelta-core/src/alignment/ordered.rs": "d9f1263ff0c846834321d5450a914dd9a3e61b99b2a1eb4d4831791e2aa12507",
+    "crates/pdfdelta-core/src/diff/mod.rs": "4209cca73c382ad594aeb1016118e928bb8f1c9cfdfd3a0431c6b74b848b2655",
+    "crates/pdfdelta-core/src/diff/recovery/mod.rs": "094b0b892a5da4d611c34214aee0b30f1581aa15cdcec75e8e8364eb76fb9086",
+    "crates/pdfdelta-core/src/diff/sentence.rs": "fe28fe8046b235696748d504ea6dd5d3884c0e20bdd248efd3e44c4c3edbc546",
+    "crates/pdfdelta-core/src/layout/region.rs": "78008a70f30879ca5f6feede018e5628026dcd0306c58d1af727736a118c5936",
+    "crates/pdfdelta-core/src/pipeline.rs": "69dc55924175e41ba5784808aa17803cd6a9626d6cc4721606bc8cc970b9ced0",
+    "crates/pdfdelta-core/tests/pipeline_fixture.rs": "615d2759a937e2e7d71b141f622b9c4e9c683e91f2b6f1f061976f66d88c910e",
+    "crates/pdfdelta-core/src/diff/recovery/page_anchor.rs": "c1539515ceccf83fb054e13250cd159c688c1bc7704ec42593f59d0b79881c35"
+  },
+  "note": "Source includes a test-only correction after the release executable was built. Production code matches the anchor-only measurements."
+}

@@ -647,22 +647,13 @@ fn align_ordered_inner(
     })
 }
 
-/// Caps confidence to `Low` and tags evidence for every resolved span
-/// touching a geometrically inferred reading order on either side.
+/// Caps confidence and records inference for resolved spans and unresolved
+/// candidate competitions that touch a geometrically inferred reading order.
 ///
-/// Unlike a forced `ReadingOrderUnknown` window, inferred-order blocks stay
-/// eligible for anchoring and their windows stay resolvable; this is the
-/// only place their extra doubt reaches the alignment result, so every
-/// downstream `Change`/`FormattingChange` derived from `span.confidence`
-/// inherits it.
-///
-/// Skips `Unresolved` spans deliberately: their `confidence` never reaches a
-/// `Change`, and a large forced `ReadingOrderUnknown` window can incidentally
-/// span unrelated inferred-order blocks elsewhere in the document. Tagging
-/// it here would corrupt the exact-evidence gate the sentence-recovery
-/// fallback uses to decide which unresolved windows it may still recover
-/// (`diff::sentence::is_sentence_recovery_span`, which requires evidence to
-/// be exactly `[ReadingOrderUnknown]`).
+/// Candidate competition rejects a parent correspondence, but does not invalidate
+/// independent sentence or running-matter recovery. Preserve inference there so
+/// recovery remains available when layout becomes more informative. Other unresolved
+/// causes retain their exact evidence, particularly reading-order and extraction gaps.
 fn cap_confidence_for_inferred_reading_order(
     spans: &mut [AlignmentSpan],
     inferred_old: &HashSet<BlockId>,
@@ -672,12 +663,13 @@ fn cap_confidence_for_inferred_reading_order(
         return;
     }
     for span in spans {
-        // Do not tag Unresolved spans: measured on nist-csf-v1-1-to-v2-0,
-        // doing so collapsed coverage from ~69% to ~0.03% by disqualifying
-        // the single page-wide `ReadingOrderUnknown` window from sentence
-        // recovery (see the exact-evidence gate this function's doc
-        // references). Keep this guard.
-        if span.kind == AlignmentKind::Unresolved {
+        if span.kind == AlignmentKind::Unresolved
+            && span.evidence
+                != [
+                    AlignmentEvidence::TextSimilarity,
+                    AlignmentEvidence::CandidateCompetition,
+                ]
+        {
             continue;
         }
         let intersects_inferred_order = span.old.iter().any(|block| inferred_old.contains(block))

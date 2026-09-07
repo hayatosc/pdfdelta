@@ -7,10 +7,10 @@ use crate::{
         validate_ngram_size,
     },
     diff::{
-        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff, RecoveredAtomicDiff,
-        RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics, RecoveryWatchQuery,
-        SentenceRecoveryInput, SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
-        compare_aligned_with_atomic_edits,
+        Comparison, Confidence, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff,
+        RecoveredAtomicDiff, RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics,
+        RecoveryWatchQuery, SentenceRecoveryInput, SentenceRecoveryMetrics,
+        TrustedRunRecoveryInput, compare_aligned, compare_aligned_with_atomic_edits,
         compare_aligned_with_known_span_sentence_shadow_diagnostics,
         compare_aligned_with_recovery_watch_diagnostics,
         compare_aligned_with_sentence_recovery_metrics,
@@ -1053,7 +1053,7 @@ fn compare_validated_glyph_documents_inner(
             .map(|comparison| (comparison, None, None, Vec::new(), Vec::new(), None))
     };
     let (
-        comparison,
+        mut comparison,
         sentence_recovery_metrics,
         recovery_watch_diagnostics,
         matched_atomic_diffs,
@@ -1065,6 +1065,13 @@ fn compare_validated_glyph_documents_inner(
         None,
         comparison_result,
     )?;
+    demote_inferred_order_changes(
+        &mut comparison,
+        &old,
+        &new,
+        &old_inferred_order_block_indices,
+        &new_inferred_order_block_indices,
+    );
     diagnostics.completed(
         PipelinePhase::ExactDiff,
         None,
@@ -1087,6 +1094,50 @@ fn compare_validated_glyph_documents_inner(
         recovered_atomic_diffs,
         recovery_ownership_partition,
     })
+}
+
+// Recovery must keep its ReadingOrderUnknown evidence to remain eligible, so
+// inferred-order confidence is also applied to the final source-backed events.
+fn demote_inferred_order_changes(
+    comparison: &mut Comparison,
+    old: &[BlockText],
+    new: &[BlockText],
+    old_inferred: &[usize],
+    new_inferred: &[usize],
+) {
+    if old_inferred.is_empty() && new_inferred.is_empty() {
+        return;
+    }
+    let old_blocks = old_inferred
+        .iter()
+        .map(|&index| old[index].block)
+        .collect::<std::collections::HashSet<_>>();
+    let new_blocks = new_inferred
+        .iter()
+        .map(|&index| new[index].block)
+        .collect::<std::collections::HashSet<_>>();
+    let touches_inferred = |old_span: Option<&crate::diff::TextSpan>,
+                            new_span: Option<&crate::diff::TextSpan>| {
+        old_span.is_some_and(|span| span.blocks.iter().any(|id| old_blocks.contains(id)))
+            || new_span.is_some_and(|span| span.blocks.iter().any(|id| new_blocks.contains(id)))
+    };
+    for change in &mut comparison.changes {
+        if change.occurrences.iter().any(|occurrence| {
+            touches_inferred(occurrence.old_span.as_ref(), occurrence.new_span.as_ref())
+        }) {
+            change.confidence = Confidence::Low;
+        }
+    }
+    for change in &mut comparison.formatting_changes {
+        if touches_inferred(Some(&change.old_span), Some(&change.new_span)) {
+            change.confidence = Confidence::Low;
+        }
+    }
+    for region in &mut comparison.proven_changed_regions {
+        if touches_inferred(region.old_span.as_ref(), region.new_span.as_ref()) {
+            region.confidence = Confidence::Low;
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1593,9 +1644,8 @@ mod tests {
         pdf::ObjectRef,
     };
 
-    #[test]
-    fn prepared_document_retains_trusted_run_descriptors() {
-        let document = Document::new(vec![Glyph {
+    fn single_glyph_document() -> Document<Glyph> {
+        Document::new(vec![Glyph {
             id: GlyphId(1),
             text: DecodedText::Mapped("A".to_owned()),
             raw_code: vec![b'A'],
@@ -1619,7 +1669,12 @@ mod tests {
                 },
                 operator_index: 0,
             },
-        }]);
+        }])
+    }
+
+    #[test]
+    fn prepared_document_retains_trusted_run_descriptors() {
+        let document = single_glyph_document();
         let mut diagnostics = PipelineDiagnostics::new();
 
         let prepared = prepare(
@@ -1642,6 +1697,75 @@ mod tests {
             prepared.trusted_run_intervals[0].map(|run| run.run_id),
             Some(descriptor.id)
         );
+    }
+
+    #[test]
+    fn inferred_order_caps_changed_region_confidence_on_either_source_side() {
+        use crate::diff::{
+            ChangedRegionProof, Coverage, ProvenChangedRegion, TextSpan, TokenRange,
+        };
+        use crate::normalize::ScalarRange;
+
+        let prepared = prepare(
+            &single_glyph_document(),
+            PipelineOptions::default(),
+            DocumentSide::Old,
+            &mut PipelineDiagnostics::new(),
+        )
+        .expect("source fixture should prepare");
+        let span = TextSpan {
+            blocks: vec![prepared.blocks[0].block],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 1 },
+            comparable_range: TokenRange { start: 0, end: 1 },
+        };
+        let coverage = Coverage {
+            resolved_tokens: 0,
+            total_tokens: 1,
+            ratio: Some(0.0),
+        };
+        for (old_inferred, new_inferred, expected) in [
+            (&[0][..], &[][..], [Confidence::Low, Confidence::High]),
+            (&[][..], &[0][..], [Confidence::High, Confidence::Low]),
+            (&[][..], &[][..], [Confidence::High, Confidence::High]),
+        ] {
+            let mut comparison = Comparison {
+                changes: Vec::new(),
+                formatting_changes: Vec::new(),
+                unresolved_regions: Vec::new(),
+                proven_changed_regions: vec![
+                    ProvenChangedRegion {
+                        old_span: Some(span.clone()),
+                        new_span: None,
+                        proof: ChangedRegionProof::OneSidedNonEmptyRange,
+                        confidence: Confidence::High,
+                    },
+                    ProvenChangedRegion {
+                        old_span: None,
+                        new_span: Some(span.clone()),
+                        proof: ChangedRegionProof::OneSidedNonEmptyRange,
+                        confidence: Confidence::High,
+                    },
+                ],
+                old_coverage: coverage,
+                new_coverage: coverage,
+            };
+            demote_inferred_order_changes(
+                &mut comparison,
+                &prepared.blocks,
+                &prepared.blocks,
+                old_inferred,
+                new_inferred,
+            );
+            assert_eq!(
+                comparison
+                    .proven_changed_regions
+                    .iter()
+                    .map(|region| region.confidence)
+                    .collect::<Vec<_>>(),
+                expected,
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,2 @@
+OK pair=kicad-getting-started-7-to-8 set=holdout role=standard provenance=verified extracted=incomplete comparison=incomplete coverage=old=unknown,new=unknown,comp=unknown unresolved=31 runtime_ms=454 candidate_visits=78260/1000000 required_candidate_visits=78260 required_candidate_components=exact:21,ngram:78057,short_fallback:182 quality_skipped="no expected annotations are recorded for this pair"
+1/1 revision pairs healthy; 0 stopped at resource limits; 0 failed
