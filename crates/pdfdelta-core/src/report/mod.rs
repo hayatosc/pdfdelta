@@ -314,6 +314,11 @@ impl<'a> SideIndex<'a> {
         blocks: &[BlockId],
         separator: Option<BlockSeparator>,
     ) -> Result<(Vec<ComparableToken>, Vec<u32>)> {
+        if separator.is_some_and(|separator| !separator.valid_for(blocks.len())) {
+            return Err(Error::InvalidConfiguration(
+                "separator pattern does not cover its block group".to_owned(),
+            ));
+        }
         let mut tokens = Vec::new();
         let mut pages = Vec::new();
         for (position, block_id) in blocks.iter().enumerate() {
@@ -329,6 +334,7 @@ impl<'a> SideIndex<'a> {
             } else {
                 separator
                     .unwrap_or(BlockSeparator::Concatenate)
+                    .at(position - 1)
                     .append(&mut tokens, &next);
             }
             pages.extend_from_slice(&block.pages);

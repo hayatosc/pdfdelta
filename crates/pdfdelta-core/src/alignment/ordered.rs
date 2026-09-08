@@ -72,8 +72,8 @@ pub struct AlignmentSpan {
     pub score: f64,
     /// Canonical token similarity of the winning group variant.
     pub canonical_similarity: f64,
-    /// Total-score margin to the best competing transition that reached this
-    /// span's DP cell; `None` when no competing path reached the cell.
+    /// Score margin against a competing path. In ambiguous intervals, matches
+    /// use the best complete path with that correspondence forbidden.
     pub score_margin: Option<f64>,
     pub confidence: AlignmentConfidence,
     pub evidence: Vec<AlignmentEvidence>,
@@ -1391,8 +1391,7 @@ fn align_interval(
     }
 
     let final_cell = &cells[old.len() * width + new.len()];
-    if (!context.bounded_by_anchors
-        && final_cell.second.is_finite()
+    if (final_cell.second.is_finite()
         && final_cell.best - final_cell.second < options.min_score_margin)
         || (final_cell.second.is_finite()
             && (final_cell.best - final_cell.second).abs() <= SCORE_TOLERANCE)
@@ -1404,11 +1403,23 @@ fn align_interval(
         } else {
             AlignmentEvidence::CandidateCompetition
         };
-        return Ok(vec![unresolved_span_with_evidence(
+        if !has_match_proposal {
+            return Ok(vec![unresolved_span_with_evidence(
+                old,
+                new,
+                vec![AlignmentEvidence::TextSimilarity, cause],
+            )]);
+        }
+        return retain_common_correspondences(
             old,
             new,
-            vec![AlignmentEvidence::TextSimilarity, cause],
-        )]);
+            &cells,
+            width,
+            options,
+            context,
+            dp_cell_budget,
+            cause,
+        );
     }
     backtrack(old, new, &cells, width, options, context)
 }
@@ -1435,11 +1446,106 @@ enum Transition {
     MoveCandidates,
 }
 
+/// Retains a correspondence only when excluding it worsens the complete path.
+/// Replays consume the same cell budget as the initial solve. Exhaustion keeps
+/// the remaining region unresolved rather than weakening the proof.
+#[allow(clippy::too_many_arguments)]
+fn retain_common_correspondences(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    cells: &[Cell],
+    width: usize,
+    options: AlignmentOptions,
+    context: IntervalContext<'_>,
+    budget: &mut DpCellBudget,
+    cause: AlignmentEvidence,
+) -> Result<Vec<AlignmentSpan>> {
+    let spans = backtrack(old, new, cells, width, options, context)?;
+    let mut retained = Vec::new();
+    let mut pending_old = 0;
+    let mut pending_new = 0;
+    let mut old_end = 0;
+    let mut new_end = 0;
+    let best = cells.last().expect("DP contains its origin").best;
+    let mut scores = Vec::new();
+    scores
+        .try_reserve_exact(cells.len())
+        .map_err(|_| Error::LimitExceeded {
+            resource: "alignment DP cells",
+            limit: options.max_dp_cells,
+        })?;
+    scores.resize(cells.len(), f64::NEG_INFINITY);
+    for mut span in spans {
+        let from = old_end * width + new_end;
+        old_end += span.old.len();
+        new_end += span.new.len();
+        if span.kind != AlignmentKind::Match || budget.remaining < cells.len() {
+            continue;
+        }
+        budget.remaining -= cells.len();
+        let to = old_end * width + new_end;
+        scores.fill(f64::NEG_INFINITY);
+        scores[0] = 0.0;
+        for (index, cell) in cells.iter().enumerate().skip(1) {
+            for &(predecessor, reward, is_match) in &cell.incoming {
+                if index != to || predecessor != from || !is_match {
+                    scores[index] = scores[index].max(scores[predecessor] + reward);
+                }
+            }
+        }
+        let alternative = scores[cells.len() - 1];
+        let margin = best - alternative;
+        if margin <= SCORE_TOLERANCE || margin < options.min_score_margin {
+            continue;
+        }
+        let old_start = old_end - span.old.len();
+        let new_start = new_end - span.new.len();
+        if pending_old < old_start || pending_new < new_start {
+            retained.push(unresolved_span_with_evidence(
+                &old[pending_old..old_start],
+                &new[pending_new..new_start],
+                vec![AlignmentEvidence::TextSimilarity, cause],
+            ));
+        }
+        span.score_margin = alternative.is_finite().then_some(margin);
+        span.confidence = calibrated_match_confidence(
+            &GroupScore {
+                score: span.score,
+                canonical_similarity: span.canonical_similarity,
+                exact_canonical: span.evidence.contains(&AlignmentEvidence::ExactCanonical),
+                numeric_mask: span.evidence.contains(&AlignmentEvidence::NumericMask),
+                separator_ambiguous: false,
+                old_separator: span.old_separator,
+                new_separator: span.new_separator,
+            },
+            span.old.len() != span.new.len(),
+            span.score_margin,
+            old[old_start..old_end]
+                .iter()
+                .chain(&new[new_start..new_end])
+                .any(|block| block.has_normalization_issues),
+            &options,
+        );
+        retained.push(span);
+        pending_old = old_end;
+        pending_new = new_end;
+    }
+    if pending_old < old.len() || pending_new < new.len() {
+        retained.push(unresolved_span_with_evidence(
+            &old[pending_old..],
+            &new[pending_new..],
+            vec![AlignmentEvidence::TextSimilarity, cause],
+        ));
+    }
+    Ok(retained)
+}
+
 #[derive(Clone)]
 struct Cell {
     best: f64,
     second: f64,
     transition: Option<Transition>,
+    incoming: Vec<(usize, f64, bool)>,
 }
 
 impl Default for Cell {
@@ -1448,11 +1554,17 @@ impl Default for Cell {
             best: f64::NEG_INFINITY,
             second: f64::NEG_INFINITY,
             transition: None,
+            incoming: Vec::new(),
         }
     }
 }
 
 fn propose(cells: &mut [Cell], from: usize, to: usize, reward: f64, transition: Transition) {
+    // There are a fixed number of transition kinds per cell; the DP cell
+    // budget therefore also bounds retained edges for ambiguity analysis.
+    cells[to]
+        .incoming
+        .push((from, reward, matches!(transition, Transition::Match { .. })));
     let best = cells[from].best + reward;
     let second = cells[from].second + reward;
     update_cell(&mut cells[to], best, Some(transition));
@@ -1550,9 +1662,8 @@ fn backtrack(
 
     while old_index > 0 || new_index > 0 {
         let cell = &cells[old_index * width + new_index];
-        // The runner-up total at this cell is the best competing transition
-        // that could have produced this span; a razor-thin margin means the
-        // chosen correspondence was locally ambiguous.
+        // Prefix path competition calibrates one-sided operations. Matches
+        // use complete-path evidence below, not inherited prefix ambiguity.
         let score_margin = cell
             .second
             .is_finite()
@@ -1568,6 +1679,14 @@ fn backtrack(
                 group_score,
                 sources,
             } => {
+                // A prefix runner-up may differ only before this match. The
+                // complete-path margin is a lower bound for every chosen edge;
+                // ambiguous complete paths are refined by exclusion replays.
+                let final_cell = &cells[cells.len() - 1];
+                let score_margin = final_cell
+                    .second
+                    .is_finite()
+                    .then(|| (final_cell.best - final_cell.second).max(0.0));
                 let old_start = old_index - old_count;
                 let new_start = new_index - new_count;
                 reversed.push(match_span(
@@ -2208,6 +2327,12 @@ mod tests {
             page_position: None,
             numeric_mask_applied: false,
             has_normalization_issues: false,
+            first_position: None,
+            last_position: None,
+            first_page: None,
+            last_page: None,
+            first_font_size: None,
+            last_font_size: None,
         }
     }
 
@@ -2215,6 +2340,87 @@ mod tests {
         let mut f = feature(block, key);
         f.has_normalization_issues = has_normalization_issues;
         f
+    }
+
+    #[test]
+    fn gap_order_ties_preserve_the_shared_correspondence_without_anchor_recovery() {
+        let old = [feature(1, 0), feature(2, 2)];
+        let new = [feature(101, 1), feature(102, 2)];
+        let spans = align_unbounded_interval(&old, &new, &candidate_map(&[(2, 102)]));
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[0].old, [BlockId(1)]);
+        assert_eq!(spans[0].new, [BlockId(101)]);
+        assert_eq!(spans[1].kind, AlignmentKind::Match);
+        assert_eq!(spans[1].old, [BlockId(2)]);
+        assert_eq!(spans[1].new, [BlockId(102)]);
+        assert!(
+            spans[1].score_margin.expect("valid fixture")
+                > AlignmentOptions::default().min_score_margin
+        );
+    }
+
+    #[test]
+    fn retained_correspondences_match_an_exhaustive_optimal_path_oracle() {
+        fn paths(old: &[u64], new: &[u64], i: usize, j: usize) -> Vec<Vec<(u64, u64)>> {
+            if i == old.len() && j == new.len() {
+                return vec![Vec::new()];
+            }
+            let mut output = Vec::new();
+            if i < old.len() {
+                output.extend(paths(old, new, i + 1, j));
+            }
+            if j < new.len() {
+                output.extend(paths(old, new, i, j + 1));
+            }
+            if i < old.len() && j < new.len() && old[i] == new[j] {
+                output.extend(paths(old, new, i + 1, j + 1).into_iter().map(|mut path| {
+                    path.push((i as u64 + 1, j as u64 + 101));
+                    path
+                }));
+            }
+            output
+        }
+        for bits in 0..64 {
+            let old_keys = (0..3).map(|i| (bits >> i) & 1).collect::<Vec<_>>();
+            let new_keys = (3..6).map(|i| (bits >> i) & 1).collect::<Vec<_>>();
+            let paths = paths(&old_keys, &new_keys, 0, 0);
+            let maximum = paths.iter().map(Vec::len).max().expect("valid fixture");
+            let optimal = paths
+                .iter()
+                .filter(|path| path.len() == maximum)
+                .collect::<Vec<_>>();
+            let expected = optimal[0]
+                .iter()
+                .copied()
+                .filter(|pair| optimal.iter().all(|path| path.contains(pair)))
+                .collect::<HashSet<_>>();
+            let old = old_keys
+                .iter()
+                .enumerate()
+                .map(|(i, key)| feature(i as u64 + 1, *key))
+                .collect::<Vec<_>>();
+            let new = new_keys
+                .iter()
+                .enumerate()
+                .map(|(i, key)| feature(i as u64 + 101, *key))
+                .collect::<Vec<_>>();
+            let edges = old
+                .iter()
+                .flat_map(|a| {
+                    new.iter()
+                        .filter(|b| a.canonical_tokens == b.canonical_tokens)
+                        .map(|b| (a.block.0, b.block.0))
+                })
+                .collect::<Vec<_>>();
+            let spans = align_unbounded_interval(&old, &new, &candidate_map(&edges));
+            let actual = spans
+                .iter()
+                .filter(|span| span.kind == AlignmentKind::Match)
+                .map(|span| (span.old[0].0, span.new[0].0))
+                .collect::<HashSet<_>>();
+            assert_eq!(actual, expected, "fixture {bits}");
+        }
     }
 
     fn candidate_map(edges: &[(u64, u64)]) -> CandidateMap {

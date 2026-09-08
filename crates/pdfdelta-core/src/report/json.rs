@@ -20,7 +20,7 @@ use super::{
     side_name, summarize,
 };
 
-const SCHEMA_VERSION: u32 = 9;
+const SCHEMA_VERSION: u32 = 10;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -376,6 +376,8 @@ struct JsonTextSpan {
     blocks: Vec<u64>,
     pages: Vec<u32>,
     block_separator: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    block_separators: Option<Vec<&'static str>>,
     canonical_range: JsonRange,
     comparable_range: JsonRange,
     text: String,
@@ -399,6 +401,13 @@ impl JsonTextSpan {
             blocks: span.blocks.iter().map(|block| block.0).collect(),
             pages: resolved.pages,
             block_separator: span.separator.map(block_separator),
+            block_separators: span.separator.and_then(|separator| {
+                matches!(separator, BlockSeparator::PerBoundary(_)).then(|| {
+                    (0..span.blocks.len().saturating_sub(1))
+                        .map(|index| block_separator(separator.at(index)))
+                        .collect()
+                })
+            }),
             canonical_range: JsonRange {
                 start: span.canonical_range.start,
                 end: span.canonical_range.end,
@@ -528,6 +537,7 @@ fn block_separator(separator: BlockSeparator) -> &'static str {
     match separator {
         BlockSeparator::Concatenate => "concatenate",
         BlockSeparator::Space => "space",
+        BlockSeparator::PerBoundary(_) => "per_boundary",
     }
 }
 

@@ -22,6 +22,16 @@ pub struct ScalarRange {
     pub end: usize,
 }
 
+/// A canonical insertion boundary projected through all contributing raw sources.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RawBoundary {
+    Exact(usize),
+    /// The boundary splits a source shared by adjacent canonical scalars.
+    WithinSource(ScalarRange),
+    /// Deleted or inconsistent evidence leaves multiple possible raw positions.
+    Ambiguous(ScalarRange),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TextSourceAtom {
     Glyph(GlyphId),
@@ -590,7 +600,11 @@ impl BlockText {
         Ok(ranges)
     }
 
-    /// Projects a canonical `ScalarRange` to the corresponding raw `ScalarRange` in `self.raw`.
+    /// Projects a canonical scalar range to its complete raw source extent.
+    ///
+    /// Empty ranges return a point only for an exact boundary; otherwise they
+    /// return the containing raw extent. Use [`Self::canonical_to_raw_boundary`]
+    /// to distinguish a shared source from an ambiguous boundary.
     pub fn canonical_to_raw_range(&self, canonical_range: ScalarRange) -> ScalarRange {
         if canonical_range.start == canonical_range.end {
             return self.canonical_point_to_raw_offset(canonical_range.start);
@@ -653,7 +667,10 @@ impl BlockText {
                 end: max_raw,
             }
         } else {
-            self.canonical_point_to_raw_offset(canonical_range.start)
+            ScalarRange {
+                start: 0,
+                end: self.raw.text.chars().count(),
+            }
         }
     }
 
@@ -732,37 +749,70 @@ impl BlockText {
         self.canonical.project_glyph_ids(canonical_range)
     }
 
-    fn canonical_point_to_raw_offset(&self, canonical_offset: usize) -> ScalarRange {
-        for entry in &self.canonical.source_map {
-            if entry.output_range.start <= canonical_offset
-                && canonical_offset <= entry.output_range.end
-            {
-                let source = &entry.source;
-                for raw_entry in &self.raw.source_map {
-                    if raw_entry
-                        .source
-                        .atoms
-                        .iter()
-                        .any(|atom| source.atoms.contains(atom))
-                    {
-                        let offset = if canonical_offset == entry.output_range.start {
-                            raw_entry.output_range.start
-                        } else {
-                            raw_entry.output_range.end
-                        };
-                        return ScalarRange {
-                            start: offset,
-                            end: offset,
-                        };
-                    }
+    /// Projects an insertion boundary without placing it inside a composed source.
+    ///
+    /// Returns `None` for an out-of-range offset or missing scalar evidence.
+    pub fn canonical_to_raw_boundary(&self, offset: usize) -> Option<RawBoundary> {
+        let canonical_len = self.canonical.text.chars().count();
+        let raw_len = self.raw.text.chars().count();
+        if offset > canonical_len {
+            return None;
+        }
+        let extent = |index| {
+            let range = ScalarRange {
+                start: index,
+                end: index + 1,
+            };
+            let source = self.canonical.project_source(range);
+            if source.atoms.is_empty() {
+                return None;
+            }
+            let mut missing = source.atoms.iter().collect::<HashSet<_>>();
+            for entry in &self.raw.source_map {
+                for atom in &entry.source.atoms {
+                    missing.remove(atom);
                 }
             }
-        }
-        let raw_len = self.raw.text.chars().count();
-        let clamped = canonical_offset.min(raw_len);
-        ScalarRange {
-            start: clamped,
-            end: clamped,
+            missing
+                .is_empty()
+                .then(|| self.canonical_to_raw_range(range))
+        };
+        let left = if offset == 0 {
+            0
+        } else {
+            extent(offset - 1)?.end
+        };
+        let right = if offset == canonical_len {
+            raw_len
+        } else {
+            extent(offset)?.start
+        };
+        Some(if left == right {
+            RawBoundary::Exact(left)
+        } else if left > right {
+            RawBoundary::WithinSource(ScalarRange {
+                start: right,
+                end: left,
+            })
+        } else {
+            RawBoundary::Ambiguous(ScalarRange {
+                start: left,
+                end: right,
+            })
+        })
+    }
+
+    fn canonical_point_to_raw_offset(&self, canonical_offset: usize) -> ScalarRange {
+        match self.canonical_to_raw_boundary(canonical_offset) {
+            Some(RawBoundary::Exact(offset)) => ScalarRange {
+                start: offset,
+                end: offset,
+            },
+            Some(RawBoundary::WithinSource(range) | RawBoundary::Ambiguous(range)) => range,
+            None => ScalarRange {
+                start: 0,
+                end: self.raw.text.chars().count(),
+            },
         }
     }
 
@@ -1296,19 +1346,23 @@ impl TextSource {
     }
 
     fn combine<'a>(sources: impl IntoIterator<Item = &'a Self>) -> Self {
-        // Inputs hold at most a few atoms and single-atom sources dominate,
-        // so linear dedup scans avoid the per-call HashSet allocation. The
-        // first occurrence of each atom is retained, matching the previous
-        // set-based order.
+        // Keep tiny merges allocation-free; whitespace runs can contain arbitrarily
+        // many distinct atoms, so bound linear scans before switching to a set.
+        const LINEAR_LIMIT: usize = 16;
         let mut atoms = SmallVec::new();
+        let mut seen = None::<HashSet<TextSourceAtom>>;
         for source in sources {
-            'source: for atom in &source.atoms {
-                for existing in &atoms {
-                    if existing == atom {
-                        continue 'source;
-                    }
+            for atom in &source.atoms {
+                if atoms.len() == LINEAR_LIMIT && seen.is_none() {
+                    seen = Some(atoms.iter().cloned().collect());
                 }
-                atoms.push(atom.clone());
+                let duplicate = match &mut seen {
+                    Some(seen) => !seen.insert(atom.clone()),
+                    None => atoms.contains(atom),
+                };
+                if !duplicate {
+                    atoms.push(atom.clone());
+                }
             }
         }
         Self { atoms }
@@ -1661,7 +1715,7 @@ fn resolve_line_breaks(atoms: &mut Vec<Atom>, issues: &mut Vec<NormalizationIssu
         let latin_prefix_len = latin_prefix_len_before_hyphen(&atoms[..write]);
         let latin_suffix_len = latin_suffix_len_after_break(atoms, index);
 
-        let is_hyphenation = is_hyphen(previous_scalar)
+        let ambiguous_hyphenation = is_hyphen(previous_scalar)
             && latin_prefix_len >= 2
             && latin_suffix_len >= 2
             && following_scalar.is_some_and(is_latin_lowercase);
@@ -1673,13 +1727,20 @@ fn resolve_line_breaks(atoms: &mut Vec<Atom>, issues: &mut Vec<NormalizationIssu
                 .is_some_and(|s| is_latin_letter_or_digit(s) || is_cjk(s))
             && following_scalar.is_some_and(|s| is_latin_letter_or_digit(s) || is_cjk(s));
 
-        if is_hyphenation && write > 0 {
+        if previous_scalar == Some('\u{ad}') && following_scalar.is_some() {
             let replacement = deleted_atom(
                 [&atoms[write - 1], &atoms[index]],
                 NormalizationKind::HyphenationJoin,
             );
             atoms[write - 1] = replacement;
         } else if is_lexical_hyphen {
+            if ambiguous_hyphenation {
+                issues.push(NormalizationIssue {
+                    kind: NormalizationIssueKind::AmbiguousLineBreak,
+                    raw_range: atoms[write - 1].raw_range,
+                    source: atoms[write - 1].source.clone(),
+                });
+            }
             // A lexical hyphen before a line break (e.g. "Franco-\nPrussian", "pre-\n1990",
             // "COVID-\n19", "X-\nray", "1990-\n2000") is retained in place; the trailing
             // line break is deleted as a soft line break so no spurious space is inserted.
@@ -2157,7 +2218,7 @@ fn is_decimal_digit(scalar: char) -> bool {
     matches!(scalar, '0'..='9' | '\u{ff10}'..='\u{ff19}')
 }
 
-fn is_cjk(scalar: char) -> bool {
+pub(crate) fn is_cjk(scalar: char) -> bool {
     matches!(
         scalar,
         '\u{3000}'..='\u{303f}'

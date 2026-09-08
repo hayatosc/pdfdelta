@@ -494,7 +494,7 @@ fn span_range_with_limits(
             .is_some_and(|token| token.scalar_index == 0)
             && mapped.text.chars().next().is_some_and(char::is_whitespace);
         let insert_space = position > 0
-            && separator == BlockSeparator::Space
+            && separator.at(position - 1) == BlockSeparator::Space
             && combined_last_whitespace != Some(true)
             && !next_first_whitespace;
         if insert_space {
@@ -1262,7 +1262,7 @@ fn project_span_intervals(
             .comparable_tokens()
             .map_err(|_| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
         let synthetic_space = position > 0
-            && separator == BlockSeparator::Space
+            && separator.at(position - 1) == BlockSeparator::Space
             && !combined_last.as_ref().is_some_and(is_comparable_whitespace)
             && !tokens.first().is_some_and(is_comparable_whitespace);
         if synthetic_space {

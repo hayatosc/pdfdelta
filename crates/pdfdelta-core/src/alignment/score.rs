@@ -1,4 +1,4 @@
-use crate::normalize::ComparableToken;
+use crate::normalize::{ComparableToken, is_cjk};
 
 use super::{BlockFeatures, NGramCounts, features::token_ngram_counts, multiset_dice_similarity};
 
@@ -6,9 +6,41 @@ use super::{BlockFeatures, NGramCounts, features::token_ngram_counts, multiset_d
 pub enum BlockSeparator {
     Concatenate,
     Space,
+    /// Independent joins for a three-block alignment group (the maximum group size).
+    /// `true` inserts a space; `false` concatenates. Uniform groups retain the
+    /// corresponding scalar variant, including groups produced by recovery.
+    PerBoundary([bool; 2]),
 }
 
 impl BlockSeparator {
+    pub(crate) fn valid_for(self, block_count: usize) -> bool {
+        !matches!(self, Self::PerBoundary(_)) || block_count == 3
+    }
+    /// Returns the separator at a zero-based inter-block boundary.
+    ///
+    /// # Panics
+    /// Panics if a per-boundary pattern is used outside its three-block group.
+    pub fn at(self, boundary: usize) -> Self {
+        match self {
+            Self::PerBoundary(spaces) => {
+                if spaces[boundary] {
+                    Self::Space
+                } else {
+                    Self::Concatenate
+                }
+            }
+            uniform => uniform,
+        }
+    }
+
+    pub(crate) fn subspan(self, first_block: usize, block_count: usize) -> Self {
+        if block_count <= 2 {
+            self.at(first_block.min(1))
+        } else {
+            self
+        }
+    }
+
     pub(crate) fn append(self, combined: &mut Vec<ComparableToken>, next: &[ComparableToken]) {
         let insert_space = self == Self::Space
             && !combined.last().is_some_and(is_space)
@@ -47,6 +79,7 @@ struct GroupVariant {
     canonical_counts: NGramCounts,
     matching_counts: NGramCounts,
     separator: Option<BlockSeparator>,
+    justified: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -75,12 +108,11 @@ pub(crate) fn score_groups(
         .iter()
         .chain(new)
         .any(|features| features.numeric_mask_applied);
-    let split_merge = old.len() != new.len();
     let mut scores = Vec::with_capacity(old_variants.len() * new_variants.len());
 
     for old in &old_variants {
         for new in &new_variants {
-            let exact_canonical = old.canonical == new.canonical;
+            let exact_canonical = old.justified && new.justified && old.canonical == new.canonical;
             let canonical_similarity = precomputed_token_similarity(
                 &old.canonical,
                 &old.canonical_counts,
@@ -117,11 +149,13 @@ pub(crate) fn score_groups(
         old_separator: None,
         new_separator: None,
     });
-    let separator_ambiguous = split_merge
-        && scores
-            .get(1)
-            .is_some_and(|second| best.score - second.score < options.min_score_margin)
-        && !best.exact_canonical;
+    let separator_ambiguous = old_variants.iter().any(|variant| !variant.justified)
+        || new_variants.iter().any(|variant| !variant.justified)
+        || old.len() != new.len()
+            && scores
+                .get(1)
+                .is_some_and(|second| best.score - second.score < options.min_score_margin)
+            && !best.exact_canonical;
 
     GroupScore {
         score: best.score,
@@ -145,15 +179,37 @@ fn group_variants(features: &[BlockFeatures], ngram_size: usize) -> Vec<GroupVar
             canonical_counts: token_ngram_counts(&first.canonical_tokens, ngram_size),
             matching_counts: token_ngram_counts(&first.matching_tokens, ngram_size),
             separator: None,
+            justified: true,
         }];
     }
 
+    let joins = features
+        .windows(2)
+        .map(|pair| boundary_separator(&pair[0], &pair[1]))
+        .collect::<Vec<_>>();
+    if joins.iter().all(Option::is_some) {
+        let first = joins[0].expect("checked boundary");
+        let separator = if joins.iter().all(|join| *join == Some(first)) {
+            Some(first)
+        } else if features.len() == 3 {
+            Some(BlockSeparator::PerBoundary([
+                joins[0] == Some(BlockSeparator::Space),
+                joins[1] == Some(BlockSeparator::Space),
+            ]))
+        } else {
+            None
+        };
+        if let Some(separator) = separator {
+            return vec![group_variant(features, separator, ngram_size, true)];
+        }
+    }
     let mut variants = vec![group_variant(
         features,
         BlockSeparator::Concatenate,
         ngram_size,
+        false,
     )];
-    let with_space = group_variant(features, BlockSeparator::Space, ngram_size);
+    let with_space = group_variant(features, BlockSeparator::Space, ngram_size, false);
     if variants[0].canonical != with_space.canonical || variants[0].matching != with_space.matching
     {
         variants.push(with_space);
@@ -168,6 +224,7 @@ fn empty_group_variant() -> GroupVariant {
         canonical_counts: NGramCounts::new(),
         matching_counts: NGramCounts::new(),
         separator: None,
+        justified: true,
     }
 }
 
@@ -175,13 +232,18 @@ fn group_variant(
     features: &[BlockFeatures],
     separator: BlockSeparator,
     ngram_size: usize,
+    justified: bool,
 ) -> GroupVariant {
     let first = &features[0];
     let mut canonical = first.canonical_tokens.clone();
     let mut matching = first.matching_tokens.clone();
-    for next in &features[1..] {
-        separator.append(&mut canonical, &next.canonical_tokens);
-        separator.append(&mut matching, &next.matching_tokens);
+    for (boundary, next) in features[1..].iter().enumerate() {
+        separator
+            .at(boundary)
+            .append(&mut canonical, &next.canonical_tokens);
+        separator
+            .at(boundary)
+            .append(&mut matching, &next.matching_tokens);
     }
     GroupVariant {
         canonical_counts: token_ngram_counts(&canonical, ngram_size),
@@ -189,7 +251,48 @@ fn group_variant(
         canonical,
         matching,
         separator: Some(separator),
+        justified,
     }
+}
+
+/// A comparison partner never supplies boundary evidence. Explicit whitespace
+/// is already part of the token stream; script joins follow soft-line-break
+/// normalization, and a source-backed change of line supplies a word boundary.
+fn boundary_separator(left: &BlockFeatures, right: &BlockFeatures) -> Option<BlockSeparator> {
+    let last = left.canonical_tokens.last()?;
+    let first = right.canonical_tokens.first()?;
+    if is_space(last) || is_space(first) {
+        return Some(BlockSeparator::Concatenate);
+    }
+    if matches!((last, first), (ComparableToken::Scalar(a), ComparableToken::Scalar(b))
+        if is_cjk(*a) && (is_cjk(*b) || b.is_alphanumeric())
+            || is_cjk(*b) && a.is_alphanumeric())
+    {
+        return Some(BlockSeparator::Concatenate);
+    }
+    if left
+        .last_page
+        .zip(right.first_page)
+        .is_some_and(|(a, b)| a != b)
+    {
+        return Some(BlockSeparator::Space);
+    }
+    let (last, first) = left.last_position.zip(right.first_position)?;
+    let font_size = left
+        .last_font_size
+        .as_ref()?
+        .values()
+        .chain(right.first_font_size.as_ref()?.values())
+        .reduce(f64::max)?;
+    let direction = last.direction();
+    let delta_x = first.baseline().x - last.baseline().x;
+    let delta_y = first.baseline().y - last.baseline().y;
+    // Require a full source-font separation: baseline noise or a superscript
+    // alone cannot prove that two fragments occupy different text lines.
+    let cross_distance =
+        (delta_x * direction.y - delta_y * direction.x).abs() / direction.x.hypot(direction.y);
+    let different_line = direction == first.direction() && cross_distance >= font_size;
+    different_line.then_some(BlockSeparator::Space)
 }
 
 fn is_space(token: &ComparableToken) -> bool {
@@ -206,4 +309,69 @@ fn precomputed_token_similarity(
         return 1.0;
     }
     multiset_dice_similarity(left_counts, right_counts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        alignment::ExactHash,
+        layout::{BlockId, BlockRole},
+    };
+
+    #[test]
+    fn oversized_mixed_groups_remain_ambiguous_without_panicking() {
+        let feature = |id, text: &str| {
+            let tokens = text
+                .chars()
+                .map(ComparableToken::Scalar)
+                .collect::<Vec<_>>();
+            BlockFeatures {
+                block: BlockId(id),
+                role: BlockRole::Body,
+                exact_hash: ExactHash(0),
+                canonical_tokens: tokens.clone(),
+                matching_tokens: tokens,
+                ngram_counts: NGramCounts::new(),
+                ngram_size: 3,
+                page_position: None,
+                numeric_mask_applied: false,
+                has_normalization_issues: false,
+                first_position: None,
+                last_position: None,
+                first_page: Some(id as u32),
+                last_page: Some(id as u32),
+                first_font_size: None,
+                last_font_size: None,
+            }
+        };
+        let parts = ["New", "York", "市", "区", "外"];
+        for count in [4, 5] {
+            let old = [feature(
+                100,
+                &format!("New York{}", parts[2..count].concat()),
+            )];
+            let new = parts[..count]
+                .iter()
+                .enumerate()
+                .map(|(index, text)| feature(index as u64, text))
+                .collect::<Vec<_>>();
+            let score = score_groups(
+                &old,
+                &new,
+                ScoreOptions {
+                    matching_weight: 0.5,
+                    canonical_weight: 0.5,
+                    min_score_margin: 0.08,
+                },
+            );
+            assert!(score.separator_ambiguous);
+            assert!(!score.exact_canonical);
+            assert!(
+                score
+                    .new_separator
+                    .is_some_and(|separator| separator.valid_for(count))
+            );
+        }
+    }
 }

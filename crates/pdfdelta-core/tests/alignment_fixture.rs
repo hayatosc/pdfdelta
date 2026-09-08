@@ -244,6 +244,65 @@ fn aligns_an_english_block_split_as_one_to_two() {
 }
 
 #[test]
+fn source_backed_block_spacing_cannot_be_chosen_to_match_the_partner() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, "nowhere"),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, "now"),
+        block_text(103, "here"),
+        block_text(104, CLOSING),
+    ];
+    for source_geometry in [true, false] {
+        let mut new = new.clone();
+        if !source_geometry {
+            new[1].position_signatures = None;
+            new[2].position_signatures = None;
+        }
+        let alignment = align(old.clone(), new.clone());
+        assert!(!alignment.spans.iter().any(|span| span.old == [BlockId(2)]
+            && span.new == [BlockId(102), BlockId(103)]
+            && span.evidence.contains(&AlignmentEvidence::ExactCanonical)));
+        let diff =
+            compare_aligned(&old, &new, &alignment, DiffOptions::default()).expect("valid fixture");
+        assert!(!diff.changes.is_empty() || !diff.unresolved_regions.is_empty());
+    }
+}
+
+#[test]
+fn joins_three_blocks_with_independent_source_backed_separators() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, "New York市"),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, "New"),
+        block_text(103, "York"),
+        block_text(104, "市"),
+        block_text(105, CLOSING),
+    ];
+    for (old, new) in [(&old, &new), (&new, &old)] {
+        let alignment = align(old.clone(), new.clone());
+        let span = &alignment.spans[1];
+        assert_eq!(span.kind, AlignmentKind::Match);
+        assert!(span.evidence.contains(&AlignmentEvidence::ExactCanonical));
+        assert_eq!(
+            span.old_separator.or(span.new_separator),
+            Some(BlockSeparator::PerBoundary([true, false]))
+        );
+        let diff =
+            compare_aligned(old, new, &alignment, DiffOptions::default()).expect("valid fixture");
+        assert!(diff.changes.is_empty());
+        assert!(diff.unresolved_regions.is_empty());
+    }
+}
+
+#[test]
 fn rejects_mixed_role_split_and_merge_groups() {
     let split = align(
         vec![
@@ -1300,14 +1359,14 @@ fn keeps_a_secondary_anchor_absorbed_by_an_exact_merge() {
     let alignment = align(
         vec![
             block_text(1, OPENING),
-            block_text(2, "foo"),
-            block_text(3, "bar"),
+            block_text(2, "甲乙丙"),
+            block_text(3, "丁戊己"),
             block_text(4, CLOSING),
         ],
         vec![
             block_text(101, OPENING),
-            block_text(102, "foobar"),
-            block_text(103, "foo"),
+            block_text(102, "甲乙丙丁戊己"),
+            block_text(103, "甲乙丙"),
             block_text(104, CLOSING),
         ],
     );
@@ -2359,6 +2418,12 @@ fn anchor_feature(block: u64, key: usize) -> BlockFeatures {
         page_position: None,
         numeric_mask_applied: false,
         has_normalization_issues: false,
+        first_position: None,
+        last_position: None,
+        first_page: None,
+        last_page: None,
+        first_font_size: None,
+        last_font_size: None,
     }
 }
 
@@ -2379,8 +2444,30 @@ fn block_text_with_matching(
         normalization_events: vec![],
         issues: vec![],
         pages: Vec::new(),
-        font_size_signatures: None,
-        position_signatures: None,
+        font_size_signatures: Some(
+            canonical
+                .chars()
+                .map(|_| {
+                    pdfdelta_core::normalize::FontSizeSignature::new(&[10.0]).expect("fixture size")
+                })
+                .collect(),
+        ),
+        position_signatures: Some(
+            canonical
+                .chars()
+                .enumerate()
+                .map(|(index, _)| {
+                    pdfdelta_core::normalize::PositionSignature::new(
+                        pdfdelta_core::model::Vec2 {
+                            x: index as f64 * 10.0,
+                            y: id as f64 * 20.0,
+                        },
+                        pdfdelta_core::model::Vec2 { x: 1.0, y: 0.0 },
+                    )
+                    .expect("valid fixture")
+                })
+                .collect(),
+        ),
         line_breaks: None,
         page_breaks: None,
     }
@@ -3605,19 +3692,8 @@ fn direct_identity_shortcut_calibrates_each_span_from_own_normalization_features
 }
 
 #[test]
-fn real_dp_competing_margin_calibrates_deletion_to_low_confidence() -> Result<()> {
-    // Construct a genuine DP runner-up competition inside an anchor-bounded interval.
-    // Inside the interval between OPENING and CLOSING anchors:
-    // - old block 2 and old block 3 compete to match new block 102.
-    // - Block 2 is a closer match than Block 3.
-    // - At intermediate cell (2, 1), Path A (Match 2->102, then Deletion 3) wins over
-    //   Path B (Deletion 2, then Match 3->102) by a thin runner-up margin m < min_score_margin (0.08).
-    // - In an anchor-bounded interval, non-tie ambiguity (m > SCORE_TOLERANCE) does not collapse the
-    //   entire interval into Unresolved; instead, DP selects the optimal path and calibrates the
-    //   ambiguous Deletion of Block 3 to Low confidence.
-    // - Downstream diff produces a classified ChangeKind::Deletion with Confidence::Low, resolving
-    //   all tokens (coverage 1.0) and transitioning strict-mode exit status from incomplete (3) to
-    //   content changes (1).
+fn near_optimal_deletion_competition_leaves_only_the_contested_region_unresolved() -> Result<()> {
+    // Competing correspondences remain unresolved even inside stable anchors.
     let prefix_a = "Sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
     let prefix_c = "Hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten";
 
@@ -3653,86 +3729,39 @@ fn real_dp_competing_margin_calibrates_deletion_to_low_confidence() -> Result<()
 
     let alignment = align_ordered(&old_features, &new_features, &generator, opts)?;
 
-    assert_eq!(alignment.spans.len(), 5);
-
-    // Span 0: Opening anchor
+    assert_eq!(alignment.spans.len(), 4);
     assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
     assert_eq!(alignment.spans[0].confidence, AlignmentConfidence::High);
-
-    // Span 1: fuzzy match (2 -> 102)
-    assert_eq!(alignment.spans[1].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
-    assert_eq!(alignment.spans[1].new, [BlockId(102)]);
-
-    // Span 2: Contested deletion of block 3 with score_margin < min_score_margin -> Low confidence
-    assert_eq!(alignment.spans[2].kind, AlignmentKind::Deletion);
-    assert_eq!(alignment.spans[2].old, [BlockId(3)]);
-    assert!(alignment.spans[2].new.is_empty());
-    let margin = alignment.spans[2]
-        .score_margin
-        .expect("Deletion must have recorded competing DP margin");
+    let contested = &alignment.spans[1];
+    assert_eq!(contested.kind, AlignmentKind::Unresolved);
+    assert_eq!(contested.old, [BlockId(2), BlockId(3)]);
+    assert_eq!(contested.new, [BlockId(102)]);
     assert!(
-        margin < opts.min_score_margin,
-        "Recorded margin {margin} must be strictly less than min_score_margin {}",
-        opts.min_score_margin
+        contested
+            .evidence
+            .contains(&AlignmentEvidence::CandidateCompetition)
     );
-    assert_eq!(alignment.spans[2].confidence, AlignmentConfidence::Low);
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[2].old, [BlockId(4)]);
+    assert_eq!(alignment.spans[2].new, [BlockId(103)]);
+    let closing = alignment.spans.last().expect("closing anchor");
+    assert_eq!(closing.kind, AlignmentKind::Match);
+    assert_eq!(closing.confidence, AlignmentConfidence::High);
 
-    // Span 3: Interior match (4 -> 103)
-    assert_eq!(alignment.spans[3].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[3].old, [BlockId(4)]);
-    assert_eq!(alignment.spans[3].new, [BlockId(103)]);
-
-    // Span 4: Closing anchor
-    assert_eq!(alignment.spans[4].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[4].confidence, AlignmentConfidence::High);
-
-    // Downstream exact diff verification:
     let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
-    assert_eq!(diff.unresolved_regions.len(), 0);
-    assert_eq!(diff.old_coverage.ratio, Some(1.0));
-    assert_eq!(diff.new_coverage.ratio, Some(1.0));
-
-    let del_change = diff
-        .changes
-        .iter()
-        .find(|c| c.kind == ChangeKind::Deletion)
-        .expect("deletion change must be present");
-    assert_eq!(del_change.confidence, Confidence::Low);
-    assert_eq!(
-        del_change.occurrences[0]
-            .old_span
-            .as_ref()
-            .expect("old span present")
-            .blocks,
-        [BlockId(3)]
-    );
-
-    // User-visible contract: non-tie bounded ambiguity resolves all tokens into classified changes,
-    // producing uncertain changes rather than unresolved regions, and yielding strict exit code 1.
+    assert!(!diff.unresolved_regions.is_empty());
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
-    assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 2);
-    assert_eq!(diff.changes.len(), 3);
-    assert!(summary.comparison_complete);
+    assert!(!summary.comparison_complete);
     assert_eq!(
         exit_status(&diff, &ExtractionStatus::complete(), true)?,
-        ExitStatus::ContentChanges
+        ExitStatus::IncompleteComparison
     );
-
     Ok(())
 }
 
 #[test]
-fn real_dp_competing_margin_calibrates_insertion_to_low_confidence() -> Result<()> {
-    // Symmetric direction: inside an anchor-bounded interval:
-    // - new block 102 and new block 103 compete to match old block 2.
-    // - Block 102 is a closer match than Block 103.
-    // - At intermediate cell (1, 2), Path A (Match 2->102, then Insertion 103) wins over
-    //   Path B (Insertion 102, then Match 2->103) by a thin runner-up margin m < min_score_margin (0.08).
-    // - Transition::Insertion of Block 103 records score_margin = Some(m) and calibrates to Low confidence.
-    // - Downstream diff produces a classified ChangeKind::Insertion with Confidence::Low, resolving
-    //   all tokens (coverage 1.0) and transitioning strict-mode exit status to ContentChanges (1).
+fn near_optimal_insertion_competition_leaves_only_the_contested_region_unresolved() -> Result<()> {
+    // Competing correspondences remain unresolved even inside stable anchors.
     let prefix_a = "Sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
     let prefix_c = "Hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten";
 
@@ -3768,88 +3797,39 @@ fn real_dp_competing_margin_calibrates_insertion_to_low_confidence() -> Result<(
 
     let alignment = align_ordered(&old_features, &new_features, &generator, opts)?;
 
-    assert_eq!(alignment.spans.len(), 5);
-
-    // Span 0: Opening anchor
+    assert_eq!(alignment.spans.len(), 4);
     assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
     assert_eq!(alignment.spans[0].confidence, AlignmentConfidence::High);
-
-    // Span 1: fuzzy match (2 -> 102)
-    assert_eq!(alignment.spans[1].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
-    assert_eq!(alignment.spans[1].new, [BlockId(102)]);
-
-    // Span 2: Contested insertion of block 103 with score_margin < min_score_margin -> Low confidence
-    assert_eq!(alignment.spans[2].kind, AlignmentKind::Insertion);
-    assert!(alignment.spans[2].old.is_empty());
-    assert_eq!(alignment.spans[2].new, [BlockId(103)]);
-    let margin = alignment.spans[2]
-        .score_margin
-        .expect("Insertion must have recorded competing DP margin");
+    let contested = &alignment.spans[1];
+    assert_eq!(contested.kind, AlignmentKind::Unresolved);
+    assert_eq!(contested.old, [BlockId(2)]);
+    assert_eq!(contested.new, [BlockId(102), BlockId(103)]);
     assert!(
-        margin < opts.min_score_margin,
-        "Recorded margin {margin} must be strictly less than min_score_margin {}",
-        opts.min_score_margin
+        contested
+            .evidence
+            .contains(&AlignmentEvidence::CandidateCompetition)
     );
-    assert_eq!(alignment.spans[2].confidence, AlignmentConfidence::Low);
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[2].old, [BlockId(3)]);
+    assert_eq!(alignment.spans[2].new, [BlockId(104)]);
+    let closing = alignment.spans.last().expect("closing anchor");
+    assert_eq!(closing.kind, AlignmentKind::Match);
+    assert_eq!(closing.confidence, AlignmentConfidence::High);
 
-    // Span 3: Interior match (3 -> 104)
-    assert_eq!(alignment.spans[3].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[3].old, [BlockId(3)]);
-    assert_eq!(alignment.spans[3].new, [BlockId(104)]);
-
-    // Span 4: Closing anchor
-    assert_eq!(alignment.spans[4].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[4].confidence, AlignmentConfidence::High);
-
-    // Downstream exact diff verification:
     let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
-    assert_eq!(diff.unresolved_regions.len(), 0);
-    assert_eq!(diff.old_coverage.ratio, Some(1.0));
-    assert_eq!(diff.new_coverage.ratio, Some(1.0));
-
-    let ins_change = diff
-        .changes
-        .iter()
-        .find(|c| c.kind == ChangeKind::Insertion)
-        .expect("insertion change must be present");
-    assert_eq!(ins_change.confidence, Confidence::Low);
-    assert_eq!(
-        ins_change.occurrences[0]
-            .new_span
-            .as_ref()
-            .expect("new span present")
-            .blocks,
-        [BlockId(103)]
-    );
-
+    assert!(!diff.unresolved_regions.is_empty());
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
-    assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 2);
-    assert_eq!(diff.changes.len(), 3);
-    assert!(summary.comparison_complete);
+    assert!(!summary.comparison_complete);
     assert_eq!(
         exit_status(&diff, &ExtractionStatus::complete(), true)?,
-        ExitStatus::ContentChanges
+        ExitStatus::IncompleteComparison
     );
-
     Ok(())
 }
 
 #[test]
-fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_localizes_uncertainty()
--> Result<()> {
-    // Inside an anchor-bounded interval, we simultaneously have:
-    // 1. A thin non-tie DP competition between old blocks 2/3 and new block 102 (resulting in Low confidence deletion of block 3).
-    // 2. A valid short exact secondary anchor between old block 4 and new block 103 (5 tokens, below primary threshold 12).
-    // 3. A trailing interior match between old block 5 and new block 104.
-    //
-    // Verified behavior:
-    // - Direct DP backtracking inside the anchor interval preserves the exact secondary correspondence (block 4 -> 103)
-    //   with High confidence (exact canonical content identity policy).
-    // - The non-tie deletion uncertainty is correctly localized to block 3 (Low confidence), without collapsing the interval.
-    // - Downstream exact diff produces zero changes on the exact secondary anchor, reports coverage 1.0, and marks
-    //   comparison_complete with exit status ContentChanges (1).
+fn near_optimal_competition_preserves_the_shared_secondary_anchor() -> Result<()> {
+    // Competing correspondences remain unresolved even inside stable anchors.
     let prefix_a = "Sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
     let secondary_anchor = "Unique short secondary anchor";
     let prefix_c = "Hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten";
@@ -3888,94 +3868,50 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
 
     let alignment = align_ordered(&old_features, &new_features, &generator, opts)?;
 
-    assert_eq!(alignment.spans.len(), 6);
-
-    // Span 0: Opening anchor (1 -> 101)
+    assert_eq!(alignment.spans.len(), 5);
     assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
     assert_eq!(alignment.spans[0].confidence, AlignmentConfidence::High);
-
-    // Span 1: fuzzy match (2 -> 102)
-    assert_eq!(alignment.spans[1].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
-    assert_eq!(alignment.spans[1].new, [BlockId(102)]);
-
-    // Span 2: Contested deletion of block 3 with score_margin < min_score_margin -> Low confidence
-    assert_eq!(alignment.spans[2].kind, AlignmentKind::Deletion);
-    assert_eq!(alignment.spans[2].old, [BlockId(3)]);
-    assert!(alignment.spans[2].new.is_empty());
-    let margin = alignment.spans[2]
-        .score_margin
-        .expect("Deletion must have recorded competing DP margin");
+    let contested = &alignment.spans[1];
+    assert_eq!(contested.kind, AlignmentKind::Unresolved);
+    assert_eq!(contested.old, [BlockId(2), BlockId(3)]);
+    assert_eq!(contested.new, [BlockId(102)]);
     assert!(
-        margin < opts.min_score_margin,
-        "Recorded margin {margin} must be strictly less than min_score_margin {}",
-        opts.min_score_margin
+        contested
+            .evidence
+            .contains(&AlignmentEvidence::CandidateCompetition)
     );
-    assert_eq!(alignment.spans[2].confidence, AlignmentConfidence::Low);
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[2].old, [BlockId(4)]);
+    assert_eq!(alignment.spans[2].new, [BlockId(103)]);
+    assert_eq!(alignment.spans[2].confidence, AlignmentConfidence::High);
+    assert_eq!(alignment.spans[2].score, 1.0);
+    let closing = alignment.spans.last().expect("closing anchor");
+    assert_eq!(closing.kind, AlignmentKind::Match);
+    assert_eq!(closing.confidence, AlignmentConfidence::High);
 
-    // Span 3: Exact secondary anchor correspondence (4 -> 103) preserved with High confidence
-    assert_eq!(alignment.spans[3].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[3].old, [BlockId(4)]);
-    assert_eq!(alignment.spans[3].new, [BlockId(103)]);
-    assert_eq!(alignment.spans[3].confidence, AlignmentConfidence::High);
-    assert_eq!(alignment.spans[3].score, 1.0);
-    assert_eq!(alignment.spans[3].canonical_similarity, 1.0);
-
-    // Span 4: Trailing interior match (5 -> 104)
-    assert_eq!(alignment.spans[4].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[4].old, [BlockId(5)]);
-    assert_eq!(alignment.spans[4].new, [BlockId(104)]);
-
-    // Span 5: Closing anchor (6 -> 105)
-    assert_eq!(alignment.spans[5].kind, AlignmentKind::Match);
-    assert_eq!(alignment.spans[5].confidence, AlignmentConfidence::High);
-
-    // Downstream exact diff verification:
     let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
-    assert_eq!(diff.unresolved_regions.len(), 0);
-    assert_eq!(diff.old_coverage.ratio, Some(1.0));
-    assert_eq!(diff.new_coverage.ratio, Some(1.0));
-
-    let deletion = diff
-        .changes
-        .iter()
-        .find(|change| change.kind == ChangeKind::Deletion)
-        .expect("contested deletion must be reported");
-    assert_eq!(deletion.confidence, Confidence::Low);
-    assert_eq!(
-        deletion.occurrences[0]
-            .old_span
-            .as_ref()
-            .expect("deletion must have an old span")
-            .blocks,
-        [BlockId(3)]
-    );
-
-    // The exact secondary anchor (block 4 -> 103) must not emit any changes.
+    assert!(!diff.unresolved_regions.is_empty());
     for change in &diff.changes {
-        if let Some(old_span) = &change.occurrences[0].old_span {
+        for occurrence in &change.occurrences {
             assert!(
-                !old_span.blocks.contains(&BlockId(4)),
-                "Exact secondary anchor block 4 must not have changes"
+                occurrence
+                    .old_span
+                    .as_ref()
+                    .is_none_or(|span| !span.blocks.contains(&BlockId(4)))
             );
-        }
-        if let Some(new_span) = &change.occurrences[0].new_span {
             assert!(
-                !new_span.blocks.contains(&BlockId(103)),
-                "Exact secondary anchor block 103 must not have changes"
+                occurrence
+                    .new_span
+                    .as_ref()
+                    .is_none_or(|span| !span.blocks.contains(&BlockId(103)))
             );
         }
     }
-
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
-    assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 1);
-    assert_eq!(diff.changes.len(), 3);
-    assert!(summary.comparison_complete);
+    assert!(!summary.comparison_complete);
     assert_eq!(
         exit_status(&diff, &ExtractionStatus::complete(), true)?,
-        ExitStatus::ContentChanges
+        ExitStatus::IncompleteComparison
     );
-
     Ok(())
 }

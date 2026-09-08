@@ -3125,8 +3125,7 @@ struct RepeatedRecoveryCandidate {
 struct RepeatedRecoveryLookupKey {
     deletion: bool,
     blocks: Vec<BlockId>,
-    has_separator: bool,
-    space_separator: bool,
+    separator: Option<BlockSeparator>,
     canonical_start: usize,
     canonical_end: usize,
     comparable_start: usize,
@@ -3447,8 +3446,7 @@ fn repeated_recovery_lookup_key(
     Some(RepeatedRecoveryLookupKey {
         deletion,
         blocks: try_copy_slice(blocks)?,
-        has_separator: separator.is_some(),
-        space_separator: separator == Some(BlockSeparator::Space),
+        separator,
         canonical_start: canonical.start,
         canonical_end: canonical.end,
         comparable_start: comparable.start,
@@ -3816,7 +3814,8 @@ fn walk_recovered_group_segments(
     for (position, block) in recovery.blocks.iter().enumerate() {
         let next = side.canonical.get(*side.index.get(block)?)?;
         if position > 0
-            && separator == Some(BlockSeparator::Space)
+            && separator
+                .is_some_and(|separator| separator.at(position - 1) == BlockSeparator::Space)
             && previous_is_space != Some(true)
             && !next.first().is_some_and(is_space_token)
         {
@@ -4674,7 +4673,8 @@ fn project_recovered_source_span(
         let source_position = *side.index.get(&block)?;
         let source = side.canonical.get(source_position)?;
         if block_position > 0
-            && separator == Some(BlockSeparator::Space)
+            && separator
+                .is_some_and(|separator| separator.at(block_position - 1) == BlockSeparator::Space)
             && previous_is_space != Some(true)
             && !source.first().is_some_and(is_space_token)
         {
@@ -4723,6 +4723,7 @@ fn project_recovered_source_span(
     let first = first_block_position?;
     let last = last_block_position?;
     let blocks = recovery.blocks.get(first..=last)?;
+    let separator = separator.map(|separator| separator.subspan(first, blocks.len()));
     let comparable_start = target_start.checked_sub(first_block_start)?;
     let comparable_end = target_end.checked_sub(first_block_start)?;
     let (canonical_start, canonical_end) =
@@ -4769,7 +4770,8 @@ fn project_recovered_source_point(
     for (block_position, block) in recovery.blocks.iter().copied().enumerate() {
         let source = side.canonical.get(*side.index.get(&block)?)?;
         if block_position > 0
-            && separator == Some(BlockSeparator::Space)
+            && separator
+                .is_some_and(|separator| separator.at(block_position - 1) == BlockSeparator::Space)
             && previous_is_space != Some(true)
             && !source.first().is_some_and(is_space_token)
         {
@@ -4830,7 +4832,8 @@ fn recovered_scalar_boundaries(
     for (position, block) in blocks.iter().copied().enumerate() {
         let source = side.canonical.get(*side.index.get(&block)?)?;
         if position > 0
-            && separator == Some(BlockSeparator::Space)
+            && separator
+                .is_some_and(|separator| separator.at(position - 1) == BlockSeparator::Space)
             && previous_is_space != Some(true)
             && !source.first().is_some_and(is_space_token)
         {
@@ -5086,7 +5089,8 @@ fn try_group_full_span(
         let block_index = *side.index.get(block)?;
         let next = side.canonical.get(block_index)?;
         if position > 0
-            && separator == Some(BlockSeparator::Space)
+            && separator
+                .is_some_and(|separator| separator.at(position - 1) == BlockSeparator::Space)
             && last_is_space != Some(true)
             && !next.first().is_some_and(is_space_token)
         {
@@ -6021,6 +6025,11 @@ fn validate_separator(
     separator: Option<BlockSeparator>,
     kind: AlignmentKind,
 ) -> Result<()> {
+    if separator.is_some_and(|separator| !separator.valid_for(blocks.len())) {
+        return Err(Error::Unresolved(format!(
+            "{side} separator pattern does not cover its block group"
+        )));
+    }
     if kind != AlignmentKind::Match && separator.is_some() {
         return Err(Error::Unresolved(format!(
             "{side} alignment separators are only valid for matched block groups"
@@ -6204,6 +6213,7 @@ impl Side<'_> {
             } else {
                 separator
                     .unwrap_or(BlockSeparator::Concatenate)
+                    .at(position - 1)
                     .append(&mut tokens, next);
             }
             let block_start = tokens.len() - next.len();
@@ -6280,6 +6290,7 @@ impl Side<'_> {
             } else {
                 separator
                     .unwrap_or(BlockSeparator::Concatenate)
+                    .at(position - 1)
                     .append(&mut tokens, &next);
             }
         }
