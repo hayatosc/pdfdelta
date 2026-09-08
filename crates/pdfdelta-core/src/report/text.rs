@@ -84,6 +84,24 @@ pub(super) fn render(
         },
     )
     .map_err(|error| Error::Report(error.to_string()))?;
+    if let Some(assessment) = &comparison.assessment {
+        for unit in &assessment.review_units {
+            let Some(bounds) = unit.changed_count else {
+                continue;
+            };
+            if bounds.upper == 0 {
+                continue;
+            }
+            writeln!(output, "review unit (relation={}): {}..={} changed source tokens under literal-minimal alignment",
+                unit.relation, bounds.lower, bounds.upper)
+                .map_err(|error| Error::Report(error.to_string()))?;
+            if let Some(residual) = unit.unresolved_changed_count {
+                writeln!(output, "  unresolved remainder: {}..={} changed source tokens; positions may remain uncertain",
+                    residual.lower, residual.upper)
+                    .map_err(|error| Error::Report(error.to_string()))?;
+            }
+        }
+    }
     if !extraction.old_complete || !extraction.new_complete || !extraction.issues.is_empty() {
         writeln!(
             output,

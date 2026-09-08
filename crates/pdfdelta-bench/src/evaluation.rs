@@ -30,7 +30,7 @@ pub const PROVENANCE_COLUMNS: [&str; 7] = [
 
 /// Version for the provenance and evaluation artifact, independent of the
 /// legacy revision summary schema.
-pub const EVALUATION_SCHEMA_VERSION: u32 = 3;
+pub const EVALUATION_SCHEMA_VERSION: u32 = 4;
 
 /// Whether a document was used to change implementation or tuning choices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -450,6 +450,23 @@ pub struct AssessmentWorkEvaluation {
     pub emission: usize,
 }
 
+/// Compact counts for non-owning review claims in one comparison assessment.
+///
+/// These counts describe claim evidence and deliberately do not add changed
+/// token bounds across units: review domains may overlap, so such a sum would
+/// falsely become an owned recall or event count.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssessmentClaimEvaluation {
+    pub review_unit_count: usize,
+    /// Incomplete units are the difference between these two counts.
+    pub complete_review_unit_count: usize,
+    pub positive_lower_bound_unit_count: usize,
+    pub mandatory_old_span_count: usize,
+    pub mandatory_new_span_count: usize,
+    /// Units with more than the default single normalization interpretation.
+    pub normalization_hypothesis_unit_count: usize,
+}
+
 /// Assessment policy and bounded work accounting for one comparison.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssessmentEvaluation {
@@ -458,6 +475,8 @@ pub struct AssessmentEvaluation {
     pub work_used: usize,
     pub work_by_stage: AssessmentWorkEvaluation,
     pub candidates_truncated: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_diagnostics: Option<AssessmentClaimEvaluation>,
 }
 
 /// Counts the complete, disjoint token partition for one document side.
@@ -1375,6 +1394,32 @@ mod tests {
         );
         assert_eq!(summary.totals.quality.candidate_evaluable_counterparts, 2);
         assert_eq!(summary.split_totals.len(), 2);
+    }
+
+    #[test]
+    fn historical_assessment_without_claim_diagnostics_stays_unavailable() {
+        let assessment: AssessmentEvaluation = serde_json::from_value(serde_json::json!({
+            "policy_version": 1,
+            "work_limit": 10,
+            "work_used": 0,
+            "work_by_stage": {
+                "anchor_verification": 0,
+                "local_views": 0,
+                "localization": 0,
+                "emission": 0
+            },
+            "candidates_truncated": false
+        }))
+        .expect("historical assessment deserializes");
+
+        assert_eq!(assessment.claim_diagnostics, None);
+        let serialized = serde_json::to_value(assessment).expect("assessment serializes");
+        assert!(
+            !serialized
+                .as_object()
+                .expect("assessment object")
+                .contains_key("claim_diagnostics")
+        );
     }
 
     #[test]

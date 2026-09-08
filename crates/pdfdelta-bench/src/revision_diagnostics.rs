@@ -18,11 +18,11 @@ use pdfdelta_core::{
 use super::{
     ActualChange, ActualChangeOccurrence, ActualRelationTraceStatus, CandidateRecallMetrics,
     ChangeOriginReport, ExpectedChange, ExpectedChangeDiagnostics, ExpectedChangeFailure,
-    ExpectedChangeFailureReason, ExpectedKind, MAX_EXPECTED_CHANGE_DIAGNOSTICS, MatchOutcome,
-    MissSide, WrongChangeKindDiagnostic, WrongChangeKindDiagnosticStopReason,
-    WrongChangeKindSemanticHunkReport, WrongChangeKindTraceReport, build_block_map,
-    change_kind_name, is_space_token, normalized_expected_quotes, occurrence_matches_expected_kind,
-    ratio,
+    ExpectedChangeFailureReason, ExpectedChangedRange, ExpectedKind,
+    MAX_EXPECTED_CHANGE_DIAGNOSTICS, MatchOutcome, MissSide, WrongChangeKindDiagnostic,
+    WrongChangeKindDiagnosticStopReason, WrongChangeKindSemanticHunkReport,
+    WrongChangeKindTraceReport, build_block_map, change_kind_name, collapse_whitespace,
+    is_space_token, normalized_expected_quotes, occurrence_matches_expected_kind, ratio,
 };
 
 #[derive(Clone, Copy)]
@@ -1660,6 +1660,154 @@ fn final_one_sided_ownership(
     Ok(old_owners == 1 && new_owners == 1)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ExpectedMaskObjectiveCompatibility {
+    expected_mask_is_valid_edit_witness: bool,
+    expected_mask_cost: usize,
+    optimal_cost_under_declared_policy: usize,
+    expected_mask_in_policy_solution_set: bool,
+}
+
+fn changed_range_cost(
+    ranges: &[ExpectedChangedRange],
+    context_len: usize,
+) -> Option<(Vec<bool>, usize)> {
+    let mut mask = vec![false; context_len];
+    let mut cost = 0usize;
+    let mut previous_end = 0usize;
+    for range in ranges {
+        if range.start >= range.end || range.end > context_len || range.start < previous_end {
+            return None;
+        }
+        for selected in &mut mask[range.start..range.end] {
+            *selected = true;
+        }
+        cost = cost.checked_add(range.end.checked_sub(range.start)?)?;
+        previous_end = range.end;
+    }
+    Some((mask, cost))
+}
+
+fn literal_minimal_cost(
+    old: &[char],
+    new: &[char],
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<usize> {
+    let mut previous = vec![
+        0usize;
+        new.len().checked_add(1).ok_or_else(|| {
+            budget.limited = true;
+            DiagnosticScanError::Limited
+        })?
+    ];
+    let mut current = vec![0usize; previous.len()];
+    for old_value in old {
+        current[0] = 0;
+        for (new_index, new_value) in new.iter().enumerate() {
+            budget.charge_scan(1, limits)?;
+            current[new_index + 1] = if old_value == new_value {
+                previous[new_index] + 1
+            } else {
+                current[new_index].max(previous[new_index + 1])
+            };
+        }
+        std::mem::swap(&mut previous, &mut current);
+    }
+    let lcs = previous[new.len()];
+    old.len()
+        .checked_add(new.len())
+        .and_then(|length| {
+            lcs.checked_mul(2)
+                .and_then(|matched| length.checked_sub(matched))
+        })
+        .ok_or_else(|| {
+            budget.limited = true;
+            DiagnosticScanError::Limited
+        })
+}
+
+fn expected_mask_objective_compatibility(
+    change: &ExpectedChange,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<Option<ExpectedMaskObjectiveCompatibility>> {
+    let (Some(old_quote), Some(new_quote), Some(old_ranges), Some(new_ranges)) = (
+        change.old_quote.as_deref(),
+        change.new_quote.as_deref(),
+        change.old_changed_ranges.as_deref(),
+        change.new_changed_ranges.as_deref(),
+    ) else {
+        return Ok(None);
+    };
+    let old_text = collapse_whitespace(old_quote);
+    let new_text = collapse_whitespace(new_quote);
+    let old_chars = old_text.chars().collect::<Vec<_>>();
+    let new_chars = new_text.chars().collect::<Vec<_>>();
+    let quote_work = old_chars
+        .len()
+        .checked_add(new_chars.len())
+        .ok_or_else(|| {
+            budget.limited = true;
+            DiagnosticScanError::Limited
+        })?;
+    budget.charge_scan(quote_work, limits)?;
+    let Some((old_mask, old_cost)) = changed_range_cost(old_ranges, old_chars.len()) else {
+        return Ok(None);
+    };
+    let Some((new_mask, new_cost)) = changed_range_cost(new_ranges, new_chars.len()) else {
+        return Ok(None);
+    };
+    let old_kept = old_chars
+        .iter()
+        .zip(&old_mask)
+        .filter_map(|(value, changed)| (!changed).then_some(*value))
+        .collect::<String>();
+    let new_kept = new_chars
+        .iter()
+        .zip(&new_mask)
+        .filter_map(|(value, changed)| (!changed).then_some(*value))
+        .collect::<String>();
+    let valid = old_kept == new_kept;
+    let expected_cost = old_cost.checked_add(new_cost).ok_or_else(|| {
+        budget.limited = true;
+        DiagnosticScanError::Limited
+    })?;
+    let optimal_cost = literal_minimal_cost(&old_chars, &new_chars, budget, limits)?;
+    Ok(Some(ExpectedMaskObjectiveCompatibility {
+        expected_mask_is_valid_edit_witness: valid,
+        expected_mask_cost: expected_cost,
+        optimal_cost_under_declared_policy: optimal_cost,
+        expected_mask_in_policy_solution_set: valid && expected_cost == optimal_cost,
+    }))
+}
+
+fn expected_mask_objective_failure_reason(
+    change: &ExpectedChange,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<Option<ExpectedChangeFailureReason>> {
+    let Some(compatibility) = expected_mask_objective_compatibility(change, budget, limits)? else {
+        return Ok(None);
+    };
+    if compatibility.expected_mask_is_valid_edit_witness
+        && !compatibility.expected_mask_in_policy_solution_set
+    {
+        return Ok(Some(
+            ExpectedChangeFailureReason::ExpectationOutsideAlignmentObjective {
+                expected_mask_is_valid_edit_witness: compatibility
+                    .expected_mask_is_valid_edit_witness,
+                expected_mask_cost: compatibility.expected_mask_cost,
+                optimal_cost_under_declared_policy: compatibility
+                    .optimal_cost_under_declared_policy,
+                expected_mask_in_policy_solution_set: compatibility
+                    .expected_mask_in_policy_solution_set,
+            },
+        ));
+    }
+    Ok(None)
+}
+
 fn classify_expected_failure(
     change: &ExpectedChange,
     candidate: ReviewedCandidateResult,
@@ -1674,6 +1822,16 @@ fn classify_expected_failure(
         return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
             diagnostic_limited: true,
         });
+    }
+    match expected_mask_objective_failure_reason(change, context.budget, context.limits) {
+        Ok(Some(reason)) => return Ok(reason),
+        Ok(None) => {}
+        Err(DiagnosticScanError::Limited) => {
+            return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
+                diagnostic_limited: true,
+            });
+        }
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
     }
     if candidate == ReviewedCandidateResult::Missed {
         return Ok(ExpectedChangeFailureReason::CandidateNotGenerated);
@@ -2243,6 +2401,7 @@ mod tests {
             work_used: 0,
             work_by_stage: AssessmentWork::default(),
             candidates_truncated: false,
+            review_units: Vec::new(),
         });
         comparison.change_candidates.push(ChangeCandidate {
             change: diagnostic_change(
@@ -2372,6 +2531,102 @@ mod tests {
         diagnostics
             .candidate_recall
             .expect("candidate diagnostics are complete")
+    }
+
+    #[test]
+    fn fixed_annotations_are_valid_but_outside_literal_minimal_objective() {
+        let cases = [
+            (
+                include_str!("../../../benchmark/realworld/expected/nist-csf-v1-1-to-v2-0.json"),
+                "core-expanded-from-five-to-six-functions",
+                178,
+                158,
+            ),
+            (
+                include_str!("../../../benchmark/realworld/expected/arxiv-attention-v6-to-v7.json"),
+                "arxiv-version-date-stamp",
+                11,
+                7,
+            ),
+        ];
+        for (contents, id, expected_cost, optimal_cost) in cases {
+            let document: super::super::ExpectedDocument =
+                serde_json::from_str(contents).expect("fixed annotation parses");
+            let change = document
+                .changes
+                .iter()
+                .find(|change| change.id == id)
+                .expect("fixed annotation change exists");
+            let mut budget = DiagnosticBudget::default();
+            let compatibility = expected_mask_objective_compatibility(
+                change,
+                &mut budget,
+                DiagnosticLimits::default(),
+            )
+            .expect("objective audit completes")
+            .expect("fixed annotation has changed ranges");
+            assert_eq!(
+                compatibility,
+                ExpectedMaskObjectiveCompatibility {
+                    expected_mask_is_valid_edit_witness: true,
+                    expected_mask_cost: expected_cost,
+                    optimal_cost_under_declared_policy: optimal_cost,
+                    expected_mask_in_policy_solution_set: false,
+                }
+            );
+            assert_eq!(
+                expected_mask_objective_failure_reason(
+                    change,
+                    &mut budget,
+                    DiagnosticLimits::default(),
+                )
+                .expect("objective failure audit completes"),
+                Some(
+                    ExpectedChangeFailureReason::ExpectationOutsideAlignmentObjective {
+                        expected_mask_is_valid_edit_witness: true,
+                        expected_mask_cost: expected_cost,
+                        optimal_cost_under_declared_policy: optimal_cost,
+                        expected_mask_in_policy_solution_set: false,
+                    }
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn an_outside_objective_mask_is_reported_without_affecting_quality_matching() {
+        let mut expected = expected_change(
+            "nonminimal",
+            ExpectedKind::Replacement,
+            Some("ab"),
+            Some("ba"),
+        );
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 2 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 2 }]);
+        let expected = [expected];
+        let actuals = Vec::new();
+        let quality = compute_quality(Annotation::Partial, &expected, &actuals);
+        let diagnostics = reviewed_diagnostics(
+            &expected,
+            &[diagnostic_block(1, "ab")],
+            &[diagnostic_block(2, "ba")],
+            &diagnostic_comparison(Vec::new(), Vec::new()),
+            &actuals,
+        );
+
+        assert_eq!(quality.recall, Some(0.0));
+        assert_eq!(quality.expected_changes, 1);
+        assert_eq!(quality.reported_changes, 0);
+        assert_eq!(diagnostics.expected_change_diagnostics.failures.len(), 1);
+        assert_eq!(
+            diagnostics.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::ExpectationOutsideAlignmentObjective {
+                expected_mask_is_valid_edit_witness: true,
+                expected_mask_cost: 4,
+                optimal_cost_under_declared_policy: 2,
+                expected_mask_in_policy_solution_set: false,
+            }
+        );
     }
 
     #[test]

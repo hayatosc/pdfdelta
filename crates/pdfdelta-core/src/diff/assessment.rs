@@ -4,8 +4,12 @@
 //! exact edit script describes a proposed pair; it does not establish that
 //! the pair belongs to the same source-backed comparison domain.
 
+mod claims;
 mod exact;
+mod hypotheses;
 mod local;
+mod normalization;
+mod review;
 mod semantic;
 mod validation;
 mod views;
@@ -62,6 +66,8 @@ pub enum ComparisonAssumption {
     /// Ordered correspondence does not cross declared extraction,
     /// normalization, or reading-order barriers outside this domain.
     LocalEvidenceBoundaries,
+    /// Every retained discretionary line-end hyphen interpretation is included.
+    AlternativeLineBreakNormalization,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -167,6 +173,47 @@ pub struct ComparisonAssessment {
     /// Additional programmatic evidence for emitted local changes. Standard
     /// reports summarize the corresponding relations rather than these edits.
     pub localized_edits: Vec<LocalizedEditScript>,
+    /// Non-owning quantitative claims under each established domain's premises.
+    pub review_units: Vec<ReviewUnit>,
+}
+
+/// The objective whose complete solution set a claim quantifies over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlignmentPolicy {
+    /// Minimize insertions plus deletions of comparable tokens.
+    LiteralMinimal,
+}
+
+/// Inclusive limits on changed source tokens across all permitted alignments.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EditCountBounds {
+    pub lower: usize,
+    pub upper: usize,
+}
+
+/// A source-backed comparison context that never owns or recolors tokens.
+///
+/// The indexed relation supplies correspondence, normalization, and source
+/// completeness premises. Counts exclude synthetic separators. Mandatory
+/// ranges are facts under those same premises, not additional change events.
+/// `unresolved_changed_count` queries the final unresolved partition directly;
+/// it does not reuse a whole-domain proof after subtracting unrelated children.
+/// Every present count is a completed query. `search` is complete only when
+/// all requested count and mandatory-position queries finished.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReviewUnit {
+    pub relation: usize,
+    pub policy: AlignmentPolicy,
+    pub search: SearchCompleteness,
+    /// Number of old/new normalization interpretation pairs quantified over.
+    pub normalization_hypotheses: usize,
+    /// Source tokens with retain/skip alternatives; all combinations are kept.
+    pub normalization_old: Vec<TextSpan>,
+    pub normalization_new: Vec<TextSpan>,
+    pub changed_count: Option<EditCountBounds>,
+    pub unresolved_changed_count: Option<EditCountBounds>,
+    pub mandatory_old: Vec<TextSpan>,
+    pub mandatory_new: Vec<TextSpan>,
 }
 
 /// One optimal edit witness for a completed local comparison.
@@ -234,6 +281,37 @@ impl ComparisonAssessment {
                     return Err(invalid("tentative relations require an uncertainty reason"));
                 }
                 _ => {}
+            }
+        }
+        for unit in &self.review_units {
+            let relation = self
+                .relations
+                .get(unit.relation)
+                .ok_or_else(|| invalid("review unit refers to a missing relation"))?;
+            if relation.outcome != RelationOutcome::Established {
+                return Err(invalid("review claims require an established domain"));
+            }
+            if unit.normalization_hypotheses == 0 {
+                return Err(invalid("review claims require a nonempty hypothesis set"));
+            }
+            if unit.search == SearchCompleteness::Complete
+                && (unit.changed_count.is_none() || unit.unresolved_changed_count.is_none())
+            {
+                return Err(invalid("complete review claims require both count queries"));
+            }
+            for bounds in [unit.changed_count, unit.unresolved_changed_count]
+                .into_iter()
+                .flatten()
+            {
+                if bounds.lower > bounds.upper {
+                    return Err(invalid("review count bounds are reversed"));
+                }
+            }
+            if let (Some(total), Some(residual)) =
+                (unit.changed_count, unit.unresolved_changed_count)
+                && residual.upper > total.upper
+            {
+                return Err(invalid("residual count exceeds the whole-domain count"));
             }
         }
         for candidate in &comparison.change_candidates {
@@ -1980,6 +2058,9 @@ pub(super) fn finish(
         new_coverage: coverage(&new_resolution, sides[1].total_tokens),
         assessment: None,
     };
+    // Optional claims use only the remaining shared budget, so they cannot
+    // displace already completed localization or change emission.
+    let review_units = review::collect(&mut assessor, [&old_resolution, &new_resolution])?;
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: assessor.records,
@@ -1996,6 +2077,7 @@ pub(super) fn finish(
         },
         candidates_truncated: candidates_truncated || assessor.output_stop.is_some(),
         localized_edits: assessor.localized_edits,
+        review_units,
     };
     validation::validate(sides, &assessment, &comparison)?;
     comparison.assessment = Some(assessment);

@@ -207,14 +207,20 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
         && extraction.old_complete
         && extraction.new_complete
         && assessment_complete;
-    let difference_status =
-        if !comparison.changes.is_empty() || !comparison.proven_changed_regions.is_empty() {
-            DifferenceStatus::Detected
-        } else if comparison_complete {
-            DifferenceStatus::NoContentChange
-        } else {
-            DifferenceStatus::Indeterminate
-        };
+    let difference_status = if !comparison.changes.is_empty()
+        || !comparison.proven_changed_regions.is_empty()
+        || comparison.assessment.as_ref().is_some_and(|assessment| {
+            assessment
+                .review_units
+                .iter()
+                .any(|unit| unit.changed_count.is_some_and(|bounds| bounds.lower > 0))
+        }) {
+        DifferenceStatus::Detected
+    } else if comparison_complete {
+        DifferenceStatus::NoContentChange
+    } else {
+        DifferenceStatus::Indeterminate
+    };
     Ok(ReportSummary {
         established_changes: comparison.changes.len(),
         content_changes: comparison.changes.len(),
@@ -698,6 +704,9 @@ pub(crate) fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::UnmappedFontIdentity => "unmapped_font_identity",
         ComparisonAssumption::ReconstructedSpacing => "reconstructed_spacing",
         ComparisonAssumption::LocalEvidenceBoundaries => "local_evidence_boundaries",
+        ComparisonAssumption::AlternativeLineBreakNormalization => {
+            "alternative_line_break_normalization"
+        }
     }
 }
 

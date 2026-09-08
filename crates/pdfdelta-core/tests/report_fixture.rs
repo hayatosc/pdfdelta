@@ -179,7 +179,7 @@ fn reports_proven_content_difference_separately_from_exact_changes() -> Result<(
     )?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(json["summary"]["content_changes"], 0);
     assert_eq!(json["summary"]["proven_changed_regions"], 1);
     assert_eq!(
@@ -219,6 +219,7 @@ fn reports_tentative_candidates_with_assessment_evidence_without_counting_covera
     };
     comparison.assessment = Some(ComparisonAssessment {
         localized_edits: Vec::new(),
+        review_units: Vec::new(),
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: vec![RelationAssessment {
             old_span: Some(old_span),
@@ -278,7 +279,7 @@ fn reports_tentative_candidates_with_assessment_evidence_without_counting_covera
         &ExtractionStatus::complete(),
     )?;
     let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(json["difference_status"], "indeterminate");
     assert_eq!(json["comparison_scope"]["supported_text"], true);
     assert_eq!(json["comparison_scope"]["images_compared"], false);
@@ -319,6 +320,7 @@ fn historical_tentative_relation_does_not_block_complete_partition() -> Result<(
     comparison.new_coverage = comparison.old_coverage;
     comparison.assessment = Some(ComparisonAssessment {
         localized_edits: Vec::new(),
+        review_units: Vec::new(),
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: vec![RelationAssessment {
             old_span: Some(full_span(1, "alpha")),
@@ -369,6 +371,7 @@ fn rejects_assessment_resolution_without_source_block() -> Result<()> {
     comparison.new_coverage = comparison.old_coverage;
     comparison.assessment = Some(ComparisonAssessment {
         localized_edits: Vec::new(),
+        review_units: Vec::new(),
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: Vec::new(),
         old_resolution: vec![ResolutionRange {
@@ -562,7 +565,7 @@ fn reports_page_tree_gap_scope_without_synthesizing_a_page() -> Result<()> {
     write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(json["extraction"]["issues"][0]["scope"], "page_gap");
     assert_eq!(json["extraction"]["issues"][0]["retained_pages_before"], 2);
     assert!(json["extraction"]["issues"][0].get("page").is_none());
@@ -644,7 +647,7 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -708,7 +711,7 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(
         json["formatting_only_changes"][0]["old_span"]["block_separator"],
         "space"
@@ -818,7 +821,7 @@ fn json_report_serializes_unknown_reading_order_evidence() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(
         json["unresolved_regions"][0]["evidence"][0],
         "reading_order_unknown"
@@ -856,7 +859,7 @@ fn json_report_projects_replacement_glyph_provenance() -> Result<()> {
     let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
     let source = &json["changes"][0]["occurrences"][0]["old_span"]["sources"][0];
 
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(source["kind"], "glyph");
     assert_eq!(source["glyph_id"], 1);
     assert_eq!(source["page"], 0);
@@ -2525,7 +2528,7 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["schema_version"], 11);
     assert_eq!(json["changes"][0]["kind"], "replacement");
     assert_eq!(json["changes"][0]["confidence"], "low");
     assert_eq!(json["changes"][0]["tags"][0], "ocr_confusion");

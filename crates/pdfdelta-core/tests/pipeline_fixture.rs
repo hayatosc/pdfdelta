@@ -44,6 +44,52 @@ fn ignores_line_wrap_only_changes() -> Result<()> {
 }
 
 #[test]
+fn normalization_claims_project_back_to_original_glyph_evidence() -> Result<()> {
+    let old = document(&[
+        line("inter-", 0, 300.0),
+        line("national tax is 20.", 0, 288.0),
+    ]);
+    let new = document(&[line("international tax is 30.", 0, 300.0)]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let mut output = Vec::new();
+    pdfdelta_core::report::write_json(
+        &mut output,
+        &outcome.old_blocks,
+        &outcome.new_blocks,
+        &outcome.old_glyph_evidence,
+        &outcome.new_glyph_evidence,
+        &outcome.comparison,
+        &outcome.extraction,
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid source report");
+    let unit = json["assessment"]["review_units"]
+        .as_array()
+        .expect("review unit array")
+        .iter()
+        .find(|unit| unit["normalization_hypotheses"] == 2)
+        .expect("source-backed normalization hypothesis set");
+    assert_eq!(unit["alignment_policy"], "literal_minimal");
+    assert_eq!(unit["mandatory_old"][0]["text"], "2");
+    assert_eq!(unit["mandatory_new"][0]["text"], "3");
+    assert_eq!(unit["normalization_old"][0]["text"], "-");
+    for side in ["mandatory_old", "mandatory_new"] {
+        assert!(
+            !unit[side][0]["sources"]
+                .as_array()
+                .expect("glyph source projections")
+                .is_empty()
+        );
+    }
+    assert_eq!(json["difference_status"], "detected");
+    assert!(!summarize(&outcome.comparison, &outcome.extraction)?.comparison_complete);
+    Ok(())
+}
+
+#[test]
 fn reports_page_break_only_as_formatting() -> Result<()> {
     let text = [
         "First line keeps a steady cadence",

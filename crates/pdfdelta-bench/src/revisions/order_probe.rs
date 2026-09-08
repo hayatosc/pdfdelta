@@ -1441,6 +1441,9 @@ fn failure_reason_name(reason: &ExpectedChangeFailureReason) -> &'static str {
         ExpectedChangeFailureReason::WrongChangeKind { .. } => "wrong_change_kind",
         ExpectedChangeFailureReason::OccurrenceCountMismatch { .. } => "occurrence_count_mismatch",
         ExpectedChangeFailureReason::FragmentedAcrossHunks { .. } => "fragmented_across_hunks",
+        ExpectedChangeFailureReason::ExpectationOutsideAlignmentObjective { .. } => {
+            "expectation_outside_alignment_objective"
+        }
         ExpectedChangeFailureReason::AlignmentOrCandidate { .. } => "alignment_or_candidate",
     }
 }

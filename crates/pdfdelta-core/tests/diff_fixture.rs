@@ -49,6 +49,106 @@ fn exact_diff_never_uses_masked_matching_text() -> Result<()> {
 }
 
 #[test]
+fn ambiguous_positions_retain_non_owning_change_count_claims() -> Result<()> {
+    let result = compare_aligned(
+        &[block(1, "a")],
+        &[block(101, "aa")],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+    let assessment = result
+        .assessment
+        .as_ref()
+        .expect("comparison has an assessment");
+    let unit = assessment
+        .review_units
+        .iter()
+        .find(|unit| unit.changed_count.is_some())
+        .expect("closed ambiguous domain retains a count claim");
+    assert_eq!(
+        unit.changed_count,
+        Some(pdfdelta_core::diff::EditCountBounds { lower: 1, upper: 1 })
+    );
+    assert_eq!(unit.unresolved_changed_count, unit.changed_count);
+    assert!(unit.mandatory_old.is_empty());
+    assert!(unit.mandatory_new.is_empty());
+    assert_eq!(
+        unit.search,
+        pdfdelta_core::diff::SearchCompleteness::Complete
+    );
+    assert!(result.changes.is_empty());
+    assert!(
+        assessment
+            .old_resolution
+            .iter()
+            .chain(&assessment.new_resolution)
+            .all(|range| range.state == pdfdelta_core::diff::ResolutionState::Unresolved)
+    );
+    assessment.validate(&result)?;
+    Ok(())
+}
+
+#[test]
+fn mandatory_source_ranges_do_not_claim_ambiguous_repeated_characters() -> Result<()> {
+    let result = compare_aligned(
+        &[block(1, "a")],
+        &[block(101, "baac")],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+    let assessment = result
+        .assessment
+        .as_ref()
+        .expect("comparison has an assessment");
+    let unit = assessment
+        .review_units
+        .iter()
+        .find(|unit| unit.changed_count.is_some())
+        .expect("closed ambiguous domain retains claims");
+    assert_eq!(
+        unit.changed_count,
+        Some(pdfdelta_core::diff::EditCountBounds { lower: 3, upper: 3 })
+    );
+    assert!(unit.mandatory_old.is_empty());
+    let ranges = unit
+        .mandatory_new
+        .iter()
+        .map(|span| span.comparable_range)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ranges,
+        vec![
+            TokenRange { start: 0, end: 1 },
+            TokenRange { start: 3, end: 4 }
+        ]
+    );
+    assert!(result.changes.is_empty());
+    Ok(())
+}
+
+#[test]
+fn review_count_detects_a_difference_with_equal_token_multisets() -> Result<()> {
+    let result = compare_aligned(
+        &[block(1, "red blue red")],
+        &[block(101, "red red blue")],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+    assert!(result.changes.is_empty());
+    assert!(result.proven_changed_regions.is_empty());
+    let summary = pdfdelta_core::report::summarize(
+        &result,
+        &pdfdelta_core::report::ExtractionStatus::default(),
+    )?;
+    assert_eq!(
+        summary.difference_status,
+        pdfdelta_core::report::DifferenceStatus::Detected
+    );
+    assert!(!summary.comparison_complete);
+    Ok(())
+}
+
+#[test]
 fn groups_fragmented_cover_date_as_one_replacement() -> Result<()> {
     let prefix = "W3C Working Draft ";
     let old_date = "27 September 2006";

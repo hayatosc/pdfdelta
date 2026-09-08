@@ -5,9 +5,10 @@ mod recovery;
 mod sentence;
 
 pub use assessment::{
-    ASSESSMENT_POLICY_VERSION, AssessmentReason, AssessmentWork, ChangeCandidate,
-    ComparisonAssessment, ComparisonAssumption, LocalizedEditScript, RelationAssessment,
-    RelationOutcome, ResolutionRange, ResolutionState, SearchCompleteness,
+    ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AssessmentReason, AssessmentWork, ChangeCandidate,
+    ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalizedEditScript,
+    RelationAssessment, RelationOutcome, ResolutionRange, ResolutionState, ReviewUnit,
+    SearchCompleteness,
 };
 
 pub use recovery::container::{

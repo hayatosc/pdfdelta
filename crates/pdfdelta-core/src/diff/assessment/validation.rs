@@ -71,6 +71,90 @@ pub(super) fn validate(
         )?;
     }
 
+    for unit in &assessment.review_units {
+        let relation = &assessment.relations[unit.relation];
+        let mut mandatory_count = 0usize;
+        let mut source_count = 0usize;
+        let mut optional_count = 0usize;
+        for (side, ranges) in [&unit.mandatory_old, &unit.mandatory_new]
+            .into_iter()
+            .enumerate()
+        {
+            let parent = if side == 0 {
+                relation.old_span.as_ref()
+            } else {
+                relation.new_span.as_ref()
+            };
+            if let Some(parent) = parent {
+                for interval in project(sides[side], parent)? {
+                    source_count += interval.end - interval.start;
+                }
+            }
+            let mut seen = Vec::new();
+            for span in ranges {
+                if !super::contains_span(sides[side], parent, Some(span))? {
+                    return Err(invalid(
+                        "mandatory change range lies outside its review domain",
+                    ));
+                }
+                for interval in project(sides[side], span)? {
+                    mandatory_count += interval.end - interval.start;
+                    seen.push(interval);
+                }
+            }
+            let optional = if side == 0 {
+                &unit.normalization_old
+            } else {
+                &unit.normalization_new
+            };
+            for span in optional {
+                if !super::contains_span(sides[side], parent, Some(span))? {
+                    return Err(invalid(
+                        "normalization alternatives lie outside their domain",
+                    ));
+                }
+                for interval in project(sides[side], span)? {
+                    optional_count += interval.end - interval.start;
+                    seen.push(interval);
+                }
+            }
+            seen.sort_unstable_by_key(|interval| {
+                (interval.block_index, interval.start, interval.end)
+            });
+            if seen.windows(2).any(|pair| {
+                pair[0].block_index == pair[1].block_index && pair[0].end > pair[1].start
+            }) {
+                return Err(invalid("mandatory or optional source ranges overlap"));
+            }
+        }
+        let hypotheses = u32::try_from(optional_count)
+            .ok()
+            .and_then(|count| 1usize.checked_shl(count));
+        if hypotheses != Some(unit.normalization_hypotheses)
+            || (optional_count > 0
+                && !relation
+                    .assumptions
+                    .contains(&super::ComparisonAssumption::AlternativeLineBreakNormalization))
+        {
+            return Err(invalid(
+                "review normalization premises do not match their hypothesis count",
+            ));
+        }
+        if unit
+            .changed_count
+            .is_some_and(|bounds| mandatory_count > bounds.lower)
+        {
+            return Err(invalid(
+                "mandatory change count exceeds the domain lower bound",
+            ));
+        }
+        if unit
+            .changed_count
+            .is_some_and(|bounds| bounds.upper > source_count)
+        {
+            return Err(invalid("review count exceeds its source domain"));
+        }
+    }
     for change in &comparison.changes {
         validate_change_event(
             sides,
@@ -523,6 +607,7 @@ mod tests {
     ) -> ComparisonAssessment {
         ComparisonAssessment {
             localized_edits: Vec::new(),
+            review_units: Vec::new(),
             policy_version: super::super::ASSESSMENT_POLICY_VERSION,
             relations: Vec::new(),
             old_resolution,
@@ -590,6 +675,7 @@ mod tests {
             });
         let assessment = ComparisonAssessment {
             localized_edits: Vec::new(),
+            review_units: Vec::new(),
             policy_version: super::super::ASSESSMENT_POLICY_VERSION,
             relations: vec![super::super::RelationAssessment {
                 old_span: Some(span(1, 0, 3)),
@@ -699,6 +785,7 @@ mod tests {
         };
         let assessment = ComparisonAssessment {
             localized_edits: Vec::new(),
+            review_units: Vec::new(),
             policy_version: super::super::ASSESSMENT_POLICY_VERSION,
             relations: vec![sentinel.clone()],
             old_resolution: Vec::new(),

@@ -21,7 +21,7 @@ use super::{
     issue_kind_name, lowercase_hex, relation_outcome, search_completeness, side_name, summarize,
 };
 
-const SCHEMA_VERSION: u32 = 10;
+const SCHEMA_VERSION: u32 = 11;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -201,6 +201,36 @@ struct JsonAssessment {
     old_resolution: Vec<JsonResolutionRange>,
     new_resolution: Vec<JsonResolutionRange>,
     relations: Vec<JsonRelationAssessment>,
+    review_units: Vec<JsonReviewUnit>,
+}
+
+#[derive(Serialize)]
+struct JsonEditCountBounds {
+    lower: usize,
+    upper: usize,
+}
+
+impl From<crate::diff::EditCountBounds> for JsonEditCountBounds {
+    fn from(bounds: crate::diff::EditCountBounds) -> Self {
+        Self {
+            lower: bounds.lower,
+            upper: bounds.upper,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonReviewUnit {
+    relation: usize,
+    alignment_policy: &'static str,
+    search: &'static str,
+    normalization_hypotheses: usize,
+    normalization_old: Vec<JsonTextSpan>,
+    normalization_new: Vec<JsonTextSpan>,
+    changed_count: Option<JsonEditCountBounds>,
+    unresolved_changed_count: Option<JsonEditCountBounds>,
+    mandatory_old: Vec<JsonTextSpan>,
+    mandatory_new: Vec<JsonTextSpan>,
 }
 
 impl JsonAssessment {
@@ -217,6 +247,42 @@ impl JsonAssessment {
             work_used: assessment.work_used,
             work_by_stage: assessment.work_by_stage.into(),
             candidates_truncated: assessment.candidates_truncated,
+            review_units: assessment
+                .review_units
+                .iter()
+                .map(|unit| {
+                    Ok(JsonReviewUnit {
+                        relation: unit.relation,
+                        alignment_policy: match unit.policy {
+                            crate::diff::AlignmentPolicy::LiteralMinimal => "literal_minimal",
+                        },
+                        search: search_completeness(unit.search),
+                        normalization_hypotheses: unit.normalization_hypotheses,
+                        normalization_old: unit
+                            .normalization_old
+                            .iter()
+                            .map(|span| JsonTextSpan::new(span, old, old_sources))
+                            .collect::<Result<Vec<_>>>()?,
+                        normalization_new: unit
+                            .normalization_new
+                            .iter()
+                            .map(|span| JsonTextSpan::new(span, new, new_sources))
+                            .collect::<Result<Vec<_>>>()?,
+                        changed_count: unit.changed_count.map(Into::into),
+                        unresolved_changed_count: unit.unresolved_changed_count.map(Into::into),
+                        mandatory_old: unit
+                            .mandatory_old
+                            .iter()
+                            .map(|span| JsonTextSpan::new(span, old, old_sources))
+                            .collect::<Result<Vec<_>>>()?,
+                        mandatory_new: unit
+                            .mandatory_new
+                            .iter()
+                            .map(|span| JsonTextSpan::new(span, new, new_sources))
+                            .collect::<Result<Vec<_>>>()?,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?,
             old_resolution: assessment
                 .old_resolution
                 .iter()

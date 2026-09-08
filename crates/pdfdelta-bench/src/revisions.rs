@@ -89,11 +89,11 @@ use crate::{
     BenchError, Result,
     candidate_eval::{CandidateVisitPressure, evaluate_candidate_visit_pressure},
     evaluation::{
-        AssessmentEvaluation, AssessmentWorkEvaluation, BenchmarkProvenance, CandidateEvaluation,
-        CandidateEventEvaluation, EvaluationRecord, EvaluationSummary, ManifestProvenanceEntry,
-        PROVENANCE_COLUMNS, ProvenEvaluation, QualityEvaluation, ReviewedRecallEvaluation,
-        ScopedEventEvaluation, ScopedTokenEvaluation, TokenResolutionCounts, TrialStatus,
-        validate_manifest_provenance,
+        AssessmentClaimEvaluation, AssessmentEvaluation, AssessmentWorkEvaluation,
+        BenchmarkProvenance, CandidateEvaluation, CandidateEventEvaluation, EvaluationRecord,
+        EvaluationSummary, ManifestProvenanceEntry, PROVENANCE_COLUMNS, ProvenEvaluation,
+        QualityEvaluation, ReviewedRecallEvaluation, ScopedEventEvaluation, ScopedTokenEvaluation,
+        TokenResolutionCounts, TrialStatus, validate_manifest_provenance,
     },
 };
 
@@ -385,6 +385,12 @@ pub enum ExpectedChangeFailureReason {
     FragmentedAcrossHunks {
         old_hunks: usize,
         new_hunks: usize,
+    },
+    ExpectationOutsideAlignmentObjective {
+        expected_mask_is_valid_edit_witness: bool,
+        expected_mask_cost: usize,
+        optimal_cost_under_declared_policy: usize,
+        expected_mask_in_policy_solution_set: bool,
     },
     AlignmentOrCandidate {
         diagnostic_limited: bool,
@@ -8626,6 +8632,36 @@ fn scoped_proven_region_scopes(
     Ok(result)
 }
 
+fn assessment_claim_evaluation(
+    review_units: &[pdfdelta_core::diff::ReviewUnit],
+) -> AssessmentClaimEvaluation {
+    let review_unit_count = review_units.len();
+    let complete_review_unit_count = review_units
+        .iter()
+        .filter(|unit| unit.search == SearchCompleteness::Complete)
+        .count();
+    let mandatory_old_span_count = review_units.iter().fold(0usize, |count, unit| {
+        count.saturating_add(unit.mandatory_old.len())
+    });
+    let mandatory_new_span_count = review_units.iter().fold(0usize, |count, unit| {
+        count.saturating_add(unit.mandatory_new.len())
+    });
+    AssessmentClaimEvaluation {
+        review_unit_count,
+        complete_review_unit_count,
+        positive_lower_bound_unit_count: review_units
+            .iter()
+            .filter(|unit| unit.changed_count.is_some_and(|bounds| bounds.lower > 0))
+            .count(),
+        mandatory_old_span_count,
+        mandatory_new_span_count,
+        normalization_hypothesis_unit_count: review_units
+            .iter()
+            .filter(|unit| unit.normalization_hypotheses > 1)
+            .count(),
+    }
+}
+
 fn assessment_evaluation(assessment: &ComparisonAssessment) -> AssessmentEvaluation {
     AssessmentEvaluation {
         policy_version: assessment.policy_version,
@@ -8638,6 +8674,7 @@ fn assessment_evaluation(assessment: &ComparisonAssessment) -> AssessmentEvaluat
             emission: assessment.work_by_stage.emission,
         },
         candidates_truncated: assessment.candidates_truncated,
+        claim_diagnostics: Some(assessment_claim_evaluation(&assessment.review_units)),
     }
 }
 
@@ -14825,7 +14862,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 67;
+    pub const SCHEMA_VERSION: u32 = 68;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -15156,7 +15193,7 @@ fn evaluation_record_from_pair_report(report: &PairRunReport) -> EvaluationRecor
 mod tests {
     use pdfdelta_core::{
         alignment::AlignmentOptions,
-        diff::TokenRange,
+        diff::{AlignmentPolicy, EditCountBounds, ReviewUnit, SearchCompleteness, TokenRange},
         layout::{BlockId, BlockRole},
         model::{
             DecodedText, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
@@ -16925,6 +16962,22 @@ mod tests {
                 serde_json::json!({"expected_id":"c","reason":"fragmented_across_hunks","old_hunks":2,"new_hunks":3}),
             ),
             (
+                ExpectedChangeFailureReason::ExpectationOutsideAlignmentObjective {
+                    expected_mask_is_valid_edit_witness: true,
+                    expected_mask_cost: 178,
+                    optimal_cost_under_declared_policy: 158,
+                    expected_mask_in_policy_solution_set: false,
+                },
+                serde_json::json!({
+                    "expected_id":"c",
+                    "reason":"expectation_outside_alignment_objective",
+                    "expected_mask_is_valid_edit_witness":true,
+                    "expected_mask_cost":178,
+                    "optimal_cost_under_declared_policy":158,
+                    "expected_mask_in_policy_solution_set":false
+                }),
+            ),
+            (
                 ExpectedChangeFailureReason::AlignmentOrCandidate {
                     diagnostic_limited: true,
                 },
@@ -17006,7 +17059,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 67);
+        assert_eq!(completed["schema_version"], 68);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -17081,7 +17134,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 67);
+        assert_eq!(legacy_summary["schema_version"], 68);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -17158,7 +17211,7 @@ mod tests {
         assert!(full.get("reviewed_recall_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
             .expect("summary serializes");
-        assert_eq!(summary["schema_version"], 67);
+        assert_eq!(summary["schema_version"], 68);
         assert_eq!(
             summary["records"][0]["reviewed_recall_metrics"],
             serde_json::json!({
@@ -20304,6 +20357,14 @@ mod tests {
                 emission: 40,
             },
             candidates_truncated: true,
+            claim_diagnostics: Some(AssessmentClaimEvaluation {
+                review_unit_count: 3,
+                complete_review_unit_count: 2,
+                positive_lower_bound_unit_count: 1,
+                mandatory_old_span_count: 4,
+                mandatory_new_span_count: 5,
+                normalization_hypothesis_unit_count: 1,
+            }),
         });
 
         let record = evaluation_record_from_pair_report(&report);
@@ -20324,6 +20385,79 @@ mod tests {
             serialized["records"][0]["assessment"]["work_by_stage"]["local_views"],
             20
         );
+        assert_eq!(
+            serialized["records"][0]["assessment"]["claim_diagnostics"]["review_unit_count"],
+            3
+        );
+        assert_eq!(
+            serialized["records"][0]["assessment"]["claim_diagnostics"]["complete_review_unit_count"],
+            2
+        );
+        assert_eq!(
+            serialized["records"][0]["assessment"]["claim_diagnostics"]["positive_lower_bound_unit_count"],
+            1
+        );
+        assert_eq!(
+            serialized["records"][0]["assessment"]["claim_diagnostics"]["mandatory_old_span_count"],
+            4
+        );
+        assert_eq!(
+            serialized["records"][0]["assessment"]["claim_diagnostics"]["mandatory_new_span_count"],
+            5
+        );
+        assert_eq!(
+            serialized["records"][0]["assessment"]["claim_diagnostics"]["normalization_hypothesis_unit_count"],
+            1
+        );
+        assert_eq!(summary.totals.accepted_changes, 0);
+    }
+
+    #[test]
+    fn assessment_claim_diagnostics_count_evidence_without_owning_overlapping_bounds() {
+        let span = relation_span(Vec::new(), None, 1);
+        let review_unit =
+            |search, changed_count, mandatory_old, mandatory_new, hypotheses| ReviewUnit {
+                relation: 0,
+                policy: AlignmentPolicy::LiteralMinimal,
+                search,
+                normalization_hypotheses: hypotheses,
+                normalization_old: Vec::new(),
+                normalization_new: Vec::new(),
+                changed_count,
+                unresolved_changed_count: None,
+                mandatory_old: vec![span.clone(); mandatory_old],
+                mandatory_new: vec![span.clone(); mandatory_new],
+            };
+        let units = vec![
+            review_unit(
+                SearchCompleteness::Complete,
+                Some(EditCountBounds { lower: 1, upper: 2 }),
+                2,
+                1,
+                1,
+            ),
+            review_unit(
+                SearchCompleteness::Incomplete,
+                Some(EditCountBounds { lower: 1, upper: 3 }),
+                1,
+                2,
+                2,
+            ),
+            review_unit(SearchCompleteness::Complete, None, 0, 0, 1),
+        ];
+
+        let claims = assessment_claim_evaluation(&units);
+
+        assert_eq!(claims.review_unit_count, 3);
+        assert_eq!(claims.complete_review_unit_count, 2);
+        assert_eq!(
+            claims.review_unit_count - claims.complete_review_unit_count,
+            1
+        );
+        assert_eq!(claims.positive_lower_bound_unit_count, 2);
+        assert_eq!(claims.mandatory_old_span_count, 3);
+        assert_eq!(claims.mandatory_new_span_count, 3);
+        assert_eq!(claims.normalization_hypothesis_unit_count, 1);
     }
 
     #[test]
@@ -20919,7 +21053,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 67);
+        assert_eq!(json["schema_version"], 68);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -28433,7 +28567,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 67);
+        assert_eq!(value["schema_version"], 68);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
