@@ -115,9 +115,9 @@ impl ClassificationBudget {
 struct SpanProjection {
     comparable_offset: usize,
     scalar_offset: usize,
+    previous_coordinate: Option<ScopeCoordinate>,
     first_selected: Option<ScopeCoordinate>,
     last_selected: Option<ScopeCoordinate>,
-    first_selected_synthetic: bool,
     last_selected_synthetic: bool,
 }
 
@@ -138,18 +138,27 @@ impl SpanProjection {
         let selected = span.comparable_range.start <= self.comparable_offset
             && self.comparable_offset < span.comparable_range.end;
         self.comparable_offset = budget.checked_add(self.comparable_offset, 1)?;
+        if self.last_selected_synthetic {
+            self.last_selected =
+                Some(coordinate.ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?);
+            self.last_selected_synthetic = false;
+        }
         if selected {
             if let Some(coordinate) = coordinate {
                 self.first_selected.get_or_insert(coordinate);
                 self.last_selected = Some(coordinate);
                 self.last_selected_synthetic = false;
             } else if scalar {
-                if self.first_selected.is_none() {
-                    self.first_selected_synthetic = true;
-                }
+                // A virtual separator has no source scalar. Both immediate
+                // neighbors must bound its scope; neither becomes a changed token.
+                let previous = self
+                    .previous_coordinate
+                    .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
+                self.first_selected.get_or_insert(previous);
                 self.last_selected_synthetic = true;
             }
         }
+        self.previous_coordinate = coordinate;
         if scalar {
             self.scalar_offset = budget.checked_add(self.scalar_offset, 1)?;
         }
@@ -387,73 +396,43 @@ fn span_range_with_limits(
     budget: &mut ClassificationBudget,
     limits: ClassificationLimits,
 ) -> Result<ResolvedScopeRange, String> {
-    let expanded;
-    let span = if span.comparable_range.start == span.comparable_range.end
+    if span.comparable_range.start == span.comparable_range.end
         && span.canonical_range.start == span.canonical_range.end
     {
-        let [block] = span.blocks.as_slice() else {
-            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
-        };
-        let block_order = *order
-            .get(block)
-            .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
-        let tokens = blocks
-            .get(block_order)
-            .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?
-            .canonical
-            .comparable_tokens()
-            .map_err(|_| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
-        let (comparable_range, canonical_range) = if span.comparable_range.start > 0
-            && span.canonical_range.start > 0
-            && tokens
-                .get(span.comparable_range.start - 1)
-                .is_some_and(ComparableToken::is_scalar)
-        {
-            (
-                TokenRange {
-                    start: span.comparable_range.start - 1,
-                    end: span.comparable_range.start,
-                },
-                ScalarRange {
-                    start: span.canonical_range.start - 1,
-                    end: span.canonical_range.start,
-                },
-            )
-        } else if tokens
-            .get(span.comparable_range.end)
-            .is_some_and(ComparableToken::is_scalar)
-        {
-            (
-                TokenRange {
-                    start: span.comparable_range.start,
-                    end: span
-                        .comparable_range
-                        .end
+        // A zero-width side retains a source boundary, not a changed token.
+        // Prefer its preceding scalar, as for a single-block span; only use
+        // the following scalar when the preceding one has no exact coordinate.
+        let previous = span
+            .comparable_range
+            .start
+            .checked_sub(1)
+            .zip(span.canonical_range.start.checked_sub(1));
+        let next = Some((span.comparable_range.start, span.canonical_range.start));
+        for (comparable_start, canonical_start) in [previous, next].into_iter().flatten() {
+            budget.charge_work(span.blocks.len(), limits)?;
+            let adjacent = TextSpan {
+                blocks: span.blocks.clone(),
+                separator: span.separator,
+                comparable_range: TokenRange {
+                    start: comparable_start,
+                    end: comparable_start
                         .checked_add(1)
                         .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?,
                 },
-                ScalarRange {
-                    start: span.canonical_range.start,
-                    end: span
-                        .canonical_range
-                        .end
+                canonical_range: ScalarRange {
+                    start: canonical_start,
+                    end: canonical_start
                         .checked_add(1)
                         .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?,
                 },
-            )
-        } else {
-            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
-        };
-        expanded = TextSpan {
-            blocks: span.blocks.clone(),
-            separator: span.separator,
-            canonical_range,
-            comparable_range,
-        };
-        &expanded
-    } else {
-        span
-    };
+            };
+            match span_range_with_limits(&adjacent, blocks, order, budget, limits) {
+                Err(reason) if reason == SCOPED_CHANGE_INDETERMINATE => {}
+                result => return result,
+            }
+        }
+        return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+    }
     let (_, rest) = span
         .blocks
         .split_first()
@@ -547,7 +526,6 @@ fn span_range_with_limits(
         || span.canonical_range.end > projection.scalar_offset
         || projection.first_selected.is_none()
         || projection.last_selected.is_none()
-        || projection.first_selected_synthetic
         || projection.last_selected_synthetic
     {
         return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
@@ -2938,6 +2916,116 @@ mod tests {
             assert_eq!(
                 classify_scoped_changes(&[invalid], &scopes, &old, &new),
                 Err(SCOPED_CHANGE_INDETERMINATE.to_owned())
+            );
+        }
+    }
+
+    #[test]
+    fn virtual_separator_scope_requires_both_source_neighbors() {
+        let blocks = [block(1, "ab"), block(2, "cd")];
+        let scopes =
+            resolve_revision_scopes(&[scope("body", "ab", "cd", "ab", "cd")], &blocks, &blocks)
+                .expect("scope anchors resolve");
+        for (start, end) in [(2, 3), (1, 3), (2, 4)] {
+            let selected = group_span(
+                vec![BlockId(1), BlockId(2)],
+                BlockSeparator::Space,
+                start,
+                end,
+            );
+            for change in [
+                change(Some(selected.clone()), None),
+                change(None, Some(selected)),
+            ] {
+                assert_eq!(
+                    classify_scoped_changes(
+                        std::slice::from_ref(&change),
+                        &scopes,
+                        &blocks,
+                        &blocks
+                    )
+                    .expect("both separator neighbors belong to the same scope"),
+                    [ScopedChange {
+                        scope_id: "body".to_owned(),
+                        change_index: 0
+                    }]
+                );
+                for scope_block in [0, 1] {
+                    let range = ResolvedScopeRange {
+                        start: ScopeCoordinate {
+                            block_order: scope_block,
+                            scalar: 0,
+                        },
+                        end: ScopeCoordinate {
+                            block_order: scope_block,
+                            scalar: 1,
+                        },
+                    };
+                    let partial = [ResolvedScope {
+                        id: "partial".to_owned(),
+                        old: range,
+                        new: range,
+                    }];
+                    assert_eq!(
+                        classify_scoped_changes(
+                            std::slice::from_ref(&change),
+                            &partial,
+                            &blocks,
+                            &blocks
+                        ),
+                        Err(SCOPED_CHANGE_INDETERMINATE.to_owned())
+                    );
+                }
+            }
+        }
+        for (texts, start) in [(["", "ab"], 0), (["ab", ""], 2)] {
+            let blocks = [block(1, texts[0]), block(2, texts[1])];
+            let selected = group_span(
+                vec![BlockId(1), BlockId(2)],
+                BlockSeparator::Space,
+                start,
+                start + 1,
+            );
+            assert_eq!(
+                classify_scoped_changes(&[change(Some(selected), None)], &[], &blocks, &blocks),
+                Err(SCOPED_CHANGE_INDETERMINATE.to_owned())
+            );
+        }
+    }
+
+    #[test]
+    fn classifies_zero_width_sides_within_grouped_blocks() {
+        let old = [block(1, "prefix"), block(2, "abc")];
+        let new = [block(3, "prefix"), block(4, "aXbc")];
+        let scopes = resolve_revision_scopes(
+            &[scope("body", "prefix", "abc", "prefix", "aXbc")],
+            &old,
+            &new,
+        )
+        .expect("scope anchors resolve");
+        for separator in [BlockSeparator::Concatenate, BlockSeparator::Space] {
+            let start = 7 + usize::from(separator == BlockSeparator::Space);
+            let changes = [change(
+                Some(group_span(
+                    vec![BlockId(1), BlockId(2)],
+                    separator,
+                    start,
+                    start,
+                )),
+                Some(group_span(
+                    vec![BlockId(3), BlockId(4)],
+                    separator,
+                    start,
+                    start + 1,
+                )),
+            )];
+            assert_eq!(
+                classify_scoped_changes(&changes, &scopes, &old, &new)
+                    .expect("an interior zero-width side has source coordinates"),
+                [ScopedChange {
+                    scope_id: "body".to_owned(),
+                    change_index: 0
+                }]
             );
         }
     }

@@ -52,6 +52,8 @@ pub enum AlignmentEvidence {
     DiffEditDistanceExceeded,
     /// A low-confidence match failed the token-diff plausibility gate.
     DiffRejectedAsImplausible,
+    /// Candidate or dynamic-programming search stopped at its configured budget.
+    SearchIncomplete,
     Anchor,
     AnchorInterval,
     NeighborConsistency,
@@ -543,7 +545,13 @@ fn align_ordered_inner(
         visit_metrics.candidate_visits_required_exact = Some(0);
         visit_metrics.candidate_visits_required_ngram = Some(0);
         visit_metrics.candidate_visits_required_short_fallback = Some(0);
-        return Ok(identity_alignment(old));
+        let mut alignment = identity_alignment(old);
+        cap_confidence_for_inferred_reading_order(
+            &mut alignment.spans,
+            &plan.inferred_old,
+            &plan.inferred_new,
+        );
+        return Ok(alignment);
     }
 
     let new_indices = new
@@ -569,7 +577,7 @@ fn align_ordered_inner(
         &old_indices,
         &new_indices,
     )?;
-    let candidate_map = collect_candidates(
+    let candidate_collection = collect_candidates(
         old,
         new,
         &plan.excluded_old,
@@ -578,6 +586,8 @@ fn align_ordered_inner(
         options.max_candidate_visits,
         visit_metrics,
     )?;
+    let candidate_map = candidate_collection.map;
+    let candidate_search_incomplete_from = candidate_collection.incomplete_from;
     let move_old = plan
         .move_candidates
         .iter()
@@ -590,6 +600,7 @@ fn align_ordered_inner(
         .collect::<HashSet<_>>();
 
     let mut spans = Vec::new();
+    let mut dp_search_incomplete = false;
     let main_anchor_set = plan.main_anchors.iter().copied().collect::<HashSet<_>>();
 
     for (interval_index, window) in plan.windows.iter().enumerate() {
@@ -598,16 +609,30 @@ fn align_ordered_inner(
         let has_left = window.left_anchor.is_some();
         let has_right = window.right_anchor.is_some();
 
+        let candidate_search_incomplete = candidate_search_incomplete_from
+            .is_some_and(|start| window.old_range.0 >= start || window.old_range.1 > start);
         if let Some(causes) = plan.forced_windows.get(&interval_index) {
+            if !old_interval.is_empty() || !new_interval.is_empty() {
+                let mut evidence = causes.evidence();
+                if candidate_search_incomplete {
+                    evidence.push(AlignmentEvidence::SearchIncomplete);
+                }
+                spans.push(unresolved_span_with_evidence(
+                    old_interval,
+                    new_interval,
+                    evidence,
+                ));
+            }
+        } else if candidate_search_incomplete || dp_search_incomplete {
             if !old_interval.is_empty() || !new_interval.is_empty() {
                 spans.push(unresolved_span_with_evidence(
                     old_interval,
                     new_interval,
-                    causes.evidence(),
+                    vec![AlignmentEvidence::SearchIncomplete],
                 ));
             }
         } else {
-            spans.extend(align_interval_with_partition_fallback(
+            match align_interval_with_partition_fallback(
                 old_interval,
                 new_interval,
                 &candidate_map,
@@ -626,7 +651,23 @@ fn align_ordered_inner(
                     old_indices: &old_indices,
                     new_indices: &new_indices,
                 },
-            )?);
+            ) {
+                Ok(interval_spans) => spans.extend(interval_spans),
+                Err(Error::LimitExceeded {
+                    resource: "alignment DP cells",
+                    ..
+                }) => {
+                    dp_search_incomplete = true;
+                    if !old_interval.is_empty() || !new_interval.is_empty() {
+                        spans.push(unresolved_span_with_evidence(
+                            old_interval,
+                            new_interval,
+                            vec![AlignmentEvidence::SearchIncomplete],
+                        ));
+                    }
+                }
+                Err(error) => return Err(error),
+            }
         }
 
         if let Some(right_anchor) = window.right_anchor {
@@ -647,13 +688,8 @@ fn align_ordered_inner(
     })
 }
 
-/// Caps confidence and records inference for resolved spans and unresolved
-/// candidate competitions that touch a geometrically inferred reading order.
-///
-/// Candidate competition rejects a parent correspondence, but does not invalidate
-/// independent sentence or running-matter recovery. Preserve inference there so
-/// recovery remains available when layout becomes more informative. Other unresolved
-/// causes retain their exact evidence, particularly reading-order and extraction gaps.
+/// Caps confidence and records inference for every span that touches a
+/// geometrically inferred reading order, including unresolved recovery spans.
 fn cap_confidence_for_inferred_reading_order(
     spans: &mut [AlignmentSpan],
     inferred_old: &HashSet<BlockId>,
@@ -663,15 +699,6 @@ fn cap_confidence_for_inferred_reading_order(
         return;
     }
     for span in spans {
-        if span.kind == AlignmentKind::Unresolved
-            && span.evidence
-                != [
-                    AlignmentEvidence::TextSimilarity,
-                    AlignmentEvidence::CandidateCompetition,
-                ]
-        {
-            continue;
-        }
         let intersects_inferred_order = span.old.iter().any(|block| inferred_old.contains(block))
             || span.new.iter().any(|block| inferred_new.contains(block));
         if intersects_inferred_order {
@@ -1061,6 +1088,13 @@ fn is_full_text_similarity_collapse(
 
 type CandidateMap = HashMap<BlockId, HashMap<BlockId, Vec<CandidateSource>>>;
 
+struct CandidateCollection {
+    map: CandidateMap,
+    /// Absolute old-block index where candidate search first exceeded its
+    /// visit budget. All later alignment windows remain unresolved.
+    incomplete_from: Option<usize>,
+}
+
 fn collect_candidates(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
@@ -1069,7 +1103,7 @@ fn collect_candidates(
     limit: usize,
     max_visits: usize,
     visit_metrics: &mut AlignmentVisitMetrics,
-) -> Result<CandidateMap> {
+) -> Result<CandidateCollection> {
     let new_by_id = new
         .iter()
         .map(|features| (features.block, features))
@@ -1089,100 +1123,114 @@ fn collect_candidates(
     visit_metrics.candidate_visits_required_ngram = None;
     visit_metrics.candidate_visits_required_short_fallback = None;
     let mut remaining_visits = max_visits;
-    let mut exceeded = false;
+    let mut incomplete_from = None;
+    let mut required_overflow = false;
     let mut required_visits = 0_usize;
     let mut required_exact = 0_usize;
     let mut required_ngram = 0_usize;
     let mut required_short_fallback = 0_usize;
     let mut breakdown_complete = true;
-    for features in old
+    for (index, features) in old
         .iter()
-        .filter(|features| !main_anchor_old.contains(&features.block))
+        .enumerate()
+        .filter(|(_, features)| !main_anchor_old.contains(&features.block))
     {
         let estimate = match generator.estimate_visits(features, limit) {
             Ok(estimate) => estimate,
+            Err(_) if incomplete_from.is_some() => {
+                return Err(Error::LimitExceeded {
+                    resource: "alignment candidate visits",
+                    limit: max_visits,
+                });
+            }
             Err(error) => {
-                // Error precedence: a limit failure already detected takes
-                // precedence over a later estimate error, and the required
-                // sum is then incomplete.
-                if exceeded {
-                    return Err(Error::LimitExceeded {
-                        resource: "alignment candidate visits",
-                        limit: max_visits,
-                    });
-                }
                 return Err(error);
             }
         };
         let visits = estimate.total;
-        if !exceeded {
+        if incomplete_from.is_none() {
             // The attempted cumulative charge includes the block that
             // exceeds the budget so the recorded metric explains the
             // failure; on overflow the charge accumulated so far is
             // retained.
-            visit_metrics.candidate_visits = visit_metrics
-                .candidate_visits
-                .checked_add(visits)
-                .ok_or(Error::LimitExceeded {
-                    resource: "alignment candidate visits",
-                    limit: max_visits,
-                })?;
-            if remaining_visits < visits {
-                exceeded = true;
+            match visit_metrics.candidate_visits.checked_add(visits) {
+                Some(total) => {
+                    visit_metrics.candidate_visits = total;
+                }
+                None => {
+                    visit_metrics.candidate_visits = usize::MAX;
+                    incomplete_from = Some(index);
+                }
+            }
+            if incomplete_from.is_none() && remaining_visits < visits {
+                incomplete_from = Some(index);
             } else {
-                remaining_visits -= visits;
+                remaining_visits = remaining_visits.saturating_sub(visits);
             }
         }
-        required_visits = required_visits
-            .checked_add(visits)
-            .ok_or(Error::LimitExceeded {
-                resource: "alignment candidate visits",
-                limit: max_visits,
-            })?;
-        match estimate.breakdown {
-            Some(breakdown) => {
-                required_exact =
-                    required_exact
-                        .checked_add(breakdown.exact)
-                        .ok_or(Error::LimitExceeded {
-                            resource: "alignment candidate visits",
-                            limit: max_visits,
-                        })?;
-                required_ngram =
-                    required_ngram
-                        .checked_add(breakdown.ngram)
-                        .ok_or(Error::LimitExceeded {
-                            resource: "alignment candidate visits",
-                            limit: max_visits,
-                        })?;
-                required_short_fallback = required_short_fallback
-                    .checked_add(breakdown.short_fallback)
-                    .ok_or(Error::LimitExceeded {
-                        resource: "alignment candidate visits",
-                        limit: max_visits,
-                    })?;
+        if !required_overflow {
+            required_visits = match required_visits.checked_add(visits) {
+                Some(total) => total,
+                None => {
+                    required_overflow = true;
+                    incomplete_from.get_or_insert(index);
+                    0
+                }
+            };
+            if let Some(breakdown) = estimate.breakdown {
+                required_exact = match required_exact.checked_add(breakdown.exact) {
+                    Some(total) => total,
+                    None => {
+                        required_overflow = true;
+                        incomplete_from.get_or_insert(index);
+                        0
+                    }
+                };
+                required_ngram = match required_ngram.checked_add(breakdown.ngram) {
+                    Some(total) => total,
+                    None => {
+                        required_overflow = true;
+                        incomplete_from.get_or_insert(index);
+                        0
+                    }
+                };
+                required_short_fallback =
+                    match required_short_fallback.checked_add(breakdown.short_fallback) {
+                        Some(total) => total,
+                        None => {
+                            required_overflow = true;
+                            incomplete_from.get_or_insert(index);
+                            0
+                        }
+                    };
+            } else {
+                breakdown_complete = false;
             }
-            None => breakdown_complete = false,
         }
     }
-    visit_metrics.candidate_visits_required = Some(required_visits);
-    if breakdown_complete {
+    if required_overflow {
+        visit_metrics.candidate_visits_required = None;
+        visit_metrics.candidate_visits_required_exact = None;
+        visit_metrics.candidate_visits_required_ngram = None;
+        visit_metrics.candidate_visits_required_short_fallback = None;
+    } else {
+        visit_metrics.candidate_visits_required = Some(required_visits);
+    }
+    if breakdown_complete && !required_overflow {
         visit_metrics.candidate_visits_required_exact = Some(required_exact);
         visit_metrics.candidate_visits_required_ngram = Some(required_ngram);
         visit_metrics.candidate_visits_required_short_fallback = Some(required_short_fallback);
     }
-    if exceeded {
-        return Err(Error::LimitExceeded {
-            resource: "alignment candidate visits",
-            limit: max_visits,
-        });
-    }
 
     let mut all = HashMap::with_capacity(old.len().saturating_sub(main_anchor_old.len()));
-    for features in old
+    for (index, features) in old
         .iter()
-        .filter(|features| !main_anchor_old.contains(&features.block))
+        .enumerate()
+        .filter(|(_, features)| !main_anchor_old.contains(&features.block))
     {
+        if incomplete_from.is_some_and(|start| index >= start) {
+            break;
+        }
         let mut by_block = HashMap::<BlockId, Vec<CandidateSource>>::new();
         for candidate in generator
             .candidates(features, limit)?
@@ -1211,7 +1259,10 @@ fn collect_candidates(
         }
         all.insert(features.block, by_block);
     }
-    Ok(all)
+    Ok(CandidateCollection {
+        map: all,
+        incomplete_from,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -2894,13 +2945,9 @@ mod tests {
 
         let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
 
-        assert!(matches!(
-            attempt.result,
-            Err(Error::LimitExceeded {
-                resource: "alignment candidate visits",
-                limit: 11,
-            })
-        ));
+        let alignment = attempt
+            .result
+            .expect("candidate budget exhaustion should preserve a local alignment");
         // The attempted charge is frozen at the first budget exceed (two
         // blocks of six visits) while the required sum covers all three.
         assert_eq!(attempt.visit_metrics.candidate_visits, 12);
@@ -2920,7 +2967,14 @@ mod tests {
             *generator.estimated.borrow(),
             [BlockId(1), BlockId(2), BlockId(3)]
         );
-        assert!(generator.generated.borrow().is_empty());
+        assert_eq!(*generator.generated.borrow(), [BlockId(1)]);
+        assert_eq!(alignment.spans.len(), 1);
+        assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
+        assert!(
+            alignment.spans[0]
+                .evidence
+                .contains(&AlignmentEvidence::SearchIncomplete)
+        );
     }
 
     #[test]
@@ -2957,6 +3011,39 @@ mod tests {
     }
 
     #[test]
+    fn candidate_budget_preserves_exact_anchors_before_the_cutoff() {
+        let old = vec![feature_with_tokens(1, 10, &[10, 11, 12, 13]), feature(2, 2)];
+        let new = vec![
+            feature_with_tokens(101, 10, &[10, 11, 12, 13]),
+            feature(102, 2),
+        ];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 4,
+            max_candidate_visits: 1,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt =
+            align_ordered_with_metrics(&old, &new, &FixedVisitsGenerator::new(2), options);
+        let alignment = attempt
+            .result
+            .expect("candidate budget exhaustion should preserve a local alignment");
+
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Match
+                && span.old == [BlockId(1)]
+                && span.new == [BlockId(101)]
+                && span.evidence.contains(&AlignmentEvidence::Anchor)
+        }));
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Unresolved
+                && span.old == [BlockId(2)]
+                && span.new == [BlockId(102)]
+                && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+        }));
+    }
+
+    #[test]
     fn required_components_sum_to_total_and_survive_a_limit_failure() {
         let (old, new) = distinct_features();
         let generator = FixedBreakdownGenerator::new(2, 3, 1);
@@ -2967,13 +3054,9 @@ mod tests {
 
         let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
 
-        assert!(matches!(
-            attempt.result,
-            Err(Error::LimitExceeded {
-                resource: "alignment candidate visits",
-                limit: 11,
-            })
-        ));
+        let alignment = attempt
+            .result
+            .expect("candidate budget exhaustion should preserve a local alignment");
         // The attempted charge is frozen at the first budget exceed (two
         // blocks of six visits) while the required sum and its components
         // cover all three blocks.
@@ -2997,7 +3080,14 @@ mod tests {
             *generator.estimated.borrow(),
             [BlockId(1), BlockId(2), BlockId(3)]
         );
-        assert!(generator.generated.borrow().is_empty());
+        assert_eq!(*generator.generated.borrow(), [BlockId(1)]);
+        assert_eq!(alignment.spans.len(), 1);
+        assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
+        assert!(
+            alignment.spans[0]
+                .evidence
+                .contains(&AlignmentEvidence::SearchIncomplete)
+        );
     }
 
     #[test]
@@ -3108,15 +3198,20 @@ mod tests {
         let attempt =
             align_ordered_with_metrics(&old, &new, &FixedVisitsGenerator::new(0), options);
 
-        assert!(matches!(
-            attempt.result,
-            Err(Error::LimitExceeded {
-                resource: "alignment DP cells",
-                limit: 4,
-            })
-        ));
+        let alignment = attempt
+            .result
+            .expect("DP budget exhaustion should preserve a local alignment");
         assert_eq!(attempt.visit_metrics.dp_cells, 4);
         assert_eq!(attempt.visit_metrics.max_dp_cells, 4);
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Unresolved
+                && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+        }));
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Match
+                && span.old == [BlockId(2)]
+                && span.new == [BlockId(102)]
+        }));
     }
 
     #[test]
@@ -3135,6 +3230,66 @@ mod tests {
         assert_eq!(alignment.spans[0].confidence, AlignmentConfidence::High);
         assert_eq!(alignment.spans[1].confidence, AlignmentConfidence::Medium);
         assert_eq!(alignment.spans[2].confidence, AlignmentConfidence::High);
+    }
+
+    #[test]
+    fn identity_alignment_preserves_inferred_reading_order_evidence() {
+        let blocks = vec![feature(1, 10), feature(2, 20)];
+        let plan = plan_ordered_gaps(
+            &blocks,
+            &blocks,
+            AlignmentOptions::default(),
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[1],
+            &[],
+        )
+        .expect("inferred reading order should produce a valid plan");
+        let alignment = align_ordered_with_metrics_and_gap_plan(
+            &blocks,
+            &blocks,
+            &FixedVisitsGenerator::new(0),
+            AlignmentOptions::default(),
+            plan,
+        )
+        .result
+        .expect("identity alignment should succeed");
+
+        assert_eq!(alignment.spans[0].confidence, AlignmentConfidence::High);
+        assert_eq!(alignment.spans[1].confidence, AlignmentConfidence::Low);
+        assert!(
+            alignment.spans[1]
+                .evidence
+                .contains(&AlignmentEvidence::ReadingOrderInferred)
+        );
+    }
+
+    #[test]
+    fn inferred_reading_order_marks_unresolved_spans() {
+        let old = [feature(1, 1)];
+        let new = [feature(101, 101)];
+        let mut spans = vec![unresolved_span(
+            &old,
+            &new,
+            AlignmentEvidence::CandidateCompetition,
+        )];
+
+        cap_confidence_for_inferred_reading_order(
+            &mut spans,
+            &HashSet::from([BlockId(1)]),
+            &HashSet::new(),
+        );
+
+        assert_eq!(spans[0].confidence, AlignmentConfidence::Low);
+        assert!(
+            spans[0]
+                .evidence
+                .contains(&AlignmentEvidence::ReadingOrderInferred)
+        );
     }
 
     #[test]
@@ -3242,13 +3397,9 @@ mod tests {
 
         let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
 
-        assert!(matches!(
-            attempt.result,
-            Err(Error::LimitExceeded {
-                resource: "alignment candidate visits",
-                limit,
-            }) if limit == 2 * visits
-        ));
+        let alignment = attempt
+            .result
+            .expect("candidate budget exhaustion should preserve a local alignment");
         assert_eq!(attempt.visit_metrics.candidate_visits, 3 * visits);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
         assert_eq!(attempt.visit_metrics.candidate_visits_required_exact, None);
@@ -3259,6 +3410,10 @@ mod tests {
                 .candidate_visits_required_short_fallback,
             None
         );
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Unresolved
+                && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+        }));
     }
 
     fn group_score(score: f64, exact_canonical: bool) -> GroupScore {

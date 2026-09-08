@@ -9,10 +9,11 @@ use std::{
 use pdfdelta_bench::{
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     evaluator::{evaluate, evaluate_rendered},
-    mutation::{Mutation, RenderPlan},
+    mutation::{ExpectedCanonicalSpan, ExpectedSemanticChange, Mutation, RenderPlan},
     renderers::{RenderLimits, RendererKind},
 };
 use pdfdelta_core::{
+    diff::ChangeKind,
     layout::{reconstruct_blocks, reconstruct_lines},
     normalize::normalize_blocks,
     pdf::{LopdfParser, ParseLimits},
@@ -182,6 +183,43 @@ fn paragraph_text_mutations_feed_the_evaluator_without_dropping_metadata() {
             std::slice::from_ref(&expected_lines)
         );
         assert_eq!(plan.expectation().label(), expected_label);
+        // Both adjacent spaces can own the edit boundary. The mutation's
+        // author-intended range remains a candidate, not an exact result.
+        let plan = match name {
+            "yaml-text-insert" => plan
+                .expect_candidate_with_proven_region(
+                    ExpectedSemanticChange::new(
+                        ChangeKind::Insertion,
+                        Vec::new(),
+                        vec![ExpectedCanonicalSpan::new(76, 81).expect("insertion candidate span")],
+                    )
+                    .expect("valid insertion candidate"),
+                    ExpectedSemanticChange::new(
+                        ChangeKind::Replacement,
+                        vec![ExpectedCanonicalSpan::new(46, 91).expect("old insertion envelope")],
+                        vec![ExpectedCanonicalSpan::new(46, 96).expect("new insertion envelope")],
+                    )
+                    .expect("valid insertion envelope"),
+                )
+                .expect("insertion candidate expectation applies"),
+            "yaml-text-delete" => plan
+                .expect_candidate_with_proven_region(
+                    ExpectedSemanticChange::new(
+                        ChangeKind::Deletion,
+                        vec![ExpectedCanonicalSpan::new(48, 53).expect("deletion candidate span")],
+                        Vec::new(),
+                    )
+                    .expect("valid deletion candidate"),
+                    ExpectedSemanticChange::new(
+                        ChangeKind::Replacement,
+                        vec![ExpectedCanonicalSpan::new(46, 91).expect("old deletion envelope")],
+                        vec![ExpectedCanonicalSpan::new(46, 86).expect("new deletion envelope")],
+                    )
+                    .expect("valid deletion envelope"),
+                )
+                .expect("deletion candidate expectation applies"),
+            _ => plan,
+        };
 
         for renderer in RendererKind::all() {
             let record = evaluate(

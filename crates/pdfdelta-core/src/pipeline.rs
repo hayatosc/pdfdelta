@@ -1,16 +1,16 @@
 use crate::{
     Error, Result,
     alignment::{
-        Alignment, AlignmentOptions, InvertedIndexCandidateGenerator,
-        align_ordered_with_metrics_and_gap_plan, build_block_features,
-        estimate_ngram_token_elements, plan_ordered_gaps, validate_alignment_options,
-        validate_ngram_size,
+        Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
+        AlignmentSpan, InvertedIndexCandidateGenerator, align_ordered_with_metrics_and_gap_plan,
+        build_block_features, estimate_ngram_token_elements, plan_ordered_gaps,
+        validate_alignment_options, validate_ngram_size,
     },
     diff::{
-        Comparison, Confidence, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff,
-        RecoveredAtomicDiff, RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics,
-        RecoveryWatchQuery, SentenceRecoveryInput, SentenceRecoveryMetrics,
-        TrustedRunRecoveryInput, compare_aligned, compare_aligned_with_atomic_edits,
+        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff, RecoveredAtomicDiff,
+        RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics, RecoveryWatchQuery,
+        SentenceRecoveryInput, SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
+        compare_aligned_with_atomic_edits,
         compare_aligned_with_known_span_sentence_shadow_diagnostics,
         compare_aligned_with_recovery_watch_diagnostics,
         compare_aligned_with_sentence_recovery_metrics,
@@ -58,8 +58,9 @@ impl PipelineOptions {
     ///
     /// Layout parameters and matching behavior are unchanged. Only n-gram
     /// token elements, alignment candidate visits, alignment DP cells, diff
-    /// tokens, and diff edit distance are scaled. The edit-distance budget
-    /// saturates at the bounded Myers implementation's 64 MiB trace cap.
+    /// tokens, diff edit distance, and assessment work/range limits are
+    /// scaled. The edit-distance budget saturates at the bounded Myers
+    /// implementation's 64 MiB trace cap.
     ///
     /// # Errors
     ///
@@ -74,6 +75,8 @@ impl PipelineOptions {
         self.diff.max_tokens = scale_limit(self.diff.max_tokens);
         self.diff.max_edit_distance =
             scale_limit(self.diff.max_edit_distance).min(MAX_MYERS_EDIT_DISTANCE);
+        self.diff.max_assessment_work = scale_limit(self.diff.max_assessment_work);
+        self.diff.max_assessment_ranges = scale_limit(self.diff.max_assessment_ranges);
         Ok(self)
     }
 
@@ -107,9 +110,8 @@ pub fn validate_limit_scale(scale: f64) -> Result<f64> {
 pub struct ComparisonOutcome {
     pub comparison: Comparison,
     pub extraction: ExtractionStatus,
-    /// Normalized old-side blocks backing the comparison spans, for
-    /// report rendering; empty when a document-scoped extraction issue
-    /// suppresses the diff.
+    /// Normalized old-side blocks backing the comparison spans, including
+    /// retained evidence left unresolved by document-scoped extraction issues.
     pub old_blocks: Vec<BlockText>,
     /// Normalized new-side blocks backing the comparison spans.
     pub new_blocks: Vec<BlockText>,
@@ -678,28 +680,50 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
         });
     }
 
-    let (old_tokens, new_tokens) =
-        record_pre_layout_token_counts(&old_document, &new_document, options.diff, diagnostics)?;
+    record_pre_layout_token_counts(&old_document, &new_document, options.diff, diagnostics)?;
     let issues = extraction_issue_records(old_issues, new_issues);
-
-    // Incomplete extraction suppresses the diff to prevent false comparison output.
+    // A document-scoped issue prevents correspondence claims, but extracted
+    // evidence on either side still belongs to the unresolved partition.
+    let old_blocks = prepare(&old_document, options, DocumentSide::Old, diagnostics)?.blocks;
+    let new_blocks = prepare(&new_document, options, DocumentSide::New, diagnostics)?.blocks;
+    let spans = if old_blocks.is_empty() && new_blocks.is_empty() {
+        Vec::new()
+    } else {
+        vec![AlignmentSpan {
+            kind: AlignmentKind::Unresolved,
+            old: old_blocks.iter().map(|block| block.block).collect(),
+            new: new_blocks.iter().map(|block| block.block).collect(),
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: vec![AlignmentEvidence::ExtractionGap],
+            old_separator: None,
+            new_separator: None,
+        }]
+    };
+    let alignment = Alignment {
+        spans,
+        main_anchors: Vec::new(),
+        move_candidates: Vec::new(),
+    };
+    let mut comparison = compare_aligned(&old_blocks, &new_blocks, &alignment, options.diff)?;
+    if !old_complete {
+        comparison.old_coverage.ratio = None;
+    }
+    if !new_complete {
+        comparison.new_coverage.ratio = None;
+    }
     Ok(InstrumentedComparisonOutcome {
         outcome: ComparisonOutcome {
-            comparison: Comparison {
-                changes: Vec::new(),
-                proven_changed_regions: Vec::new(),
-                formatting_changes: Vec::new(),
-                unresolved_regions: Vec::new(),
-                old_coverage: conservative_coverage(old_tokens, old_complete),
-                new_coverage: conservative_coverage(new_tokens, new_complete),
-            },
+            comparison,
             extraction: ExtractionStatus {
                 old_complete,
                 new_complete,
                 issues,
             },
-            old_blocks: Vec::new(),
-            new_blocks: Vec::new(),
+            old_blocks,
+            new_blocks,
             old_glyph_evidence,
             new_glyph_evidence,
         },
@@ -899,6 +923,17 @@ fn compare_validated_glyph_documents_inner(
                     ..PipelineMetrics::default()
                 },
             );
+            if alignment
+                .spans
+                .iter()
+                .any(|span| span.evidence.contains(&AlignmentEvidence::SearchIncomplete))
+            {
+                diagnostics
+                    .records
+                    .last_mut()
+                    .expect("alignment diagnostic was recorded")
+                    .status = PipelinePhaseStatus::Incomplete;
+            }
             alignment
         }
         Err(error) => {
@@ -1053,7 +1088,7 @@ fn compare_validated_glyph_documents_inner(
             .map(|comparison| (comparison, None, None, Vec::new(), Vec::new(), None))
     };
     let (
-        mut comparison,
+        comparison,
         sentence_recovery_metrics,
         recovery_watch_diagnostics,
         matched_atomic_diffs,
@@ -1065,13 +1100,6 @@ fn compare_validated_glyph_documents_inner(
         None,
         comparison_result,
     )?;
-    demote_inferred_order_changes(
-        &mut comparison,
-        &old,
-        &new,
-        &old_inferred_order_block_indices,
-        &new_inferred_order_block_indices,
-    );
     diagnostics.completed(
         PipelinePhase::ExactDiff,
         None,
@@ -1094,50 +1122,6 @@ fn compare_validated_glyph_documents_inner(
         recovered_atomic_diffs,
         recovery_ownership_partition,
     })
-}
-
-// Recovery must keep its ReadingOrderUnknown evidence to remain eligible, so
-// inferred-order confidence is also applied to the final source-backed events.
-fn demote_inferred_order_changes(
-    comparison: &mut Comparison,
-    old: &[BlockText],
-    new: &[BlockText],
-    old_inferred: &[usize],
-    new_inferred: &[usize],
-) {
-    if old_inferred.is_empty() && new_inferred.is_empty() {
-        return;
-    }
-    let old_blocks = old_inferred
-        .iter()
-        .map(|&index| old[index].block)
-        .collect::<std::collections::HashSet<_>>();
-    let new_blocks = new_inferred
-        .iter()
-        .map(|&index| new[index].block)
-        .collect::<std::collections::HashSet<_>>();
-    let touches_inferred = |old_span: Option<&crate::diff::TextSpan>,
-                            new_span: Option<&crate::diff::TextSpan>| {
-        old_span.is_some_and(|span| span.blocks.iter().any(|id| old_blocks.contains(id)))
-            || new_span.is_some_and(|span| span.blocks.iter().any(|id| new_blocks.contains(id)))
-    };
-    for change in &mut comparison.changes {
-        if change.occurrences.iter().any(|occurrence| {
-            touches_inferred(occurrence.old_span.as_ref(), occurrence.new_span.as_ref())
-        }) {
-            change.confidence = Confidence::Low;
-        }
-    }
-    for change in &mut comparison.formatting_changes {
-        if touches_inferred(Some(&change.old_span), Some(&change.new_span)) {
-            change.confidence = Confidence::Low;
-        }
-    }
-    for region in &mut comparison.proven_changed_regions {
-        if touches_inferred(region.old_span.as_ref(), region.new_span.as_ref()) {
-            region.confidence = Confidence::Low;
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -1264,14 +1248,6 @@ fn phase_result<T>(
     result.inspect_err(|error| {
         diagnostics.failed(phase, side, error);
     })
-}
-
-fn conservative_coverage(total_tokens: usize, extraction_complete: bool) -> crate::diff::Coverage {
-    crate::diff::Coverage {
-        resolved_tokens: 0,
-        total_tokens,
-        ratio: extraction_complete.then_some(if total_tokens == 0 { 1.0 } else { 0.0 }),
-    }
 }
 
 fn record_ngram_token_element_budget(
@@ -1700,72 +1676,20 @@ mod tests {
     }
 
     #[test]
-    fn inferred_order_caps_changed_region_confidence_on_either_source_side() {
-        use crate::diff::{
-            ChangedRegionProof, Coverage, ProvenChangedRegion, TextSpan, TokenRange,
-        };
-        use crate::normalize::ScalarRange;
-
-        let prepared = prepare(
-            &single_glyph_document(),
-            PipelineOptions::default(),
-            DocumentSide::Old,
-            &mut PipelineDiagnostics::new(),
-        )
-        .expect("source fixture should prepare");
-        let span = TextSpan {
-            blocks: vec![prepared.blocks[0].block],
-            separator: None,
-            canonical_range: ScalarRange { start: 0, end: 1 },
-            comparable_range: TokenRange { start: 0, end: 1 },
-        };
-        let coverage = Coverage {
-            resolved_tokens: 0,
-            total_tokens: 1,
-            ratio: Some(0.0),
-        };
-        for (old_inferred, new_inferred, expected) in [
-            (&[0][..], &[][..], [Confidence::Low, Confidence::High]),
-            (&[][..], &[0][..], [Confidence::High, Confidence::Low]),
-            (&[][..], &[][..], [Confidence::High, Confidence::High]),
-        ] {
-            let mut comparison = Comparison {
-                changes: Vec::new(),
-                formatting_changes: Vec::new(),
-                unresolved_regions: Vec::new(),
-                proven_changed_regions: vec![
-                    ProvenChangedRegion {
-                        old_span: Some(span.clone()),
-                        new_span: None,
-                        proof: ChangedRegionProof::OneSidedNonEmptyRange,
-                        confidence: Confidence::High,
-                    },
-                    ProvenChangedRegion {
-                        old_span: None,
-                        new_span: Some(span.clone()),
-                        proof: ChangedRegionProof::OneSidedNonEmptyRange,
-                        confidence: Confidence::High,
-                    },
-                ],
-                old_coverage: coverage,
-                new_coverage: coverage,
-            };
-            demote_inferred_order_changes(
-                &mut comparison,
-                &prepared.blocks,
-                &prepared.blocks,
-                old_inferred,
-                new_inferred,
-            );
-            assert_eq!(
-                comparison
-                    .proven_changed_regions
-                    .iter()
-                    .map(|region| region.confidence)
-                    .collect::<Vec<_>>(),
-                expected,
-            );
+    fn scaled_limits_include_assessment_budgets() {
+        let options = PipelineOptions {
+            diff: DiffOptions {
+                max_assessment_work: 10,
+                max_assessment_ranges: 20,
+                ..DiffOptions::default()
+            },
+            ..PipelineOptions::default()
         }
+        .scaled_limits(2.5)
+        .expect("valid limit scale");
+
+        assert_eq!(options.diff.max_assessment_work, 25);
+        assert_eq!(options.diff.max_assessment_ranges, 50);
     }
 
     #[test]

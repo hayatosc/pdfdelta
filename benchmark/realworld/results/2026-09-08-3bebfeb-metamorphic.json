@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "source_revision": "3bebfeb77fd43d5eaf55f9554a47e3a6d421212b-dirty",
+  "corpus": "built-in-acceptance-cases",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "pdfdelta-bench",
+    "--test",
+    "metamorphic",
+    "--",
+    "--nocapture"
+  ],
+  "checks": [
+    {
+      "name": "layout-only-mutations",
+      "cases": [
+        "line-wrap-only",
+        "double-line-wrap-only",
+        "page-break-only",
+        "pagination-churn-mid-document"
+      ],
+      "renderers": [
+        "lopdf-tj",
+        "classic-xref-tj"
+      ],
+      "records": 8,
+      "passed": 8,
+      "content_changes": 0,
+      "comparison_complete": 8
+    },
+    {
+      "name": "content-mutation-single-event",
+      "cases": [
+        "text-replacement"
+      ],
+      "renderers": [
+        "lopdf-tj",
+        "classic-xref-tj"
+      ],
+      "records": 2,
+      "passed": 2,
+      "exact_events": 2
+    }
+  ],
+  "records": 10,
+  "passed": 10,
+  "failed": 0,
+  "sensitivity_artifact": "2026-09-08-3bebfeb-sensitivity.json",
+  "sensitivity_artifact_sha256": "a53aa80598b3665fd34f80319ba0b10f987628e06e86c345c234114f75a9dd13",
+  "source_dirty": true,
+  "source_snapshot": "Earlier working-tree capture; exact snapshot was not recorded in this artifact.",
+  "superseded_by": "2026-09-08-common-assessment/final-metamorphic.json"
+}

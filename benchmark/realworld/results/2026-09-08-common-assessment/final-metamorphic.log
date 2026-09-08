@@ -1,0 +1,8 @@
+     Running tests/metamorphic.rs (target/debug/deps/metamorphic-738d9a9fbb25c862)
+
+running 2 tests
+test content_mutation_remains_one_exact_event_under_both_renderers ... ok
+test layout_only_mutations_preserve_the_content_result ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+

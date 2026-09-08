@@ -1,0 +1,14 @@
+[
+  "/tmp/pdfdelta-ordered-current-pdfbench",
+  "revisions",
+  "--manifest",
+  "benchmark/realworld/manifest.tsv",
+  "--cache-dir",
+  "benchmark/realworld/cache",
+  "--pair",
+  "nist-fips-186-4-to-5",
+  "--json-output",
+  "benchmark/realworld/results/2026-09-08-common-assessment/development-ordered-probes/nist-fips-186-4-to-5-raw.json",
+  "--evaluation-json-output",
+  "benchmark/realworld/results/2026-09-08-common-assessment/development-ordered-probes/nist-fips-186-4-to-5-evaluation.json"
+]

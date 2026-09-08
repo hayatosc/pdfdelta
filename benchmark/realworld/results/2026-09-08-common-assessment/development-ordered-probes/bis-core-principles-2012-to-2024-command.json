@@ -1,0 +1,14 @@
+[
+  "/tmp/pdfdelta-ordered-current-pdfbench",
+  "revisions",
+  "--manifest",
+  "benchmark/realworld/manifest.tsv",
+  "--cache-dir",
+  "benchmark/realworld/cache",
+  "--pair",
+  "bis-core-principles-2012-to-2024",
+  "--json-output",
+  "benchmark/realworld/results/2026-09-08-common-assessment/development-ordered-probes/bis-core-principles-2012-to-2024-raw.json",
+  "--evaluation-json-output",
+  "benchmark/realworld/results/2026-09-08-common-assessment/development-ordered-probes/bis-core-principles-2012-to-2024-evaluation.json"
+]

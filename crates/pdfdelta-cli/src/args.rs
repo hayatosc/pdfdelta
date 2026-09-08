@@ -40,7 +40,7 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", requires = "new")]
     pub trace_json: Option<PathBuf>,
 
-    /// Fail with exit code 3 if comparison is incomplete (due to unsupported features or unresolved regions).
+    /// Compatibility alias for the default incomplete-comparison exit code 3.
     #[arg(short = 's', long, requires = "new")]
     pub strict: bool,
 

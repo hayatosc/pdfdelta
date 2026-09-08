@@ -17,8 +17,10 @@ use crate::{
 };
 
 use super::{
-    ExtractionStatus, ReportSummary, ResolvedGroup, SideIndex, TextReportOptions, change_tag,
-    confidence as confidence_name, issue_kind_name, lowercase_hex, percentage, side_name, yes_no,
+    ExtractionStatus, ReportSummary, ResolvedGroup, SideIndex, TextReportOptions,
+    assessment_reason, assumption, change_kind, change_tag, confidence as confidence_name,
+    issue_kind_name, lowercase_hex, percentage, relation_outcome, search_completeness, side_name,
+    yes_no,
 };
 
 /// Maximum unchanged tokens between adjacent edits to coalesce into a single hunk.
@@ -54,13 +56,32 @@ pub(super) fn render(
     let mut output = String::new();
     writeln!(
         output,
-        "content changes: {} · proven changed regions: {} · formatting-only: {} · uncertain: {} · unresolved regions: {} · coverage {}",
+        "content changes: {} · proven changed regions: {} · formatting-only: {} · uncertain: {} · unresolved regions: {} · coverage {} · established changes: {} · tentative candidates: {} · difference: {} · completeness: {}",
         summary.content_changes,
         summary.proven_changed_regions,
         summary.formatting_only_changes,
         summary.uncertain_changes,
         summary.unresolved_regions,
         percentage(summary.comparison_coverage),
+        summary.established_changes,
+        summary.tentative_candidates,
+        summary.difference_status.as_str(),
+        completeness(summary.comparison_complete),
+    )
+    .map_err(|error| Error::Report(error.to_string()))?;
+    writeln!(
+        output,
+        "comparison scope: supported text={}, images {}",
+        if summary.comparison_scope.supported_text {
+            "yes"
+        } else {
+            "no"
+        },
+        if summary.comparison_scope.images_compared {
+            "compared"
+        } else {
+            "not compared"
+        },
     )
     .map_err(|error| Error::Report(error.to_string()))?;
     if !extraction.old_complete || !extraction.new_complete || !extraction.issues.is_empty() {
@@ -180,6 +201,96 @@ pub(super) fn render(
                 output,
                 "{}",
                 painter.paint(CODE_WARNING, &format!("! {side}: {text}"))
+            )
+            .map_err(|error| Error::Report(error.to_string()))?;
+        }
+    }
+
+    for candidate in &comparison.change_candidates {
+        let assessment = comparison
+            .assessment
+            .as_ref()
+            .and_then(|assessment| assessment.relations.get(candidate.relation))
+            .ok_or_else(|| {
+                Error::InvalidConfiguration(
+                    "candidate refers to a missing assessment relation".to_owned(),
+                )
+            })?;
+        writeln!(output).map_err(|error| Error::Report(error.to_string()))?;
+        let mut pages = Vec::new();
+        let mut side_notes = Vec::new();
+        for span in candidate
+            .change
+            .occurrences
+            .iter()
+            .filter_map(|occurrence| occurrence.old_span.as_ref())
+        {
+            let window = resolve_window(&old, span)?;
+            pages.extend_from_slice(&window.pages);
+            side_notes.push(("old", window.render_marked_region()));
+        }
+        for span in candidate
+            .change
+            .occurrences
+            .iter()
+            .filter_map(|occurrence| occurrence.new_span.as_ref())
+        {
+            let window = resolve_window(&new, span)?;
+            pages.extend_from_slice(&window.pages);
+            side_notes.push(("new", window.render_marked_region()));
+        }
+        pages.sort_unstable();
+        pages.dedup();
+        writeln!(
+            output,
+            "{}",
+            painter.paint(
+                CODE_HUNK_HEADER,
+                &format!(
+                    "@@ {} · TENTATIVE · candidate group {} · relation {} @@",
+                    format_pages(&pages),
+                    candidate.alternative_group + 1,
+                    candidate.relation,
+                ),
+            )
+        )
+        .map_err(|error| Error::Report(error.to_string()))?;
+        let reasons = assessment
+            .reasons
+            .iter()
+            .copied()
+            .map(assessment_reason)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let assumptions = assessment
+            .assumptions
+            .iter()
+            .copied()
+            .map(assumption)
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(
+            output,
+            "{}",
+            painter.paint(
+                CODE_WARNING,
+                &format!(
+                    "? possible {} (reasons: {}; assumptions: {}; outcome: {}; search: {}; confidence: {})",
+                    change_kind(candidate.change.kind),
+                    reasons,
+                    assumptions,
+                    relation_outcome(assessment.outcome),
+                    search_completeness(assessment.search),
+                    confidence_name(candidate.change.confidence),
+                ),
+            ),
+        )
+        .map_err(|error| Error::Report(error.to_string()))?;
+        for (side, text) in side_notes {
+            writeln!(
+                output,
+                "{}",
+                painter.paint(CODE_WARNING, &format!("? {side}: {text}")),
             )
             .map_err(|error| Error::Report(error.to_string()))?;
         }
@@ -720,6 +831,10 @@ fn unmapped_placeholder(font_hash: &FontProgramHash, glyph_id: u16) -> String {
     let prefix = &font_hash.0[..font_hash.0.len().min(4)];
     let hash = lowercase_hex(prefix);
     format!("<unmapped:{glyph_id}:{hash}>")
+}
+
+fn completeness(value: bool) -> &'static str {
+    if value { "complete" } else { "incomplete" }
 }
 
 struct Painter {

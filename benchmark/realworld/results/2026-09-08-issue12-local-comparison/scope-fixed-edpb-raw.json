@@ -1,0 +1,1796 @@
+[
+  {
+    "pair_id": "edpb-right-of-access-v1-to-final",
+    "set": "dev",
+    "role": "standard",
+    "document_type": "regulatory-guidelines",
+    "in_scope": true,
+    "status": "ok",
+    "provenance_verified": true,
+    "compared": true,
+    "extraction_complete": true,
+    "comparison_complete": false,
+    "extraction_issues": [],
+    "coverage_old": 0.5391702501137725,
+    "coverage_new": 0.5275281713105547,
+    "coverage_comparison": 0.5275281713105547,
+    "unresolved_regions": 3100,
+    "unresolved_old_token_share": 0.4608297498862275,
+    "unresolved_new_token_share": 0.47247182868944526,
+    "reported_content_changes": 346,
+    "formatting_only_changes": 254,
+    "reported_changes_preview": [
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "20"
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "36"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "view",
+        "new_text": "consideration"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "X",
+        "new_text": "C"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "68",
+        "new_text": "79"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "89",
+        "new_text": "91"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "i",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "and",
+        "new_text": "-"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "icle",
+        "new_text": "."
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "9",
+        "new_text": "11"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "replacement",
+        "old_text": "to",
+        "new_text": "on"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "p"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "utines",
+        "new_text": "cedures"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "84",
+        "new_text": "98"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "e",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "37",
+        "new_text": "46"
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "id",
+        "new_text": "auth"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "in keeping"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "46",
+        "new_text": "55"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "7",
+        "new_text": "9"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "77",
+        "new_text": "89"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "7",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "e data subject",
+        "new_text": "is person"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "M",
+        "new_text": "m"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "28,",
+        "new_text": "34,"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "26"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "8"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "39",
+        "new_text": "48"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "41",
+        "new_text": "50"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "45",
+        "new_text": "54"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "great",
+        "new_text": "large"
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "s",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "s",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "78",
+        "new_text": "92"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "32"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "X",
+        "new_text": "C"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "X",
+        "new_text": "C"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "bl",
+        "new_text": "red"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "ken",
+        "new_text": "t"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "13"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "on",
+        "new_text": "about"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "for example",
+        "new_text": "in particular"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "in",
+        "new_text": "under"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "4"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "Situation",
+        "new_text": "Variation"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "\"",
+        "new_text": "“"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "\"",
+        "new_text": "”"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "z",
+        "new_text": "s"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "id",
+        "new_text": "auth"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "fy",
+        "new_text": "cate"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "36",
+        "new_text": "45"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "2"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "’"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "5"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "34"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "44",
+        "new_text": "53"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ourt of",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ustice of the",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "uropean",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "nion",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "35"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "-",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "6"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "17",
+        "new_text": "24"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "51",
+        "new_text": "60"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "Situation",
+        "new_text": "Variation"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "with",
+        "new_text": "for"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "37",
+        "new_text": "46"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "s"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "X",
+        "new_text": "C"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "6"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "an",
+        "new_text": "ould,"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "52",
+        "new_text": "61"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "69",
+        "new_text": "80"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "57",
+        "new_text": "66"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "34"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "1",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "88",
+        "new_text": "102"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "39"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "9",
+        "new_text": "11"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "e"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "3"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "s’"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "28",
+        "new_text": "30"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "8"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "since",
+        "new_text": "as"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "6"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "s"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "i"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "z",
+        "new_text": "s"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "-",
+        "new_text": "–"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "-",
+        "new_text": "–"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "the",
+        "new_text": "a"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "ust",
+        "new_text": "ay"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "the",
+        "new_text": "a"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "follows",
+        "new_text": "detailed"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "8"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "including"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "83",
+        "new_text": "97"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "range",
+        "new_text": "set"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "4"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "72",
+        "new_text": "83"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "9"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "a",
+        "new_text": "A"
+      },
+      {
+        "kind": "replacement",
+        "old_text": ". I",
+        "new_text": ", i"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "43",
+        "new_text": "52"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "J",
+        "new_text": "j"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "9"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "bl",
+        "new_text": "red"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "ken",
+        "new_text": "t"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "4"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "8",
+        "new_text": "10"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "bl",
+        "new_text": "red"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "ken",
+        "new_text": "t"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "99",
+        "new_text": "100"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "38",
+        "new_text": "47"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "39",
+        "new_text": "48"
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "73",
+        "new_text": "84"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "74",
+        "new_text": "85"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "through",
+        "new_text": "by"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "25"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "54",
+        "new_text": "63"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "5"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "reminded",
+        "new_text": "noted"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "icle",
+        "new_text": "."
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "8"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "9"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "8",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "61",
+        "new_text": "70"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "ng",
+        "new_text": "on"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "to authenticate",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "replacement",
+        "old_text": "among",
+        "new_text": "with"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "custo"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "will",
+        "new_text": "er should"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "important",
+        "new_text": "considered"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "”",
+        "new_text": "“"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "87",
+        "new_text": "101"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "refer",
+        "new_text": "i"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "ing",
+        "new_text": "e"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "82",
+        "new_text": "96"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "18",
+        "new_text": "25"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "38",
+        "new_text": "40"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "35",
+        "new_text": "43"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "4"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "65",
+        "new_text": "76"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "42",
+        "new_text": ". 51"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ourt of",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ustice of the",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "uropean",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "nion, Joined",
+        "new_text": ", joined"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "93",
+        "new_text": "108"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "be",
+        "new_text": "could"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ed",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "one",
+        "new_text": "individuals"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "all",
+        "new_text": "ould"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "1"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "90"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "92",
+        "new_text": "107"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "8"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "4"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "."
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "8"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "40"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "replacement",
+        "old_text": "icle",
+        "new_text": "."
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "33",
+        "new_text": "41"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "1"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "its",
+        "new_text": "this"
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "16",
+        "new_text": "22"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "Article",
+        "new_text": "provision"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "-"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "3"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "44"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "19",
+        "new_text": "26"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "89",
+        "new_text": "90"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "one",
+        "new_text": "individuals"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "all",
+        "new_text": "ould"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "27"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "must",
+        "new_text": "should"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "63",
+        "new_text": "74"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "5"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "15"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "8"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "since",
+        "new_text": "because"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "53",
+        "new_text": "62"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "6"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "7",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "68",
+        "new_text": "70"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "46",
+        "new_text": "55"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "8",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "ng",
+        "new_text": "on"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "24"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "30"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "66",
+        "new_text": "77"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "70",
+        "new_text": "81"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "on",
+        "new_text": "regarding"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "d",
+        "new_text": "s"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "8"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "6"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "71",
+        "new_text": "82"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "53",
+        "new_text": "62"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "29",
+        "new_text": "(Recital 57 GDPR)35"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "4"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "3. Notwithstanding the form in which the controller provides the personal data, e.g. by providing the actual documents containing the personal data or a compilation of the personal data, the information shall comply with the transparency re"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "2 GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "43",
+        "new_text": "52"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "on",
+        "new_text": "about"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "90",
+        "new_text": "105"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "55",
+        "new_text": "64"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "recognisably waived this right",
+        "new_text": "choose not to"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "4"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "s",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "s",
+        "new_text": "nd"
+      },
+      {
+        "kind": "replacement",
+        "old_text": ". Several Member States have made use of this option91",
+        "new_text": "106"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "104"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "88",
+        "new_text": "90"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "a",
+        "new_text": "the"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "5"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "22"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "aimed at obtaining access under",
+        "new_text": "in the scope of"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "/or"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "8"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "35",
+        "new_text": "43"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "7",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "on",
+        "new_text": "to"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "5"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "5"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "45",
+        "new_text": "54"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "6"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "28"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "75",
+        "new_text": "86"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "23"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "1"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "6"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "44",
+        "new_text": "53"
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "79",
+        "new_text": "80"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "5"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "3"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "6"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "57",
+        "new_text": "66"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "s’"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "27",
+        "new_text": "33"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "12"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "76",
+        "new_text": "87"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "19",
+        "new_text": "26"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "7"
+      }
+    ],
+    "quality": {
+      "annotation": "partial",
+      "expected_changes": 4,
+      "reported_changes": 346,
+      "recall": 0.0,
+      "precision": null,
+      "kind_accuracy": null,
+      "reported_hunks_per_matched_change": null,
+      "review_hunks_per_expected_change": null,
+      "unmatched_tiny_changes": 238,
+      "unresolvable_reported_spans": 0
+    },
+    "quality_skipped_reason": null,
+    "resource_limit_failure": null,
+    "candidate_visits": 1434492,
+    "candidate_visits_required": 1434492,
+    "candidate_visits_required_exact": 507,
+    "candidate_visits_required_ngram": 1433569,
+    "candidate_visits_required_short_fallback": 416,
+    "max_candidate_visits": 64000000,
+    "candidate_visit_pressure": {
+      "estimated_visits_p50": 17452,
+      "estimated_visits_p95": 63139,
+      "estimated_visits_max": 90815,
+      "estimated_visits_upper_bound_total": 29389149,
+      "max_candidate_visits": 64000000,
+      "estimated_visits_upper_bound_exceeds_limit": false,
+      "ngram_posting_visits_total": 29783651,
+      "dominant_ngram_visits": 702842,
+      "dominant_ngram_df": 854,
+      "shared_ngram_count": 5168,
+      "top_10_ngram_visits": 4668843,
+      "ngrams_for_50_percent_visits": 61,
+      "ngrams_for_90_percent_visits": 344,
+      "shared_ngram_df_p50": 4,
+      "shared_ngram_df_p95": 140,
+      "shared_ngram_df_max": 854
+    },
+    "runtime_ms": 167275,
+    "limit_scale_used": 64.0,
+    "failure": null
+  }
+]

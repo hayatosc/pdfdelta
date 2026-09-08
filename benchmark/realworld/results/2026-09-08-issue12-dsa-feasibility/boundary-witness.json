@@ -1,0 +1,285 @@
+{
+  "old_length": 261,
+  "new_length": 150,
+  "gold_new_range": [
+    41,
+    148
+  ],
+  "lcs_length": 123,
+  "optimal_edit_cost": 165,
+  "lcs_when_gold_is_entirely_inserted": 43,
+  "edit_cost_when_gold_is_entirely_inserted": 325,
+  "distinct_optimal_insertion_boundaries": [
+    {
+      "old_range": [
+        40,
+        40
+      ],
+      "new_range": [
+        40,
+        50
+      ],
+      "inserted_text": " no longer",
+      "total_optimal_edit_cost": 165
+    },
+    {
+      "old_range": [
+        41,
+        41
+      ],
+      "new_range": [
+        41,
+        51
+      ],
+      "inserted_text": "no longer ",
+      "total_optimal_edit_cost": 165
+    }
+  ],
+  "premise": "The two complete DSA paragraphs have already been supplied as counterparts. This premise is not established by the ordinary pipeline.",
+  "introduction_counterfactual": {
+    "old_length": 1431,
+    "new_length": 2509,
+    "gold_range": [
+      1611,
+      1718
+    ],
+    "lcs_length": 1097,
+    "lcs_when_gold_is_entirely_inserted": 1097,
+    "optimal_edit_cost": 1746,
+    "edit_cost_when_gold_is_entirely_inserted": 1746,
+    "gold_scalars_with_equal_optimal_paths": [
+      {
+        "new_scalar": 1613,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1620,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1621,
+        "value": "s",
+        "old_scalars": [
+          1160
+        ]
+      },
+      {
+        "new_scalar": 1625,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1627,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1630,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1631,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1633,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1635,
+        "value": "h",
+        "old_scalars": [
+          1158
+        ]
+      },
+      {
+        "new_scalar": 1636,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1637,
+        "value": "s",
+        "old_scalars": [
+          1160
+        ]
+      },
+      {
+        "new_scalar": 1638,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1639,
+        "value": "s",
+        "old_scalars": [
+          1160
+        ]
+      },
+      {
+        "new_scalar": 1647,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1651,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1655,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1660,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1663,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1665,
+        "value": "s",
+        "old_scalars": [
+          1160
+        ]
+      },
+      {
+        "new_scalar": 1668,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1671,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1675,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1678,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1683,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1686,
+        "value": "s",
+        "old_scalars": [
+          1160
+        ]
+      },
+      {
+        "new_scalar": 1689,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1699,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1701,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1703,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1707,
+        "value": " ",
+        "old_scalars": [
+          1161
+        ]
+      },
+      {
+        "new_scalar": 1708,
+        "value": "s",
+        "old_scalars": [
+          1160
+        ]
+      },
+      {
+        "new_scalar": 1709,
+        "value": "i",
+        "old_scalars": [
+          1159
+        ]
+      },
+      {
+        "new_scalar": 1717,
+        "value": "s",
+        "old_scalars": [
+          1160
+        ]
+      }
+    ],
+    "gold_all_inserted_optimum_exists": true
+  }
+}

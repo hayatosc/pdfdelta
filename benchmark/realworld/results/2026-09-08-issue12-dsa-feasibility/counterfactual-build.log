@@ -1,0 +1,4 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/.herdr/worktrees/pdfdelta/worktree-green-forest-9bdb/crates/pdfdelta-core)
+   Compiling pdfdelta-bench v0.1.0 (/home/hayato/.herdr/worktrees/pdfdelta/worktree-green-forest-9bdb/crates/pdfdelta-bench)
+    Finished `release` profile [optimized] target(s) in 23.90s
+     Running `target/release/examples/assumed_passage_probe /tmp/pdfdelta-dsa-old-paragraph.txt /tmp/pdfdelta-dsa-new-paragraph.txt`

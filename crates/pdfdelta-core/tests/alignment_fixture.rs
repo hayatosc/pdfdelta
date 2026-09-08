@@ -16,7 +16,7 @@ use pdfdelta_core::{
         BlockText, ComparableToken, MappedText, NormalizationIssue, NormalizationIssueKind,
         ScalarRange, TextSource, UnmappedToken,
     },
-    report::{ExitStatus, ExtractionStatus, exit_status, summarize},
+    report::{DifferenceStatus, ExtractionStatus, summarize},
 };
 
 const OPENING: &str = "Opening anchor paragraph";
@@ -758,27 +758,35 @@ fn unsupported_masked_match_does_not_collapse_adjacent_certain_deletion_or_exact
     assert_eq!(alignment.spans[2].old, [BlockId(3)]);
     assert_eq!(alignment.spans[2].new, [BlockId(103)]);
 
-    // Downstream compare_aligned must detect the known content change (Deletion)
+    // Exact assessment can resolve a gap that the masked aligner left open.
     let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
         .expect("comparison should succeed");
 
-    assert_eq!(comparison.changes.len(), 1);
+    assert!(comparison.change_candidates.is_empty());
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.changes.len(), 2);
     assert_eq!(comparison.changes[0].kind, ChangeKind::Deletion);
-    assert_eq!(comparison.unresolved_regions.len(), 1);
-    assert!(
-        comparison
-            .old_coverage
-            .ratio
-            .expect("old coverage ratio should exist")
-            < 1.0
+    let deletion = &comparison.changes[0].occurrences[0];
+    assert!(deletion.new_span.is_none());
+    let deleted = deletion.old_span.as_ref().expect("deleted header");
+    assert_eq!(deleted.blocks, [BlockId(1), BlockId(2)]);
+    assert_eq!(deleted.canonical_range, ScalarRange { start: 0, end: 23 });
+    assert_eq!(comparison.changes[1].kind, ChangeKind::Replacement);
+    let replacement = &comparison.changes[1].occurrences[0];
+    let old_number = replacement.old_span.as_ref().expect("old digit");
+    let new_number = replacement.new_span.as_ref().expect("new digit");
+    assert_eq!(old_number.blocks, [BlockId(1), BlockId(2)]);
+    assert_eq!(
+        old_number.canonical_range,
+        ScalarRange { start: 44, end: 45 }
     );
-    assert!(
-        comparison
-            .new_coverage
-            .ratio
-            .expect("new coverage ratio should exist")
-            < 1.0
+    assert_eq!(new_number.blocks, [BlockId(102)]);
+    assert_eq!(
+        new_number.canonical_range,
+        ScalarRange { start: 21, end: 22 }
     );
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
 }
 
 #[test]
@@ -820,23 +828,31 @@ fn unsupported_masked_match_does_not_collapse_adjacent_exact_match_or_certain_in
     let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
         .expect("comparison should succeed");
 
-    assert_eq!(comparison.changes.len(), 1);
-    assert_eq!(comparison.changes[0].kind, ChangeKind::Insertion);
-    assert_eq!(comparison.unresolved_regions.len(), 1);
-    assert!(
-        comparison
-            .old_coverage
-            .ratio
-            .expect("old coverage ratio should exist")
-            < 1.0
+    assert!(comparison.change_candidates.is_empty());
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.changes.len(), 2, "{comparison:#?}");
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    let replacement = &comparison.changes[0].occurrences[0];
+    let old_number = replacement.old_span.as_ref().expect("old digit");
+    let new_number = replacement.new_span.as_ref().expect("new digit");
+    assert_eq!(old_number.blocks, [BlockId(2)]);
+    assert_eq!(
+        old_number.canonical_range,
+        ScalarRange { start: 21, end: 22 }
     );
-    assert!(
-        comparison
-            .new_coverage
-            .ratio
-            .expect("new coverage ratio should exist")
-            < 1.0
+    assert_eq!(new_number.blocks, [BlockId(102), BlockId(103)]);
+    assert_eq!(
+        new_number.canonical_range,
+        ScalarRange { start: 21, end: 22 }
     );
+    assert_eq!(comparison.changes[1].kind, ChangeKind::Insertion);
+    let insertion = &comparison.changes[1].occurrences[0];
+    assert!(insertion.old_span.is_none());
+    let inserted = insertion.new_span.as_ref().expect("inserted header");
+    assert_eq!(inserted.blocks, [BlockId(102), BlockId(103)]);
+    assert_eq!(inserted.canonical_range, ScalarRange { start: 30, end: 54 });
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
 }
 
 #[test]
@@ -1009,15 +1025,18 @@ fn keeps_short_structural_label_stable_when_adjacent_url_moves() {
 
     let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
         .expect("crossed URL should compare");
+    assert!(comparison.changes.is_empty());
+    assert_eq!(comparison.change_candidates.len(), 1);
     assert_eq!(
-        comparison
-            .changes
-            .iter()
-            .map(|change| change.kind)
-            .collect::<Vec<_>>(),
-        [ChangeKind::Move]
+        comparison.change_candidates[0].change.kind,
+        ChangeKind::Move
     );
-    assert!(comparison.unresolved_regions.is_empty());
+    assert!(!comparison.unresolved_regions.is_empty());
+    assert!(
+        !summarize(&comparison, &ExtractionStatus::complete())
+            .expect("crossed URL summary should validate")
+            .comparison_complete
+    );
 }
 
 #[test]
@@ -1182,25 +1201,54 @@ fn preserves_crossed_move_candidates_beside_normalization_issues() {
             .iter()
             .filter(|change| change.kind == ChangeKind::Move)
             .count(),
-        2
+        1
     );
-    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert_eq!(comparison.change_candidates.len(), 1);
     assert_eq!(
-        comparison.unresolved_regions[0]
+        comparison.change_candidates[0].change.kind,
+        ChangeKind::Move
+    );
+    assert_eq!(
+        comparison.change_candidates[0].change.occurrences[0]
             .old_span
             .as_ref()
-            .expect("old uncertain span should remain")
+            .expect("crossed move candidate should retain its old span")
             .blocks,
-        [BlockId(3)]
+        [BlockId(2)]
     );
     assert_eq!(
-        comparison.unresolved_regions[0]
+        comparison.change_candidates[0].change.occurrences[0]
             .new_span
             .as_ref()
-            .expect("new uncertain span should remain")
+            .expect("crossed move candidate should retain its new span")
             .blocks,
-        [BlockId(103)]
+        [BlockId(102)]
     );
+    assert_eq!(comparison.unresolved_regions.len(), 3);
+    assert!(comparison.unresolved_regions.iter().any(|region| {
+        region
+            .old_span
+            .as_ref()
+            .is_some_and(|span| span.blocks == [BlockId(3)])
+            && region
+                .new_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(103)])
+    }));
+    assert!(comparison.unresolved_regions.iter().any(|region| {
+        region
+            .old_span
+            .as_ref()
+            .is_some_and(|span| span.blocks == [BlockId(2)])
+            && region.new_span.is_none()
+    }));
+    assert!(comparison.unresolved_regions.iter().any(|region| {
+        region.old_span.is_none()
+            && region
+                .new_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(102)])
+    }));
 }
 
 #[test]
@@ -1254,8 +1302,20 @@ fn recovers_a_secondary_anchor_between_preserved_move_candidates() {
             .count(),
         2
     );
+    assert_eq!(comparison.change_candidates.len(), 2);
+    assert_eq!(comparison.unresolved_regions.len(), 3);
+    assert!(comparison.unresolved_regions.iter().any(|region| {
+        region
+            .old_span
+            .as_ref()
+            .is_some_and(|span| span.blocks == [BlockId(4)])
+            && region
+                .new_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(104)])
+    }));
     assert!(
-        summarize(&comparison, &ExtractionStatus::complete())
+        !summarize(&comparison, &ExtractionStatus::complete())
             .expect("secondary-anchor summary should validate")
             .comparison_complete
     );
@@ -1722,13 +1782,30 @@ fn bounds_aggregate_dp_cells_across_anchor_intervals() {
 
     let mut over_limit = at_limit;
     over_limit.max_dp_cells = 7;
-    assert!(matches!(
-        align_ordered(&old, &new, &generator, over_limit),
-        Err(Error::LimitExceeded {
-            resource: "alignment DP cells",
-            limit: 7,
-        })
-    ));
+    let alignment = align_ordered(&old, &new, &generator, over_limit)
+        .expect("DP exhaustion should preserve completed anchors and report a local gap");
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Unresolved
+            && span.old == [BlockId(4)]
+            && span.new == [BlockId(104)]
+            && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+    }));
+    for anchor in [
+        ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        },
+        ExactAnchor {
+            old: BlockId(3),
+            new: BlockId(103),
+        },
+        ExactAnchor {
+            old: BlockId(5),
+            new: BlockId(105),
+        },
+    ] {
+        assert!(alignment.main_anchors.contains(&anchor));
+    }
 
     let mut zero_limit = at_limit;
     zero_limit.max_dp_cells = 0;
@@ -1753,13 +1830,12 @@ fn charges_partition_fallback_against_the_same_dp_cell_budget() {
 
     let mut over_limit = at_limit;
     over_limit.max_dp_cells = 12;
-    assert!(matches!(
-        align_ordered(&old, &new, &EmptyGenerator, over_limit),
-        Err(Error::LimitExceeded {
-            resource: "alignment DP cells",
-            limit: 12,
-        })
-    ));
+    let alignment = align_ordered(&old, &new, &EmptyGenerator, over_limit)
+        .expect("fallback exhaustion should preserve the initial alignment result");
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Unresolved
+            && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+    }));
 }
 
 #[test]
@@ -1785,27 +1861,25 @@ fn bounds_aggregate_candidate_visits_before_generation() {
 
     let mut over_limit = at_limit;
     over_limit.max_candidate_visits = 29;
-    assert!(matches!(
-        align_ordered(&old, &new, &generator, over_limit),
-        Err(Error::LimitExceeded {
-            resource: "alignment candidate visits",
-            limit: 29,
-        })
-    ));
+    let alignment = align_ordered(&old, &new, &generator, over_limit)
+        .expect("candidate exhaustion should preserve a local unresolved span");
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Unresolved
+            && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+    }));
 
     let tracking = TrackingGenerator {
         visits: 15,
         estimated: RefCell::new(Vec::new()),
         generated: RefCell::new(Vec::new()),
     };
-    assert!(matches!(
-        align_ordered(&old, &new, &tracking, over_limit),
-        Err(Error::LimitExceeded {
-            resource: "alignment candidate visits",
-            limit: 29,
-        })
-    ));
-    assert!(tracking.generated.borrow().is_empty());
+    let alignment = align_ordered(&old, &new, &tracking, over_limit)
+        .expect("candidate exhaustion should preserve a local unresolved span");
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Unresolved
+            && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+    }));
+    assert_eq!(*tracking.generated.borrow(), [BlockId(1)]);
 
     let mut zero_limit = at_limit;
     zero_limit.max_candidate_visits = 0;
@@ -1937,15 +2011,16 @@ fn preflights_remaining_candidate_visits_atomically_at_the_boundary() {
     let mut options = options();
     options.max_candidate_visits = 11;
 
-    assert!(matches!(
-        align_ordered(&old, &new, &over_limit, options),
-        Err(Error::LimitExceeded {
-            resource: "alignment candidate visits",
-            limit: 11,
-        })
-    ));
+    let alignment = align_ordered(&old, &new, &over_limit, options)
+        .expect("candidate cutoff should preserve earlier aligned intervals");
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Unresolved
+            && span.old == [BlockId(4)]
+            && span.new == [BlockId(104)]
+            && span.evidence.contains(&AlignmentEvidence::SearchIncomplete)
+    }));
     assert_eq!(*over_limit.estimated.borrow(), [BlockId(2), BlockId(4)]);
-    assert!(over_limit.generated.borrow().is_empty());
+    assert_eq!(*over_limit.generated.borrow(), [BlockId(2)]);
 
     let at_limit = TrackingGenerator::new(6);
     options.max_candidate_visits = 12;
@@ -2102,20 +2177,22 @@ fn an_irs_style_layout_shift_degrades_to_unresolved_instead_of_change_soup() {
     assert_eq!(result.old_coverage.resolved_tokens, anchor_tokens);
     assert_eq!(result.new_coverage.resolved_tokens, anchor_tokens);
 
-    // With the plausibility gate disabled the same span shreds into
-    // fragmented low-confidence changes instead of one unresolved region.
+    // Disabling the plausibility gate does not establish a correspondence
+    // whose edit locations remain ambiguous.
     let gate_disabled_options = DiffOptions {
         max_weak_match_change_ratio: 1.0,
         ..DiffOptions::default()
     };
     let ungated = compare_aligned(&old_blocks, &new_blocks, &alignment, gate_disabled_options)
         .expect("the gated-off comparison should succeed");
-    assert!(ungated.changes.len() >= 2);
+    assert!(ungated.changes.is_empty());
+    assert_eq!(ungated.unresolved_regions.len(), 1);
+    assert!(ungated.change_candidates.len() >= 2);
     assert!(
         ungated
-            .changes
+            .change_candidates
             .iter()
-            .all(|change| change.confidence == Confidence::Low)
+            .all(|candidate| candidate.change.confidence == Confidence::Low)
     );
 }
 
@@ -2939,10 +3016,25 @@ fn degraded_masked_split_and_merge_compare_successfully_without_separator_error(
         &alignment_split,
         DiffOptions::default(),
     )
-    .expect("diff comparison on degraded split must succeed with Unresolved outcome");
+    .expect("exact assessment recovers the degraded split");
 
-    assert_eq!(diff_split.unresolved_regions.len(), 1);
-    assert!(diff_split.changes.is_empty());
+    assert!(diff_split.unresolved_regions.is_empty());
+    assert!(diff_split.change_candidates.is_empty());
+    assert_eq!(diff_split.changes.len(), 1);
+    assert_eq!(diff_split.changes[0].kind, ChangeKind::Replacement);
+    let replacement = &diff_split.changes[0].occurrences[0];
+    let old_digit = replacement.old_span.as_ref().expect("old digit");
+    let new_digit = replacement.new_span.as_ref().expect("new digit");
+    assert_eq!(old_digit.blocks, [BlockId(1)]);
+    assert_eq!(
+        old_digit.canonical_range,
+        ScalarRange { start: 19, end: 20 }
+    );
+    assert_eq!(new_digit.blocks, [BlockId(101), BlockId(102)]);
+    assert_eq!(
+        new_digit.canonical_range,
+        ScalarRange { start: 19, end: 20 }
+    );
     assert_eq!(diff_split.old_coverage.total_tokens, old1_tokens);
     assert_eq!(
         diff_split.new_coverage.total_tokens,
@@ -2979,7 +3071,7 @@ fn degraded_masked_split_and_merge_compare_successfully_without_separator_error(
     )
     .expect("diff comparison on degraded merge must succeed with Unresolved outcome");
 
-    assert_eq!(diff_merge.unresolved_regions.len(), 1);
+    assert_eq!(diff_merge.unresolved_regions.len(), 1, "{diff_merge:#?}");
     assert!(diff_merge.changes.is_empty());
     assert_eq!(
         diff_merge.old_coverage.total_tokens,
@@ -3601,9 +3693,8 @@ fn real_dp_competing_margin_calibrates_deletion_to_low_confidence() -> Result<()
     // - In an anchor-bounded interval, non-tie ambiguity (m > SCORE_TOLERANCE) does not collapse the
     //   entire interval into Unresolved; instead, DP selects the optimal path and calibrates the
     //   ambiguous Deletion of Block 3 to Low confidence.
-    // - Downstream diff produces a classified ChangeKind::Deletion with Confidence::Low, resolving
-    //   all tokens (coverage 1.0) and transitioning strict-mode exit status from incomplete (3) to
-    //   content changes (1).
+    // - Downstream assessment retains the contested deletion as a low-confidence candidate and
+    //   keeps its unresolved interval outside resolved coverage.
     let prefix_a = "Sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
     let prefix_c = "Hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten";
 
@@ -3673,37 +3764,41 @@ fn real_dp_competing_margin_calibrates_deletion_to_low_confidence() -> Result<()
     assert_eq!(alignment.spans[4].kind, AlignmentKind::Match);
     assert_eq!(alignment.spans[4].confidence, AlignmentConfidence::High);
 
-    // Downstream exact diff verification:
+    // Downstream assessment keeps the ambiguous edit locations tentative.
     let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
-    assert_eq!(diff.unresolved_regions.len(), 0);
-    assert_eq!(diff.old_coverage.ratio, Some(1.0));
-    assert_eq!(diff.new_coverage.ratio, Some(1.0));
+    assert!(diff.changes.is_empty());
+    assert_eq!(diff.change_candidates.len(), 3);
+    assert_eq!(diff.unresolved_regions.len(), 3);
+    assert!(diff.old_coverage.ratio.expect("old coverage should exist") < 1.0);
+    assert!(diff.new_coverage.ratio.expect("new coverage should exist") < 1.0);
 
-    let del_change = diff
-        .changes
+    let del_candidate = diff
+        .change_candidates
         .iter()
-        .find(|c| c.kind == ChangeKind::Deletion)
-        .expect("deletion change must be present");
-    assert_eq!(del_change.confidence, Confidence::Low);
+        .find(|candidate| candidate.change.kind == ChangeKind::Deletion)
+        .expect("deletion candidate must be present");
+    assert_eq!(del_candidate.change.confidence, Confidence::Low);
     assert_eq!(
-        del_change.occurrences[0]
+        del_candidate.change.occurrences[0]
             .old_span
             .as_ref()
-            .expect("old span present")
+            .expect("deletion candidate should retain its old span")
             .blocks,
         [BlockId(3)]
     );
 
-    // User-visible contract: non-tie bounded ambiguity resolves all tokens into classified changes,
-    // producing uncertain changes rather than unresolved regions, and yielding strict exit code 1.
+    // User-visible contract: the proven changed region is detected while the
+    // candidate and unresolved spans keep the comparison incomplete.
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
-    assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 2);
-    assert_eq!(diff.changes.len(), 3);
-    assert!(summary.comparison_complete);
+    assert_eq!(summary.proven_changed_regions, 1);
+    assert_eq!(summary.unresolved_regions, 3);
+    assert_eq!(summary.tentative_candidates, 3);
+    assert_eq!(summary.uncertain_changes, 0);
+    assert!(diff.changes.is_empty());
+    assert!(!summary.comparison_complete);
     assert_eq!(
-        exit_status(&diff, &ExtractionStatus::complete(), true)?,
-        ExitStatus::ContentChanges
+        summarize(&diff, &ExtractionStatus::complete())?.difference_status,
+        DifferenceStatus::Detected
     );
 
     Ok(())
@@ -3717,8 +3812,8 @@ fn real_dp_competing_margin_calibrates_insertion_to_low_confidence() -> Result<(
     // - At intermediate cell (1, 2), Path A (Match 2->102, then Insertion 103) wins over
     //   Path B (Insertion 102, then Match 2->103) by a thin runner-up margin m < min_score_margin (0.08).
     // - Transition::Insertion of Block 103 records score_margin = Some(m) and calibrates to Low confidence.
-    // - Downstream diff produces a classified ChangeKind::Insertion with Confidence::Low, resolving
-    //   all tokens (coverage 1.0) and transitioning strict-mode exit status to ContentChanges (1).
+    // - Downstream assessment retains the contested insertion as a low-confidence candidate and
+    //   keeps its unresolved interval outside resolved coverage.
     let prefix_a = "Sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
     let prefix_c = "Hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten";
 
@@ -3788,35 +3883,39 @@ fn real_dp_competing_margin_calibrates_insertion_to_low_confidence() -> Result<(
     assert_eq!(alignment.spans[4].kind, AlignmentKind::Match);
     assert_eq!(alignment.spans[4].confidence, AlignmentConfidence::High);
 
-    // Downstream exact diff verification:
+    // Downstream assessment keeps the ambiguous edit locations tentative.
     let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
-    assert_eq!(diff.unresolved_regions.len(), 0);
-    assert_eq!(diff.old_coverage.ratio, Some(1.0));
-    assert_eq!(diff.new_coverage.ratio, Some(1.0));
+    assert!(diff.changes.is_empty());
+    assert_eq!(diff.change_candidates.len(), 3);
+    assert_eq!(diff.unresolved_regions.len(), 3);
+    assert!(diff.old_coverage.ratio.expect("old coverage should exist") < 1.0);
+    assert!(diff.new_coverage.ratio.expect("new coverage should exist") < 1.0);
 
-    let ins_change = diff
-        .changes
+    let ins_candidate = diff
+        .change_candidates
         .iter()
-        .find(|c| c.kind == ChangeKind::Insertion)
-        .expect("insertion change must be present");
-    assert_eq!(ins_change.confidence, Confidence::Low);
+        .find(|candidate| candidate.change.kind == ChangeKind::Insertion)
+        .expect("insertion candidate must be present");
+    assert_eq!(ins_candidate.change.confidence, Confidence::Low);
     assert_eq!(
-        ins_change.occurrences[0]
+        ins_candidate.change.occurrences[0]
             .new_span
             .as_ref()
-            .expect("new span present")
+            .expect("insertion candidate should retain its new span")
             .blocks,
         [BlockId(103)]
     );
 
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
-    assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 2);
-    assert_eq!(diff.changes.len(), 3);
-    assert!(summary.comparison_complete);
+    assert_eq!(summary.proven_changed_regions, 1);
+    assert_eq!(summary.unresolved_regions, 3);
+    assert_eq!(summary.tentative_candidates, 3);
+    assert_eq!(summary.uncertain_changes, 0);
+    assert!(diff.changes.is_empty());
+    assert!(!summary.comparison_complete);
     assert_eq!(
-        exit_status(&diff, &ExtractionStatus::complete(), true)?,
-        ExitStatus::ContentChanges
+        summarize(&diff, &ExtractionStatus::complete())?.difference_status,
+        DifferenceStatus::Detected
     );
 
     Ok(())
@@ -3833,9 +3932,10 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
     // Verified behavior:
     // - Direct DP backtracking inside the anchor interval preserves the exact secondary correspondence (block 4 -> 103)
     //   with High confidence (exact canonical content identity policy).
-    // - The non-tie deletion uncertainty is correctly localized to block 3 (Low confidence), without collapsing the interval.
-    // - Downstream exact diff produces zero changes on the exact secondary anchor, reports coverage 1.0, and marks
-    //   comparison_complete with exit status ContentChanges (1).
+    // - The non-tie deletion uncertainty is localized to block 3 as a low-confidence candidate,
+    //   without collapsing the interval.
+    // - Downstream exact diff produces no changes on the exact secondary anchor, while retaining
+    //   the unresolved candidate region separately from one established trailing change.
     let prefix_a = "Sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
     let secondary_anchor = "Unique short secondary anchor";
     let prefix_c = "Hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu zero one two three four five six seven eight nine ten";
@@ -3916,23 +4016,25 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
     assert_eq!(alignment.spans[5].kind, AlignmentKind::Match);
     assert_eq!(alignment.spans[5].confidence, AlignmentConfidence::High);
 
-    // Downstream exact diff verification:
+    // Downstream assessment keeps the contested deletion tentative.
     let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
-    assert_eq!(diff.unresolved_regions.len(), 0);
-    assert_eq!(diff.old_coverage.ratio, Some(1.0));
-    assert_eq!(diff.new_coverage.ratio, Some(1.0));
+    assert_eq!(diff.changes.len(), 1);
+    assert_eq!(diff.change_candidates.len(), 2);
+    assert_eq!(diff.unresolved_regions.len(), 2);
+    assert!(diff.old_coverage.ratio.expect("old coverage should exist") < 1.0);
+    assert!(diff.new_coverage.ratio.expect("new coverage should exist") < 1.0);
 
     let deletion = diff
-        .changes
+        .change_candidates
         .iter()
-        .find(|change| change.kind == ChangeKind::Deletion)
-        .expect("contested deletion must be reported");
-    assert_eq!(deletion.confidence, Confidence::Low);
+        .find(|candidate| candidate.change.kind == ChangeKind::Deletion)
+        .expect("contested deletion candidate must be reported");
+    assert_eq!(deletion.change.confidence, Confidence::Low);
     assert_eq!(
-        deletion.occurrences[0]
+        deletion.change.occurrences[0]
             .old_span
             .as_ref()
-            .expect("deletion must have an old span")
+            .expect("deletion candidate must have an old span")
             .blocks,
         [BlockId(3)]
     );
@@ -3954,13 +4056,15 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
     }
 
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
-    assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 1);
-    assert_eq!(diff.changes.len(), 3);
-    assert!(summary.comparison_complete);
+    assert_eq!(summary.proven_changed_regions, 1);
+    assert_eq!(summary.unresolved_regions, 2);
+    assert_eq!(summary.tentative_candidates, 2);
+    assert_eq!(summary.uncertain_changes, 0);
+    assert_eq!(diff.changes.len(), 1);
+    assert!(!summary.comparison_complete);
     assert_eq!(
-        exit_status(&diff, &ExtractionStatus::complete(), true)?,
-        ExitStatus::ContentChanges
+        summarize(&diff, &ExtractionStatus::complete())?.difference_status,
+        DifferenceStatus::Detected
     );
 
     Ok(())

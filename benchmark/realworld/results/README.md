@@ -2,7 +2,50 @@
 
 This directory contains immutable, dated, machine-readable summaries for the real-world revision benchmark. Each capture records the engine and corpus state at that date; later captures never overwrite historical metrics.
 
-## Latest Capture
+## Current implementation evaluation
+
+The [2026-09-08 scope-projection follow-up](2026-09-08-issue12-local-comparison/scope-projection-followup.md)
+repairs SP800's event-scope evaluation. All 25 focused expectations are now
+measurable: one matches, with two scoped false-positive tokens. The emitted
+changes and token metrics are identical to the preceding capture; this is
+repaired measurement, not new content recovery. Formatting, clippy, and
+2,067 workspace tests pass. The original CSF/FIPS misses remain, the detailed
+SP800 assessment scan reaches its limit. Remaining recovery, false-positive,
+and acceptance-contract work is tracked in [Issue #20](https://github.com/hayatosc/pdfdelta/issues/20).
+
+The subsequent [DSA feasibility probe](2026-09-08-issue12-dsa-feasibility/README.md)
+changes no engine behavior. Even externally supplied introduction boundaries
+leave competing optimal edit scripts, including non-whitespace alternatives.
+The probe therefore does not establish that correspondence recovery alone
+can resolve the missed insertion.
+
+## Preceding local-comparison execution
+
+The [2026-09-08 local-comparison execution](2026-09-08-issue12-local-comparison/execution-report.md)
+adds interval correspondence, shared one-sided localization, source-backed
+regressions, and final-assessment diagnostics. The five-pair focused gate
+fails: four pairs match 0/17 fixed expectations, SP800 event quality is
+unavailable because scope coordinates are indeterminate, and its scoped
+token metric has two false positives. Resolved coverage improves on both
+sides of every pair; all 2,065 workspace tests pass and the strict generated
+matrix remains 42/48. The earlier failed SP800 validation capture is
+retained separately from the corrected run. Issue #12 remains open; no
+broader-corpus or blind-generalization gain is claimed for this increment.
+
+## Preceding common-assessment evaluation
+
+The [2026-09-08 common-assessment evaluation](2026-09-08-3bebfeb-evaluation.md)
+records the uncommitted assessment and structural-recovery implementation,
+including source identities, failed attempts, and per-pair regressions.
+It does not establish release readiness: six existing generated exact
+expectations produced candidates. Budget-related coverage
+regressions found in the first full comparison were corrected; the final
+29-pair check preserves accepted counts and resolved coverage for every pair
+relative to common assessment alone. It still matches 0/40 listed exact
+changes. Checks on this exposed corpus are regression measurements, not a
+fresh blind holdout.
+
+## Latest preceding capture
 
 - **Capture date**: 2026-09-05
 - **Generator / engine commit**: [`7727975`](https://github.com/hayatosc/pdfdelta/commit/7727975)
@@ -59,6 +102,15 @@ mise run bench-revisions-exact-parity -- \
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
+
+`benchmark/realworld/capture-summary.sh` writes `.raw.json`, `.evaluation.json`,
+`.metadata.json`, and `.source-manifest.tsv` sidecars beside the summary. The
+metadata has an empty `baselines` array by default: the reusable capture helper
+does not embed paths or hashes from a particular historical run. A comparison
+against a baseline must record that baseline separately after verifying its
+executable, source snapshot, options, and hashes. Captures made from a dirty
+working tree identify `source_revision` with a `-dirty` suffix, set
+`source_dirty` to `true`, and record the source manifest hash and sidecar path.
 
 When a capture only adds sentence-recovery diagnostics, compare it with the
 preceding schema through the bounded parity task instead of maintaining an

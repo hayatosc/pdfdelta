@@ -26,8 +26,9 @@ use pdfdelta_bench::{
     renderers::{RenderLimits, RendererKind},
     revisions::{
         PairSet, normalize_output_destination, publish_new_file, run_revision_benchmark,
-        summarize_reports, write_reports_json, write_summary_json,
+        summarize_reports, write_evaluation_summary_json, write_reports_json, write_summary_json,
     },
+    sensitivity::{run_builtin_sensitivity, serialize_report},
 };
 use pdfdelta_core::{diff::ChangeKind, pdf::ParseLimits};
 
@@ -132,6 +133,12 @@ enum Command {
         #[arg(long, value_enum)]
         generator: CandidateProfileGeneratorChoice,
     },
+    /// Run the development sensitivity matrix around the fixed pipeline defaults.
+    Sensitivity {
+        /// Write the full matrix to a new JSON file.
+        #[arg(long)]
+        json_output: Option<PathBuf>,
+    },
     /// Evaluate the non-vendored real-world revision-pair benchmark corpus.
     Revisions {
         /// Manifest describing the public revision pairs.
@@ -162,6 +169,9 @@ enum Command {
         /// Write a compact machine-readable summary report of every pair to a new JSON file.
         #[arg(long)]
         summary_json_output: Option<PathBuf>,
+        /// Write the provenance-aware quality and operational evaluation to a new JSON file.
+        #[arg(long)]
+        evaluation_json_output: Option<PathBuf>,
     },
 }
 
@@ -494,6 +504,9 @@ fn main() -> ExitCode {
             Ok(top_k) => candidate_profile_worker(&mut stdout, blocks, &top_k, generator.kind()),
             Err(error) => Err(error),
         },
+        Some(Command::Sensitivity { json_output }) => {
+            sensitivity(&mut stdout, json_output.as_deref())
+        }
         Some(Command::Revisions {
             manifest,
             cache_dir,
@@ -503,6 +516,7 @@ fn main() -> ExitCode {
             checksums_only,
             json_output,
             summary_json_output,
+            evaluation_json_output,
         }) => revisions(
             &mut stdout,
             &manifest,
@@ -513,6 +527,7 @@ fn main() -> ExitCode {
             checksums_only,
             json_output.as_deref(),
             summary_json_output.as_deref(),
+            evaluation_json_output.as_deref(),
         ),
     };
     match result {
@@ -736,6 +751,9 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
     let mut passed = 0_usize;
     let mut execution_error = false;
     let mut precision_records = Vec::with_capacity(total);
+    let mut candidate_policy_accepted = 0_usize;
+    let mut candidate_policy_total = 0_usize;
+    let mut strict_author_intent_accepted = 0_usize;
 
     for case in &cases {
         for renderer in RendererKind::all() {
@@ -743,6 +761,14 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
                 Ok(record) => {
                     if record.passed {
                         passed += 1;
+                    }
+                    if case.plan().expectation().is_candidate_policy() {
+                        candidate_policy_total += 1;
+                        if record.passed {
+                            candidate_policy_accepted += 1;
+                        }
+                    } else if record.passed {
+                        strict_author_intent_accepted += 1;
                     }
                     precision_records.push(record.precision);
                     write_record(writer, &record)?;
@@ -762,6 +788,16 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
             }
         }
     }
+    writeln!(
+        writer,
+        "strict author-intent accepted={strict_author_intent_accepted}/{total} renderer cells"
+    )
+    .map_err(|error| format!("cannot write strict acceptance summary: {error}"))?;
+    writeln!(
+        writer,
+        "candidate policy accepted={candidate_policy_accepted}/{candidate_policy_total} renderer cells"
+    )
+    .map_err(|error| format!("cannot write candidate policy summary: {error}"))?;
     write_generated_precision_summary(writer, &precision_records, total)?;
     writeln!(writer, "{passed}/{total} passed")
         .map_err(|error| format!("cannot write benchmark summary: {error}"))?;
@@ -975,6 +1011,41 @@ fn candidate_profile<W: Write>(
     Ok(if healthy == records.len() { 0 } else { 1 })
 }
 
+fn sensitivity<W: Write>(writer: &mut W, json_output: Option<&Path>) -> Result<u8, String> {
+    let report = run_builtin_sensitivity().map_err(|error| error.to_string())?;
+    let failed = report
+        .records
+        .iter()
+        .filter(|record| !record.passed)
+        .count();
+    if let Some(path) = json_output {
+        let bytes = serialize_report(&report).map_err(|error| error.to_string())?;
+        publish_new_file(path, &bytes).map_err(|error| error.to_string())?;
+        writeln!(
+            writer,
+            "sensitivity scenarios={} records={} failed={} output={}",
+            report.scenarios.len(),
+            report.records.len(),
+            failed,
+            path.display()
+        )
+        .map_err(|error| format!("cannot write sensitivity summary: {error}"))?;
+    } else {
+        writeln!(
+            writer,
+            "sensitivity scenarios={} records={} failed={}",
+            report.scenarios.len(),
+            report.records.len(),
+            failed
+        )
+        .map_err(|error| format!("cannot write sensitivity summary: {error}"))?;
+    }
+    writer
+        .flush()
+        .map_err(|error| format!("cannot flush sensitivity output: {error}"))?;
+    Ok(u8::from(failed > 0))
+}
+
 fn candidate_profile_worker<W: Write>(
     writer: &mut W,
     blocks: usize,
@@ -1137,6 +1208,7 @@ fn revisions<W: Write>(
     checksums_only: bool,
     json_output: Option<&Path>,
     summary_json_output: Option<&Path>,
+    evaluation_json_output: Option<&Path>,
 ) -> Result<u8, String> {
     if let (Some(full_path), Some(summary_path)) = (json_output, summary_json_output) {
         let norm_full = normalize_output_destination(full_path).map_err(|e| e.to_string())?;
@@ -1146,6 +1218,31 @@ fn revisions<W: Write>(
                 "--json-output and --summary-json-output must specify distinct paths; got conflicting destination {}",
                 full_path.display()
             ));
+        }
+    }
+    for (left_name, left, right_name, right) in [
+        (
+            "--json-output",
+            json_output,
+            "--evaluation-json-output",
+            evaluation_json_output,
+        ),
+        (
+            "--summary-json-output",
+            summary_json_output,
+            "--evaluation-json-output",
+            evaluation_json_output,
+        ),
+    ] {
+        if let (Some(left), Some(right)) = (left, right) {
+            let norm_left = normalize_output_destination(left).map_err(|e| e.to_string())?;
+            let norm_right = normalize_output_destination(right).map_err(|e| e.to_string())?;
+            if norm_left == norm_right {
+                return Err(format!(
+                    "{left_name} and {right_name} must specify distinct paths; got conflicting destination {}",
+                    left.display()
+                ));
+            }
         }
     }
     let set_filter = match set {
@@ -1184,6 +1281,10 @@ fn revisions<W: Write>(
 
     if let Some(path) = summary_json_output {
         write_summary_json(path, &reports).map_err(|error| error.to_string())?;
+    }
+
+    if let Some(path) = evaluation_json_output {
+        write_evaluation_summary_json(path, &reports).map_err(|error| error.to_string())?;
     }
 
     Ok(if reports.iter().any(|record| !record.healthy()) {
@@ -1329,13 +1430,15 @@ fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(
     );
     writeln!(
         writer,
-        "{status} case={} renderer={} expected={} actual={} coverage={}/{} precision=events:{}/{}/{}:{:.3}/{:.3}/{:.3},tokens:{} detail={}",
+        "{status} case={} renderer={} expected={} actual={} coverage={}/{} candidates={} proven={} precision=events:{}/{}/{}:{:.3}/{:.3}/{:.3},tokens:{} detail={}",
         record.case_name,
         record.renderer,
         record.expected.label(),
         actual_label(&record.actual_kinds),
         coverage_label(record.old_coverage),
         coverage_label(record.new_coverage),
+        record.candidate_changes,
+        record.proven_changed_regions,
         record.precision.matched_events,
         record.precision.reported_events,
         record.precision.expected_events,
@@ -1435,6 +1538,7 @@ mod tests {
             role: PairRole::Standard.label(),
             document_type: "t".to_owned(),
             in_scope: true,
+            benchmark_provenance: None,
             status: PairRunStatus::Ok,
             provenance_verified: true,
             compared: false,
@@ -1447,7 +1551,14 @@ mod tests {
             unresolved_regions: None,
             unresolved_old_token_share: None,
             unresolved_new_token_share: None,
+            old_token_resolution: None,
+            new_token_resolution: None,
             reported_content_changes: None,
+            reported_candidate_changes: None,
+            reported_candidate_groups: None,
+            reported_candidate_tokens: None,
+            reported_candidate_precision: None,
+            reported_unlocalized_changes: None,
             reported_proven_changed_regions: None,
             formatting_only_changes: None,
             uncertain_changes: None,
@@ -1458,6 +1569,9 @@ mod tests {
             scoped_event_metrics: None,
             scoped_token_metrics: None,
             candidate_recall: None,
+            candidate_event: None,
+            assessment: None,
+            proven: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,
             candidate_visits: None,
@@ -1469,6 +1583,7 @@ mod tests {
             sentence_recovery_metrics: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
+            peak_rss_bytes: None,
             limit_scale_used: 1.0,
             failure: None,
         }
@@ -1874,6 +1989,7 @@ mod tests {
             true,
             Some(&path),
             Some(&path),
+            None,
         )
         .expect_err("must reject identical paths");
         assert!(
@@ -1892,6 +2008,7 @@ mod tests {
             true,
             Some(&path),
             Some(&path_alias),
+            None,
         )
         .expect_err("must reject aliased paths");
         assert!(
@@ -1914,6 +2031,7 @@ mod tests {
                     true,
                     Some(&path),
                     Some(&path_symlink),
+                    None,
                 )
                 .expect_err("must reject symlink parent aliased paths");
                 assert!(error.contains(

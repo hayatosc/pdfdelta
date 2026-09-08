@@ -1,0 +1,55 @@
+{
+  "completed_at": "2026-09-07T23:56:18.917701+00:00",
+  "checks": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log": "benchmark/realworld/results/2026-09-08-issue12-local-comparison/final-fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log": "benchmark/realworld/results/2026-09-08-issue12-local-comparison/final-clippy.log",
+      "log_sha256": "ed13848463071552dbca24a1c896a1aaac7f4fbaeb837a8f2c84777afc35a8f7"
+    },
+    {
+      "command": "cargo test --workspace",
+      "exit_code": 0,
+      "log": "benchmark/realworld/results/2026-09-08-issue12-local-comparison/final-workspace-tests.log",
+      "log_sha256": "42bf0c7f26c440a333c8b14f4c2fdedbf90d71ad6a9b055d04c6f3c228e500e9"
+    }
+  ],
+  "passed_tests": 2064,
+  "test_only_changes_after_executable_freeze": {
+    "crates/pdfdelta-bench/tests/revision_benchmark.rs": {
+      "frozen_sha256": "f0e0cbf1cd6de62eda9711b1864abb0b7479d798f33bfc42f1b2c28423c491d8",
+      "validated_sha256": "101ae664be50d63d61ec10517e744b4c1b31031ef99faa1ac69f9c58611334d4"
+    },
+    "crates/pdfdelta-cli/tests/comparison_cli.rs": {
+      "frozen_sha256": "d4bb66131f00973231ddb3e3a27577267d6171cf8e5b6e98a9fb85dc4694d8e2",
+      "validated_sha256": "a6491aaa0ac25ba20edfc19a5ed2477636e9cc06bb419001f1aab547dccd7356"
+    },
+    "crates/pdfdelta-core/tests/alignment_fixture.rs": {
+      "frozen_sha256": "9fe565e352a0231f9110d84cf67a890590cf83661ac2e4be706fc7d6005809bd",
+      "validated_sha256": "4b79928f790c962472ecbd0fea05a917bd79d6095b92fa09037b3f9c43fcdb1b"
+    },
+    "crates/pdfdelta-core/tests/pipeline_fixture.rs": {
+      "frozen_sha256": "bc6db8c36731545709c507913dfd3f7ed1c14e9ec37fc007485d473a615b9fc6",
+      "validated_sha256": "84a16ae414d6f4fa7128ae2e89036eef0999e0ec0cba1dfd682d9165ba7d44e6"
+    }
+  },
+  "notes": "Only integration expectations changed after the executable freeze: schema version 67, exact numeric/local recovery checks, and preserved ambiguous/source-order controls. Production and benchmark evaluation sources match the frozen executable. All 40 existing real-document annotations remain unchanged.",
+  "generated": {
+    "command": [
+      "/tmp/pdfdelta-issue12-adjacent-pdfbench",
+      "verify"
+    ],
+    "exit_code": 0,
+    "strict_passed": 42,
+    "total": 48,
+    "candidate_policy_passed": 6,
+    "log": "benchmark/realworld/results/2026-09-08-issue12-local-comparison/adjacent-generated-verification.log",
+    "log_sha256": "68d36b1d31069a66b410edd1f86dd42bcbb4245b762931be541c7efc89ffa632"
+  }
+}

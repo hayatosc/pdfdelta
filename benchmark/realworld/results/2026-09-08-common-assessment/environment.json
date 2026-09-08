@@ -1,0 +1,89 @@
+{
+  "build_profile": "release",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+  "platform": "Linux 6.6.87.2-microsoft-standard-WSL2 x86_64",
+  "parallel_evaluation": true,
+  "memory_measurement": "Each record observes the process cumulative peak RSS, not an isolated per-pair allocation peak.",
+  "aborted_attempts": [
+    {
+      "current_executable_sha256": "ff971355323196dc4f6c8e67eb4bc359d7df07699c189b0252c8ef0ee6c6afd8",
+      "status": "interrupted",
+      "reason": "Shared Cargo output directory made executable provenance ambiguous; both runs were interrupted and rerun with independently rebuilt binaries."
+    },
+    {
+      "baseline_profile": "debug",
+      "status": "interrupted",
+      "reason": "Replaced by the isolated release baseline for like-for-like execution."
+    }
+  ],
+  "auxiliary_trials": [
+    {
+      "pair_id": "hmrc-sa100-2023-to-2024",
+      "purpose": "Investigate buffered all-corpus execution latency without changing options or implementation.",
+      "raw_result": "auxiliary-hmrc-timing-raw.json",
+      "status": "completed",
+      "aggregation": "Retained separately from the fixed 29-pair main run; it is not an additional independent document series."
+    },
+    {
+      "pair_id": "nist-fips-186-4-to-5",
+      "purpose": "Investigate buffered all-corpus latency on a development pair.",
+      "raw_result": "auxiliary-fips-failed-raw.json",
+      "status": "failed",
+      "runtime_ms": 50917,
+      "reason": "Benchmark compared proposal-origin totals with final accepted changes.",
+      "aggregation": "Retained separately from the fixed 29-pair main run; no extra independent series."
+    },
+    {
+      "pair_id": "nist-fips-186-4-to-5",
+      "purpose": "Validate the proposal-accounting correction on the development failure.",
+      "raw_result": "auxiliary-fips-accounting-fixed-raw.json",
+      "status": "completed",
+      "runtime_ms": 46977,
+      "accepted_changes": 0,
+      "resolved_coverage": 0.0,
+      "note": "This run predates actual-prefix budget charging and explicit partial-search limit classification.",
+      "executable_sha256": "93f0cd8378ec0c5a3d72b2a9c611c9fa10e7daeebeaefa960a303fd09db8c2ef",
+      "aggregation": "Development probe, retained separately from the fixed main run."
+    },
+    {
+      "pair_id": "nist-fips-186-4-to-5",
+      "purpose": "Probe CLI JSON generation after actual-prefix work accounting.",
+      "command": [
+        "target/release/pdfdelta",
+        "benchmark/realworld/cache/nist-fips-186-4-to-5-old.pdf",
+        "benchmark/realworld/cache/nist-fips-186-4-to-5-new.pdf",
+        "--limit-scale",
+        "16",
+        "--quiet",
+        "--json",
+        "/tmp/pdfdelta-fips-actual-work-comparison.json"
+      ],
+      "status": "interrupted",
+      "exit_code": 130,
+      "note": "Interrupted after approximately 15 minutes without a published JSON report; a separately instrumented copy investigates phase timing.",
+      "aggregation": "Development diagnostic probe; no accuracy claim or successful completion."
+    },
+    {
+      "pair_id": "nist-fips-186-4-to-5",
+      "purpose": "Validate buffered atomic CLI output on the measured development report bottleneck.",
+      "status": "completed",
+      "elapsed_seconds": 57.31,
+      "peak_rss_kb": 872924,
+      "exit_code": 3,
+      "json_bytes": 1844257858,
+      "json_sha256": "9d4fda4e3c971552a50f574ae100d191255df9c2120d570db4456d4d77c2627a",
+      "executable_sha256": "1596889360b14f653aeabd5fae61e0e157cebd3920d8dee842b3b58e40964a67",
+      "json_path": "/tmp/pdfdelta-fips-buffered-final.json",
+      "command": "target/release/pdfdelta benchmark/realworld/cache/nist-fips-186-4-to-5-old.pdf benchmark/realworld/cache/nist-fips-186-4-to-5-new.pdf --limit-scale 16 --quiet --json /tmp/pdfdelta-fips-buffered-final.json",
+      "note": "Large diagnostic output retained outside the repository; nonzero exit indicates incomplete comparison, not writer failure."
+    }
+  ],
+  "production_baseline_observation": {
+    "started_at": "2026-09-08T00:31:40+09:00",
+    "artifact_written_at": "2026-09-08T00:45:17+09:00",
+    "elapsed_seconds_approx": 817,
+    "source": "Original execution history and raw-result file timestamp.",
+    "timing_comparison": "Current and common runs execute concurrently; wall-time differences are not isolated algorithm speed measurements."
+  }
+}

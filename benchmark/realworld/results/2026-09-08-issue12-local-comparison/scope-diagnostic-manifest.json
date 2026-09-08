@@ -1,0 +1,36 @@
+{
+  "command": [
+    "/usr/bin/time",
+    "-v",
+    "/tmp/pdfdelta-issue12-scope-diagnostic-pdfbench",
+    "revisions",
+    "--manifest",
+    "benchmark/realworld/manifest.tsv",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--set",
+    "dev",
+    "--pair",
+    "nist-sp800-57-part1-r4-to-r5",
+    "--json-output",
+    "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-diagnostic-sp800-raw.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-diagnostic-sp800-summary.json",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-diagnostic-sp800-evaluation.json"
+  ],
+  "executable_sha256": "68f35cfc15b3e896425fbc275d718658c3a76191bfbff08917a097e3694bca9e",
+  "started_at": "2026-09-08T01:15:35.156267+00:00",
+  "purpose": "Diagnostic snapshot only; evaluation and engine unchanged.",
+  "exit_code": 0,
+  "completed_at": "2026-09-08T01:25:28.463165+00:00",
+  "comparison_source_manifest": "validated-source-manifest.json",
+  "diagnostic_hook": "scope-diagnostic-capture.rs.txt",
+  "snapshot_sha256": "9da3b2802174a8bd57474c719ae189f000f75b8926867ba73da44646cd889a4e",
+  "outputs": {
+    "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-diagnostic-sp800-summary.json": "d62a8129fb5ad9318397aee709e226d2424d2eb83e7fd92c024e7757120daff7",
+    "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-diagnostic-sp800.log": "ae082ad389264185fb3dec108603dccf92998ea970b4293dccb691991ba02679",
+    "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-diagnostic-sp800-evaluation.json": "878241175496532de2711db77343358bdb048a1cee5fc6047079c4b935fd9ebe",
+    "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-diagnostic-sp800-raw.json": "e9e700cb57633c45dc4dc3fbe892a005486114b2eaaf0331e1e3b2d499350518"
+  }
+}

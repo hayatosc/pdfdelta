@@ -1,0 +1,56 @@
+{
+  "captured_at": "2026-09-07T21:56:50.293901+00:00",
+  "evaluation_kind": "development_diagnosis",
+  "status": "completed",
+  "executable": "/tmp/pdfdelta-issue12-diagnostic-pdfbench",
+  "executable_sha256": "6942f15336bde6fbcabff41069b6d8cb664cba17a265299b82cf71724acfdca3",
+  "source_manifest": "diagnostic-source-manifest.json",
+  "commands": {
+    "csf": "/usr/bin/time -v /tmp/pdfdelta-issue12-diagnostic-pdfbench revisions --manifest benchmark/realworld/manifest.tsv --cache-dir benchmark/realworld/cache --set dev --pair nist-csf-v1-1-to-v2-0 --json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-csf-raw.json --summary-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-csf-summary.json --evaluation-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-csf-evaluation.json > benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-csf.log 2>&1",
+    "fips": "/usr/bin/time -v /tmp/pdfdelta-issue12-diagnostic-pdfbench revisions --manifest benchmark/realworld/manifest.tsv --cache-dir benchmark/realworld/cache --set dev --pair nist-fips-186-4-to-5 --json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-fips-raw.json --summary-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-fips-summary.json --evaluation-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-fips-evaluation.json > benchmark/realworld/results/2026-09-08-issue12-local-comparison/baseline-fips.log 2>&1"
+  },
+  "input_hashes": {
+    "benchmark/realworld/manifest.tsv": "2af7292a01836545d2a1ea2571659d6143c133c2c9a226d47ba8ff10f61b6598",
+    "benchmark/realworld/expected/nist-csf-v1-1-to-v2-0.json": "dd62aafc8f208a0bd9ebcbcb1b23821d17c092d69339d6ffb1400a2afa61a7a9",
+    "benchmark/realworld/expected/nist-fips-186-4-to-5.json": "558c07c85e97b7f0bcf8ee8baa5bbe58f01c423e231e6df9ffc4d75f0547657a"
+  },
+  "finished_at": "2026-09-07T21:59:16.202783+00:00",
+  "exit_codes": {
+    "csf": 0,
+    "fips": 0
+  },
+  "artifacts": {
+    "baseline-fips-raw.json": {
+      "bytes": 2154,
+      "sha256": "bbf10b6b40ca831fa0098317ee3e5c7e3276968d758c8982566dcaef511fcc9c"
+    },
+    "baseline-fips-evaluation.json": {
+      "bytes": 14892,
+      "sha256": "fd1ce2886d24874cce57183e1de300e2de3ac27d3bff0262726ed7628a2831e1"
+    },
+    "baseline-csf-summary.json": {
+      "bytes": 180414,
+      "sha256": "d778f63e774d713a742ee67983a813bb097102122d17ab53ff5dd27c4de74730"
+    },
+    "baseline-fips.log": {
+      "bytes": 1936,
+      "sha256": "4c5f5b9df24247ebfc7e86555e6b81a641eeb82a519e52faf51a1df7247ddcfd"
+    },
+    "baseline-csf-raw.json": {
+      "bytes": 2126,
+      "sha256": "e646cb9ab4bd499c41c4c10f5f007b92f0441070b37b834238f631b3f9c28f4e"
+    },
+    "baseline-csf-evaluation.json": {
+      "bytes": 14847,
+      "sha256": "812ff81f5bbbb1c5ff42cdf352c9ed368e02b6f77865a9936fc71bd427fe7132"
+    },
+    "baseline-fips-summary.json": {
+      "bytes": 910309,
+      "sha256": "bf2bec82a7c1e7545c97aee57aa77c17d249bfd226486c394ceab143582869a6"
+    },
+    "baseline-csf.log": {
+      "bytes": 1908,
+      "sha256": "17f258a2672212f66004c6e22ba3490c86c073a57779782f4fbda2cf51f1b673"
+    }
+  }
+}

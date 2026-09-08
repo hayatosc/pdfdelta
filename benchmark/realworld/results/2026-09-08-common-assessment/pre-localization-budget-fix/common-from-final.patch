@@ -1,0 +1,11 @@
+--- a/crates/pdfdelta-core/src/diff/assessment.rs
++++ b/crates/pdfdelta-core/src/diff/assessment.rs
+@@ -1384,7 +1384,7 @@
+     )?;
+     let mut assessor = Assessor::new(sides, alignment, recovery, options)?;
+     let after_anchors = assessor.remaining_work;
+-    assessor.discover_local_domains(&proposals)?;
++    // Counterfactual: retain shared assessment without local-domain discovery.
+     let after_views = assessor.remaining_work;
+     let mut accepted = Vec::new();
+     for proposal in &proposals {

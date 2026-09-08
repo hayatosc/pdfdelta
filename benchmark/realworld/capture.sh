@@ -148,7 +148,10 @@ new_bytes="$(wc -c <"${new_target}")"
 new_sha="$(sha256sum "${new_target}" | cut -d' ' -f1)"
 
 echo "PASS ${pair_id}: captured and validated both PDFs"
-echo "Manifest provenance fields (append after expected_file):"
-printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "${old_url}" "${old_bytes}" "${old_sha}" "${new_url}" "${new_bytes}" "${new_sha}"
+# The final seven fields are provenance metadata. Replace the conservative
+# pair-id defaults and annotation placeholder before committing a manifest row.
+echo "Manifest fields (append after expected_file):"
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\tunknown\tunknown\tnone\t%s\tunused\n' \
+    "${old_url}" "${old_bytes}" "${old_sha}" "${new_url}" "${new_bytes}" "${new_sha}" \
+    "${pair_id}" "${pair_id}" "$(date +%F)"
 success=1

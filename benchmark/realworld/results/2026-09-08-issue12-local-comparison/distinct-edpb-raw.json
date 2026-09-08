@@ -1,0 +1,401 @@
+[
+  {
+    "pair_id": "edpb-right-of-access-v1-to-final",
+    "set": "dev",
+    "role": "standard",
+    "document_type": "regulatory-guidelines",
+    "in_scope": true,
+    "status": "limit",
+    "provenance_verified": true,
+    "compared": true,
+    "extraction_complete": true,
+    "comparison_complete": false,
+    "extraction_issues": [],
+    "coverage_old": 0.4756062449498937,
+    "coverage_new": 0.46353128736548427,
+    "coverage_comparison": 0.46353128736548427,
+    "unresolved_regions": 3453,
+    "unresolved_old_token_share": 0.5243937550501063,
+    "unresolved_new_token_share": 0.5364687126345158,
+    "reported_content_changes": 67,
+    "formatting_only_changes": 237,
+    "reported_changes_preview": [
+      {
+        "kind": "replacement",
+        "old_text": "z",
+        "new_text": "s"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "73",
+        "new_text": "84"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "74",
+        "new_text": "85"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "replacement",
+        "old_text": "9",
+        "new_text": "11"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "."
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "8"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "replacement",
+        "old_text": "19",
+        "new_text": "26"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "61",
+        "new_text": "70"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "2",
+        "new_text": "4"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "s"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "icle",
+        "new_text": "."
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "1",
+        "new_text": "3"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "83",
+        "new_text": "97"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "53",
+        "new_text": "62"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "6"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "35",
+        "new_text": "43"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "39",
+        "new_text": "48"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "42",
+        "new_text": ". 51"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ourt of",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ustice of the",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "uropean",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "nion, Joined",
+        "new_text": ", joined"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "43",
+        "new_text": "52"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "J",
+        "new_text": "j"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "44",
+        "new_text": "53"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ourt of",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "ustice of the",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "uropean",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "nion",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "45",
+        "new_text": "54"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "46",
+        "new_text": "55"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "2"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "7",
+        "new_text": "9"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "icle",
+        "new_text": "."
+      },
+      {
+        "kind": "deletion",
+        "old_text": "e",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "8"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "5",
+        "new_text": "7"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "38",
+        "new_text": "47"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "39",
+        "new_text": "48"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "4"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "0",
+        "new_text": "9"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "37",
+        "new_text": "46"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "7",
+        "new_text": "9"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "104"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "88",
+        "new_text": "90"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "a",
+        "new_text": "the"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "s",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "aimed at obtaining access under",
+        "new_text": "in the scope of"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "25"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "8"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "reminded",
+        "new_text": "noted"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "GDPR"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "16",
+        "new_text": "22"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "6"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ","
+      }
+    ],
+    "quality": {
+      "annotation": "partial",
+      "expected_changes": 4,
+      "reported_changes": 67,
+      "recall": 0.0,
+      "precision": null,
+      "kind_accuracy": null,
+      "reported_hunks_per_matched_change": null,
+      "review_hunks_per_expected_change": null,
+      "unmatched_tiny_changes": 49,
+      "unresolvable_reported_spans": 0
+    },
+    "quality_skipped_reason": "comparison stopped at a resource limit",
+    "resource_limit_failure": "comparison assessment search reached a resource limit",
+    "candidate_visits": 1434492,
+    "candidate_visits_required": 1434492,
+    "candidate_visits_required_exact": 507,
+    "candidate_visits_required_ngram": 1433569,
+    "candidate_visits_required_short_fallback": 416,
+    "max_candidate_visits": 64000000,
+    "candidate_visit_pressure": {
+      "estimated_visits_p50": 17452,
+      "estimated_visits_p95": 63139,
+      "estimated_visits_max": 90815,
+      "estimated_visits_upper_bound_total": 29389149,
+      "max_candidate_visits": 64000000,
+      "estimated_visits_upper_bound_exceeds_limit": false,
+      "ngram_posting_visits_total": 29783651,
+      "dominant_ngram_visits": 702842,
+      "dominant_ngram_df": 854,
+      "shared_ngram_count": 5168,
+      "top_10_ngram_visits": 4668843,
+      "ngrams_for_50_percent_visits": 61,
+      "ngrams_for_90_percent_visits": 344,
+      "shared_ngram_df_p50": 4,
+      "shared_ngram_df_p95": 140,
+      "shared_ngram_df_max": 854
+    },
+    "runtime_ms": 142627,
+    "limit_scale_used": 64.0,
+    "failure": null
+  }
+]

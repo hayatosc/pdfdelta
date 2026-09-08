@@ -1,4 +1,8 @@
-# pdfdelta 技術仕様書 v3
+# pdfdelta 技術仕様書 v4
+
+2026-09-08改訂：未知のPDFに対して、根拠に基づいて比較結果を確定する設計を追加した。
+差分候補の分離、共通の対応付け判定、coverageの再定義、不完全な比較に対する既定の終了コード変更は、これから実装する仕様である。
+現行実装がこれらを満たしていることを示すものではない。
 
 ## 1. 目的
 
@@ -272,6 +276,12 @@ diffの粒度と出力形式は、evaluatorやCLIより先に確定させる必�
 
 ### 5.1 Change
 
+`Comparison.changes`には、位置と種類を確定した変更だけを格納する。
+推測を含む編集は、原文範囲、競合候補のグループID、未確定の理由、必要に応じた順位を持つ`change_candidates`へ分離する。
+`Confidence`の値だけでは変更を確定しない。
+変更の存在は確認できるが位置を特定できない領域は、`proven_changed_regions`として別に保持する。
+以下の変更データは、§16の共通判定を通過してから確定結果へ含める。
+
 ```rust
 pub enum ChangeKind { Replacement, Insertion, Deletion, Move }
 
@@ -291,23 +301,40 @@ pub struct Change {
 
 ### 5.2 Confidence と Coverage
 
+confidenceは判断の補助情報であり、正解確率や正しさの証明として扱わない。
+各側の抽出済みcomparable tokenを、同一と確定した範囲、変更と確定した範囲、未解決の範囲に重複なく分け、最初の二つだけを解決済みcoverageへ含める。
+候補がある範囲と、変更位置を特定できない範囲は未解決のまま残す。
+この規則は「変更なし」の判定にも適用する。
+抽出の完全性と、画像など比較対象外の内容は、token比率と分けて報告する。
+
 結果には必ず、個々の判定の確からしさと、比較できた範囲を分けて持たせる。
 
-- **Confidence**：個々の変更判定をどれだけ信用できるか。
+- **Confidence**：対応候補を評価する補助情報。正解確率や単独の確定条件にはしない。
 - **Extraction completeness**：全pageのContent Streamと、そこから到達するtext-bearing Form XObjectをparser backendとPrimitive Extractionが処理できたか。画像XObjectはscope外として明示的にskipできるが、種別不明または未解釈のstreamを「文字数0」としてcoverageの分母から消してはいけない。
-- **Old alignment coverage**：old側でalignmentが解決したcomparable token数 / old側で抽出できたcomparable token総数。
-- **New alignment coverage**：new側でalignmentが解決したcomparable token数 / new側で抽出できたcomparable token総数。
+- **Old alignment coverage**：old側で共通判定を通過した同一範囲と変更範囲のcomparable token数 / old側で抽出できたcomparable token総数。
+- **New alignment coverage**：new側で共通判定を通過した同一範囲と変更範囲のcomparable token数 / new側で抽出できたcomparable token総数。
 
-`comparable token`にはcanonical Unicode code pointと、§6.4の`Unmapped` tokenを含む。十分なconfidenceで1:0 deletionまたは0:1 insertionと分類できたtokenも「解決済み」としてcoverageへ含め、変更が多い文書ほどcoverageが下がる定義にはしない。CLIの`Comparison coverage`は`min(old alignment coverage, new alignment coverage)`を表示するが、JSONにはold/newを別々に保持する。Extractionが不完全な場合は数値だけで完全性を装わず、`extraction_complete: false`と未解釈regionを必ず併記する。ページ面積比は表示上の参考値にとどめる。
+comparable tokenにはcanonical Unicode scalarとUnmapped tokenを含む。
+確定した1:0 deletionと0:1 insertionは、内容が存在する側の解決済みcoverageへ含める。
+変更が多い文書でも、変更箇所を特定できていれば比較は解決しているためである。
+CLIではold/newの抽出済みtokenに対する比率の最小値を要約として表示できるが、JSONには両側を別々に保持する。
+抽出が不完全な場合は`extraction_complete: false`と問題の範囲を併記し、量が不明な欠落を0 tokenとして扱わない。
+分母が0の場合は百分率を表示せず、抽出状態と対象範囲から完全性を判断する。
+ページ面積比は表示上の参考値にとどめる。
 
 ### 5.3 出力カテゴリ
+
+出力は、位置まで確定した変更、位置が未確定の変更領域、差分候補、Formatting-only、未解決領域に分ける。
+差分候補には`TENTATIVE`を明示し、未確定の理由と原文の位置を表示する。
+候補の件数は確定した変更件数に含めず、候補の範囲も解決済みcoverageへ加算しない。
+この分離は次のJSON schema versionで導入し、現行のversion 9の意味を黙って変更しない。
 
 canonical正規化(§8)で吸収した差も黙って消さず、独立したカテゴリで報告する。canonical textが同一のaligned spanについて、line/page break、Block分割、font size、position等の差を確実に識別できた場合もFormatting-onlyへ含める。このカテゴリはbest-effortであり、0件でもrenderingが完全同一であることは保証しない。exit codeのContent change判定には影響させない。
 
 人間向けtext reportは、exact diffの結果をreviewしやすい文脈付きunified diff形式へ投影する。これは表示層のみの変換であり、`Comparison`の変更列やJSON report(§5.2)の機械可読な意味は一切変わらない。要約行に全出力カテゴリとcoverageを1行で併記し、`---` / `+++`のfile header、`@@ page N … @@`(page番号は1-based)のhunk header、`-` / `+`の隣接行、変更箇所周辺の有界なcontext、移動は`~ moved`明示、未解決領域は`?`行で可視化する。近接するexact change同士(同一Block集合かつ一定以下のequal tokenで分離)は表示上1つのhunkへ統合する。ANSI色は`--color auto|always|never`で制御し、既定の`auto`はstdoutがterminalの時だけ着色する。色は`-` / `+`記号の補助であり、色なしでも出力は読める。
 
 ```text
-content changes: 1 · formatting-only: 3 · uncertain: 1 · unresolved regions: 2 · coverage 97.4%
+established changes: 1 · changed regions: 0 · tentative candidates: 1 · formatting-only: 3 · unresolved regions: 2 · extracted-token coverage 97.4% · incomplete
 
 --- old.pdf
 +++ new.pdf
@@ -318,6 +345,9 @@ content changes: 1 · formatting-only: 3 · uncertain: 1 · unresolved regions: 
 
 @@ page 3 · UNRESOLVED @@
 ? could not safely align this region (evidence: text_similarity)
+
+@@ page 3 · TENTATIVE · candidate group 1 @@
+? possible replacement; competing reading orders remain
 ```
 
 「No differences found」とだけ表示することはない。
@@ -349,12 +379,19 @@ exit codeはCI利用を前提に定義する。
 
 | code | 意味 |
 |---|---|
-| 0 | Content changeなし。`--strict`時はcomparisonもcomplete |
-| 1 | Content changeあり |
+| 0 | 対応するテキスト範囲の比較が完全で、確定した内容変更がない |
+| 1 | 対応するテキスト範囲の比較が完全で、確定した内容変更がある |
 | 2 | 実行不能なerror(I/O、fatal parse error等) |
-| 3 | `--strict`時にUNSUPPORTED / UNRESOLVEDがあり、comparisonが不完全 |
+| 3 | 結果を返せるが比較が不完全。候補、未解決範囲、抽出の欠落、位置が未確定の変更領域を含む |
 
-判定優先順位は`2 > 3 > 1 > 0`とする。既定ではUNSUPPORTED / UNRESOLVEDをstderrとreportへ出し、既知のContent change有無に応じて0または1を返す。`--strict`では「差分あり」と「比較不完全」を混同せず3を返す。
+判定優先順位は`2 > 3 > 1 > 0`とする。
+不完全な比較は、確定した変更があっても既定で3を返す。
+JSONでは変更の有無と比較の完全性を独立した値として返す。
+`--strict`は新しい既定動作の互換aliasとして受理し、quiet modeにも同じ終了条件を適用する。
+現行実装はstrict modeだけが不完全時に3を返すため、この変更は既存scriptに影響する。
+実装時にhelp、テスト、移行文書を揃えて更新する。
+coreは比較結果の状態を返し、process exit codeへの変換はCLIが所有する。
+テキスト比較の完全性は、画像の比較や見た目の一致を意味しない。
 
 ---
 
@@ -529,11 +566,18 @@ matchingはAlignmentだけに使う。全角半角の同一視、および `Rele
 
 一意性が高く確実な一致をAnchorとして探す。候補：長い完全一致Block、一意な見出し、条番号(「第十二条の二」)、節番号、表番号、稀な文字列。old/new双方に一度ずつしか現れない文字列が強いanchorになる。
 
+anchorの文字列が一意でも、周辺領域の対応や読み順まで自動的に確定するとは限らない。
+区間の確定には§16の境界、競合、探索範囲の条件を適用する。
+
 ### 9.2 Anchor の順序整合と move 候補
 
 old→newのanchor対応列に対し、new側indexのLongest Increasing Subsequenceを取り、main chainとする。局所的に同じ文字列が現れても、文書全体の順序から不自然な対応を除外できる。
 
-LISから外れたanchor(例：`3 → 8`)は捨てない。順序を乱す対応はまさにParagraphMoveの痕跡であるため、**move候補**として保持し、robust alignment段(§9.6)で再評価する。move候補が十分なscoreで裏付けられれば`ChangeKind::Move`として報告し、裏付けられなければ通常のdeletion+insertionまたはUNRESOLVEDに落とす。
+LISから外れたanchorはmove候補として保持する。
+`ChangeKind::Move`の確定には、内容の完全一致、出現箇所の曖昧さのない対応、移動を示す前後の順序関係を必要とする。
+scoreだけではmoveを確定しない。
+根拠が不足する場合はmove候補または未解決領域として残す。
+deletionとinsertionに分けて確定する場合も、それぞれの対応領域が確定条件を満たす必要がある。
 
 ### 9.3 Fuzzy Matching とBlockFeatures
 
@@ -591,6 +635,12 @@ candidate generator由来の情報は「候補へ入った理由」としてdebu
 
 ### 9.6 Robust Alignment
 
+alignmentとrecoveryの出力は、共通の対応付け判定を通過してから、確定した変更または解決済みの同一範囲になる。
+scoreとneighbor refinementは候補を作り、確定時には原文への逆写像、対応領域の閉包、抽出と読み順の前提、競合する対応、主張に必要な探索の完了を確認する。
+top-k探索の打ち切りを、対応する内容が存在しない証拠にはしない。
+coreの比較APIを直接呼ぶ場合も同じ判定を通す。
+対応領域の閉包と有界なrecoveryの規則は§16で定義する。
+
 B3では1:1、1:0、0:1に加え、同一anchor区間内で隣接Blockだけを結合する制約付き1:2 / 2:1を扱う。これは§2.2 Case 1/2で、line wrapやpage boundaryにより片方だけBlockが分割された場合に必要である。B4では1:3 / 3:1を追加し、より一般のDynamic Programmingへ拡張して構造化誤差を吸収する。
 
 Matchingは一回で確定しない。`A X B` / `A Y B`のように前後(`A ↔ A`、`B ↔ B`)が確定した後に`X ↔ Y`のscoreを引き上げる、initial matching → neighbor consistency → refinementの二段階とする。
@@ -607,7 +657,10 @@ LSHは、holdoutを含むbenchmarkでcandidate recallを悪化させず、候補
 
 ### 10.1 Myers Diff
 
-Alignment完了後だけ実行する。Myers algorithmを自前実装し、最初はcharacter-level、その後 token-level → changed token only → character-level に拡張する。
+構造上有効な対応候補に対して、Myersによるexact diffを実行する。
+共通判定を満たす対応からは確定した変更を出力し、根拠が不足する対応から得た編集は、原文を保持した差分候補として出力できる。
+編集列がexactであっても、その前提となる対応付けの正しさまでは証明しない。
+character-levelからtoken-levelでの位置特定と変更tokenのexact比較へ進める方針を維持する。
 
 diffの入力はcanonical文字列(またはUnmapped領域では(font_hash, glyph_id)トークン列)であり、matching文字列は絶対に使わない。
 
@@ -654,6 +707,9 @@ A5は既定のマイルストーンではない。A0で選んだ既存backendを
 B4が最も重要な技術的マイルストーンである。B5はcorrectness機能ではなくscalability改善であり、B3/B4を先に成立させる。
 
 ### 後続 Stage (Track合流後)
+
+未知PDFへの対応改善は、§16の共通判定、構造回復、出力の分離、未使用文書による評価の順で進める。
+この作業は既存の比較pipelineを強化するものであり、五つの初期受入条件を置き換えない。
 
 | Stage | 内容 |
 |---|---|
@@ -704,7 +760,14 @@ evaluatorは、報告されたChangeと期待Changeを、kind一致 + span重な
 
 合成データだけではpdfdelta-bench固有の癖にoverfitする。real-world評価には、公開されている規程、policy、report、manualなどの改訂ペアを、利用条件を確認した上でsourceとして使う。ただし公開説明が必ずしもexact spanや全変更を機械可読で与えるとは仮定せず、採用pairごとに人手でreviewしたexpected manifestを作る。
 
-閾値と重みのチューニングは合成benchmarkで行い、人手review済みのreal-world pairはholdoutとして評価にのみ使う。tuning用とevaluation用のデータを混ぜない。
+調整には合成fixtureと、開発用に割り当てた実文書のグループを使う。
+人手でannotationを付けただけではholdoutにならず、改訂版、抜粋、共通template、派生文書は同じ文書系列として一つのsplitへまとめる。
+評価用グループは調整前に固定し、既知のproducer系列を記録して、文書の未知性とproducerの未知性を分けて報告する。
+失敗の診断や修正に使った文書は開発用へ移し、以後の汎化評価には未使用のグループを用意する。
+完全なannotationから求めるprecisionとrecallは、annotationの範囲に限った値とする。
+部分annotationは列挙した変更のrecallを評価できるが、precisionを主張する分母には使わない。
+品質評価を省略したpairや抽出に失敗したpairも、実行結果の集計には残す。
+照合方法、評価指標、公開条件の詳細は§16に定める。
 
 ### 12.4 Differential Testing / Backend Conformance
 
@@ -806,6 +869,13 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 
 この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。過去分は`git log --follow -- SPEC.md`と各commitのdiffから復元した。詳細な差分は`git show <commit> -- SPEC.md`で確認する。
 
+### 2026-09-08 未知PDFに対する比較設計
+
+- §5：確定した差分と要確認の候補を分離し、候補と位置未確定の領域を解決済みcoverageから除外する仕様を定めた。不完全な比較を既定でexit 3にする移行方針も追加した。
+- §9と§10：候補生成、共通の対応付け判定、exact diffの責務を分け、scoreやexactな編集列だけでは対応を確定しないことを明記した。
+- §11と§12：既存の受入条件を維持し、文書系列とproducer系列の混入を防ぐ評価方針を追加した。
+- §16：対応領域の条件、可逆な構造回復、範囲の所有関係、資源制限、結果の型、互換性の移行、検証matrix、公開条件、実装順序を日本語で記載した。これらは設計変更であり、実装済みであることを示さない。
+
 ### 2026-08-24 人間向けreportのunified diff化（本変更）
 
 - §5.3：人間向けtext reportを、exact diff結果の表示層のみの投影として文脈付きunified diff形式へ刷新すると定義した。1行要約、`---` / `+++` file header、1-based page付きhunk header、隣接する`-` / `+`行、有界なcontext(既定32 comparable tokenずつ)、`~ moved`明示、`?`による未解決領域の可視化、近接exact changeの表示上のhunk統合(同一Block集合・同一Block separatorかつ16 comparable token以下の分離)である。変更区間はcomparable token空間で描画し、canonical rangeが零幅のpure-unmapped編集も`<unmapped>`プレースホルダを変更行内に示す。text reportはJSONと同じspan範囲検証を共有し、範囲外spanはどちらのmodeでも失敗する。`Comparison`とJSON reportの機械可読な意味は不変で、ANSI色は`--color auto|always|never`(既定auto、TTY判定)が制御し記号の補助に限定する。
@@ -859,3 +929,366 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 | 2026-08-20 | `c95378d` | §1と§2.2の例を一般的なrelease変更へ差し替え、§5.1に複数Blockのseparatorを含む`TextSpan`規則を追加した。§8と§12では数値mask例、benchmark fixture、公開real-world pair、holdout運用を一般化した。 |
 | 2026-08-20 | `1db8dd1` | §2.2の受け入れ条件3を`Release 10`から`Release 20`への1 replacementとして明文化した。 |
 | 2026-08-19 | `2324f4c` | 初版SPECを追加し、目的、scope、architecture、data model、pipeline、roadmap、benchmark、resource limitの基本方針を定義した。 |
+
+---
+
+## 16. 未知のPDFに対する比較設計
+
+### 16.1 目的と適用範囲
+
+対応する形式の未知のPDFを、文書ごとの数値調整なしで比較できることを目指す。
+正しい差分を検出する割合と、比較を解決できる範囲の両方を改善する。
+難しい内容をすべて未解決にするだけでは、この目的を達成したとみなさない。
+
+出力は、確定した差分、要確認の差分候補、未解決範囲に分ける。
+既存の`proven_changed_regions`は、差分の存在は確認できるが位置を特定できない状態として、位置まで確定した差分と区別する。
+差分候補は利用者が原文と照合できる形で表示する。
+
+対象は既存のborn-digital textの範囲とし、横書きの日本語と英語を含む。
+未知のproducerや文書系列は、その範囲内で評価する。
+画像、スキャン、未対応のPDF機能、抽出失敗を、正常に比較できたテキストと区別する。
+OCR、意味モデル、表認識、自作object parser、根拠のない性能最適化は追加しない。
+五つの初期受入条件も変更しない。
+
+**確定**とは、抽出、正規化、構造に関する明示した前提のもとで、比較の確定条件を満たした状態を指す。
+PDFの任意の解釈、著者の意図、画面上の完全一致を証明するものではない。
+誤って対応付けた段落の内部でexact diffが計算できても、その差分は正しくない。
+`High`や`TrustedRun`という既存の名称だけを、確定の根拠にはしない。
+
+### 16.2 現行実装との差と変更箇所
+
+以下は実装箇所の対応表であり、変更済みであることを示す表ではない。
+ファイルパスはrepository rootからの相対パスとする。
+
+| 変更箇所 | 現在の振る舞い | 設計上の変更 |
+| --- | --- | --- |
+| `crates/pdfdelta-core/src/alignment/ordered.rs`の`AlignmentOptions` | score、margin、候補数、計算量の上限を使って対応を選ぶ | 探索と順位付けを、対応を確定する根拠から分離し、探索の打ち切りを記録する |
+| `crates/pdfdelta-core/src/layout/line.rs`の`LineOptions` | 文字高、font size、advanceなどに対する相対値で行を推定する | 相対値を維持し、境界の不確かさと再構成の選択肢を残す |
+| `crates/pdfdelta-core/src/pipeline.rs`の比較処理 | 構造化、抽出の欠落境界、alignment、recoveryを接続する | 対応の判定とその前提を、出力とcoverage集計まで引き継ぐ |
+| 同ファイルの`demote_inferred_order_changes` | 推定した読み順に触れる変更を、比較後に`Low`へ落とす | 表示ラベルだけでなく、確定可否と解決済み範囲へ反映する |
+| `crates/pdfdelta-core/src/diff/mod.rs`の`Comparison` | 変更、位置未確定の変更領域、Formatting-only、未解決、coverageを保持する | 候補を別collectionにし、解決状態を範囲単位で検証する |
+| `crates/pdfdelta-core/src/diff/recovery/ownership.rs` | recovery対象の所有範囲とgap理由を検証する | 同じ検証の考え方を最終結果へ適用する。既存の部分partitionを文書全体のpartitionとはみなさない |
+| `crates/pdfdelta-core/src/report/mod.rs`の`summarize` | `Low`の変更もcontent change件数へ含める | 確定結果と候補の件数、比較の完全性を分離する |
+| `crates/pdfdelta-core/src/report/json.rs` | schema version 9で結果を出力する | 候補、確定理由、完全性の定義を次のversionで導入する |
+| coreの`report::exit_status`とCLIの`compare.rs` | 不完全時のexit 3はstrict modeに限る | coreは状態を返し、CLIが既定で不完全を3へ変換する |
+| coreの`source.rs`、`pdf.rs`、`error.rs` | 抽出問題の範囲、parser上限、エラー分類を保持する | 局所的な回復とreportでも分類を維持し、失敗を空文字へ置き換えない |
+
+### 16.3 候補生成と確定判定の分離
+
+既存のcandidate generatorとMyers diffを使い、候補となる対応と確定結果の間に共通の判定処理を置く。
+最初はprivateな具象型と検証付きconstructorで表現し、新しい公開plugin traitや別のPDF modelを導入しない。
+
+```text
+raw PDF evidence
+  → 元の情報を保持した構造と正規化
+  → 対応候補の生成
+  → 対応範囲、競合、探索の完了状態の判定
+  → 対応候補内のexact diff
+  → 確定した変更／要確認の候補／未解決範囲
+  → 範囲の所有関係からcoverageと完全性を集計
+```
+
+1. glyphと正規化のsource mapを保持する。描画されたspaceと合成したspaceを区別し、行結合と読み順の前提を記録する。
+2. anchor、index、score、有界なrecoveryから候補を作る。探索した範囲と打ち切りを記録し、探索に出なかった内容を直ちに削除とは判定しない。
+3. 変更候補と同一候補の両方について、原文への逆写像、抽出の不確かさ、読み順、所有範囲、競合する対応、主張に必要な探索の完了を判定する。
+4. 構造上有効な候補にexact diffを適用する。対応が未確定でも、原文の位置が有効なら編集列を差分候補として保持できる。
+5. 確定した変更と同一範囲を共通の出力処理に渡す。候補は未解決範囲への注釈として残し、この判定後にcoverageを集計する。
+
+共通判定の対象は、通常のordered match、挿入、削除、move、sentence recovery、page anchor recovery、複数出現箇所のgrouping、`compare_aligned`の直接呼び出しを含む。
+診断用やshadow用の処理が、この判定を迂回して確定結果を出すことは認めない。
+report生成時に`Low`だけを除外する実装では、候補だった同一範囲のcoverageや、低信頼ではない誤対応が残るため、この設計を満たさない。
+
+### 16.4 対応の根拠と閉じた比較領域
+
+**対応領域**は、新旧間で対応を主張する内容の範囲と、その境界を組にしたものとする。
+判定は以下の情報を保持する。
+
+| 情報 | 保持する内容 |
+| --- | --- |
+| 原文範囲 | old/newごとのblock、comparable token、canonical scalarの範囲と、glyph/pageへの逆写像 |
+| 比較の前提 | 正規化policy、Unmappedのfont identity、合成space、採用した読み順と境界 |
+| 対応領域 | 比較する内容、領域の境界、その境界が改訂間で対応する根拠 |
+| 探索状態 | 調べた競合候補、探索の打ち切り箇所、一意性を支える完全探索またはexact検証 |
+| 判定 | 確定、候補、未解決の状態と、構造化した理由および根拠への参照 |
+| 依存関係 | 判定が依存する抽出、境界、読み順、先行する対応。循環した根拠で互いを確定しない |
+
+**領域が閉じている**とは、主張を変え得る内容や競合する対応を、その領域から根拠なく除外していないことを指す。
+似た見出しが二つ見つかったことや、同じpage番号であることだけでは領域は閉じない。
+文書の他の場所に対応がないことを根拠にする場合は、その場所まで探索するか、未確定として残す。
+小さな範囲の探索結果で、より広い範囲について一意性を主張しない。
+
+対応領域は外側から内側へ構成する。
+抽出が完全で、対応する単一の読み順を裏付けられる文書では、文書全体を最初の順序付き領域にできる。
+その読み順も比較modelの前提として記録する。
+複数領域の文書では、全体を一つの読み順へ押し込まず、根拠のあるregion/runの関係から始める。
+
+確定した親領域の中で、境界候補のexactな出現箇所を必要なtoken範囲全体で調べ、交差する割り当てや競合を除き、境界間の内容を欠落なく分割する。
+子領域は親の未解決な前提を引き継ぐ。
+親や境界の対応を確定できない場合、recoveryは候補を提示できるが、領域が閉じたと見なして処理を進めない。
+
+探索の完全性は、明示した対応modelの範囲で定義する。
+modelには採用する構造上の順序制約、取り外せるsoft境界、区間を区切るexact anchor、繰り返し出現の扱いを含める。
+PDFのあらゆる解釈を列挙したという意味ではない。
+類似度の足切りやtop-kだけで競合を定義から除き、確定を正当化することは認めない。
+出現箇所の確認には既存のexact indexと実tokenの照合を使い、区間内の選択肢は有界なalignmentで調べる。
+必要な探索を完了できなければ、その主張は未確定のまま残す。
+
+同じ前提で成立する編集位置が複数あり、報告する種類または原文範囲が異なる場合は候補として残す。
+複数のheuristicが一致しても、それだけで独立した証明とは扱わない。
+既存のheuristicから引き継いだ前提と、exact検証で確認した事実を判定理由で区別する。
+
+### 16.5 結果ごとの確定条件
+
+| 結果 | 必要な条件 | 不足する場合 |
+| --- | --- | --- |
+| 同一 | 確定した領域と読み順の中でcomparable token列が完全一致し、原文と正規化の前提が有効 | 候補または未解決。文字列一致だけで解決済みにしない |
+| 置換 | 領域の対応、exactな変更範囲、source mapが有効で、種類や位置を変える未解決の競合がない | 置換候補、または変更の存在だけを確認できる領域として残す |
+| 挿入／削除 | 確定した対応の中で相手側の空の区間を裏付けられ、必要な探索が完了し、欠落部分に対応内容が隠れる可能性が残らない | 候補または未解決。未対応であることだけでは確定しない |
+| move | 内容の完全一致、出現箇所の一意な対応、移動を示す確定した前後関係 | move候補。反復する文や読み順推定の変更だけでは確定しない |
+| 位置未確定の変更領域 | 有効な領域の組に対してtokenの多重集合が異なる、または片側だけに内容が存在することを裏付けられる | 任意に組にした領域を、変更が証明された領域とは扱わない |
+
+tokenの多重集合が等しくても、順序や編集が同じとは限らない。
+多重集合の不一致は、有効な対応領域の内容が異なる根拠になるが、置換位置や変更種類までは特定しない。
+この違いを`proven_changed_regions`で保持する。
+
+候補同士の重複は競合グループとして保持し、確定した範囲は重複して所有しない。
+複数の出現箇所を一つの変更にまとめる場合は、それぞれを判定し、未確定の出現箇所を候補へ分ける。
+確定した一箇所を根拠に、残りの出現箇所まで確定しない。
+親の変更領域と、その内部の位置を推測する候補は共存できるが、別々のexactな変更として二重計上しない。
+
+### 16.6 構造推定が外れた場合の回復
+
+glyph、line、block、region、trusted run、source mapを使い、構造化を可逆なviewとして扱う。
+推定した行や段落の境界はsoft境界として保持し、抽出の欠落や未対応内容の境界はhard境界として区別する。
+すべてのlayout候補を文書全体について展開する仕組みは導入しない。
+
+未解決の領域では、既存のblock view、原文が連続するline/run view、既存の境界に依存しないanchor recoveryの順に、有界かつ決定的に試す。
+blockを分割または結合するviewは、tokenの所有範囲とseparatorの由来を保持する。
+geometryは局所的な文字の相対値を使い、既知の文書名、producer名、page番号、特定の文言で処理を分岐しない。
+
+複数の妥当なviewが異なる編集を示す場合は候補として残す。
+採用するviewにかかわらず、確定には同じ領域の条件を適用する。
+合成spaceや推定した段落境界だけの違いを内容変更にする場合も、原文の文字や空白配置に基づく根拠を必要とする。
+
+回復の目的は、改行、改ページ、誤ったblock分割をまたいで正しい対応を増やすことである。
+予算内で候補探索を広げ、他の領域が未解決でも独立した局所領域を確定できるようにする。
+候補表示だけを改善して、確定できる変更や範囲が増えない状態を完成とはしない。
+
+### 16.7 結果の型とcoverageの集計
+
+既存の範囲型と有界なvectorを使い、原文は一度保持して側ごとのIDで参照する。
+共有lockやglobalな可変状態は追加しない。
+
+| 概念 | 条件 |
+| --- | --- |
+| `Comparison.changes` | 位置と種類を確定した内容変更だけを保持する |
+| `Comparison.change_candidates` | 推測した編集と種類、原文範囲、競合グループID、未確定理由、必要なら順位を保持する。保持件数の打ち切りも明示する |
+| `Comparison.proven_changed_regions` | 内容の不一致は確定しているが、変更位置は未解決の領域 |
+| `Comparison.unresolved_regions` | 確定した同一範囲と変更範囲以外の内容。候補がある範囲を含み、理由と候補グループを参照する |
+| 解決範囲のpartition | 各側の抽出済みtokenを、同一、変更、未解決に重複なく分ける |
+| 抽出状態 | 未対応、未解決、資源制限を範囲付きで保持する。抽出できなかった量は不明として扱う |
+| 比較の状態 | 変更あり、内容変更なし、判定不能を表し、抽出の完全性、変更位置の解決状況、比較対象の宣言を別に持つ |
+
+確定状態を構築する内部処理はprivateまたは検証付きとする。
+公開APIの変更ではconstructor、struct literalを使う呼び出し側、validator、serializerを同時に更新する。
+利用側が結果を直接構築できるAPIを残す場合、その根拠はcaller assertionであることを明記し、構造上の整合を検証する。
+report生成だけでは元のPDFを独立に再検証できない。
+
+各側で次の関係を満たす。
+
+```text
+抽出済みcomparable token数
+  = 同一と確定したtoken数
+  + 変更と確定したtoken数
+  + 未解決token数
+
+解決済みcoverage
+  = (同一と確定したtoken数 + 変更と確定したtoken数)
+    / 抽出済みcomparable token数
+```
+
+件数はevent spanの単純合計ではなく、token区間の和集合から求める。
+確定した挿入と削除は内容がある側を解決済みにし、零幅の境界はtoken数を消費しない。
+候補と位置未確定の変更領域は、位置が確定するまで分子に含めない。
+Formatting-onlyは内容の解決状態と直交し、独自にcoverageを増やさない。
+
+抽出済みtokenのcoverageが100%でも、抽出が完全とは限らない。
+欠落の範囲を別に表示し、分母が0なら百分率を表示しない。
+画像だけのPDFでテキストが0件でも、ページ内容が同じという結論は出さない。
+対応テキストを処理し終えた場合も、画像などの対象外内容は比較していないことを明示する。
+
+部分的な抽出と、局所的に確定した差分は共存できる。
+位置が不明な抽出問題は、その未知の内容に閉包が依存する領域を未確定にする。
+位置が特定できる問題は、独立性を裏付けられる別領域まで無条件に失敗させない。
+外部font identityはcallerの前提として残し、passwordや私的なassertion文字列はreportへ露出させない。
+
+### 16.8 数値設定と資源制限
+
+| 数値の種類 | 扱い |
+| --- | --- |
+| byte数、深さ、operator数、token数、出力範囲数などの資源上限 | parser、抽出、比較の境界で明示的に課金する。段階、資源名、上限、回復可能な範囲を記録する |
+| 候補数、DP cell数、anchor window数などの探索上限 | 到達した場合は必要な探索の不完全性を残す。打ち切りの中で得た一位を一意な対応とは扱わない |
+| 類似度、gap cost、spacing ratio、layout ratioなどのheuristic | 候補生成と順位付けに使う。役割、既定値、測定根拠、設定変更への感度を記録する |
+| 範囲の妥当性、exact token一致、排他的所有などの不変条件 | 直接検証する。不正な設定と難しい入力を区別する |
+
+fallback全体で共有する計算量と出力の予算を設け、各段階の消費を記録する。
+viewを切り替えるたびに予算が無制限に復活する実装は認めない。
+同点時の選び方と候補の順番を決定的にし、再実行で比較できる状態を保つ。
+既存の既定値を出発点とし、開発用データの測定で必要性が確認できた場合に変更する。
+適用したoptions、判定policyのversion、source revisionを評価結果へ残す。
+
+局所的に安全に中断できる境界では、上限到達を未解決範囲として返し、独立した確定結果を維持する。
+原文を安全に表現できない場合は、文脈を保持したfatalまたはlimitの結果を返す。
+部分reportを作るために無制限に確保したり、空の成功結果に置き換えたりしない。
+reportの書き込み失敗は実行エラーである。
+この制限の存在から、すべての入力でpanicやallocation失敗が起きないと主張しない。
+
+### 16.9 出力と互換性の移行
+
+text reportには、確定した変更、位置未確定の変更領域、候補、未解決範囲を区別して表示する。
+候補には`TENTATIVE`と理由を付け、色や`Low`だけに区別を任せない。
+確定変更が0件でも、候補件数、未解決範囲、完全性を要約に残す。
+出力上限やquiet modeによって候補の表示を省略しても、比較が完全になったとは扱わない。
+
+JSONは次のschema versionで`changes`を確定結果に限定し、`change_candidates`、競合グループへの参照、構造化した判定理由、比較対象、差分の有無と完全性を追加する。
+候補の順位を正解確率として出力しない。
+report利用側、benchmarkへの結果変換、fixtureを同時に移行する。
+benchmarkのsummaryにも独立したversionがあるため、その互換性も確認する。
+旧形式への変換で候補を確定結果へ混ぜない。
+
+差分の有無は、確定した変更または変更領域があれば「変更あり」、それらがなく対象テキストを完全に比較できれば「内容変更なし」、それ以外を「判定不能」とする。
+「変更あり」と「比較不完全」は同時に成立する。
+終了コードは§5.4に従い、比較不完全を既定で3とする。
+独立した差分の有無が必要なscriptはJSONを参照する。
+coreからprocess exit codeのpolicyをCLIへ移し、workspace内の呼び出しを移行する。
+
+### 16.10 未使用文書による評価
+
+#### 既存の検証資産と限界
+
+`crates/pdfdelta-bench/tests/bench_matrix.rs`は、24ケースを二つのrendererで評価する48件の固定回帰matrixを持つ。
+五つの初期受入条件を含め、このmatrixを維持する。
+rendererは`lopdf-tj`と`classic-xref-tj`であり、二つの描画経路だけでproducerの多様性を検証したとはみなさない。
+canonical generatorは小規模文書とASCIIに制限されているため、日本語や他のproducerの検証には既存の外部Typst fixtureなどを使う。
+generatorの制限を広げる場合も、具体的なfixtureの必要性に基づく。
+
+`crates/pdfdelta-bench/src/revisions.rs`は、完全annotationのscopeと部分annotationを分け、抽出が不完全な場合は品質評価を省略する。
+この区別を維持しつつ、省略されたpairを実行結果の分母から消さない。
+失敗文書を除外した後のprecisionだけで頑健性を評価しない。
+`candidate_eval.rs`のexhaustive oracleとrecall@Kを再利用し、探索量の推定値と実際のlimit到達を区別する。
+
+#### データの分割と来歴
+
+調整前にmanifestを固定し、ファイルhash、改訂pair ID、取得元、文書系列ID、判明しているproducer系列とversion、annotation範囲、split、最初の評価日を記録する。
+同じ文書の改訂版、抜粋、翻訳、template派生、生成したmutationは同じsplitへ置く。
+byte単位の重複だけでなく、判明している内容とtemplateの派生関係も確認する。
+producerが不明な場合は不明と記録し、未知producerの検証例とは数えない。
+
+開発用データで既定値とアルゴリズムを調整し、文書系列ごとのholdoutを評価に残す。
+独立したproducerが十分にある場合はproducer系列も分離したholdoutを設け、二つの未知性を分けて報告する。
+既存文書をすでに修正に使っている場合、新しいholdoutとして再分類しない。
+失敗を見て実装を調整したグループは開発用へ移し、その後の評価には未使用の文書を用意する。
+失敗した評価も保存し、同じ評価データへの反復調整を追跡できるようにする。
+
+#### Annotationと照合
+
+正解には、原文範囲、変更種類、繰り返しの出現箇所、原文自体が許す複数解、変更のない周辺範囲、annotationの境界を記録する。
+現在の出力を正解に合わせる形でannotationを作らない。
+文書全体を注釈できない場合は、完全に注釈した限定scopeを使い、評価範囲を明示する。
+
+eventの照合はold/newを区別した一対一対応とする。
+繰り返す引用には位置または出現IDを付け、挿入と削除は内容がある側の範囲と相手側の零幅境界を使う。
+既存のoverlap規則を比較前に固定し、新しい出力を正解にするために許容値を動かさない。
+overlapによる照合に加えて、原文範囲の完全一致率も報告する。
+
+#### 評価指標
+
+| 対象 | 指標と集計規則 |
+| --- | --- |
+| 位置まで確定した変更 | 完全annotation範囲でprecision、recall、範囲の完全一致率、種類の正解率、断片化、未変更tokenの誤検出率を測る。未解決に残った正解変更も見逃しに数える |
+| 差分候補 | 候補recall、完全annotation範囲の候補precision、競合グループ当たりの候補数、確認対象event/token数を測る。同じ正解に複数候補が一致してもrecallは一件とし、余分な誤候補は隠さない |
+| 位置未確定の変更領域 | 変更の存在を示す主張の正しさと、位置未確定の割合を測る。exactな置換や挿入の正解件数へ加えない |
+| 解決状況 | 各側の同一、変更、未解決のtoken和集合、抽出完全性、量が不明な欠落、文書全体の比較完了率を報告する |
+| 実行結果 | 品質評価を省略したpair、未対応、limit、fatalを含む全試行と、環境付きの時間およびmemoryの分布を報告する |
+
+部分annotationは、列挙した変更のrecallと種類を評価する用途に限定する。
+precisionの分母や文書全体のrecallには使わない。
+長い文書だけが集計を支配しないよう、文書単位と系列単位の結果を総数と併記する。
+推定の区間を報告する場合は独立した文書系列を標本の単位とし、token数を独立標本数にしない。
+confidenceを確率として解釈するには、別の未使用データによる校正を必要とする。
+
+比較の基準は二つ保存する。
+一つは現行production出力で、そのconfidenceとcoverageの定義を明記する。
+もう一つは、共通判定だけを導入し、recoveryを改善する前の出力である。
+前者で利用上の検出低下を確認し、後者で候補への降格だけを回復性能の改善と数えることを防ぐ。
+新しい確定結果だけのprecisionを、旧形式の混在したprecisionと単独比較しない。
+recall、候補の確認量、coverage、同じ分類を適用した基準値も示す。
+
+#### 検証matrix
+
+| fixture | 必要な確認 |
+| --- | --- |
+| 五つの初期受入条件 | 改行と改ページは内容変更0件かつ比較完全。置換、段落挿入、段落削除は、正しい範囲と種類の確定変更が各一件。候補への移動では合格にしない |
+| 内容を保つ変換 | font size、margin、page size、line height、改行、改ページ、同じ描画を行うoperator/object構成を変えても内容結果を維持する。任意の描画順変更を同値とは仮定しない |
+| 内容変更と表示変更の組み合わせ | 既知の意味的mutationに表示変更を重ねても正解を維持する。期待位置は文字列検索でなくmutationの来歴から求める |
+| 境界推定の誤り | blockの分割と結合、interleaved rendering、反復header、pageをまたぐ文を回復する。未解決の理由も測るが、棄却できたことだけでrecallの失敗を合格にしない |
+| 曖昧な対応 | 繰り返す条文、見出し、数字、競合anchor、複数の編集位置から、根拠のない種類や位置を確定しない。近くの曖昧でない変更は検出できることも確認する |
+| 抽出境界 | Unmapped、font identity欠落、未対応stream、clipや非表示文字、画像だけの入力、復号できない暗号、局所的な欠落を保持する。欠落を削除や同一へ変換しない |
+| 資源境界 | 到達可能なbyte、展開量、深さ、glyph/token、候補、DP、fallback、出力上限の直前と境界と直後を試す。予算増加で競合が見つかるなら、少ない予算の時点で探索完了を主張しない |
+| 結果の不変条件 | partitionの完全性、確定範囲の排他性、候補の重複、複数出現の判定、未確定の同一範囲、old/new反転、決定性、出力打ち切りを確認する。反転では表示順やIDでなく意味と原文範囲を比べる |
+| CLIとreport | 差分の有無と完全性の全組み合わせ、空text、対象外画像との混在、quiet、strict alias、schema version、不正な直接構築結果、書き込み失敗を確認する |
+
+engineの条件には`Document<Glyph>`を使い、parserと抽出の条件にはPDF fixtureを使う。
+不正入力には既存の`parser_entry`、`content_stream_parser`、`cmap_parser`、`font_decoder`、`glyph_extraction`のfuzz targetを再利用する。
+nightlyの例外はfuzz crateだけに維持する。
+有限時間のfuzz実行からcrashしないこと全般を証明したとは扱わない。
+
+開発用データでは、score、margin、layout設定、候補予算を既定値の周囲で変化させ、系列ごとの影響を調べる。
+小規模fixtureの候補recallはexhaustive oracleと比較する。
+確定結果が設定によって変わる場合は根拠を調べ、holdoutで最も良い値を選ぶ調整には使わない。
+誤検出と未解決coverageの関係も報告し、一点の良い値だけで不安定さを隠さない。
+最終optionsはholdout評価の前に固定する。
+
+#### 公開条件
+
+五つのexactな受入条件、共通判定の不変条件、資源制限時の定義した結果を必須条件とする。
+既存の回帰matrixと明示的な未対応caseの期待値を維持し、移行を通すために期待結果を弱めない。
+
+固定した完全annotation付き開発データでは、共通判定導入後の基準に対して、recovery変更が確定結果の誤検出件数と未変更tokenの誤検出率を増やさず、確定変更のrecallと解決済みcoverageを維持することを求める。
+そのうえで、事前に対象とした構造上の失敗の少なくとも一つについて、正しい確定変更または解決範囲が増えることを確認する。
+候補だけの改善は別に報告し、この回復条件の達成には数えない。
+
+holdoutでも同じ比較を行い、系列ごとの悪化をすべて記録する。
+新たな誤確定は公開前に調査し、recallやcoverageの低下は原因と公開判断を明示する。
+集計値の改善だけで個別の悪化を隠さない。
+修正が必要になったholdoutは開発用へ移し、次の汎化評価には新しい文書を用意する。
+現在の標本から普遍的な99%などの目標値を作らない。
+合格が示すのは評価した系列に対する結果であり、すべてのPDFへの保証ではない。
+
+### 16.11 実装順序と完了の証拠
+
+| 段階 | 担当する層と作業 | 次へ進むための証拠 |
+| --- | --- | --- |
+| 1. 基準と契約 | core/benchで数値と確定経路を分類し、現行出力とsplitを固定する。誤順序、反復文、抽出gap、探索打ち切りのglyph fixtureを用意する | caseごとの失敗、候補と確定の集計期待値、五つの受入条件を保持した再現可能な基準 |
+| 2. 共通判定 | coreで対応判定と最終所有範囲を導入し、通常経路と直接比較APIへ接続する | confidenceだけで昇格しないこと。候補の変更と同一範囲がcoverageを増やさず、不正な根拠を確定出力へ渡さないこと |
+| 3. 構造の回復 | 既存recoveryを共通判定へ接続し、実例で必要な可逆viewと共有予算を追加する | 境界変更の回復、競合の保持、決定性、打ち切りの可視化、対象とした失敗での正しい検出または解決範囲の増加 |
+| 4. 公開出力 | core report、CLI、benchで候補、次のJSON schema、原文表示、完全性、終了コードを移行する | 状態の組み合わせ、候補と親領域の重複、競合グループ、出力上限、書き込み失敗の統合テスト |
+| 5. 汎化評価 | 固定した評価手順と設定感度の確認を実行し、系列ごとの結果と既知の失敗を保存する | 五つの受入条件と契約テストの通過、split混入や分母変更のない評価、誤確定、見逃し、候補、未解決の全指標 |
+
+各段階を依存順の小さな変更として実装する。
+parserの作業でengine開発が止まらないよう、programmaticな`Document<Glyph>` fixtureを維持する。
+最初の二段階だけを機能の完成とせず、回復と評価までを未知PDFへの対応改善に含める。
+新しい表認識やOCRへ進む前に、この設計の対応範囲で根拠と結果を揃える。
+
+実装commit前には次を実行する。
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+benchmark matrixまたは抽出適合性を変更した場合は、該当する`cargo test -p pdfdelta-bench --test bench_matrix`または`cargo test -p pdfdelta-bench --test extraction_conformance`で対象の条件を確認する。
+実文書の評価には、実行command、manifest、annotation hash、source revision、options、raw resultを残す。
+外部入力を取得できなかった実行は、合格ではなく実行不能として記録する。
+この設計の追加だけでは実装や検証の完了を主張しない。

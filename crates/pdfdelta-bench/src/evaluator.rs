@@ -5,7 +5,9 @@ use std::{
 
 use pdfdelta_core::{
     alignment::BlockSeparator,
-    diff::{Change, ChangeKind, ChangedRegionProof, ProvenChangedRegion, TextSpan},
+    diff::{
+        Change, ChangeCandidate, ChangeKind, ChangedRegionProof, ProvenChangedRegion, TextSpan,
+    },
     layout::{BlockId, reconstruct_blocks, reconstruct_lines},
     model::{Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode},
     normalize::normalize_blocks,
@@ -51,6 +53,8 @@ pub struct EvaluationRecord {
     pub expected: ExpectedManifest,
     pub actual_changes: usize,
     pub actual_kinds: Vec<ChangeKind>,
+    pub candidate_changes: usize,
+    pub proven_changed_regions: usize,
     pub formatting_only_changes: usize,
     pub extraction_complete: bool,
     pub comparison_complete: bool,
@@ -171,12 +175,25 @@ impl PrecisionCounts {
 }
 
 pub fn evaluate_case(case: &BenchmarkCase, renderer: RendererKind) -> Result<EvaluationRecord> {
-    evaluate(
+    evaluate_case_with_options(case, renderer, pipeline_options())
+}
+
+/// Evaluates a built-in case with an explicitly selected pipeline configuration.
+///
+/// This is used by the development sensitivity matrix so every perturbation
+/// goes through the same renderer, extraction, and expectation checks.
+pub fn evaluate_case_with_options(
+    case: &BenchmarkCase,
+    renderer: RendererKind,
+    options: PipelineOptions,
+) -> Result<EvaluationRecord> {
+    evaluate_with_options(
         case.name(),
         case.plan().old(),
         case.plan().new_plan(),
         case.plan().expectation(),
         renderer,
+        options,
     )
 }
 
@@ -187,11 +204,29 @@ pub fn evaluate(
     expected: &ExpectedManifest,
     renderer: RendererKind,
 ) -> Result<EvaluationRecord> {
+    evaluate_with_options(
+        case_name,
+        old_plan,
+        new_plan,
+        expected,
+        renderer,
+        pipeline_options(),
+    )
+}
+
+fn evaluate_with_options(
+    case_name: &str,
+    old_plan: &RenderPlan,
+    new_plan: &RenderPlan,
+    expected: &ExpectedManifest,
+    renderer: RendererKind,
+    options: PipelineOptions,
+) -> Result<EvaluationRecord> {
     validate_case_name(case_name)?;
     let render_limits = RenderLimits::default();
     let old_pdf = renderer.render(old_plan, render_limits)?;
     let new_pdf = renderer.render(new_plan, render_limits)?;
-    evaluate_rendered(
+    evaluate_rendered_with_options(
         case_name,
         old_plan,
         new_plan,
@@ -199,6 +234,7 @@ pub fn evaluate(
         renderer.name(),
         Arc::from(old_pdf),
         Arc::from(new_pdf),
+        options,
     )
 }
 
@@ -223,6 +259,31 @@ pub fn evaluate_rendered(
     old_pdf: Arc<[u8]>,
     new_pdf: Arc<[u8]>,
 ) -> Result<EvaluationRecord> {
+    evaluate_rendered_with_options(
+        case_name,
+        old_plan,
+        new_plan,
+        expected,
+        renderer,
+        old_pdf,
+        new_pdf,
+        pipeline_options(),
+    )
+}
+
+/// Evaluates externally rendered revisions with an explicitly selected
+/// comparison configuration.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_rendered_with_options(
+    case_name: &str,
+    old_plan: &RenderPlan,
+    new_plan: &RenderPlan,
+    expected: &ExpectedManifest,
+    renderer: &str,
+    old_pdf: Arc<[u8]>,
+    new_pdf: Arc<[u8]>,
+    options: PipelineOptions,
+) -> Result<EvaluationRecord> {
     validate_case_name(case_name)?;
     validate_renderer_name(renderer)?;
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
@@ -232,7 +293,6 @@ pub fn evaluate_rendered(
     let new = source
         .extract_outcome(new_pdf, parse_limits(), extraction_limits())
         .map_err(|error| core_error("new extraction", error))?;
-    let options = pipeline_options();
     let (old_index, new_index) = if old.is_complete() && new.is_complete() {
         (
             canonical_document_index(old_plan, old.document(), options)
@@ -267,6 +327,7 @@ pub fn evaluate_rendered(
     let expected_change = matches_expectation(
         expected,
         &outcome.comparison.changes,
+        &outcome.comparison.change_candidates,
         &old_index,
         &new_index,
     );
@@ -306,13 +367,23 @@ pub fn evaluate_rendered(
         ));
     }
     if !expected_change {
-        failures.push(format!(
-            "expected {} at {:?}, observed {} at {:?}; document-global canonical span IoU must be at least {EXPECTED_SPAN_IOU_THRESHOLD:.1}",
-            expected.label(),
-            expected.changes(),
-            actual_label(&actual_kinds),
-            outcome.comparison.changes,
-        ));
+        if expected.is_candidate_policy() {
+            failures.push(format!(
+                "expected {} with {} candidate(s), observed {} candidate(s) and {} exact change(s)",
+                expected.label(),
+                expected.candidate_changes().len(),
+                outcome.comparison.change_candidates.len(),
+                actual_kinds.len(),
+            ));
+        } else {
+            failures.push(format!(
+                "expected {} at {:?}, observed {} at {:?}; document-global canonical span IoU must be at least {EXPECTED_SPAN_IOU_THRESHOLD:.1}",
+                expected.label(),
+                expected.changes(),
+                actual_label(&actual_kinds),
+                outcome.comparison.changes,
+            ));
+        }
     }
     if !expected_presence {
         failures.push(format!(
@@ -329,6 +400,8 @@ pub fn evaluate_rendered(
         expected: expected.clone(),
         actual_changes: actual_kinds.len(),
         actual_kinds,
+        candidate_changes: outcome.comparison.change_candidates.len(),
+        proven_changed_regions: outcome.comparison.proven_changed_regions.len(),
         formatting_only_changes: summary.formatting_only_changes,
         extraction_complete,
         comparison_complete: summary.comparison_complete,
@@ -337,7 +410,10 @@ pub fn evaluate_rendered(
         precision,
         passed,
         detail: if failures.is_empty() {
-            if exact_resolution_required {
+            if expected.is_candidate_policy() {
+                "matched tentative candidate and proven changed-region expectation with complete extraction"
+                    .to_owned()
+            } else if exact_resolution_required {
                 "matched expectation with complete extraction and coverage".to_owned()
             } else {
                 "matched proven changed-region expectation with complete extraction".to_owned()
@@ -516,11 +592,40 @@ fn coverage_label(ratio: Option<f64>) -> String {
 fn matches_expectation(
     expected: &ExpectedManifest,
     actual: &[Change],
+    candidates: &[ChangeCandidate],
     old_index: &CanonicalDocumentIndex,
     new_index: &CanonicalDocumentIndex,
 ) -> bool {
-    expected.exact_changes().len() == actual.len()
+    if expected.is_candidate_policy() {
+        return expected.candidate_changes().len() == candidates.len()
+            && matched_candidate_count(expected, candidates, old_index, new_index)
+                == candidates.len();
+    }
+    expected.acceptance_exact_changes().len() == actual.len()
         && matched_event_count(expected, actual, old_index, new_index) == actual.len()
+}
+
+fn matched_candidate_count(
+    expected: &ExpectedManifest,
+    actual: &[ChangeCandidate],
+    old_index: &CanonicalDocumentIndex,
+    new_index: &CanonicalDocumentIndex,
+) -> usize {
+    let edges = expected
+        .candidate_changes()
+        .iter()
+        .map(|expected_change| {
+            actual
+                .iter()
+                .enumerate()
+                .filter_map(|(index, candidate)| {
+                    change_matches(expected_change, &candidate.change, old_index, new_index)
+                        .then_some(index)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    maximum_cardinality_matching(&edges, actual.len())
 }
 
 fn matches_presence_expectation(
@@ -992,7 +1097,9 @@ fn extraction_limits() -> ExtractionLimits {
     }
 }
 
-fn pipeline_options() -> PipelineOptions {
+/// Returns the bounded comparison options used by the generated fixture
+/// evaluator and by sensitivity runs unless a scenario overrides them.
+pub fn default_pipeline_options() -> PipelineOptions {
     let mut options = PipelineOptions {
         max_ngram_token_elements: 64 * 1024,
         ..PipelineOptions::default()
@@ -1002,6 +1109,10 @@ fn pipeline_options() -> PipelineOptions {
     options.diff.max_tokens = 32 * 1024;
     options.diff.max_edit_distance = 4_000;
     options
+}
+
+fn pipeline_options() -> PipelineOptions {
+    default_pipeline_options()
 }
 
 #[cfg(test)]

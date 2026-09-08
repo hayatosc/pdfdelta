@@ -1,0 +1,23 @@
+{
+  "base_source_manifest": "diagnostic-source-manifest.json",
+  "patch": "view-probe.patch",
+  "source": "/tmp/pdfdelta-issue12-view-probe",
+  "changed_file_sha256": "305eefdcf9d78008723cf07f63601b6ddf4293509e7e9d9cd7cf1de39dea931e",
+  "executable": "/tmp/pdfdelta-issue12-view-probe-pdfbench",
+  "executable_sha256": "710defd83555741ae3f309270019c4c72ba6bf191049f1df76ff9136b66ba41a",
+  "started_at": "2026-09-07T22:03:01.266371+00:00",
+  "commands": {
+    "csf": "/tmp/pdfdelta-issue12-view-probe-pdfbench revisions --manifest benchmark/realworld/manifest.tsv --cache-dir benchmark/realworld/cache --set dev --pair nist-csf-v1-1-to-v2-0 > benchmark/realworld/results/2026-09-08-issue12-local-comparison/view-probe-csf.log 2>&1",
+    "fips": "/tmp/pdfdelta-issue12-view-probe-pdfbench revisions --manifest benchmark/realworld/manifest.tsv --cache-dir benchmark/realworld/cache --set dev --pair nist-fips-186-4-to-5 > benchmark/realworld/results/2026-09-08-issue12-local-comparison/view-probe-fips.log 2>&1"
+  },
+  "status": "completed",
+  "finished_at": "2026-09-07T22:05:09.595951+00:00",
+  "exit_codes": {
+    "csf": 0,
+    "fips": 0
+  },
+  "logs": {
+    "csf": "fe079af4c53063d6cb7498eaf7ed2163c67a29a928e2e5427bcbbb5a23272142",
+    "fips": "586464779f988963d847863e530d96f3adb2248fc2f5a86a8a1324b3e6411442"
+  }
+}

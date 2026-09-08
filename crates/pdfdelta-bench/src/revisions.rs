@@ -7,7 +7,7 @@
 //! directory with `benchmark/realworld/fetch.sh`.
 
 use std::{
-    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
+    collections::{BTreeSet, HashMap, HashSet, VecDeque, hash_map::Entry},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -21,39 +21,40 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeEvent, ChangeKind, ChangeOccurrence, ChangeOrigin, ChangeOriginMetric,
-        ChangeOriginMetrics, ChangedRegionProof, Comparison, ExactSegmentRelation,
-        ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
-        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
-        LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
-        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
-        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
-        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-        LocalFragmentProposalStopReason, LocalFragmentRecheckMembershipOutcomeWork,
-        LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
-        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
-        MatchedAtomicDiff, NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
-        NearVetoReasonCount, NearVetoReasonMetrics, RecoveredAtomicDiff, RecoveredRelationEvidence,
-        RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError,
-        RecoveryOwnershipContext, RecoveryOwnershipError, RecoveryOwnershipInvariant,
-        RecoveryOwnershipMetrics, RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError,
-        RecoveryOwnershipRect, RecoveryOwnershipResource, RecoveryOwnershipRole,
-        RecoveryOwnershipRoleMetrics, RecoveryOwnershipSample, RecoveryOwnershipSideMetrics,
-        RecoveryOwnershipTrustMetrics, RecoveryRemainderAttributionMetrics,
-        RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
-        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
-        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
-        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
-        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
-        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
-        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
-        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
-        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
-        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
-        RecoveryWatchSegmentTopologyDiagnostics, RecoveryWatchSegmentTopologyEvidence,
-        RecoveryWatchSegmentTopologyShadow, RecoveryWatchSide, RecoveryWatchUnitKind,
-        RunSignatureStopReason, SectionPairingMetrics, SectionPairingStopReason, SegmentStopReason,
+        AssessmentReason, ChangeCandidate, ChangeEvent, ChangeKind, ChangeOccurrence, ChangeOrigin,
+        ChangeOriginMetric, ChangeOriginMetrics, ChangedRegionProof, Comparison,
+        ComparisonAssessment, ExactSegmentRelation, ExactTailRecoveryStopReason,
+        KnownSpanSentenceShadowMetrics, LocalFragmentExactBoundaryTrieShadowMetrics,
+        LocalFragmentFlatExactBoundaryShadowMetrics, LocalFragmentFlatExactBoundaryStopReason,
+        LocalFragmentFlatExactBoundaryWorkMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
+        LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
+        LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentProposalStopReason,
+        LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
+        LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
+        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
+        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, NearVetoReasonCount,
+        NearVetoReasonMetrics, RecoveredAtomicDiff, RecoveredRelationEvidence, RecoveryGapReason,
+        RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError, RecoveryOwnershipContext,
+        RecoveryOwnershipError, RecoveryOwnershipInvariant, RecoveryOwnershipMetrics,
+        RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError, RecoveryOwnershipRect,
+        RecoveryOwnershipResource, RecoveryOwnershipRole, RecoveryOwnershipRoleMetrics,
+        RecoveryOwnershipSample, RecoveryOwnershipSideMetrics, RecoveryOwnershipTrustMetrics,
+        RecoveryRemainderAttributionMetrics, RecoveryRemainderAttributionStopReason,
+        RecoveryRemainderCauseMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
+        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
+        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+        RecoveryWatchOccurrenceEvidence, RecoveryWatchOneSidedOpponentEvidence,
+        RecoveryWatchOneSidedVetoEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
+        RecoveryWatchQuoteLocalEditEvidence, RecoveryWatchQuoteLocalPairEvidence,
+        RecoveryWatchQuoteLocalScoreEvidence, RecoveryWatchQuoteLocalSideEvidence,
+        RecoveryWatchQuoteLocalStatus, RecoveryWatchQuoteLocalStopReason,
+        RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
+        RecoveryWatchSegmentPairEvidence, RecoveryWatchSegmentTopologyDiagnostics,
+        RecoveryWatchSegmentTopologyEvidence, RecoveryWatchSegmentTopologyShadow,
+        RecoveryWatchSide, RecoveryWatchUnitKind, ResolutionState, RunSignatureStopReason,
+        SearchCompleteness, SectionPairingMetrics, SectionPairingStopReason, SegmentStopReason,
         SegmentTopologyNotApplicableReason, SegmentTopologyShadowStopReason,
         SegmentTopologyUnknownReason, SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
         SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
@@ -87,8 +88,16 @@ use sha2::{Digest, Sha256};
 use crate::{
     BenchError, Result,
     candidate_eval::{CandidateVisitPressure, evaluate_candidate_visit_pressure},
+    evaluation::{
+        AssessmentEvaluation, AssessmentWorkEvaluation, BenchmarkProvenance, CandidateEvaluation,
+        CandidateEventEvaluation, EvaluationRecord, EvaluationSummary, ManifestProvenanceEntry,
+        PROVENANCE_COLUMNS, ProvenEvaluation, QualityEvaluation, ReviewedRecallEvaluation,
+        ScopedEventEvaluation, ScopedTokenEvaluation, TokenResolutionCounts, TrialStatus,
+        validate_manifest_provenance,
+    },
 };
 
+mod assessment_evidence;
 #[path = "revisions/exact_range_parent.rs"]
 mod exact_range_parent;
 #[path = "revisions/fragment_review.rs"]
@@ -158,6 +167,35 @@ pub const MANIFEST_HEADER: [&str; 17] = [
     "new_sha256",
 ];
 
+/// Column order for manifests that include split and evaluation provenance.
+/// The legacy 17-column header remains accepted for existing local fixtures.
+pub const MANIFEST_HEADER_WITH_PROVENANCE: [&str; 24] = [
+    "pair_id",
+    "set",
+    "role",
+    "document_type",
+    "layout",
+    "in_scope",
+    "known_issues",
+    "captured",
+    "expected_extraction",
+    "limit_scale_hint",
+    "expected_file",
+    "old_url",
+    "old_byte_count",
+    "old_sha256",
+    "new_url",
+    "new_byte_count",
+    "new_sha256",
+    PROVENANCE_COLUMNS[0],
+    PROVENANCE_COLUMNS[1],
+    PROVENANCE_COLUMNS[2],
+    PROVENANCE_COLUMNS[3],
+    PROVENANCE_COLUMNS[4],
+    PROVENANCE_COLUMNS[5],
+    PROVENANCE_COLUMNS[6],
+];
+
 const SHA256_HEX_LEN: usize = 64;
 pub(super) const MAX_EXPECTED_CHANGE_DIAGNOSTICS: usize = 4_096;
 
@@ -197,6 +235,7 @@ pub struct ActualChangeOccurrence {
 #[derive(Clone, Debug)]
 enum ActualRelationTraceStatus {
     Available(ActualRelationTrace),
+    Assessed { relation: usize },
     Ambiguous,
     Untraced,
 }
@@ -399,6 +438,11 @@ pub enum WrongChangeKindTraceReport {
         new_second_score: Option<u16>,
         new_best_scope: Option<RecoveryWatchNearScopeReport>,
     },
+    Assessed {
+        occurrence_index: usize,
+        relation: usize,
+        semantic_hunks: WrongChangeKindSemanticHunkReport,
+    },
     Ambiguous,
     Untraced,
 }
@@ -459,6 +503,7 @@ pub struct ExpectedChangeDiagnostics {
     pub complete: bool,
     pub failures: Vec<ExpectedChangeFailure>,
     pub recovery_watch: Option<RecoveryWatchDiagnosticsReport>,
+    pub final_assessment: Option<revision_diagnostics::FinalAssessmentDiagnostics>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -4921,6 +4966,10 @@ pub struct PairRunReport {
     pub role: &'static str,
     pub document_type: String,
     pub in_scope: bool,
+    /// Provenance is emitted in the versioned compact evaluation summary;
+    /// keeping it out of the legacy full report preserves its v1 shape.
+    #[serde(skip)]
+    pub benchmark_provenance: Option<BenchmarkProvenance>,
     pub status: PairRunStatus,
     pub provenance_verified: bool,
     pub compared: bool,
@@ -4937,7 +4986,25 @@ pub struct PairRunReport {
     pub unresolved_regions: Option<usize>,
     pub unresolved_old_token_share: Option<f64>,
     pub unresolved_new_token_share: Option<f64>,
+    #[serde(skip)]
+    pub old_token_resolution: Option<TokenResolutionCounts>,
+    #[serde(skip)]
+    pub new_token_resolution: Option<TokenResolutionCounts>,
     pub reported_content_changes: Option<usize>,
+    /// Number of candidate changes retained without source ownership.
+    #[serde(skip)]
+    pub reported_candidate_changes: Option<usize>,
+    /// Number of competing candidate groups and comparable tokens retained
+    /// for review, when candidate output was produced.
+    #[serde(skip)]
+    pub reported_candidate_groups: Option<usize>,
+    #[serde(skip)]
+    pub reported_candidate_tokens: Option<usize>,
+    #[serde(skip)]
+    pub reported_candidate_precision: Option<f64>,
+    /// Changed regions whose source location remains unlocalized.
+    #[serde(skip)]
+    pub reported_unlocalized_changes: Option<usize>,
     /// Proven content differences are published only in compact summaries;
     /// the unversioned full-report v1 key set remains unchanged.
     #[serde(skip)]
@@ -4968,6 +5035,15 @@ pub struct PairRunReport {
     /// v3 so the full report v1 key set remains unchanged.
     #[serde(skip)]
     pub candidate_recall: Option<CandidateRecallMetrics>,
+    /// Quality of retained candidate events after final diff matching.
+    #[serde(skip)]
+    pub candidate_event: Option<CandidateEventEvaluation>,
+    /// Assessment policy and bounded work accounting for this comparison.
+    #[serde(skip)]
+    pub assessment: Option<AssessmentEvaluation>,
+    /// Quality of source-backed changed regions against reviewed annotations.
+    #[serde(skip)]
+    pub proven: Option<ProvenEvaluation>,
     /// Expected-change failure reasons are published only in compact summary
     /// schema v3 so the full report v1 key set remains unchanged.
     #[serde(skip)]
@@ -5008,6 +5084,10 @@ pub struct PairRunReport {
     /// comparison stopped at a pre-alignment resource limit/error.
     pub candidate_visit_pressure: Option<CandidateVisitPressure>,
     pub runtime_ms: u128,
+    /// Peak resident set size observed for this process, when Linux `/proc`
+    /// memory counters are available.
+    #[serde(skip)]
+    pub peak_rss_bytes: Option<u64>,
     pub limit_scale_used: f64,
     pub failure: Option<String>,
 }
@@ -5104,6 +5184,9 @@ pub struct RevisionPair {
     pub expected_file: Option<String>,
     pub old: SideProvenance,
     pub new: SideProvenance,
+    /// Optional for legacy local manifests; required by the provenance-aware
+    /// manifest header used by the checked-in real-world corpus.
+    pub benchmark_provenance: Option<BenchmarkProvenance>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -5927,6 +6010,7 @@ pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
     let mut pairs = Vec::new();
     let mut seen_ids = HashSet::new();
     let mut header_seen = false;
+    let mut provenance_header = false;
     for (index, raw_line) in manifest.lines().enumerate() {
         let line_number = index + 1;
         let line = raw_line.trim_end_matches('\r');
@@ -5935,15 +6019,20 @@ pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
         }
         let columns: Vec<&str> = line.split('\t').collect();
         if !header_seen {
-            validate_header(&columns, line_number)?;
+            provenance_header = validate_header(&columns, line_number)?;
             header_seen = true;
             continue;
         }
-        if columns.len() != MANIFEST_HEADER.len() {
+        let expected_columns = if provenance_header {
+            MANIFEST_HEADER_WITH_PROVENANCE.len()
+        } else {
+            MANIFEST_HEADER.len()
+        };
+        if columns.len() != expected_columns {
             return Err(BenchError::InvalidInput(format!(
                 "revision manifest row {line_number} has {} columns, expected {}",
                 columns.len(),
-                MANIFEST_HEADER.len()
+                expected_columns
             )));
         }
         let pair_id = require_nonblank(columns[0], "pair_id", line_number)?;
@@ -5967,6 +6056,9 @@ pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
                 "revision manifest row {line_number} records byte-identical old and new PDFs"
             )));
         }
+        let benchmark_provenance = provenance_header
+            .then(|| BenchmarkProvenance::parse(&columns[17..], line_number))
+            .transpose()?;
         pairs.push(RevisionPair {
             pair_id,
             set,
@@ -5981,6 +6073,7 @@ pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
             expected_file: optional_text(columns[10]),
             old,
             new,
+            benchmark_provenance,
         });
     }
     if !header_seen {
@@ -5993,16 +6086,42 @@ pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
             "revision manifest records no pairs".to_owned(),
         ));
     }
+    if provenance_header {
+        let entries = pairs
+            .iter()
+            .map(|pair| {
+                let provenance = pair
+                    .benchmark_provenance
+                    .as_ref()
+                    .expect("provenance header yields provenance metadata");
+                ManifestProvenanceEntry {
+                    pair_id: pair.pair_id.clone(),
+                    split: pair.set.label().to_owned(),
+                    document_series_id: provenance.document_series_id.clone(),
+                    derivation_group: provenance.derivation_group.clone(),
+                    producer_family: provenance.producer_family.clone(),
+                    producer_version: provenance.producer_version.clone(),
+                    tuning_use: provenance.tuning_use,
+                    old_sha256: pair.old.sha256.clone(),
+                    new_sha256: pair.new.sha256.clone(),
+                }
+            })
+            .collect::<Vec<_>>();
+        validate_manifest_provenance(&entries)?;
+    }
     Ok(pairs)
 }
 
-fn validate_header(columns: &[&str], line_number: usize) -> Result<()> {
-    if columns != MANIFEST_HEADER.as_slice() {
-        return Err(BenchError::InvalidInput(format!(
-            "revision manifest header on line {line_number} does not match the documented column order"
-        )));
+fn validate_header(columns: &[&str], line_number: usize) -> Result<bool> {
+    if columns == MANIFEST_HEADER.as_slice() {
+        return Ok(false);
     }
-    Ok(())
+    if columns == MANIFEST_HEADER_WITH_PROVENANCE.as_slice() {
+        return Ok(true);
+    }
+    Err(BenchError::InvalidInput(format!(
+        "revision manifest header on line {line_number} does not match the documented column order"
+    )))
 }
 
 fn invalid_row(line_number: usize, column: &str, value: &str) -> BenchError {
@@ -6319,6 +6438,16 @@ fn load_pair_expected_document(
     manifest_dir: &Path,
 ) -> std::result::Result<Option<ExpectedDocument>, String> {
     let Some(file) = pair.expected_file.as_ref() else {
+        if pair
+            .benchmark_provenance
+            .as_ref()
+            .is_some_and(|provenance| provenance.annotation_scope != "none")
+        {
+            return Err(format!(
+                "manifest pair {:?} declares annotation scope but has no expected annotation file",
+                pair.pair_id
+            ));
+        }
         return Ok(None);
     };
     let path = manifest_dir.join(file);
@@ -6336,6 +6465,22 @@ fn load_pair_expected_document(
             document.pair,
             pair.pair_id
         ));
+    }
+    if let Some(provenance) = pair.benchmark_provenance.as_ref() {
+        let annotation = match document.annotation {
+            Annotation::Complete => "complete",
+            Annotation::Partial => "partial",
+            Annotation::ScopedComplete => "scoped_complete",
+        };
+        if provenance.annotation_scope != annotation {
+            return Err(format!(
+                "manifest pair {:?} declares annotation scope {:?}, but {} uses {:?}",
+                pair.pair_id,
+                provenance.annotation_scope,
+                path.display(),
+                annotation
+            ));
+        }
     }
     Ok(Some(document))
 }
@@ -7058,13 +7203,29 @@ fn matched_semantic_hunk(
     trace: &MatchedAtomicDiff,
     blocks_by_side: [&HashMap<u64, &BlockText>; 2],
 ) -> Option<ActualSemanticHunk> {
-    let old_range = span_range_within_context(occurrence.old_span.as_ref(), &trace.old_context)?;
-    let new_range = span_range_within_context(occurrence.new_span.as_ref(), &trace.new_context)?;
+    semantic_hunk_from_edits(
+        occurrence,
+        &trace.old_context,
+        &trace.new_context,
+        &trace.edits,
+        blocks_by_side,
+    )
+}
+
+fn semantic_hunk_from_edits(
+    occurrence: &ChangeOccurrence,
+    old_context: &TextSpan,
+    new_context: &TextSpan,
+    edits: &[pdfdelta_core::diff::AtomicEdit],
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> Option<ActualSemanticHunk> {
+    let old_range = span_range_within_context(occurrence.old_span.as_ref(), old_context)?;
+    let new_range = span_range_within_context(occurrence.new_span.as_ref(), new_context)?;
     let mut matched_edit = false;
     let mut matching_edits = Vec::new();
     let mut old_atomic_changed_tokens = 0usize;
     let mut new_atomic_changed_tokens = 0usize;
-    for edit in &trace.edits {
+    for edit in edits {
         let touches_hunk = atomic_range_touches_hunk(&edit.old, old_range)
             || atomic_range_touches_hunk(&edit.new, new_range);
         if !touches_hunk {
@@ -7097,23 +7258,69 @@ fn matched_semantic_hunk(
         new_atomic_changed_tokens,
         old_range: normalized_span_range_within_context(
             occurrence.old_span.as_ref(),
-            &trace.old_context,
+            old_context,
             blocks_by_side[0],
         )
         .flatten(),
         new_range: normalized_span_range_within_context(
             occurrence.new_span.as_ref(),
-            &trace.new_context,
+            new_context,
             blocks_by_side[1],
         )
         .flatten(),
         atomic_fragments: resolve_atomic_fragments(
             &matching_edits,
-            &trace.old_context,
-            &trace.new_context,
+            old_context,
+            new_context,
             blocks_by_side,
         ),
     })
+}
+
+fn flatten_candidate_changes(
+    candidates: &[ChangeCandidate],
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> Vec<ActualChange> {
+    candidates
+        .iter()
+        .map(|candidate| {
+            let occurrences = candidate
+                .change
+                .occurrences
+                .iter()
+                .map(|occurrence| {
+                    let resolve = |side: usize, span: Option<&TextSpan>| {
+                        span.and_then(|span| resolve_span(blocks_by_side[side], span))
+                    };
+                    let old = resolve(0, occurrence.old_span.as_ref());
+                    let new = resolve(1, occurrence.new_span.as_ref());
+                    ActualChangeOccurrence {
+                        old_text: old.as_ref().map(|(text, _)| text.clone()),
+                        new_text: new.as_ref().map(|(text, _)| text.clone()),
+                        old_relation_context: None,
+                        new_relation_context: None,
+                        old_relation_context_len: old.as_ref().map(|(_, length)| *length),
+                        new_relation_context_len: new.as_ref().map(|(_, length)| *length),
+                        old_comparable_len: old.as_ref().map(|(_, length)| *length),
+                        new_comparable_len: new.as_ref().map(|(_, length)| *length),
+                        old_atomic_changed_tokens: old.as_ref().map(|(_, length)| *length),
+                        new_atomic_changed_tokens: new.as_ref().map(|(_, length)| *length),
+                        old_semantic_changed_tokens: old.as_ref().map(|(_, length)| *length),
+                        new_semantic_changed_tokens: new.as_ref().map(|(_, length)| *length),
+                        semantic_hunks: None,
+                        relation_trace: ActualRelationTraceStatus::Untraced,
+                        resolvable: occurrence.old_span.as_ref().is_none_or(|_| old.is_some())
+                            && occurrence.new_span.as_ref().is_none_or(|_| new.is_some()),
+                    }
+                })
+                .collect();
+            ActualChange {
+                kind: candidate.change.kind,
+                reported_hunk_count: candidate.change.occurrences.len(),
+                occurrences,
+            }
+        })
+        .collect()
 }
 
 fn flatten_actual_changes(
@@ -7129,12 +7336,21 @@ fn flatten_actual_changes(
         MatchingLimits::default(),
     );
     let matched_contexts = matched_relation_contexts(matched_atomic_diffs, blocks_by_side);
+    let mut assessment_budget = MatchingScanBudget::default();
     comparison
         .changes
         .iter()
         .enumerate()
         .map(|(change_index, change)| {
             let reported_hunk_count = change.occurrences.len();
+            if let Some(actual) = assessment_evidence::for_change(
+                comparison,
+                change_index,
+                blocks_by_side,
+                &mut assessment_budget,
+            ) {
+                return actual;
+            }
             if let Some(Some(evidence)) = recovered.as_ref().and_then(|index| {
                 change
                     .occurrences
@@ -8409,6 +8625,190 @@ fn scoped_proven_region_scopes(
     Ok(result)
 }
 
+fn assessment_evaluation(assessment: &ComparisonAssessment) -> AssessmentEvaluation {
+    AssessmentEvaluation {
+        policy_version: assessment.policy_version,
+        work_limit: assessment.work_limit,
+        work_used: assessment.work_used,
+        work_by_stage: AssessmentWorkEvaluation {
+            anchor_verification: assessment.work_by_stage.anchor_verification,
+            local_views: assessment.work_by_stage.local_views,
+            localization: assessment.work_by_stage.localization,
+            emission: assessment.work_by_stage.emission,
+        },
+        candidates_truncated: assessment.candidates_truncated,
+    }
+}
+
+fn candidate_event_evaluation(
+    document: &ExpectedDocument,
+    comparison: &Comparison,
+    candidate_actuals: &[ActualChange],
+    blocks_by_side: [&[BlockText]; 2],
+) -> CandidateEventEvaluation {
+    let expected = document
+        .changes
+        .iter()
+        .filter(|change| {
+            document.annotation != Annotation::ScopedComplete || change.scope.is_some()
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut matched = match_changes(&expected, candidate_actuals).matched;
+    let precision = match document.annotation {
+        Annotation::Partial => None,
+        Annotation::Complete => ratio(matched, candidate_actuals.len()),
+        Annotation::ScopedComplete => {
+            let Ok(candidate_scopes) =
+                scoped_candidate_scopes(comparison, &document.scopes, blocks_by_side)
+            else {
+                return CandidateEventEvaluation {
+                    expected_changes: expected.len(),
+                    reported_changes: candidate_actuals.len(),
+                    matched_changes: matched,
+                    recall: ratio(matched, expected.len()),
+                    precision: None,
+                };
+            };
+            let Ok(scoped_outcome) = try_match_changes_with_scopes(
+                &expected,
+                candidate_actuals,
+                Some(&candidate_scopes),
+            ) else {
+                return CandidateEventEvaluation {
+                    expected_changes: expected.len(),
+                    reported_changes: candidate_actuals.len(),
+                    matched_changes: matched,
+                    recall: ratio(matched, expected.len()),
+                    precision: None,
+                };
+            };
+            matched = scoped_outcome.matched;
+            candidate_scopes
+                .iter()
+                .all(Option::is_some)
+                .then(|| ratio(matched, candidate_actuals.len()))
+                .flatten()
+        }
+    };
+    CandidateEventEvaluation {
+        expected_changes: expected.len(),
+        reported_changes: candidate_actuals.len(),
+        matched_changes: matched,
+        recall: ratio(matched, expected.len()),
+        precision,
+    }
+}
+
+fn scoped_candidate_scopes(
+    comparison: &Comparison,
+    expected_scopes: &[ExpectedScope],
+    blocks_by_side: [&[BlockText]; 2],
+) -> std::result::Result<Vec<Option<String>>, String> {
+    let scopes = resolve_revision_scopes(expected_scopes, blocks_by_side[0], blocks_by_side[1])?;
+    let candidates = comparison
+        .change_candidates
+        .iter()
+        .map(|candidate| candidate.change.clone())
+        .collect::<Vec<_>>();
+    let classified =
+        classify_scoped_changes(&candidates, &scopes, blocks_by_side[0], blocks_by_side[1])?;
+    let mut result = vec![None; candidates.len()];
+    for change in classified {
+        let Some(slot) = result.get_mut(change.change_index) else {
+            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+        };
+        *slot = Some(change.scope_id);
+    }
+    Ok(result)
+}
+
+fn compute_proven_evaluation(
+    document: &ExpectedDocument,
+    comparison: &Comparison,
+    blocks_by_side: [&[BlockText]; 2],
+    proven_regions: &[ActualProvenChangedRegion],
+) -> Option<ProvenEvaluation> {
+    let scoped = !document.scopes.is_empty();
+    let proven_scopes = scoped
+        .then(|| {
+            let scopes =
+                resolve_revision_scopes(&document.scopes, blocks_by_side[0], blocks_by_side[1])
+                    .ok()?;
+            scoped_proven_region_scopes(comparison, &scopes, blocks_by_side[0], blocks_by_side[1])
+                .ok()
+        })
+        .flatten();
+    if scoped && proven_scopes.is_none() {
+        return None;
+    }
+    let expected = document
+        .changes
+        .iter()
+        .filter(|change| {
+            document.annotation != Annotation::ScopedComplete || change.scope.is_some()
+        })
+        .collect::<Vec<_>>();
+    let limits = MatchingLimits::default();
+    if expected.len() > limits.max_events_per_side
+        || proven_regions.len() > limits.max_events_per_side
+    {
+        return None;
+    }
+    let mut edges = Vec::new();
+    edges.try_reserve_exact(expected.len()).ok()?;
+    let mut edge_checks = 0usize;
+    let mut candidate_edges = 0usize;
+    for (expected_index, change) in expected.iter().enumerate() {
+        let needles = normalized_expected_quotes(change);
+        let mut expected_edges = Vec::new();
+        for (region_index, region) in proven_regions.iter().enumerate() {
+            edge_checks = edge_checks
+                .checked_add(1)
+                .filter(|checks| *checks <= limits.max_edge_checks)?;
+            if !scope_matches(change, region_index, proven_scopes.as_deref())
+                || !proven_region_matches_expected(change, &needles, region)
+            {
+                continue;
+            }
+            candidate_edges = candidate_edges
+                .checked_add(1)
+                .filter(|edges| *edges <= limits.max_candidate_edges)?;
+            expected_edges.try_reserve(1).ok()?;
+            expected_edges.push((
+                region_index,
+                MatchCost([
+                    i128::from(change.occurrence_count.is_none()),
+                    expected_index.abs_diff(region_index) as i128,
+                    expected_index as i128,
+                    region_index as i128,
+                    0,
+                ]),
+            ));
+        }
+        edges.push(expected_edges);
+    }
+    let matching = preferred_maximum_matching(&edges, proven_regions.len(), limits).ok()?;
+    let matched = matching.iter().flatten().count();
+    let reported_regions = if document.annotation == Annotation::ScopedComplete {
+        proven_scopes
+            .as_deref()
+            .map_or(0, |scopes| scopes.iter().flatten().count())
+    } else {
+        proven_regions.len()
+    };
+    Some(ProvenEvaluation {
+        reported_regions,
+        expected_regions: Some(expected.len()),
+        matched_regions: Some(matched),
+        precision: (document.annotation != Annotation::Partial)
+            .then(|| ratio(matched, reported_regions))
+            .flatten(),
+        recall: ratio(matched, expected.len()),
+        unlocalized_regions: reported_regions,
+    })
+}
+
 fn compute_scoped_reviewed_recall_metrics(
     annotation: Annotation,
     expected: &[ExpectedChange],
@@ -8544,6 +8944,41 @@ fn unresolved_token_shares(comparison: &Comparison) -> (Option<f64>, Option<f64>
     )
 }
 
+fn token_resolution_counts(
+    ranges: &[pdfdelta_core::diff::ResolutionRange],
+) -> TokenResolutionCounts {
+    let mut counts = TokenResolutionCounts::default();
+    for range in ranges {
+        let length = range
+            .comparable_range
+            .end
+            .saturating_sub(range.comparable_range.start);
+        counts.total = counts.total.saturating_add(length);
+        match range.state {
+            ResolutionState::Equal => counts.same = counts.same.saturating_add(length),
+            ResolutionState::Changed => counts.changed = counts.changed.saturating_add(length),
+            ResolutionState::Unresolved => {
+                counts.unresolved = counts.unresolved.saturating_add(length)
+            }
+        }
+    }
+    counts
+}
+
+fn candidate_token_count(candidates: &[pdfdelta_core::diff::ChangeCandidate]) -> usize {
+    candidates
+        .iter()
+        .flat_map(|candidate| candidate.change.occurrences.iter())
+        .flat_map(|occurrence| [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()])
+        .flatten()
+        .map(|span| {
+            span.comparable_range
+                .end
+                .saturating_sub(span.comparable_range.start)
+        })
+        .sum()
+}
+
 fn change_kind_name(kind: ChangeKind) -> &'static str {
     match kind {
         ChangeKind::Replacement => "replacement",
@@ -8603,6 +9038,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         role: pair.role.label(),
         document_type: pair.document_type.clone(),
         in_scope: pair.in_scope,
+        benchmark_provenance: pair.benchmark_provenance.clone(),
         provenance_verified: false,
         compared: false,
         extraction_complete: None,
@@ -8614,7 +9050,14 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         unresolved_regions: None,
         unresolved_old_token_share: None,
         unresolved_new_token_share: None,
+        old_token_resolution: None,
+        new_token_resolution: None,
         reported_content_changes: None,
+        reported_candidate_changes: None,
+        reported_candidate_groups: None,
+        reported_candidate_tokens: None,
+        reported_candidate_precision: None,
+        reported_unlocalized_changes: None,
         reported_proven_changed_regions: None,
         formatting_only_changes: None,
         uncertain_changes: None,
@@ -8625,6 +9068,9 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         scoped_event_metrics: None,
         scoped_token_metrics: None,
         candidate_recall: None,
+        candidate_event: None,
+        assessment: None,
+        proven: None,
         expected_change_diagnostics: None,
         resource_limit_failure: None,
         candidate_visits: None,
@@ -8636,6 +9082,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         sentence_recovery_metrics: None,
         candidate_visit_pressure: None,
         runtime_ms: 0,
+        peak_rss_bytes: None,
         limit_scale_used: effective_scale,
         status: PairRunStatus::Ok,
         failure: None,
@@ -8669,6 +9116,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     let (
         outcome,
         alignment,
+        alignment_incomplete,
         recovery_watch_diagnostics,
         matched_atomic_diffs,
         recovered_atomic_diffs,
@@ -8682,6 +9130,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         Ok(ComparisonWithMetrics {
             outcome,
             alignment,
+            alignment_incomplete,
             metrics,
             sentence_recovery_metrics,
             pressure,
@@ -8695,6 +9144,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             (
                 outcome,
                 alignment,
+                alignment_incomplete,
                 recovery_watch_diagnostics,
                 matched_atomic_diffs,
                 recovered_atomic_diffs,
@@ -8721,6 +9171,17 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         }
     };
     record.compared = true;
+    record.assessment = outcome
+        .comparison
+        .assessment
+        .as_ref()
+        .map(assessment_evaluation);
+    if let Some(reason) =
+        comparison_resource_limit_reason(&outcome.comparison, alignment_incomplete)
+    {
+        record.resource_limit_failure = Some(reason);
+        record.quality_skipped_reason = Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned());
+    }
 
     let summary = match summarize(&outcome.comparison, &outcome.extraction) {
         Ok(summary) => summary,
@@ -8740,7 +9201,30 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     let (old_share, new_share) = unresolved_token_shares(&outcome.comparison);
     record.unresolved_old_token_share = old_share;
     record.unresolved_new_token_share = new_share;
+    record.old_token_resolution = outcome
+        .comparison
+        .assessment
+        .as_ref()
+        .map(|assessment| token_resolution_counts(&assessment.old_resolution));
+    record.new_token_resolution = outcome
+        .comparison
+        .assessment
+        .as_ref()
+        .map(|assessment| token_resolution_counts(&assessment.new_resolution));
     record.reported_content_changes = Some(summary.content_changes);
+    record.reported_candidate_changes = Some(outcome.comparison.change_candidates.len());
+    record.reported_candidate_groups = Some(
+        outcome
+            .comparison
+            .change_candidates
+            .iter()
+            .map(|candidate| candidate.alternative_group)
+            .collect::<BTreeSet<_>>()
+            .len(),
+    );
+    record.reported_candidate_tokens =
+        Some(candidate_token_count(&outcome.comparison.change_candidates));
+    record.reported_unlocalized_changes = Some(outcome.comparison.proven_changed_regions.len());
     record.reported_proven_changed_regions = Some(outcome.comparison.proven_changed_regions.len());
     record.formatting_only_changes = Some(summary.formatting_only_changes);
     record.uncertain_changes = Some(summary.uncertain_changes);
@@ -8761,6 +9245,30 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     let (actuals, proven_regions) = if extraction_complete {
         let old_map = build_block_map(&outcome.old_blocks);
         let new_map = build_block_map(&outcome.new_blocks);
+        let candidate_actuals =
+            flatten_candidate_changes(&outcome.comparison.change_candidates, [&old_map, &new_map]);
+        if let Some(document) = expected.as_ref() {
+            record.candidate_event = Some(candidate_event_evaluation(
+                document,
+                &outcome.comparison,
+                &candidate_actuals,
+                [&outcome.old_blocks, &outcome.new_blocks],
+            ));
+            record.reported_candidate_precision =
+                record.candidate_event.and_then(|event| event.precision);
+        }
+        let proven_regions =
+            flatten_proven_changed_regions(&outcome.comparison, [&old_map, &new_map]);
+        record.proven = expected.as_ref().and_then(|document| {
+            proven_regions.as_deref().and_then(|regions| {
+                compute_proven_evaluation(
+                    document,
+                    &outcome.comparison,
+                    [&outcome.old_blocks, &outcome.new_blocks],
+                    regions,
+                )
+            })
+        });
         (
             Some(flatten_actual_changes(
                 &outcome.comparison,
@@ -8768,7 +9276,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 &matched_atomic_diffs,
                 &recovered_atomic_diffs,
             )),
-            flatten_proven_changed_regions(&outcome.comparison, [&old_map, &new_map]),
+            proven_regions,
         )
     } else {
         (None, None)
@@ -8968,7 +9476,26 @@ fn finish(mut record: PairRunReport, started: Instant) -> PairRunReport {
         PairRunStatus::Ok
     };
     record.runtime_ms = started.elapsed().as_millis();
+    record.peak_rss_bytes = peak_rss_bytes();
     record
+}
+
+#[cfg(target_os = "linux")]
+fn peak_rss_bytes() -> Option<u64> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    let value_kib = status
+        .lines()
+        .find_map(|line| line.strip_prefix("VmHWM:"))?
+        .split_whitespace()
+        .next()?
+        .parse::<u64>()
+        .ok()?;
+    value_kib.checked_mul(1024)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn peak_rss_bytes() -> Option<u64> {
+    None
 }
 
 #[derive(Debug)]
@@ -9087,6 +9614,52 @@ fn alignment_visit_metrics(
             .candidate_visits_required_short_fallback,
         max_candidate_visits: record.metrics.max_candidate_visits,
     })
+}
+
+fn alignment_search_is_incomplete(diagnostics: &PipelineDiagnostics) -> bool {
+    diagnostics.records().iter().any(|record| {
+        record.phase == PipelinePhase::Alignment && record.status == PipelinePhaseStatus::Incomplete
+    })
+}
+
+fn assessment_resource_limit_reason(assessment: &ComparisonAssessment) -> Option<&'static str> {
+    let search_incomplete = assessment.relations.iter().any(|relation| {
+        relation.search == SearchCompleteness::Incomplete
+            || relation.reasons.iter().any(|reason| {
+                matches!(
+                    reason,
+                    AssessmentReason::SearchIncomplete
+                        | AssessmentReason::WorkLimit
+                        | AssessmentReason::OutputLimit
+                )
+            })
+    });
+    match (search_incomplete, assessment.candidates_truncated) {
+        (true, true) => {
+            Some("comparison assessment reached a work limit and truncated candidate output")
+        }
+        (true, false) => Some("comparison assessment search reached a resource limit"),
+        (false, true) => Some("comparison assessment output limit truncated candidate output"),
+        (false, false) => None,
+    }
+}
+
+fn comparison_resource_limit_reason(
+    comparison: &Comparison,
+    alignment_incomplete: bool,
+) -> Option<String> {
+    let assessment_reason = comparison
+        .assessment
+        .as_ref()
+        .and_then(assessment_resource_limit_reason);
+    match (alignment_incomplete, assessment_reason) {
+        (false, None) => None,
+        (true, None) => Some("alignment search recorded incomplete work".to_owned()),
+        (false, Some(reason)) => Some(reason.to_owned()),
+        (true, Some(reason)) => Some(format!(
+            "alignment search recorded incomplete work; {reason}"
+        )),
+    }
 }
 
 fn validate_exact_tail_recovery_metrics(
@@ -9512,7 +10085,9 @@ fn validate_recovery_ownership_partition(
     }
 }
 
-fn validate_change_origin_metrics(metrics: ChangeOriginMetrics) -> std::result::Result<(), String> {
+fn validate_change_origin_proposal_metrics(
+    metrics: ChangeOriginMetrics,
+) -> std::result::Result<(), String> {
     let origins = [
         metrics.ordered_alignment,
         metrics.sentence_near,
@@ -9531,110 +10106,6 @@ fn validate_change_origin_metrics(metrics: ChangeOriginMetrics) -> std::result::
         {
             return Err("change origin exposes changed tokens without an event".to_owned());
         }
-    }
-    Ok(())
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct ChangeOriginTotals {
-    events: usize,
-    old_changed_tokens: usize,
-    new_changed_tokens: usize,
-    old_resolved_context_tokens: usize,
-    new_resolved_context_tokens: usize,
-}
-
-fn change_origin_totals(
-    metrics: ChangeOriginMetrics,
-) -> std::result::Result<ChangeOriginTotals, String> {
-    [
-        metrics.ordered_alignment,
-        metrics.sentence_near,
-        metrics.local_fragment,
-        metrics.cross_granularity,
-        metrics.trusted_tail,
-        metrics.exact_tail,
-        metrics.running_matter,
-        metrics.range_local_exact,
-        metrics.trusted_residual_exact,
-        metrics.anchored_gap,
-    ]
-    .into_iter()
-    .try_fold(ChangeOriginTotals::default(), |mut total, metric| {
-        total.events = total
-            .events
-            .checked_add(metric.event_count)
-            .ok_or_else(|| "change origin event total overflows".to_owned())?;
-        total.old_changed_tokens = total
-            .old_changed_tokens
-            .checked_add(metric.old_changed_tokens)
-            .ok_or_else(|| "change origin old changed-token total overflows".to_owned())?;
-        total.new_changed_tokens = total
-            .new_changed_tokens
-            .checked_add(metric.new_changed_tokens)
-            .ok_or_else(|| "change origin new changed-token total overflows".to_owned())?;
-        total.old_resolved_context_tokens = total
-            .old_resolved_context_tokens
-            .checked_add(metric.old_resolved_context_tokens)
-            .ok_or_else(|| "change origin old resolved-context total overflows".to_owned())?;
-        total.new_resolved_context_tokens = total
-            .new_resolved_context_tokens
-            .checked_add(metric.new_resolved_context_tokens)
-            .ok_or_else(|| "change origin new resolved-context total overflows".to_owned())?;
-        Ok(total)
-    })
-}
-
-fn comparison_changed_token_totals(
-    comparison: &Comparison,
-) -> std::result::Result<(usize, usize), String> {
-    comparison.changes.iter().try_fold(
-        (0usize, 0usize),
-        |(mut old_total, mut new_total), change| {
-            for occurrence in &change.occurrences {
-                if let Some(span) = &occurrence.old_span {
-                    let tokens = span
-                        .comparable_range
-                        .end
-                        .checked_sub(span.comparable_range.start)
-                        .ok_or_else(|| "final old change span is reversed".to_owned())?;
-                    old_total = old_total
-                        .checked_add(tokens)
-                        .ok_or_else(|| "final old changed-token total overflows".to_owned())?;
-                }
-                if let Some(span) = &occurrence.new_span {
-                    let tokens = span
-                        .comparable_range
-                        .end
-                        .checked_sub(span.comparable_range.start)
-                        .ok_or_else(|| "final new change span is reversed".to_owned())?;
-                    new_total = new_total
-                        .checked_add(tokens)
-                        .ok_or_else(|| "final new changed-token total overflows".to_owned())?;
-                }
-            }
-            Ok((old_total, new_total))
-        },
-    )
-}
-
-fn validate_change_origin_parity(
-    metrics: ChangeOriginMetrics,
-    comparison: &Comparison,
-) -> std::result::Result<(), String> {
-    let origin = change_origin_totals(metrics)?;
-    let (old_changed_tokens, new_changed_tokens) = comparison_changed_token_totals(comparison)?;
-    let expected = ChangeOriginTotals {
-        events: comparison.changes.len(),
-        old_changed_tokens,
-        new_changed_tokens,
-        old_resolved_context_tokens: comparison.old_coverage.resolved_tokens,
-        new_resolved_context_tokens: comparison.new_coverage.resolved_tokens,
-    };
-    if origin != expected {
-        return Err(format!(
-            "change origin totals {origin:?} do not match final comparison {expected:?}"
-        ));
     }
     Ok(())
 }
@@ -9968,7 +10439,7 @@ fn validate_recovery_ownership_status(
 fn validate_sentence_recovery_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
-    validate_change_origin_metrics(metrics.change_origins)?;
+    validate_change_origin_proposal_metrics(metrics.change_origins)?;
     validate_recovery_ownership_status(metrics)?;
     validate_exact_tail_recovery_metrics(metrics)?;
     validate_trusted_residual_exact_metrics(metrics)?;
@@ -13951,6 +14422,7 @@ fn resolve_pressure(
 struct ComparisonWithMetrics {
     outcome: RevisionOutcome,
     alignment: Option<Alignment>,
+    alignment_incomplete: bool,
     metrics: VisitMetrics,
     sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pressure: Option<CandidateVisitPressure>,
@@ -14004,6 +14476,7 @@ fn compare_outcomes_with_metrics(
             watched.recovery_ownership_partition,
         )
     });
+    let alignment_incomplete = alignment_search_is_incomplete(&diagnostics);
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
@@ -14034,9 +14507,6 @@ fn compare_outcomes_with_metrics(
     })?;
     let sentence_recovery_metrics = match sentence_recovery_metrics {
         Some(metrics) => {
-            validate_change_origin_parity(metrics.change_origins, &outcome.comparison).map_err(
-                |message| RevisionRunError::Other("change origin contract violation", message),
-            )?;
             let mut report = validate_sentence_recovery_metrics_with_partition(
                 metrics,
                 recovery_ownership_partition.as_ref(),
@@ -14093,6 +14563,7 @@ fn compare_outcomes_with_metrics(
     Ok(ComparisonWithMetrics {
         outcome,
         alignment,
+        alignment_incomplete,
         metrics,
         sentence_recovery_metrics,
         pressure,
@@ -14353,7 +14824,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 65;
+    pub const SCHEMA_VERSION: u32 = 67;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -14455,6 +14926,231 @@ pub fn write_summary_json(path: &Path, reports: &[PairRunReport]) -> Result<()> 
     publish_new_file(path, &bytes)
 }
 
+/// Builds the provenance-aware evaluation summary without changing the
+/// legacy revision summary schema.
+pub fn evaluation_summary(reports: &[PairRunReport]) -> EvaluationSummary {
+    EvaluationSummary::from_records(
+        reports
+            .iter()
+            .map(evaluation_record_from_pair_report)
+            .collect(),
+    )
+}
+
+/// Writes the provenance-aware evaluation summary to a new file.
+pub fn write_evaluation_summary_json(path: &Path, reports: &[PairRunReport]) -> Result<()> {
+    let summary = evaluation_summary(reports);
+    let mut bytes = serde_json::to_vec_pretty(&summary).map_err(|error| {
+        BenchError::Publication(format!(
+            "cannot serialize provenance-aware evaluation summary: {error}"
+        ))
+    })?;
+    bytes.push(b'\n');
+    publish_new_file(path, &bytes)
+}
+
+fn evaluation_record_from_pair_report(report: &PairRunReport) -> EvaluationRecord {
+    let quality = report.quality.map(|metrics| {
+        let annotation = match metrics.annotation {
+            Annotation::Complete => "complete",
+            Annotation::Partial => "partial",
+            Annotation::ScopedComplete => "scoped_complete",
+        };
+        let matched_changes = metrics
+            .recall
+            .zip(Some(metrics.expected_changes))
+            .map(|(recall, expected)| (recall * expected as f64).round() as usize);
+        let kind_correct = metrics
+            .kind_accuracy
+            .zip(matched_changes)
+            .map(|(accuracy, matched)| (accuracy * matched as f64).round() as usize);
+        let precision = (metrics.annotation != Annotation::Partial)
+            .then_some(metrics.precision)
+            .flatten();
+        let document_recall = (metrics.annotation == Annotation::Complete)
+            .then_some(metrics.recall)
+            .flatten();
+        QualityEvaluation {
+            annotation: Some(annotation.to_owned()),
+            expected_changes: Some(metrics.expected_changes),
+            reported_changes: Some(metrics.reported_changes),
+            matched_changes,
+            kind_correct,
+            precision,
+            recall: metrics.recall,
+            document_recall,
+            kind_accuracy: metrics.kind_accuracy,
+            candidate_recall: report
+                .candidate_event
+                .and_then(|candidate| candidate.recall),
+            generator_candidate_recall_at_k: report
+                .candidate_recall
+                .and_then(|candidate| candidate.recall_at_k),
+            reported_hunks_per_matched_change: metrics.reported_hunks_per_matched_change,
+            review_hunks_per_expected_change: metrics.review_hunks_per_expected_change,
+            unmatched_tiny_changes: Some(metrics.unmatched_tiny_changes),
+            unresolvable_reported_spans: Some(metrics.unresolvable_reported_spans),
+        }
+    });
+    let trial_status = match report.status {
+        PairRunStatus::Limit => TrialStatus::Limit,
+        PairRunStatus::Failed => {
+            if report
+                .extraction_issues
+                .iter()
+                .any(|issue| issue.kind == "unsupported")
+            {
+                TrialStatus::Unsupported
+            } else if report
+                .extraction_issues
+                .iter()
+                .any(|issue| issue.kind == "unresolved")
+            {
+                TrialStatus::Unresolved
+            } else {
+                TrialStatus::Fatal
+            }
+        }
+        PairRunStatus::Ok if !report.compared => TrialStatus::Skipped,
+        PairRunStatus::Ok if report.extraction_complete == Some(false) => {
+            if report
+                .extraction_issues
+                .iter()
+                .any(|issue| issue.kind == "unsupported")
+            {
+                TrialStatus::Unsupported
+            } else {
+                TrialStatus::Unresolved
+            }
+        }
+        PairRunStatus::Ok => TrialStatus::Ok,
+    };
+    let (document_series_id, derivation_group, producer_family, producer_version) = report
+        .benchmark_provenance
+        .as_ref()
+        .map(|provenance| {
+            (
+                Some(provenance.document_series_id.clone()),
+                Some(provenance.derivation_group.clone()),
+                Some(provenance.producer_family.clone()),
+                Some(provenance.producer_version.clone()),
+            )
+        })
+        .unwrap_or_default();
+    EvaluationRecord {
+        pair_id: report.pair_id.clone(),
+        document_series_id,
+        derivation_group,
+        producer_family,
+        producer_version,
+        split: report.set.to_owned(),
+        trial_status,
+        compared: report.compared,
+        extraction_complete: report.extraction_complete,
+        comparison_complete: report.comparison_complete,
+        coverage_old: report.coverage_old,
+        coverage_new: report.coverage_new,
+        coverage_comparison: report.coverage_comparison,
+        unresolved_old_token_share: report.unresolved_old_token_share,
+        unresolved_new_token_share: report.unresolved_new_token_share,
+        accepted_changes: report.reported_content_changes.unwrap_or_default(),
+        candidate_changes: report.reported_candidate_changes.unwrap_or_default(),
+        formatting_only_changes: report.formatting_only_changes.unwrap_or_default(),
+        uncertain_changes: report.uncertain_changes.unwrap_or_default(),
+        unresolved_regions: report.unresolved_regions.unwrap_or_default(),
+        unlocalized_changed_regions: report
+            .reported_unlocalized_changes
+            .unwrap_or_else(|| report.reported_proven_changed_regions.unwrap_or_default()),
+        quality_skipped_reason: report.quality_skipped_reason.clone(),
+        trial_runtime_ms: report.runtime_ms,
+        peak_memory_bytes: report.peak_rss_bytes,
+        limit_scale_used: report.limit_scale_used,
+        resolved_old_tokens: report
+            .old_token_resolution
+            .map(|counts| counts.total.saturating_sub(counts.unresolved)),
+        resolved_new_tokens: report
+            .new_token_resolution
+            .map(|counts| counts.total.saturating_sub(counts.unresolved)),
+        old_token_resolution: report.old_token_resolution,
+        new_token_resolution: report.new_token_resolution,
+        assessment: report.assessment,
+        quality: quality.unwrap_or_default(),
+        candidate: report
+            .candidate_recall
+            .map(|metrics| CandidateEvaluation {
+                top_k: metrics.top_k,
+                annotated_counterparts: metrics.annotated_counterparts,
+                evaluable_counterparts: metrics.evaluable_counterparts,
+                recalled_counterparts: metrics.recalled_counterparts,
+                unavailable_counterparts: metrics.unavailable_counterparts,
+                recall_at_k: metrics.recall_at_k,
+                candidate_groups: report.reported_candidate_groups,
+                candidate_tokens: report.reported_candidate_tokens,
+                precision: report.reported_candidate_precision,
+                final_event: report.candidate_event,
+            })
+            .or_else(|| {
+                (report.candidate_event.is_some()
+                    || report.reported_candidate_changes.unwrap_or_default() > 0)
+                    .then_some({
+                        CandidateEvaluation {
+                            top_k: 0,
+                            annotated_counterparts: 0,
+                            evaluable_counterparts: 0,
+                            recalled_counterparts: 0,
+                            unavailable_counterparts: 0,
+                            recall_at_k: None,
+                            candidate_groups: report.reported_candidate_groups,
+                            candidate_tokens: report.reported_candidate_tokens,
+                            precision: report.reported_candidate_precision,
+                            final_event: report.candidate_event,
+                        }
+                    })
+            }),
+        proven: report.proven.or_else(|| {
+            report
+                .reported_proven_changed_regions
+                .map(|reported_regions| ProvenEvaluation {
+                    reported_regions,
+                    expected_regions: None,
+                    matched_regions: None,
+                    precision: None,
+                    recall: None,
+                    unlocalized_regions: report.reported_unlocalized_changes.unwrap_or_default(),
+                })
+        }),
+        scoped_event: report
+            .scoped_event_metrics
+            .map(|metrics| ScopedEventEvaluation {
+                reviewed_scope_count: metrics.reviewed_scope_count,
+                precision: metrics.precision,
+                recall: metrics.recall,
+                f1: metrics.f1,
+            }),
+        scoped_tokens: report
+            .scoped_token_metrics
+            .map(|metrics| ScopedTokenEvaluation {
+                expected_changed_tokens: metrics.expected_changed_tokens,
+                reported_changed_tokens: metrics.reported_changed_tokens,
+                true_positive_tokens: metrics.true_positive_tokens,
+                precision: metrics.precision,
+                recall: metrics.recall,
+                f1: metrics.f1,
+                span_iou: metrics.span_iou,
+                false_positive_tokens_per_10k_unchanged: metrics
+                    .false_positive_tokens_per_10k_unchanged,
+            }),
+        reviewed_recall: report
+            .reviewed_recall_metrics
+            .map(|metrics| ReviewedRecallEvaluation {
+                content_presence_recall: metrics.content_presence_recall.recall,
+                exact_localization_recall: metrics.exact_localization_recall.recall,
+                semantic_relation_recall: metrics.semantic_relation_recall.recall,
+                move_recall: metrics.move_recall.recall,
+            }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pdfdelta_core::{
@@ -14483,6 +15179,29 @@ mod tests {
              https://example.test/{pair_id}-old.pdf\t100\t{}\thttps://example.test/{pair_id}-new.pdf\t200\t{}",
             "a".repeat(64),
             "b".repeat(64)
+        )
+    }
+
+    fn provenance_manifest_row(
+        pair_id: &str,
+        split: &str,
+        series: &str,
+        derivation: &str,
+        old_sha: &str,
+        new_sha: &str,
+    ) -> String {
+        let old_sha = if old_sha.len() == 1 {
+            old_sha.repeat(64)
+        } else {
+            old_sha.to_owned()
+        };
+        let new_sha = if new_sha.len() == 1 {
+            new_sha.repeat(64)
+        } else {
+            new_sha.to_owned()
+        };
+        format!(
+            "{pair_id}\t{split}\tstandard\tdocument\tsingle-column\ttrue\t-\t2026-08-24\tcomplete\t1.0\t-\thttps://example.test/{pair_id}-old.pdf\t1\t{old_sha}\thttps://example.test/{pair_id}-new.pdf\t2\t{new_sha}\t{series}\t{derivation}\tunknown\tunknown\tnone\t2026-08-24\tunused"
         )
     }
 
@@ -15793,6 +16512,32 @@ mod tests {
     }
 
     #[test]
+    fn provenance_manifest_preserves_metadata_and_validates_split_boundaries() {
+        let header = MANIFEST_HEADER_WITH_PROVENANCE.join("\t");
+        let row = provenance_manifest_row("pair", "holdout", "series", "series", "a", "b");
+        let pairs = parse_manifest(&format!("{header}\n{row}\n")).expect("valid metadata row");
+        let provenance = pairs[0]
+            .benchmark_provenance
+            .as_ref()
+            .expect("provenance metadata");
+        assert_eq!(provenance.document_series_id, "series");
+        assert_eq!(provenance.derivation_group, "series");
+        assert_eq!(provenance.annotation_scope, "none");
+
+        let mixed = format!(
+            "{header}\n{}\n{}\n",
+            provenance_manifest_row("dev", "dev", "same-series", "same-series", "a", "b"),
+            provenance_manifest_row("holdout", "holdout", "same-series", "other", "c", "d")
+        );
+        assert!(parse_manifest(&mixed).is_err());
+
+        let used_for_fix =
+            provenance_manifest_row("used", "holdout", "used-series", "used-series", "e", "f")
+                .replace("\tunused", "\tused_for_fix");
+        assert!(parse_manifest(&format!("{header}\n{used_for_fix}\n")).is_err());
+    }
+
+    #[test]
     fn expected_documents_enforce_version_and_quote_shapes() {
         let template = r#"{"version":1,"pair":"p","reviewed_on":"2026-08-24","annotation":"partial","changes":[CHANGES]}"#;
         let replacement =
@@ -16224,6 +16969,7 @@ mod tests {
         report.expected_change_diagnostics = Some(ExpectedChangeDiagnostics {
             complete: true,
             failures: Vec::new(),
+            final_assessment: None,
             recovery_watch: Some(RecoveryWatchDiagnosticsReport {
                 complete: true,
                 candidate_generation_complete: true,
@@ -16259,7 +17005,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 65);
+        assert_eq!(completed["schema_version"], 67);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -16270,6 +17016,7 @@ mod tests {
             serde_json::json!({
                 "complete": true,
                 "failures": [],
+                "final_assessment": null,
                 "recovery_watch": {
                     "complete": true,
                     "candidate_generation_complete": true,
@@ -16333,7 +17080,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 65);
+        assert_eq!(legacy_summary["schema_version"], 67);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -16410,7 +17157,7 @@ mod tests {
         assert!(full.get("reviewed_recall_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
             .expect("summary serializes");
-        assert_eq!(summary["schema_version"], 65);
+        assert_eq!(summary["schema_version"], 67);
         assert_eq!(
             summary["records"][0]["reviewed_recall_metrics"],
             serde_json::json!({
@@ -16756,6 +17503,8 @@ mod tests {
         let new_blocks = [relation_block(2, "outside reviewed outside")];
         let comparison = Comparison {
             changes: Vec::new(),
+            change_candidates: Vec::new(),
+            assessment: None,
             proven_changed_regions: vec![pdfdelta_core::diff::ProvenChangedRegion {
                 old_span: Some(relation_span(vec![BlockId(1)], None, 9)),
                 new_span: None,
@@ -18200,6 +18949,8 @@ mod tests {
                 pdfdelta_core::diff::Confidence::High,
                 Vec::new(),
             )],
+            change_candidates: Vec::new(),
+            assessment: None,
             proven_changed_regions: Vec::new(),
             formatting_changes: Vec::new(),
             unresolved_regions: Vec::new(),
@@ -18493,6 +19244,8 @@ mod tests {
                 confidence: pdfdelta_core::diff::Confidence::High,
                 tags: Vec::new(),
             }],
+            change_candidates: Vec::new(),
+            assessment: None,
             proven_changed_regions: Vec::new(),
             formatting_changes: Vec::new(),
             unresolved_regions: Vec::new(),
@@ -19453,6 +20206,7 @@ mod tests {
             role: PairRole::Standard.label(),
             document_type: "t".to_owned(),
             in_scope: true,
+            benchmark_provenance: None,
             status,
             provenance_verified: true,
             compared: false,
@@ -19465,7 +20219,14 @@ mod tests {
             unresolved_regions: None,
             unresolved_old_token_share: None,
             unresolved_new_token_share: None,
+            old_token_resolution: None,
+            new_token_resolution: None,
             reported_content_changes: None,
+            reported_candidate_changes: None,
+            reported_candidate_groups: None,
+            reported_candidate_tokens: None,
+            reported_candidate_precision: None,
+            reported_unlocalized_changes: None,
             formatting_only_changes: None,
             reported_proven_changed_regions: None,
             uncertain_changes: None,
@@ -19476,6 +20237,9 @@ mod tests {
             scoped_event_metrics: None,
             scoped_token_metrics: None,
             candidate_recall: None,
+            candidate_event: None,
+            assessment: None,
+            proven: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,
             candidate_visits: None,
@@ -19487,9 +20251,119 @@ mod tests {
             sentence_recovery_metrics: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
+            peak_rss_bytes: None,
             limit_scale_used: 1.0,
             failure: None,
         }
+    }
+
+    #[test]
+    fn post_comparison_limit_retains_quality_and_assessment_evidence() {
+        let mut report = record(PairRunStatus::Limit);
+        report.compared = true;
+        report.extraction_complete = Some(true);
+        report.comparison_complete = Some(false);
+        report.resource_limit_failure =
+            Some("alignment search recorded incomplete work".to_owned());
+        report.quality = Some(QualityMetrics {
+            annotation: Annotation::Partial,
+            expected_changes: 1,
+            reported_changes: 0,
+            recall: Some(0.0),
+            precision: None,
+            kind_accuracy: None,
+            reported_hunks_per_matched_change: None,
+            review_hunks_per_expected_change: None,
+            unmatched_tiny_changes: 0,
+            unresolvable_reported_spans: 0,
+        });
+        report.candidate_event = Some(CandidateEventEvaluation {
+            expected_changes: 1,
+            reported_changes: 0,
+            matched_changes: 0,
+            recall: Some(0.0),
+            precision: None,
+        });
+        report.proven = Some(ProvenEvaluation {
+            reported_regions: 1,
+            expected_regions: Some(1),
+            matched_regions: Some(0),
+            precision: None,
+            recall: Some(0.0),
+            unlocalized_regions: 1,
+        });
+        report.assessment = Some(AssessmentEvaluation {
+            policy_version: 1,
+            work_limit: 100,
+            work_used: 100,
+            work_by_stage: AssessmentWorkEvaluation {
+                anchor_verification: 10,
+                local_views: 20,
+                localization: 30,
+                emission: 40,
+            },
+            candidates_truncated: true,
+        });
+
+        let record = evaluation_record_from_pair_report(&report);
+        assert_eq!(record.trial_status, TrialStatus::Limit);
+        assert_eq!(record.quality.recall, Some(0.0));
+        assert_eq!(record.quality.candidate_recall, Some(0.0));
+        assert_eq!(record.assessment.expect("assessment").work_used, 100);
+
+        let summary = EvaluationSummary::from_records(vec![record]);
+        assert_eq!(summary.totals.quality.partial_trials, 1);
+        assert_eq!(summary.totals.quality.recall, Some(0.0));
+        assert_eq!(summary.totals.quality.candidate_recall, Some(0.0));
+        assert_eq!(summary.totals.proven.precision, None);
+        assert_eq!(summary.totals.proven.recall, Some(0.0));
+        let serialized = serde_json::to_value(&summary).expect("evaluation summary serializes");
+        assert_eq!(serialized["records"][0]["assessment"]["work_used"], 100);
+        assert_eq!(
+            serialized["records"][0]["assessment"]["work_by_stage"]["local_views"],
+            20
+        );
+    }
+
+    #[test]
+    fn proven_evaluation_matches_source_backed_regions_once() {
+        let document = expected_document(vec![expected_change(
+            "replacement",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        )]);
+        let comparison = Comparison {
+            change_candidates: Vec::new(),
+            assessment: None,
+            changes: Vec::new(),
+            proven_changed_regions: Vec::new(),
+            formatting_changes: Vec::new(),
+            unresolved_regions: Vec::new(),
+            old_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 0,
+                total_tokens: 0,
+                ratio: None,
+            },
+            new_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 0,
+                total_tokens: 0,
+                ratio: None,
+            },
+        };
+        let regions = vec![ActualProvenChangedRegion {
+            old_text: Some("old".to_owned()),
+            new_text: Some("new".to_owned()),
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        }];
+
+        let evaluation = compute_proven_evaluation(&document, &comparison, [&[], &[]], &regions)
+            .expect("unscoped proven evaluation is computable");
+        assert_eq!(evaluation.reported_regions, 1);
+        assert_eq!(evaluation.expected_regions, Some(1));
+        assert_eq!(evaluation.matched_regions, Some(1));
+        assert_eq!(evaluation.precision, Some(1.0));
+        assert_eq!(evaluation.recall, Some(1.0));
     }
 
     #[test]
@@ -19507,6 +20381,24 @@ mod tests {
             summarize_reports(&reports),
             "2/4 revision pairs healthy; 1 stopped at resource limits; 1 failed"
         );
+    }
+
+    #[test]
+    fn evaluation_summary_keeps_unlocalized_changes_separate_from_unresolved_regions() {
+        let mut report = record(PairRunStatus::Ok);
+        report.compared = true;
+        report.comparison_complete = Some(false);
+        report.reported_content_changes = Some(1);
+        report.reported_candidate_changes = Some(2);
+        report.reported_unlocalized_changes = Some(3);
+        report.unresolved_regions = Some(4);
+
+        let summary = evaluation_summary(&[report]);
+        let totals = &summary.totals;
+        assert_eq!(totals.accepted_changes, 1);
+        assert_eq!(totals.candidate_changes, 2);
+        assert_eq!(totals.unlocalized_changed_regions, 3);
+        assert_eq!(totals.unresolved_regions, 4);
     }
 
     #[test]
@@ -19652,6 +20544,7 @@ mod tests {
         let ComparisonWithMetrics {
             outcome,
             alignment,
+            alignment_incomplete: _,
             metrics,
             sentence_recovery_metrics,
             pressure,
@@ -19804,8 +20697,9 @@ mod tests {
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
         let ComparisonWithMetrics {
-            outcome: _,
+            outcome: baseline_outcome,
             alignment: _,
+            alignment_incomplete: _,
             metrics,
             sentence_recovery_metrics: _,
             pressure: _,
@@ -19829,43 +20723,69 @@ mod tests {
             },
             ..PipelineOptions::default()
         };
-        let error = compare_outcomes_with_metrics(old, new, options, &[])
-            .expect_err("candidate limit must fail");
-        match error {
-            RevisionRunError::Limit {
-                message,
-                metrics,
-                pressure,
-            } => {
-                assert!(message.contains("alignment candidate visits"));
-                assert_eq!(metrics.candidate_visits, Some(charge));
-                assert_eq!(
-                    metrics.candidate_visits_required,
-                    Some(charge),
-                    "the full required sum completes when no later estimate errors"
-                );
-                let (exact, ngram, short_fallback) = (
-                    metrics
-                        .candidate_visits_required_exact
-                        .expect("inverted index reports a breakdown"),
-                    metrics
-                        .candidate_visits_required_ngram
-                        .expect("inverted index reports a breakdown"),
-                    metrics
-                        .candidate_visits_required_short_fallback
-                        .expect("inverted index reports a breakdown"),
-                );
-                assert_eq!(
-                    exact + ngram + short_fallback,
-                    charge,
-                    "required components must sum to the required total"
-                );
-                assert_eq!(metrics.max_candidate_visits, Some(charge - 1));
-                let pressure = pressure.expect("pressure recorded for complete extraction");
-                assert_eq!(pressure.max_candidate_visits, charge - 1);
-            }
-            other => panic!("expected Limit, got {other:?}"),
-        }
+        let ComparisonWithMetrics {
+            outcome,
+            alignment_incomplete,
+            metrics,
+            pressure,
+            ..
+        } = compare_outcomes_with_metrics(old, new, options, &[])
+            .expect("candidate limit preserves a local incomplete comparison");
+        assert_eq!(metrics.candidate_visits, Some(charge));
+        assert!(alignment_incomplete);
+        assert_eq!(
+            metrics.candidate_visits_required,
+            Some(charge),
+            "the full required sum completes when no later estimate errors"
+        );
+        let (exact, ngram, short_fallback) = (
+            metrics
+                .candidate_visits_required_exact
+                .expect("inverted index reports a breakdown"),
+            metrics
+                .candidate_visits_required_ngram
+                .expect("inverted index reports a breakdown"),
+            metrics
+                .candidate_visits_required_short_fallback
+                .expect("inverted index reports a breakdown"),
+        );
+        assert_eq!(
+            exact + ngram + short_fallback,
+            charge,
+            "required components must sum to the required total"
+        );
+        assert_eq!(metrics.max_candidate_visits, Some(charge - 1));
+        let pressure = pressure.expect("pressure recorded for complete extraction");
+        assert_eq!(pressure.max_candidate_visits, charge - 1);
+
+        assert!(baseline_outcome.comparison.unresolved_regions.is_empty());
+        assert!(outcome.comparison.changes.is_empty());
+        assert!(outcome.comparison.change_candidates.is_empty());
+        assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 0);
+        assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+        assert!(
+            outcome.comparison.unresolved_regions[0]
+                .evidence
+                .contains(&pdfdelta_core::alignment::AlignmentEvidence::SearchIncomplete)
+        );
+        let assessment = outcome
+            .comparison
+            .assessment
+            .as_ref()
+            .expect("local incomplete comparison retains assessment");
+        assert!(
+            assessment
+                .old_resolution
+                .iter()
+                .all(|range| range.state == pdfdelta_core::diff::ResolutionState::Unresolved)
+        );
+        assert!(
+            assessment
+                .new_resolution
+                .iter()
+                .all(|range| range.state == pdfdelta_core::diff::ResolutionState::Unresolved)
+        );
     }
 
     #[test]
@@ -19917,6 +20837,7 @@ mod tests {
         let ComparisonWithMetrics {
             outcome: _,
             alignment,
+            alignment_incomplete: _,
             metrics,
             sentence_recovery_metrics,
             pressure,
@@ -19997,7 +20918,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 65);
+        assert_eq!(json["schema_version"], 67);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -20960,35 +21881,7 @@ mod tests {
     }
 
     #[test]
-    fn validates_change_origin_totals_against_final_comparison() {
-        let comparison = Comparison {
-            changes: vec![pdfdelta_core::diff::ChangeEvent::single_occurrence(
-                ChangeKind::Replacement,
-                Some(relation_span(
-                    vec![BlockId(1), BlockId(2)],
-                    Some(BlockSeparator::Space),
-                    5,
-                )),
-                Some(relation_span(vec![BlockId(3)], None, 3)),
-                pdfdelta_core::diff::Confidence::High,
-                Vec::new(),
-            )],
-            proven_changed_regions: Vec::new(),
-            formatting_changes: Vec::new(),
-            unresolved_regions: Vec::new(),
-            // Multi-block span separators contribute to change coordinates but
-            // are not source-backed resolved coverage tokens.
-            old_coverage: pdfdelta_core::diff::Coverage {
-                resolved_tokens: 4,
-                total_tokens: 4,
-                ratio: Some(1.0),
-            },
-            new_coverage: pdfdelta_core::diff::Coverage {
-                resolved_tokens: 2,
-                total_tokens: 2,
-                ratio: Some(1.0),
-            },
-        };
+    fn validates_change_origin_proposal_metrics() {
         let metrics = ChangeOriginMetrics {
             ordered_alignment: ChangeOriginMetric {
                 event_count: 1,
@@ -21000,20 +21893,12 @@ mod tests {
             ..ChangeOriginMetrics::default()
         };
 
-        validate_change_origin_parity(metrics, &comparison)
-            .expect("final event, span, and coverage totals agree");
+        validate_change_origin_proposal_metrics(metrics)
+            .expect("proposal event and token totals are internally valid");
 
         let mut wrong_events = metrics;
         wrong_events.ordered_alignment.event_count = 0;
-        assert!(validate_change_origin_parity(wrong_events, &comparison).is_err());
-
-        let mut wrong_changed_tokens = metrics;
-        wrong_changed_tokens.ordered_alignment.old_changed_tokens = 4;
-        assert!(validate_change_origin_parity(wrong_changed_tokens, &comparison).is_err());
-
-        let mut wrong_coverage = metrics;
-        wrong_coverage.ordered_alignment.new_resolved_context_tokens = 3;
-        assert!(validate_change_origin_parity(wrong_coverage, &comparison).is_err());
+        assert!(validate_change_origin_proposal_metrics(wrong_events).is_err());
     }
 
     fn complete_recheck_reuse_shadow() -> LocalFragmentRecheckReuseShadowMetrics {
@@ -27266,6 +28151,7 @@ mod tests {
                 role: "standard",
                 document_type: "single-column".to_owned(),
                 in_scope: true,
+                benchmark_provenance: None,
                 status: PairRunStatus::Ok,
                 provenance_verified: true,
                 compared: true,
@@ -27278,7 +28164,14 @@ mod tests {
                 unresolved_regions: Some(0),
                 unresolved_old_token_share: Some(0.0),
                 unresolved_new_token_share: Some(0.0),
+                old_token_resolution: None,
+                new_token_resolution: None,
                 reported_content_changes: Some(3),
+                reported_candidate_changes: Some(1),
+                reported_candidate_groups: None,
+                reported_candidate_tokens: None,
+                reported_candidate_precision: None,
+                reported_unlocalized_changes: Some(2),
                 formatting_only_changes: Some(0),
                 reported_proven_changed_regions: Some(2),
                 uncertain_changes: Some(0),
@@ -27300,6 +28193,9 @@ mod tests {
                 scoped_event_metrics: None,
                 scoped_token_metrics: None,
                 candidate_recall: None,
+                candidate_event: None,
+                assessment: None,
+                proven: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: None,
                 candidate_visits: None,
@@ -27401,6 +28297,7 @@ mod tests {
                 }),
                 candidate_visit_pressure: None,
                 runtime_ms: 50,
+                peak_rss_bytes: None,
                 limit_scale_used: 1.0,
                 failure: None,
             },
@@ -27410,6 +28307,7 @@ mod tests {
                 role: "standard",
                 document_type: "single-column".to_owned(),
                 in_scope: true,
+                benchmark_provenance: None,
                 status: PairRunStatus::Limit,
                 provenance_verified: true,
                 compared: true,
@@ -27422,7 +28320,14 @@ mod tests {
                 unresolved_regions: None,
                 unresolved_old_token_share: None,
                 unresolved_new_token_share: None,
+                old_token_resolution: None,
+                new_token_resolution: None,
                 reported_content_changes: None,
+                reported_candidate_changes: None,
+                reported_candidate_groups: None,
+                reported_candidate_tokens: None,
+                reported_candidate_precision: None,
+                reported_unlocalized_changes: None,
                 formatting_only_changes: None,
                 reported_proven_changed_regions: None,
                 uncertain_changes: None,
@@ -27433,6 +28338,9 @@ mod tests {
                 scoped_event_metrics: None,
                 scoped_token_metrics: None,
                 candidate_recall: None,
+                candidate_event: None,
+                assessment: None,
+                proven: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: Some(
                     "alignment candidate visit budget exceeded".to_owned(),
@@ -27446,6 +28354,7 @@ mod tests {
                 sentence_recovery_metrics: None,
                 candidate_visit_pressure: None,
                 runtime_ms: 100,
+                peak_rss_bytes: None,
                 limit_scale_used: 1.0,
                 failure: None,
             },
@@ -27455,6 +28364,7 @@ mod tests {
                 role: "standard",
                 document_type: "single-column".to_owned(),
                 in_scope: true,
+                benchmark_provenance: None,
                 status: PairRunStatus::Failed,
                 provenance_verified: true,
                 compared: true,
@@ -27472,7 +28382,14 @@ mod tests {
                 unresolved_regions: None,
                 unresolved_old_token_share: None,
                 unresolved_new_token_share: None,
+                old_token_resolution: None,
+                new_token_resolution: None,
                 reported_content_changes: None,
+                reported_candidate_changes: None,
+                reported_candidate_groups: None,
+                reported_candidate_tokens: None,
+                reported_candidate_precision: None,
+                reported_unlocalized_changes: None,
                 formatting_only_changes: None,
                 reported_proven_changed_regions: None,
                 uncertain_changes: None,
@@ -27483,6 +28400,9 @@ mod tests {
                 scoped_event_metrics: None,
                 scoped_token_metrics: None,
                 candidate_recall: None,
+                candidate_event: None,
+                assessment: None,
+                proven: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: None,
                 candidate_visits: None,
@@ -27494,6 +28414,7 @@ mod tests {
                 sentence_recovery_metrics: None,
                 candidate_visit_pressure: None,
                 runtime_ms: 20,
+                peak_rss_bytes: None,
                 limit_scale_used: 1.0,
                 failure: Some("/path/to/doc.pdf: extraction failed".to_owned()),
             },
@@ -27511,7 +28432,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 65);
+        assert_eq!(value["schema_version"], 67);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -28245,6 +29166,7 @@ mod tests {
             role: "standard",
             document_type: "single-column".to_owned(),
             in_scope: true,
+            benchmark_provenance: None,
             status: PairRunStatus::Ok,
             provenance_verified: true,
             compared: true,
@@ -28257,7 +29179,14 @@ mod tests {
             unresolved_regions: Some(0),
             unresolved_old_token_share: Some(0.0),
             unresolved_new_token_share: Some(0.0),
+            old_token_resolution: None,
+            new_token_resolution: None,
             reported_content_changes: Some(0),
+            reported_candidate_changes: Some(0),
+            reported_candidate_groups: None,
+            reported_candidate_tokens: None,
+            reported_candidate_precision: None,
+            reported_unlocalized_changes: Some(0),
             formatting_only_changes: Some(0),
             reported_proven_changed_regions: Some(0),
             uncertain_changes: Some(0),
@@ -28275,8 +29204,12 @@ mod tests {
                 unavailable_counterparts: 0,
                 recall_at_k: Some(1.0),
             }),
+            candidate_event: None,
+            assessment: None,
+            proven: None,
             expected_change_diagnostics: Some(ExpectedChangeDiagnostics {
                 complete: true,
+                final_assessment: None,
                 failures: vec![ExpectedChangeFailure {
                     expected_id: "change-1".to_owned(),
                     reason: ExpectedChangeFailureReason::CandidateNotGenerated,
@@ -28296,6 +29229,7 @@ mod tests {
             }),
             candidate_visit_pressure: None,
             runtime_ms: 10,
+            peak_rss_bytes: None,
             limit_scale_used: 1.0,
             failure: None,
         };
@@ -28365,6 +29299,7 @@ mod tests {
             role: "standard",
             document_type: "single-column".to_owned(),
             in_scope: true,
+            benchmark_provenance: None,
             status: PairRunStatus::Ok,
             provenance_verified: true,
             compared: true,
@@ -28382,7 +29317,14 @@ mod tests {
             unresolved_regions: Some(1),
             unresolved_old_token_share: Some(0.02),
             unresolved_new_token_share: Some(0.03),
+            old_token_resolution: None,
+            new_token_resolution: None,
             reported_content_changes: Some(5),
+            reported_candidate_changes: Some(0),
+            reported_candidate_groups: None,
+            reported_candidate_tokens: None,
+            reported_candidate_precision: None,
+            reported_unlocalized_changes: Some(2),
             formatting_only_changes: Some(0),
             reported_proven_changed_regions: Some(2),
             uncertain_changes: Some(0),
@@ -28397,6 +29339,9 @@ mod tests {
             scoped_event_metrics: None,
             scoped_token_metrics: None,
             candidate_recall: None,
+            candidate_event: None,
+            assessment: None,
+            proven: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,
             candidate_visits: Some(10),
@@ -28408,6 +29353,7 @@ mod tests {
             sentence_recovery_metrics: None,
             candidate_visit_pressure: None,
             runtime_ms: 100,
+            peak_rss_bytes: None,
             limit_scale_used: 1.0,
             failure: Some("Failure with /home/hayato/cache/old.pdf".to_owned()),
         };

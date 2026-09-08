@@ -1,0 +1,26 @@
+{
+  "completed_at": "2026-09-08T01:31:05.103852+00:00",
+  "source_manifest": "scope-fixed-source-manifest.json",
+  "passed_tests": 2067,
+  "checks": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log": "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-fixed-fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log": "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-fixed-clippy.log",
+      "log_sha256": "54df86d646ab784670028bc0b975a68446b9fe6b7fdb691f4b2eab66cf46341d"
+    },
+    {
+      "command": "cargo test --workspace",
+      "exit_code": 0,
+      "log": "benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-fixed-workspace-tests.log",
+      "log_sha256": "1861c6dcfd0aa9d31fdb025cee45691ee4a130cdf44806574a7eaa513ed67844"
+    }
+  ],
+  "notes": "Only revision_scopes.rs differs from the previous validated source. The original 40 annotations, engine, resource limits, and changed-token metric are unchanged."
+}

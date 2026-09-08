@@ -1,8 +1,9 @@
 use crate::{
     BenchError, Result,
     canonical::{CanonicalDocument, Paragraph},
-    mutation::{Mutation, MutationPlan},
+    mutation::{ExpectedCanonicalSpan, ExpectedSemanticChange, Mutation, MutationPlan},
 };
+use pdfdelta_core::diff::ChangeKind;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BenchmarkCase {
@@ -35,6 +36,17 @@ impl BenchmarkCase {
 
     pub fn expecting_proven_changed_region(mut self) -> Result<Self> {
         self.plan = self.plan.expect_proven_changed_region()?;
+        Ok(self)
+    }
+
+    pub fn expecting_candidate_with_proven_region(
+        mut self,
+        candidate: ExpectedSemanticChange,
+        proven_region: ExpectedSemanticChange,
+    ) -> Result<Self> {
+        self.plan = self
+            .plan
+            .expect_candidate_with_proven_region(candidate, proven_region)?;
         Ok(self)
     }
 }
@@ -175,33 +187,43 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             30,
         )?
         .expecting_proven_changed_region()?,
-        BenchmarkCase::new(
-            "text-insertion",
-            document(&[
-                ("opening", "Opening paragraph establishes context"),
-                ("target", "A simple release note remains stable"),
-                ("closing", "Closing paragraph confirms context"),
-            ])?,
-            Mutation::TextInsert {
-                paragraph_id: "target".to_owned(),
-                at: "A simple release note ".chars().count(),
-                text: "2026 ".to_owned(),
-            },
-            30,
+        ambiguous_inline_case(
+            BenchmarkCase::new(
+                "text-insertion",
+                document(&[
+                    ("opening", "Opening paragraph establishes context"),
+                    ("target", "A simple release note remains stable"),
+                    ("closing", "Closing paragraph confirms context"),
+                ])?,
+                Mutation::TextInsert {
+                    paragraph_id: "target".to_owned(),
+                    at: "A simple release note ".chars().count(),
+                    text: "2026 ".to_owned(),
+                },
+                30,
+            )?,
+            [(60, 65), (59, 64)],
+            (38, 74),
+            (38, 79),
         )?,
-        BenchmarkCase::new(
-            "text-deletion",
-            document(&[
-                ("opening", "Opening paragraph establishes context"),
-                ("target", "A very simple release note remains stable"),
-                ("closing", "Closing paragraph confirms context"),
-            ])?,
-            Mutation::TextDelete {
-                paragraph_id: "target".to_owned(),
-                start: "A ".chars().count(),
-                end: "A very ".chars().count(),
-            },
-            30,
+        ambiguous_inline_case(
+            BenchmarkCase::new(
+                "text-deletion",
+                document(&[
+                    ("opening", "Opening paragraph establishes context"),
+                    ("target", "A very simple release note remains stable"),
+                    ("closing", "Closing paragraph confirms context"),
+                ])?,
+                Mutation::TextDelete {
+                    paragraph_id: "target".to_owned(),
+                    start: "A ".chars().count(),
+                    end: "A very ".chars().count(),
+                },
+                30,
+            )?,
+            [(40, 45), (39, 44)],
+            (38, 79),
+            (38, 74),
         )?,
         BenchmarkCase::new(
             "number-replacement",
@@ -337,28 +359,33 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             },
             30,
         )?,
-        BenchmarkCase::new(
-            "numbered-requirement-text-insertion",
-            document(&[
-                (
-                    "requirement-1",
-                    "1. The operator shall record each access request",
-                ),
-                (
-                    "requirement-2",
-                    "2. The operator shall review each access request",
-                ),
-                (
-                    "requirement-3",
-                    "3. The operator shall archive each access request",
-                ),
-            ])?,
-            Mutation::TextInsert {
-                paragraph_id: "requirement-2".to_owned(),
-                at: "2. The operator shall ".chars().count(),
-                text: "independently ".to_owned(),
-            },
-            30,
+        ambiguous_inline_case(
+            BenchmarkCase::new(
+                "numbered-requirement-text-insertion",
+                document(&[
+                    (
+                        "requirement-1",
+                        "1. The operator shall record each access request",
+                    ),
+                    (
+                        "requirement-2",
+                        "2. The operator shall review each access request",
+                    ),
+                    (
+                        "requirement-3",
+                        "3. The operator shall archive each access request",
+                    ),
+                ])?,
+                Mutation::TextInsert {
+                    paragraph_id: "requirement-2".to_owned(),
+                    at: "2. The operator shall ".chars().count(),
+                    text: "independently ".to_owned(),
+                },
+                30,
+            )?,
+            [(71, 85), (70, 84)],
+            (49, 97),
+            (49, 111),
         )?,
         BenchmarkCase::new(
             "pagination-churn-mid-document",
@@ -446,6 +473,45 @@ fn document(paragraphs: &[(&str, &str)]) -> Result<CanonicalDocument> {
         .map(|(id, text)| Paragraph::new(*id, *text))
         .collect::<Result<Vec<_>>>()?;
     CanonicalDocument::new(paragraphs)
+}
+
+fn ambiguous_inline_case(
+    case: BenchmarkCase,
+    candidate_ranges: [(usize, usize); 2],
+    proven_old_range: (usize, usize),
+    proven_new_range: (usize, usize),
+) -> Result<BenchmarkCase> {
+    let [exact] = case.plan().expectation().changes() else {
+        return Err(BenchError::InvalidInput(
+            "ambiguous inline cases require exactly one exact change".to_owned(),
+        ));
+    };
+    let candidate_spans = candidate_ranges
+        .into_iter()
+        .map(|(start, end)| ExpectedCanonicalSpan::new(start, end))
+        .collect::<Result<Vec<_>>>()?;
+    let (candidate_old, candidate_new) = match exact.kind() {
+        ChangeKind::Insertion => (Vec::new(), candidate_spans),
+        ChangeKind::Deletion => (candidate_spans, Vec::new()),
+        ChangeKind::Replacement | ChangeKind::Move => {
+            return Err(BenchError::InvalidInput(
+                "ambiguous inline cases require insertion or deletion".to_owned(),
+            ));
+        }
+    };
+    let candidate = ExpectedSemanticChange::new(exact.kind(), candidate_old, candidate_new)?;
+    let proven = ExpectedSemanticChange::new(
+        ChangeKind::Replacement,
+        vec![ExpectedCanonicalSpan::new(
+            proven_old_range.0,
+            proven_old_range.1,
+        )?],
+        vec![ExpectedCanonicalSpan::new(
+            proven_new_range.0,
+            proven_new_range.1,
+        )?],
+    )?;
+    case.expecting_candidate_with_proven_region(candidate, proven)
 }
 
 fn validate_case_name(name: &str) -> Result<()> {

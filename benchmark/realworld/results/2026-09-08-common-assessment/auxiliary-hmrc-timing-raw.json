@@ -1,0 +1,50 @@
+[
+  {
+    "pair_id": "hmrc-sa100-2023-to-2024",
+    "set": "holdout",
+    "role": "stress",
+    "document_type": "tax-return-form",
+    "in_scope": false,
+    "status": "ok",
+    "provenance_verified": true,
+    "compared": true,
+    "extraction_complete": false,
+    "comparison_complete": false,
+    "extraction_issues": [
+      {
+        "side": "old",
+        "kind": "unsupported",
+        "scope": "page 0",
+        "description": "non-rectangular clipping path at content operator index 17"
+      },
+      {
+        "side": "new",
+        "kind": "unsupported",
+        "scope": "page 0",
+        "description": "non-rectangular clipping path at content operator index 131"
+      }
+    ],
+    "coverage_old": null,
+    "coverage_new": null,
+    "coverage_comparison": null,
+    "unresolved_regions": 90,
+    "unresolved_old_token_share": 0.7100440318933714,
+    "unresolved_new_token_share": 0.6987512363996043,
+    "reported_content_changes": 1,
+    "formatting_only_changes": 40,
+    "reported_changes_preview": [],
+    "quality": null,
+    "quality_skipped_reason": "no expected annotations are recorded for this pair",
+    "resource_limit_failure": null,
+    "candidate_visits": 10932,
+    "candidate_visits_required": 10932,
+    "candidate_visits_required_exact": 24,
+    "candidate_visits_required_ngram": 10878,
+    "candidate_visits_required_short_fallback": 30,
+    "max_candidate_visits": 4000000,
+    "candidate_visit_pressure": null,
+    "runtime_ms": 261,
+    "limit_scale_used": 4.0,
+    "failure": null
+  }
+]

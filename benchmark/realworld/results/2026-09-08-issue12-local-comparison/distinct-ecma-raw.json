@@ -1,0 +1,166 @@
+[
+  {
+    "pair_id": "ecma-109-ed10-to-ed11",
+    "set": "dev",
+    "role": "stress",
+    "document_type": "acoustical-emission-standard",
+    "in_scope": false,
+    "status": "limit",
+    "provenance_verified": true,
+    "compared": true,
+    "extraction_complete": true,
+    "comparison_complete": false,
+    "extraction_issues": [],
+    "coverage_old": 0.6112909786057106,
+    "coverage_new": 0.6110984688404149,
+    "coverage_comparison": 0.6110984688404149,
+    "unresolved_regions": 884,
+    "unresolved_old_token_share": 0.3887090213942894,
+    "unresolved_new_token_share": 0.3889015311595852,
+    "reported_content_changes": 20,
+    "formatting_only_changes": 28,
+    "reported_changes_preview": [
+      {
+        "kind": "replacement",
+        "old_text": "",
+        "new_text": "•"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "",
+        "new_text": "•"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "",
+        "new_text": "•"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": ""
+      },
+      {
+        "kind": "replacement",
+        "old_text": "L  A/10",
+        "new_text": "𝐿̅ ≤ 𝐴"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "L  A/10",
+        "new_text": "𝐿̅ > 𝐴"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "5"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "d"
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "deletion",
+        "old_text": ",",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "deci"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "",
+        "new_text": null
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "deci"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "5"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "deci"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "deci"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "",
+        "new_text": ""
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "deci"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "deci"
+      },
+      {
+        "kind": "insertion",
+        "old_text": null,
+        "new_text": "deci"
+      }
+    ],
+    "quality": {
+      "annotation": "partial",
+      "expected_changes": 3,
+      "reported_changes": 20,
+      "recall": 0.0,
+      "precision": null,
+      "kind_accuracy": null,
+      "reported_hunks_per_matched_change": null,
+      "review_hunks_per_expected_change": null,
+      "unmatched_tiny_changes": 11,
+      "unresolvable_reported_spans": 0
+    },
+    "quality_skipped_reason": "comparison stopped at a resource limit",
+    "resource_limit_failure": "comparison assessment search reached a resource limit",
+    "candidate_visits": 20650,
+    "candidate_visits_required": 20650,
+    "candidate_visits_required_exact": 1,
+    "candidate_visits_required_ngram": 20649,
+    "candidate_visits_required_short_fallback": 0,
+    "max_candidate_visits": 16000000,
+    "candidate_visit_pressure": {
+      "estimated_visits_p50": 1870,
+      "estimated_visits_p95": 16190,
+      "estimated_visits_max": 22957,
+      "estimated_visits_upper_bound_total": 2834114,
+      "max_candidate_visits": 16000000,
+      "estimated_visits_upper_bound_exceeds_limit": false,
+      "ngram_posting_visits_total": 2928468,
+      "dominant_ngram_visits": 84645,
+      "dominant_ngram_df": 297,
+      "shared_ngram_count": 3326,
+      "top_10_ngram_visits": 611043,
+      "ngrams_for_50_percent_visits": 50,
+      "ngrams_for_90_percent_visits": 307,
+      "shared_ngram_df_p50": 3,
+      "shared_ngram_df_p95": 64,
+      "shared_ngram_df_max": 297
+    },
+    "runtime_ms": 11665,
+    "limit_scale_used": 16.0,
+    "failure": null
+  }
+]

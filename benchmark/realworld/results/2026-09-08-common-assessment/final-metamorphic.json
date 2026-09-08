@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source_revision": "3bebfeb77fd43d5eaf55f9554a47e3a6d421212b-dirty",
+  "source_manifest": "final-source-manifest.json",
+  "source_manifest_sha256": "6ea0804dea49636c5dee84a76922e2183bd2faec98d2b85911bab4ac10c6c23d",
+  "command": [
+    "cargo",
+    "test",
+    "--workspace"
+  ],
+  "workspace_log": "final-workspace-tests.log",
+  "workspace_log_sha256": "120d5aa783fbe9bc2253db472386251ad5013a745b6860ff2491a13d8969929a",
+  "passed_test_functions": 2,
+  "failed_test_functions": 0,
+  "checks": [
+    {
+      "name": "content_mutation_remains_one_exact_event_under_both_renderers",
+      "status": "ok"
+    },
+    {
+      "name": "layout_only_mutations_preserve_the_content_result",
+      "status": "ok"
+    }
+  ],
+  "sensitivity_artifact": "sensitivity-ordered-final.json",
+  "sensitivity_artifact_sha256": "a53aa80598b3665fd34f80319ba0b10f987628e06e86c345c234114f75a9dd13"
+}

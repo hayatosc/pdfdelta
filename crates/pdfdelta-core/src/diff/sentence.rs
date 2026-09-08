@@ -15569,13 +15569,23 @@ fn span_membership(alignment: &Alignment) -> Option<SpanMembership> {
 
 fn is_sentence_recovery_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
     kind == AlignmentKind::Unresolved
-        && (evidence == [AlignmentEvidence::ReadingOrderUnknown]
-            || evidence
-                == [
-                    AlignmentEvidence::TextSimilarity,
-                    AlignmentEvidence::CandidateCompetition,
-                    AlignmentEvidence::ReadingOrderInferred,
-                ])
+        && evidence.iter().any(|reason| {
+            matches!(
+                reason,
+                AlignmentEvidence::ReadingOrderUnknown | AlignmentEvidence::ReadingOrderInferred
+            )
+        })
+        && evidence.iter().all(|reason| {
+            matches!(
+                reason,
+                AlignmentEvidence::ReadingOrderUnknown
+                    | AlignmentEvidence::ReadingOrderInferred
+                    | AlignmentEvidence::TextSimilarity
+                    | AlignmentEvidence::CandidateCompetition
+                    | AlignmentEvidence::ExactCanonical
+                    | AlignmentEvidence::SearchIncomplete
+            )
+        })
 }
 
 fn is_presence_ownership_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
@@ -31521,6 +31531,30 @@ mod tests {
     };
 
     const TEST_NEAR_SCOPE: NearSearchScope = NearSearchScope::SameOrAmbiguousSpan;
+
+    #[test]
+    fn combined_order_annotations_allow_discovery_but_source_gaps_do_not() {
+        let evidence = [
+            AlignmentEvidence::ReadingOrderUnknown,
+            AlignmentEvidence::ReadingOrderInferred,
+        ];
+        assert!(is_sentence_recovery_span(
+            AlignmentKind::Unresolved,
+            &evidence
+        ));
+        for barrier in [
+            AlignmentEvidence::ExtractionGap,
+            AlignmentEvidence::NormalizationIssue,
+        ] {
+            let mut blocked = evidence.to_vec();
+            blocked.push(barrier);
+            assert!(!is_sentence_recovery_span(
+                AlignmentKind::Unresolved,
+                &blocked
+            ));
+        }
+        assert!(!is_sentence_recovery_span(AlignmentKind::Match, &evidence));
+    }
 
     #[test]
     fn repeated_running_matter_rejects_only_the_containment_group_edge() {

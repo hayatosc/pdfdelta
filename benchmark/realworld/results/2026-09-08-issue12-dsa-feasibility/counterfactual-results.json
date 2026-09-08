@@ -1,0 +1,44 @@
+[
+  {
+    "case": "paragraph",
+    "old_length": 261,
+    "new_length": 150,
+    "gold_range": [
+      41,
+      148
+    ],
+    "emitted_changes": 0,
+    "candidate_count": 12,
+    "candidates_covering_gold": [],
+    "work_used": 128538,
+    "work_limit": 32000000,
+    "has_budget_reason": false,
+    "has_ambiguity_reason": true
+  },
+  {
+    "case": "introduction",
+    "old_length": 1431,
+    "new_length": 2509,
+    "gold_range": [
+      1611,
+      1718
+    ],
+    "emitted_changes": 0,
+    "candidate_count": 74,
+    "candidates_covering_gold": [
+      {
+        "kind": "Insertion",
+        "relation": 67,
+        "old": null,
+        "new": [
+          1611,
+          1791
+        ]
+      }
+    ],
+    "work_used": 9259464,
+    "work_limit": 32000000,
+    "has_budget_reason": false,
+    "has_ambiguity_reason": true
+  }
+]

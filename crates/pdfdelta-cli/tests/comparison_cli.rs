@@ -274,8 +274,7 @@ fn color_always_colorizes_piped_output_and_never_disables_it() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
-    // Context paragraphs give the aligner exact anchors; without them a lone
-    // numeric-masked match cannot be confirmed and stays unresolved.
+    // Context paragraphs give the aligner exact anchors.
     write_pdf(
         &old,
         &[
@@ -346,8 +345,7 @@ fn encrypted_comparison_accepts_password_files_without_leaking_secrets() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
-    // Context paragraphs give the aligner exact anchors; without them a lone
-    // numeric-masked match cannot be confirmed and stays unresolved by design.
+    // Context paragraphs give the aligner exact anchors.
     write_encrypted_pdf(
         &old,
         &[
@@ -437,11 +435,11 @@ fn encrypted_comparison_reports_a_wrong_password_as_unsupported_without_leaking_
         path_text(&new_secret),
     ];
 
-    // Default mode reports the unsupported side and keeps exit code 0.
+    // Default mode reports the unsupported side and returns the incomplete status.
     let default_output = compare(&old, &new, &arguments);
     assert_eq!(
         default_output.status.code(),
-        Some(0),
+        Some(3),
         "{}",
         stderr(&default_output)
     );
@@ -583,7 +581,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 9"));
+    assert!(json.contains("\"schema_version\": 10"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -990,7 +988,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     let default_stderr = stderr(&default_output);
     let default_report = stdout(&default_output);
 
-    assert_eq!(default_output.status.code(), Some(0), "{default_stderr}");
+    assert_eq!(default_output.status.code(), Some(3), "{default_stderr}");
     assert!(default_stderr.contains("extraction issue for old PDF"));
     assert!(default_stderr.contains("kind=unresolved"));
     assert!(default_stderr.contains("Type0 font has no Encoding"));
@@ -1026,7 +1024,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
         &fs::read(report_path).expect("incomplete JSON report should be readable"),
     )
     .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 9);
+    assert_eq!(report["schema_version"], 10);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
@@ -1076,7 +1074,7 @@ fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
     let default_output = compare(&old, &new, &[]);
     assert_eq!(
         default_output.status.code(),
-        Some(1),
+        Some(3),
         "{}",
         stderr(&default_output)
     );
@@ -1098,7 +1096,7 @@ fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
         &fs::read(report_path).expect("page-gap JSON report should be readable"),
     )
     .expect("page-gap JSON report should be valid");
-    assert_eq!(report["schema_version"], 9);
+    assert_eq!(report["schema_version"], 10);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["unresolved_regions"], 1);
     assert_eq!(report["extraction"]["issues"][0]["scope"], "page_gap");
@@ -1118,8 +1116,8 @@ fn strict_unresolved_comparison_exits_three() {
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
     let trace_path = directory.join("trace.json");
-    write_pdf(&old, &["The archive contains 10 files"]);
-    write_pdf(&new, &["The archive contains 20 files"]);
+    write_pdf(&old, &["The archive contains echo echo files"]);
+    write_pdf(&new, &["The archive contains echo echo echo files"]);
 
     let output = compare(
         &old,
@@ -1139,6 +1137,27 @@ fn strict_unresolved_comparison_exits_three() {
     assert_eq!(trace["result"]["status"], "incomplete");
     assert_eq!(trace["result"]["exit_code"], 3);
     assert_eq!(phase(&trace, "exact_diff", None)["status"], "completed");
+}
+
+#[test]
+fn strict_unique_numeric_replacement_exits_one() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report_path = directory.join("report.json");
+    write_pdf(&old, &["The archive contains 10 files"]);
+    write_pdf(&new, &["The archive contains 20 files"]);
+
+    let output = compare(&old, &new, &["--strict", "--json", path_text(&report_path)]);
+
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["summary"]["content_changes"], 1);
+    assert_eq!(report["summary"]["unresolved_regions"], 0);
+    assert_eq!(report["changes"][0]["kind"], "replacement");
+    let occurrence = &report["changes"][0]["occurrences"][0];
+    assert_eq!(occurrence["old_span"]["text"], "1");
+    assert_eq!(occurrence["new_span"]["text"], "2");
 }
 
 #[test]
@@ -1556,7 +1575,7 @@ fn externally_rendered_typst_case3_revision_pair_reports_exact_replacement() {
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 9);
+    assert_eq!(report["schema_version"], 10);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1703,7 +1722,7 @@ fn externally_rendered_typst_japanese_revision_pair_reports_exact_replacement() 
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 9);
+    assert_eq!(report["schema_version"], 10);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1857,7 +1876,7 @@ fn externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_cont
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 9);
+    assert_eq!(report["schema_version"], 10);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 2);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -2042,7 +2061,7 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 9);
+    assert_eq!(report["schema_version"], 10);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 1);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -2208,7 +2227,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let forward_report: serde_json::Value =
         serde_json::from_str(&forward_json_text).expect("forward JSON report should parse");
 
-    assert_eq!(forward_report["schema_version"], 9);
+    assert_eq!(forward_report["schema_version"], 10);
     assert_eq!(forward_report["summary"]["content_changes"], 1);
     assert_eq!(forward_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(forward_report["summary"]["uncertain_changes"], 0);
@@ -2342,7 +2361,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let reverse_report: serde_json::Value =
         serde_json::from_str(&reverse_json_text).expect("reverse JSON report should parse");
 
-    assert_eq!(reverse_report["schema_version"], 9);
+    assert_eq!(reverse_report["schema_version"], 10);
     assert_eq!(reverse_report["summary"]["content_changes"], 1);
     assert_eq!(reverse_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(reverse_report["summary"]["uncertain_changes"], 0);
@@ -2650,7 +2669,7 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 9, "{report:#}");
+    assert_eq!(report["schema_version"], 10, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),

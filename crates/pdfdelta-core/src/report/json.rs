@@ -6,8 +6,9 @@ use crate::{
     Error, Result,
     alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
-        ChangeEvent, ChangedRegionProof, Comparison, Coverage, FormattingChange, FormattingReason,
-        ProvenChangedRegion, TextSpan, UnresolvedRegion,
+        ChangeCandidate, ChangeEvent, ChangedRegionProof, Comparison, Coverage, FormattingChange,
+        FormattingReason, ProvenChangedRegion, RelationAssessment, ResolutionRange,
+        ResolutionState, TextSpan, UnresolvedRegion,
     },
     model::{GlyphEvidence, Rect},
     normalize::BlockText,
@@ -16,11 +17,11 @@ use crate::{
 
 use super::{
     ExtractionStatus, ReportSummary, SideIndex, SpanSourceEvidence, SpanSourceProjectionLimits,
-    SpanSourceProjector, change_kind, change_tag, confidence, issue_kind_name, lowercase_hex,
-    side_name, summarize,
+    SpanSourceProjector, assessment_reason, assumption, change_kind, change_tag, confidence,
+    issue_kind_name, lowercase_hex, relation_outcome, search_completeness, side_name, summarize,
 };
 
-const SCHEMA_VERSION: u32 = 9;
+const SCHEMA_VERSION: u32 = 10;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -63,8 +64,12 @@ pub fn write_json<W: Write>(
 #[derive(Serialize)]
 struct JsonReport<'a> {
     schema_version: u32,
+    difference_status: &'static str,
+    comparison_scope: JsonComparisonScope,
+    assessment: Option<JsonAssessment>,
     summary: JsonSummary,
     changes: Vec<JsonChange>,
+    change_candidates: Vec<JsonChangeCandidate>,
     proven_changed_regions: Vec<JsonProvenChangedRegion>,
     formatting_only_changes: Vec<JsonFormattingChange>,
     unresolved_regions: Vec<JsonUnresolvedRegion>,
@@ -86,6 +91,13 @@ impl<'a> JsonReport<'a> {
             .iter()
             .map(|change| JsonChange::new(change, old, new, old_sources, new_sources))
             .collect::<Result<Vec<_>>>()?;
+        let change_candidates = comparison
+            .change_candidates
+            .iter()
+            .map(|candidate| {
+                JsonChangeCandidate::new(candidate, comparison, old, new, old_sources, new_sources)
+            })
+            .collect::<Result<Vec<_>>>()?;
         let formatting_only_changes = comparison
             .formatting_changes
             .iter()
@@ -103,8 +115,18 @@ impl<'a> JsonReport<'a> {
             .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             schema_version: SCHEMA_VERSION,
+            difference_status: summary.difference_status.as_str(),
+            comparison_scope: summary.comparison_scope.into(),
+            assessment: comparison
+                .assessment
+                .as_ref()
+                .map(|assessment| {
+                    JsonAssessment::new(assessment, old, new, old_sources, new_sources)
+                })
+                .transpose()?,
             summary: JsonSummary::new(summary, comparison),
             changes,
+            change_candidates,
             proven_changed_regions,
             formatting_only_changes,
             unresolved_regions,
@@ -115,6 +137,7 @@ impl<'a> JsonReport<'a> {
 
 #[derive(Serialize)]
 struct JsonSummary {
+    established_changes: usize,
     content_changes: usize,
     proven_changed_regions: usize,
     formatting_only_changes: usize,
@@ -123,6 +146,9 @@ struct JsonSummary {
     unsupported_extraction_issues: usize,
     unresolved_extraction_issues: usize,
     comparison_complete: bool,
+    difference_status: &'static str,
+    comparison_scope: JsonComparisonScope,
+    tentative_candidates: usize,
     old_alignment_coverage: JsonCoverage,
     new_alignment_coverage: JsonCoverage,
     comparison_coverage_ratio: Option<f64>,
@@ -131,6 +157,7 @@ struct JsonSummary {
 impl JsonSummary {
     fn new(summary: ReportSummary, comparison: &Comparison) -> Self {
         Self {
+            established_changes: summary.established_changes,
             content_changes: summary.content_changes,
             proven_changed_regions: summary.proven_changed_regions,
             formatting_only_changes: summary.formatting_only_changes,
@@ -139,10 +166,186 @@ impl JsonSummary {
             unsupported_extraction_issues: summary.unsupported_extraction_issues,
             unresolved_extraction_issues: summary.unresolved_extraction_issues,
             comparison_complete: summary.comparison_complete,
+            difference_status: summary.difference_status.as_str(),
+            comparison_scope: summary.comparison_scope.into(),
+            tentative_candidates: summary.tentative_candidates,
             old_alignment_coverage: comparison.old_coverage.into(),
             new_alignment_coverage: comparison.new_coverage.into(),
             comparison_coverage_ratio: summary.comparison_coverage,
         }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonComparisonScope {
+    supported_text: bool,
+    images_compared: bool,
+}
+
+impl From<super::ComparisonScope> for JsonComparisonScope {
+    fn from(scope: super::ComparisonScope) -> Self {
+        Self {
+            supported_text: scope.supported_text,
+            images_compared: scope.images_compared,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonAssessment {
+    policy_version: u32,
+    work_limit: usize,
+    work_used: usize,
+    work_by_stage: JsonAssessmentWork,
+    candidates_truncated: bool,
+    old_resolution: Vec<JsonResolutionRange>,
+    new_resolution: Vec<JsonResolutionRange>,
+    relations: Vec<JsonRelationAssessment>,
+}
+
+impl JsonAssessment {
+    fn new(
+        assessment: &crate::diff::ComparisonAssessment,
+        old: &SideIndex<'_>,
+        new: &SideIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
+    ) -> Result<Self> {
+        Ok(Self {
+            policy_version: assessment.policy_version,
+            work_limit: assessment.work_limit,
+            work_used: assessment.work_used,
+            work_by_stage: assessment.work_by_stage.into(),
+            candidates_truncated: assessment.candidates_truncated,
+            old_resolution: assessment
+                .old_resolution
+                .iter()
+                .map(|range| JsonResolutionRange::new(range, old, old_sources))
+                .collect::<Result<Vec<_>>>()?,
+            new_resolution: assessment
+                .new_resolution
+                .iter()
+                .map(|range| JsonResolutionRange::new(range, new, new_sources))
+                .collect::<Result<Vec<_>>>()?,
+            relations: assessment
+                .relations
+                .iter()
+                .map(|relation| {
+                    JsonRelationAssessment::new(relation, old, new, old_sources, new_sources)
+                })
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+}
+
+#[derive(Serialize)]
+struct JsonAssessmentWork {
+    anchor_verification: usize,
+    local_views: usize,
+    localization: usize,
+    emission: usize,
+}
+
+impl From<crate::diff::AssessmentWork> for JsonAssessmentWork {
+    fn from(work: crate::diff::AssessmentWork) -> Self {
+        Self {
+            anchor_verification: work.anchor_verification,
+            local_views: work.local_views,
+            localization: work.localization,
+            emission: work.emission,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonResolutionRange {
+    block: u64,
+    comparable_range: JsonRange,
+    canonical_range: JsonRange,
+    state: &'static str,
+    sources: Vec<JsonSpanSource>,
+}
+
+impl JsonResolutionRange {
+    fn new(
+        range: &ResolutionRange,
+        side: &SideIndex<'_>,
+        sources: &SpanSourceProjector<'_>,
+    ) -> Result<Self> {
+        let span = TextSpan {
+            blocks: vec![range.block],
+            separator: None,
+            canonical_range: range.canonical_range,
+            comparable_range: range.comparable_range,
+        };
+        side.resolve(&span)?;
+        let sources = sources
+            .project(&span)?
+            .into_iter()
+            .map(JsonSpanSource::from)
+            .collect();
+        Ok(Self {
+            block: range.block.0,
+            comparable_range: JsonRange {
+                start: range.comparable_range.start,
+                end: range.comparable_range.end,
+            },
+            canonical_range: JsonRange {
+                start: range.canonical_range.start,
+                end: range.canonical_range.end,
+            },
+            state: resolution_state(range.state),
+            sources,
+        })
+    }
+}
+
+#[derive(Serialize)]
+struct JsonRelationAssessment {
+    old_span: Option<JsonTextSpan>,
+    new_span: Option<JsonTextSpan>,
+    parent: Option<usize>,
+    outcome: &'static str,
+    search: &'static str,
+    reasons: Vec<&'static str>,
+    assumptions: Vec<&'static str>,
+}
+
+impl JsonRelationAssessment {
+    fn new(
+        relation: &RelationAssessment,
+        old: &SideIndex<'_>,
+        new: &SideIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
+    ) -> Result<Self> {
+        Ok(Self {
+            old_span: relation
+                .old_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, old, old_sources))
+                .transpose()?,
+            new_span: relation
+                .new_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, new, new_sources))
+                .transpose()?,
+            parent: relation.parent,
+            outcome: relation_outcome(relation.outcome),
+            search: search_completeness(relation.search),
+            reasons: relation
+                .reasons
+                .iter()
+                .copied()
+                .map(assessment_reason)
+                .collect(),
+            assumptions: relation
+                .assumptions
+                .iter()
+                .copied()
+                .map(assumption)
+                .collect(),
+        })
     }
 }
 
@@ -306,6 +509,66 @@ impl JsonChange {
                 .collect::<Result<Vec<_>>>()?,
             confidence: confidence(change.confidence),
             tags: change.tags.iter().copied().map(change_tag).collect(),
+        })
+    }
+}
+
+#[derive(Serialize)]
+struct JsonChangeCandidate {
+    kind: &'static str,
+    occurrences: Vec<JsonChangeOccurrence>,
+    confidence: &'static str,
+    tags: Vec<&'static str>,
+    relation: usize,
+    alternative_group: usize,
+    reasons: Vec<&'static str>,
+    assumptions: Vec<&'static str>,
+    outcome: &'static str,
+    search: &'static str,
+    parent: Option<usize>,
+}
+
+impl JsonChangeCandidate {
+    fn new(
+        candidate: &ChangeCandidate,
+        comparison: &Comparison,
+        old: &SideIndex<'_>,
+        new: &SideIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
+    ) -> Result<Self> {
+        let relation = comparison
+            .assessment
+            .as_ref()
+            .and_then(|assessment| assessment.relations.get(candidate.relation))
+            .ok_or_else(|| {
+                Error::InvalidConfiguration(
+                    "candidate refers to a missing assessment relation".to_owned(),
+                )
+            })?;
+        let change = JsonChange::new(&candidate.change, old, new, old_sources, new_sources)?;
+        Ok(Self {
+            kind: change.kind,
+            occurrences: change.occurrences,
+            confidence: change.confidence,
+            tags: change.tags,
+            relation: candidate.relation,
+            alternative_group: candidate.alternative_group,
+            reasons: relation
+                .reasons
+                .iter()
+                .copied()
+                .map(assessment_reason)
+                .collect(),
+            assumptions: relation
+                .assumptions
+                .iter()
+                .copied()
+                .map(assumption)
+                .collect(),
+            outcome: relation_outcome(relation.outcome),
+            search: search_completeness(relation.search),
+            parent: relation.parent,
         })
     }
 }
@@ -531,6 +794,14 @@ fn block_separator(separator: BlockSeparator) -> &'static str {
     }
 }
 
+fn resolution_state(state: ResolutionState) -> &'static str {
+    match state {
+        ResolutionState::Equal => "equal",
+        ResolutionState::Changed => "changed",
+        ResolutionState::Unresolved => "unresolved",
+    }
+}
+
 #[derive(Serialize)]
 struct JsonRange {
     start: usize,
@@ -557,6 +828,7 @@ fn evidence(value: AlignmentEvidence) -> String {
         AlignmentEvidence::CandidateCompetition => "candidate_competition".to_owned(),
         AlignmentEvidence::DiffEditDistanceExceeded => "diff_edit_distance_exceeded".to_owned(),
         AlignmentEvidence::DiffRejectedAsImplausible => "diff_rejected_as_implausible".to_owned(),
+        AlignmentEvidence::SearchIncomplete => "search_incomplete".to_owned(),
         AlignmentEvidence::Anchor => "anchor".to_owned(),
         AlignmentEvidence::AnchorInterval => "anchor_interval".to_owned(),
         AlignmentEvidence::NeighborConsistency => "neighbor_consistency".to_owned(),

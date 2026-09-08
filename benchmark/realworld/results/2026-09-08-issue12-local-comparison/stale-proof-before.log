@@ -1,0 +1,22 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/.herdr/worktrees/pdfdelta/worktree-green-forest-9bdb/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.70s
+     Running unittests src/lib.rs (target/debug/deps/pdfdelta_core-dc377ce92ac6d14b)
+
+running 1 test
+test diff::assessment::views::tests::local_recovery_retires_an_overlapping_unlocalized_change_proof ... FAILED
+
+failures:
+
+---- diff::assessment::views::tests::local_recovery_retires_an_overlapping_unlocalized_change_proof stdout ----
+
+thread 'diff::assessment::views::tests::local_recovery_retires_an_overlapping_unlocalized_change_proof' (293) panicked at crates/pdfdelta-core/src/diff/assessment/views.rs:1346:10:
+local recovery supersedes the unlocalized proof: InvalidConfiguration("proven changed region")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    diff::assessment::views::tests::local_recovery_retires_an_overlapping_unlocalized_change_proof
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 994 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pdfdelta-core --lib`

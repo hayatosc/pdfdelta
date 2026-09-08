@@ -1068,10 +1068,28 @@ fn merged_block_paragraph_insertion_matches_a_separator_variant() {
 
     assert_eq!(normalized_canonical_blocks(case.plan().old()).len(), 1);
     assert_eq!(normalized_canonical_blocks(case.plan().new_plan()).len(), 1);
+    let case = case
+        .expecting_candidate_with_proven_region(
+            ExpectedSemanticChange::new(
+                ChangeKind::Insertion,
+                Vec::new(),
+                vec![ExpectedCanonicalSpan::new(53, 93).expect("valid candidate span")],
+            )
+            .expect("valid candidate change"),
+            ExpectedSemanticChange::new(
+                ChangeKind::Replacement,
+                vec![ExpectedCanonicalSpan::new(0, 105).expect("valid old region")],
+                vec![ExpectedCanonicalSpan::new(0, 145).expect("valid new region")],
+            )
+            .expect("valid proven region"),
+        )
+        .expect("candidate policy is valid");
     for renderer in RendererKind::all() {
         let record = evaluate_case(&case, renderer).expect("evaluation completes");
         assert!(record.passed, "{}", record.detail);
-        assert_eq!(record.actual_kinds, [ChangeKind::Insertion]);
+        assert_eq!(record.actual_kinds, []);
+        assert_eq!(record.candidate_changes, 1);
+        assert_eq!(record.proven_changed_regions, 1);
     }
 }
 
@@ -1103,10 +1121,28 @@ fn merged_block_paragraph_deletion_matches_a_separator_variant() {
 
     assert_eq!(normalized_canonical_blocks(case.plan().old()).len(), 1);
     assert_eq!(normalized_canonical_blocks(case.plan().new_plan()).len(), 1);
+    let case = case
+        .expecting_candidate_with_proven_region(
+            ExpectedSemanticChange::new(
+                ChangeKind::Deletion,
+                vec![ExpectedCanonicalSpan::new(53, 92).expect("valid candidate span")],
+                Vec::new(),
+            )
+            .expect("valid candidate change"),
+            ExpectedSemanticChange::new(
+                ChangeKind::Replacement,
+                vec![ExpectedCanonicalSpan::new(0, 144).expect("valid old region")],
+                vec![ExpectedCanonicalSpan::new(0, 105).expect("valid new region")],
+            )
+            .expect("valid proven region"),
+        )
+        .expect("candidate policy is valid");
     for renderer in RendererKind::all() {
         let record = evaluate_case(&case, renderer).expect("evaluation completes");
         assert!(record.passed, "{}", record.detail);
-        assert_eq!(record.actual_kinds, [ChangeKind::Deletion]);
+        assert_eq!(record.actual_kinds, []);
+        assert_eq!(record.candidate_changes, 1);
+        assert_eq!(record.proven_changed_regions, 1);
     }
 }
 
@@ -1186,6 +1222,87 @@ fn built_in_matrix_passes_all_forty_eight_cells() {
 }
 
 #[test]
+fn ambiguous_inline_cases_use_candidate_policy_without_strict_promotion() {
+    let cases = [
+        ("text-insertion", vec![(60, 65), (59, 64)]),
+        ("text-deletion", vec![(40, 45), (39, 44)]),
+        (
+            "numbered-requirement-text-insertion",
+            vec![(71, 85), (70, 84)],
+        ),
+    ];
+
+    for (name, candidate_ranges) in cases {
+        let case = case_named(name);
+        let expectation = case.plan().expectation();
+        assert_eq!(expectation.label(), "candidate+proven-changed-region");
+        assert_eq!(expectation.exact_changes().len(), 1);
+        assert_eq!(expectation.candidate_changes().len(), 1);
+        assert_eq!(
+            expectation.candidate_changes()[0]
+                .new_spans()
+                .iter()
+                .chain(expectation.candidate_changes()[0].old_spans())
+                .map(|span| (span.start(), span.end()))
+                .collect::<Vec<_>>(),
+            candidate_ranges
+        );
+        assert_eq!(expectation.proven_regions().len(), 1);
+        assert_eq!(
+            expectation.proven_regions()[0].kind(),
+            ChangeKind::Replacement
+        );
+
+        for renderer in RendererKind::all() {
+            let record = evaluate_case(&case, renderer).expect("evaluation completes");
+            assert!(record.passed, "{}", record.detail);
+            assert_eq!(record.actual_changes, 0);
+            assert_eq!(record.candidate_changes, 1);
+            assert_eq!(record.proven_changed_regions, 1);
+            assert!(!record.comparison_complete);
+            assert_eq!(record.precision.expected_events, 1);
+            assert_eq!(record.precision.matched_events, 0);
+            assert_eq!(record.precision.event_recall, 0.0);
+        }
+    }
+}
+
+#[test]
+fn paragraph_separator_variants_still_require_exact_changes() {
+    for name in ["paragraph-insertion", "paragraph-deletion"] {
+        let case = case_named(name);
+        let expectation = case.plan().expectation();
+        assert!(!expectation.is_candidate_policy());
+        assert!(expectation.candidate_changes().is_empty());
+        assert!(expectation.proven_regions().is_empty());
+        let change = &expectation.exact_changes()[0];
+        assert_eq!(
+            change.kind(),
+            if name == "paragraph-insertion" {
+                ChangeKind::Insertion
+            } else {
+                ChangeKind::Deletion
+            }
+        );
+        assert_eq!(
+            change.old_spans().len() + change.new_spans().len(),
+            3,
+            "separator variants remain explicit"
+        );
+
+        for renderer in RendererKind::all() {
+            let record = evaluate_case(&case, renderer).expect("evaluation completes");
+            assert!(record.passed, "{}", record.detail);
+            assert_eq!(record.actual_changes, 1);
+            assert_eq!(record.candidate_changes, 0);
+            assert_eq!(record.proven_changed_regions, 0);
+            assert_eq!(record.precision.matched_events, 1);
+            assert_eq!(record.precision.event_recall, 1.0);
+        }
+    }
+}
+
+#[test]
 fn verify_command_prints_a_passing_forty_eight_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
@@ -1211,7 +1328,17 @@ fn verify_command_prints_a_passing_forty_eight_cell_matrix() {
     assert!(
         stdout
             .lines()
-            .any(|line| line == "generated precision evaluated=48/48 complete events=26/26 reported=26 p=1.000 r=1.000 f1=1.000 tokens=tp:858,fp:0,fn:0 p=1.000 r=1.000 f1=1.000 fp_tokens_per_10k_unchanged=0.000")
+            .any(|line| line == "strict author-intent accepted=42/48 renderer cells")
+    );
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line == "candidate policy accepted=6/6 renderer cells")
+    );
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line == "generated precision evaluated=48/48 complete events=20/26 reported=20 p=1.000 r=0.769 f1=0.870 tokens=tp:810,fp:0,fn:48 p=1.000 r=0.944 f1=0.971 fp_tokens_per_10k_unchanged=0.000")
     );
     assert_eq!(stdout.lines().last(), Some("48/48 passed"));
 }

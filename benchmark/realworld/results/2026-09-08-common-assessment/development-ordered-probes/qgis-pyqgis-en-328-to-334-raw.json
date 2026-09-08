@@ -1,0 +1,75 @@
+[
+  {
+    "pair_id": "qgis-pyqgis-en-328-to-334",
+    "set": "dev",
+    "role": "standard",
+    "document_type": "open-source-api-cookbook",
+    "in_scope": true,
+    "status": "limit",
+    "provenance_verified": true,
+    "compared": true,
+    "extraction_complete": true,
+    "comparison_complete": false,
+    "extraction_issues": [],
+    "coverage_old": 0.42836059195255793,
+    "coverage_new": 0.42748063494613936,
+    "coverage_comparison": 0.42748063494613936,
+    "unresolved_regions": 2398,
+    "unresolved_old_token_share": 0.5716394080474421,
+    "unresolved_new_token_share": 0.5725193650538606,
+    "reported_content_changes": 4,
+    "formatting_only_changes": 430,
+    "reported_changes_preview": [
+      {
+        "kind": "replacement",
+        "old_text": "4",
+        "new_text": "5"
+      },
+      {
+        "kind": "replacement",
+        "old_text": "3",
+        "new_text": "5"
+      },
+      {
+        "kind": "deletion",
+        "old_text": "Point LineString Polygon",
+        "new_text": null
+      },
+      {
+        "kind": "replacement",
+        "old_text": "6",
+        "new_text": "DistanceUnit.Degrees"
+      }
+    ],
+    "quality": null,
+    "quality_skipped_reason": "no expected annotations are recorded for this pair",
+    "resource_limit_failure": "alignment search recorded incomplete work; comparison assessment search reached a resource limit",
+    "candidate_visits": 8009944,
+    "candidate_visits_required": 14825092,
+    "candidate_visits_required_exact": 29238,
+    "candidate_visits_required_ngram": 14758958,
+    "candidate_visits_required_short_fallback": 36896,
+    "max_candidate_visits": 8000000,
+    "candidate_visit_pressure": {
+      "estimated_visits_p50": 5832,
+      "estimated_visits_p95": 27879,
+      "estimated_visits_max": 70039,
+      "estimated_visits_upper_bound_total": 45969784,
+      "max_candidate_visits": 8000000,
+      "estimated_visits_upper_bound_exceeds_limit": true,
+      "ngram_posting_visits_total": 49327648,
+      "dominant_ngram_visits": 3143520,
+      "dominant_ngram_df": 1776,
+      "shared_ngram_count": 15880,
+      "top_10_ngram_visits": 15820358,
+      "ngrams_for_50_percent_visits": 39,
+      "ngrams_for_90_percent_visits": 440,
+      "shared_ngram_df_p50": 2,
+      "shared_ngram_df_p95": 65,
+      "shared_ngram_df_max": 1776
+    },
+    "runtime_ms": 21197,
+    "limit_scale_used": 8.0,
+    "failure": null
+  }
+]

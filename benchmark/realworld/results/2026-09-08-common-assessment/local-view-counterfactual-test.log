@@ -1,0 +1,93 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/.herdr/worktrees/pdfdelta/worktree-green-forest-9bdb/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.11s
+     Running unittests src/lib.rs (target/debug/deps/pdfdelta_core-dc377ce92ac6d14b)
+
+running 1 test
+test diff::assessment::views::tests::interleaved_global_blocks_use_run_ordinals_for_domain_spans ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 981 filtered out; finished in 0.00s
+
+     Running tests/alignment_fixture.rs (target/debug/deps/alignment_fixture-de00bfb5b3554346)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 84 filtered out; finished in 0.00s
+
+     Running tests/block_fixture.rs (target/debug/deps/block_fixture-64117259eb1af513)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 51 filtered out; finished in 0.00s
+
+     Running tests/candidate_fixture.rs (target/debug/deps/candidate_fixture-60f1116d6cb08b1c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+     Running tests/content_stream_extraction.rs (target/debug/deps/content_stream_extraction-3942a93609f52c6e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 86 filtered out; finished in 0.00s
+
+     Running tests/diff_fixture.rs (target/debug/deps/diff_fixture-a290125540c99f7d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 52 filtered out; finished in 0.00s
+
+     Running tests/extraction_conformance_fixture.rs (target/debug/deps/extraction_conformance_fixture-ec801efb206a16c1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+     Running tests/glyph_fixture.rs (target/debug/deps/glyph_fixture-48ebd1a593b31001)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/line_fixture.rs (target/debug/deps/line_fixture-3d510d75950d37c1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+     Running tests/normalization_fixture.rs (target/debug/deps/normalization_fixture-607fff0a0180c5cb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.00s
+
+     Running tests/pdf_backend_fixture.rs (target/debug/deps/pdf_backend_fixture-b3d978d8bdca05ff)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+
+     Running tests/pipeline_fixture.rs (target/debug/deps/pipeline_fixture-46ffe5dafe80da21)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 57 filtered out; finished in 0.00s
+
+     Running tests/property_fixture.rs (target/debug/deps/property_fixture-6e33ae6df1df275b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+     Running tests/region_fixture.rs (target/debug/deps/region_fixture-0dcd5fdc0fae6b6f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests/report_fixture.rs (target/debug/deps/report_fixture-ffa810492c871fb9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 68 filtered out; finished in 0.00s
+

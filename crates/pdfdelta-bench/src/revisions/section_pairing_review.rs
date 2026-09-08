@@ -1707,6 +1707,8 @@ mod tests {
     fn empty_comparison() -> Comparison {
         Comparison {
             changes: Vec::new(),
+            change_candidates: Vec::new(),
+            assessment: None,
             proven_changed_regions: Vec::new(),
             formatting_changes: Vec::new(),
             unresolved_regions: Vec::new(),

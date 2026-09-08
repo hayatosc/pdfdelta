@@ -1,0 +1,540 @@
+{
+  "schema_version": 3,
+  "records": [
+    {
+      "pair_id": "nist-sp800-57-part1-r4-to-r5",
+      "document_series_id": "nist-sp800-57-part1-r4-to-r5",
+      "derivation_group": "nist-sp800-57-part1-r4-to-r5",
+      "producer_family": "unknown",
+      "producer_version": "unknown",
+      "split": "dev",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "coverage_old": 0.31341393232765846,
+      "coverage_new": 0.2803295345993076,
+      "coverage_comparison": 0.2803295345993076,
+      "unresolved_old_token_share": 0.6865860676723415,
+      "unresolved_new_token_share": 0.7196704654006925,
+      "accepted_changes": 263,
+      "candidate_changes": 3299,
+      "formatting_only_changes": 204,
+      "uncertain_changes": 5,
+      "unresolved_regions": 10070,
+      "unlocalized_changed_regions": 112,
+      "quality_skipped_reason": null,
+      "trial_runtime_ms": 559897,
+      "peak_memory_bytes": 1647607808,
+      "limit_scale_used": 512.0,
+      "resolved_old_tokens": 138329,
+      "resolved_new_tokens": 138219,
+      "old_token_resolution": {
+        "total": 441362,
+        "same": 137512,
+        "changed": 817,
+        "unresolved": 303033
+      },
+      "new_token_resolution": {
+        "total": 493059,
+        "same": 137485,
+        "changed": 734,
+        "unresolved": 354840
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 16384000000,
+        "work_used": 2854687715,
+        "work_by_stage": {
+          "anchor_verification": 25213636,
+          "local_views": 1888667525,
+          "localization": 514283786,
+          "emission": 426522768
+        },
+        "candidates_truncated": false
+      },
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 8,
+        "reported_changes": 263,
+        "matched_changes": 1,
+        "kind_correct": 1,
+        "precision": null,
+        "recall": 0.125,
+        "document_recall": null,
+        "kind_accuracy": 1.0,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": 263.0,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 176,
+        "unresolvable_reported_spans": 0
+      },
+      "candidate": {
+        "top_k": 32,
+        "annotated_counterparts": 5,
+        "evaluable_counterparts": 4,
+        "recalled_counterparts": 4,
+        "unavailable_counterparts": 1,
+        "recall_at_k": 1.0,
+        "candidate_groups": 3284,
+        "candidate_tokens": 158735,
+        "precision": null,
+        "final_event": {
+          "expected_changes": 8,
+          "reported_changes": 3299,
+          "matched_changes": 2,
+          "recall": 0.25,
+          "precision": null
+        }
+      },
+      "proven": {
+        "reported_regions": 112,
+        "expected_regions": 8,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 112
+      },
+      "scoped_event": {
+        "reviewed_scope_count": 2,
+        "precision": 0.5,
+        "recall": 0.25,
+        "f1": 0.3333333333333333
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 7,
+        "reported_changed_tokens": 7,
+        "true_positive_tokens": 5,
+        "precision": 0.7142857142857143,
+        "recall": 0.7142857142857143,
+        "f1": 0.7142857142857143,
+        "span_iou": 0.5555555555555556,
+        "false_positive_tokens_per_10k_unchanged": 14.144271570014144
+      },
+      "reviewed_recall": {
+        "content_presence_recall": 0.375,
+        "exact_localization_recall": 0.4,
+        "semantic_relation_recall": 0.125,
+        "move_recall": null
+      }
+    }
+  ],
+  "document_totals": [
+    {
+      "group_id": "nist-sp800-57-part1-r4-to-r5",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 559897,
+          "p50_ms": 559897,
+          "p95_ms": 559897,
+          "max_ms": 559897
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 1647607808,
+          "p50_bytes": 1647607808,
+          "p95_bytes": 1647607808,
+          "max_bytes": 1647607808
+        }
+      },
+      "accepted_changes": 263,
+      "candidate_changes": 3299,
+      "formatting_only_changes": 204,
+      "uncertain_changes": 5,
+      "unresolved_regions": 10070,
+      "unlocalized_changed_regions": 112,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 441362,
+        "same": 137512,
+        "changed": 817,
+        "unresolved": 303033
+      },
+      "new_token_resolution": {
+        "total": 493059,
+        "same": 137485,
+        "changed": 734,
+        "unresolved": 354840
+      },
+      "proven": {
+        "reported_regions": 112,
+        "expected_regions": 8,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 112
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 8,
+        "reported_changes": 263,
+        "matched_changes": 1,
+        "kind_correct": 1,
+        "candidate_annotated_counterparts": 5,
+        "candidate_evaluable_counterparts": 4,
+        "candidate_recalled_counterparts": 4,
+        "candidate_unavailable_counterparts": 1,
+        "candidate_groups": 3284,
+        "candidate_tokens": 158735,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 8,
+        "candidate_event_matched_changes": 2,
+        "precision": null,
+        "recall": 0.125,
+        "document_recall": null,
+        "kind_accuracy": 1.0
+      }
+    }
+  ],
+  "series_totals": [
+    {
+      "group_id": "nist-sp800-57-part1-r4-to-r5",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 559897,
+          "p50_ms": 559897,
+          "p95_ms": 559897,
+          "max_ms": 559897
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 1647607808,
+          "p50_bytes": 1647607808,
+          "p95_bytes": 1647607808,
+          "max_bytes": 1647607808
+        }
+      },
+      "accepted_changes": 263,
+      "candidate_changes": 3299,
+      "formatting_only_changes": 204,
+      "uncertain_changes": 5,
+      "unresolved_regions": 10070,
+      "unlocalized_changed_regions": 112,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 441362,
+        "same": 137512,
+        "changed": 817,
+        "unresolved": 303033
+      },
+      "new_token_resolution": {
+        "total": 493059,
+        "same": 137485,
+        "changed": 734,
+        "unresolved": 354840
+      },
+      "proven": {
+        "reported_regions": 112,
+        "expected_regions": 8,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 112
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 8,
+        "reported_changes": 263,
+        "matched_changes": 1,
+        "kind_correct": 1,
+        "candidate_annotated_counterparts": 5,
+        "candidate_evaluable_counterparts": 4,
+        "candidate_recalled_counterparts": 4,
+        "candidate_unavailable_counterparts": 1,
+        "candidate_groups": 3284,
+        "candidate_tokens": 158735,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 8,
+        "candidate_event_matched_changes": 2,
+        "precision": null,
+        "recall": 0.125,
+        "document_recall": null,
+        "kind_accuracy": 1.0
+      }
+    }
+  ],
+  "producer_totals": [
+    {
+      "group_id": "unknown",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 559897,
+          "p50_ms": 559897,
+          "p95_ms": 559897,
+          "max_ms": 559897
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 1647607808,
+          "p50_bytes": 1647607808,
+          "p95_bytes": 1647607808,
+          "max_bytes": 1647607808
+        }
+      },
+      "accepted_changes": 263,
+      "candidate_changes": 3299,
+      "formatting_only_changes": 204,
+      "uncertain_changes": 5,
+      "unresolved_regions": 10070,
+      "unlocalized_changed_regions": 112,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 441362,
+        "same": 137512,
+        "changed": 817,
+        "unresolved": 303033
+      },
+      "new_token_resolution": {
+        "total": 493059,
+        "same": 137485,
+        "changed": 734,
+        "unresolved": 354840
+      },
+      "proven": {
+        "reported_regions": 112,
+        "expected_regions": 8,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 112
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 8,
+        "reported_changes": 263,
+        "matched_changes": 1,
+        "kind_correct": 1,
+        "candidate_annotated_counterparts": 5,
+        "candidate_evaluable_counterparts": 4,
+        "candidate_recalled_counterparts": 4,
+        "candidate_unavailable_counterparts": 1,
+        "candidate_groups": 3284,
+        "candidate_tokens": 158735,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 8,
+        "candidate_event_matched_changes": 2,
+        "precision": null,
+        "recall": 0.125,
+        "document_recall": null,
+        "kind_accuracy": 1.0
+      }
+    }
+  ],
+  "split_totals": [
+    {
+      "group_id": "dev",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 559897,
+          "p50_ms": 559897,
+          "p95_ms": 559897,
+          "max_ms": 559897
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 1647607808,
+          "p50_bytes": 1647607808,
+          "p95_bytes": 1647607808,
+          "max_bytes": 1647607808
+        }
+      },
+      "accepted_changes": 263,
+      "candidate_changes": 3299,
+      "formatting_only_changes": 204,
+      "uncertain_changes": 5,
+      "unresolved_regions": 10070,
+      "unlocalized_changed_regions": 112,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 441362,
+        "same": 137512,
+        "changed": 817,
+        "unresolved": 303033
+      },
+      "new_token_resolution": {
+        "total": 493059,
+        "same": 137485,
+        "changed": 734,
+        "unresolved": 354840
+      },
+      "proven": {
+        "reported_regions": 112,
+        "expected_regions": 8,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 112
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 8,
+        "reported_changes": 263,
+        "matched_changes": 1,
+        "kind_correct": 1,
+        "candidate_annotated_counterparts": 5,
+        "candidate_evaluable_counterparts": 4,
+        "candidate_recalled_counterparts": 4,
+        "candidate_unavailable_counterparts": 1,
+        "candidate_groups": 3284,
+        "candidate_tokens": 158735,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 8,
+        "candidate_event_matched_changes": 2,
+        "precision": null,
+        "recall": 0.125,
+        "document_recall": null,
+        "kind_accuracy": 1.0
+      }
+    }
+  ],
+  "totals": {
+    "group_id": "all",
+    "operational": {
+      "trials": 1,
+      "ok": 1,
+      "skipped": 0,
+      "unsupported": 0,
+      "unresolved": 0,
+      "limit": 0,
+      "fatal": 0,
+      "runtime": {
+        "samples": 1,
+        "min_ms": 559897,
+        "p50_ms": 559897,
+        "p95_ms": 559897,
+        "max_ms": 559897
+      },
+      "peak_memory": {
+        "samples": 1,
+        "min_bytes": 1647607808,
+        "p50_bytes": 1647607808,
+        "p95_bytes": 1647607808,
+        "max_bytes": 1647607808
+      }
+    },
+    "accepted_changes": 263,
+    "candidate_changes": 3299,
+    "formatting_only_changes": 204,
+    "uncertain_changes": 5,
+    "unresolved_regions": 10070,
+    "unlocalized_changed_regions": 112,
+    "quality_skip_reasons": {},
+    "old_token_resolution": {
+      "total": 441362,
+      "same": 137512,
+      "changed": 817,
+      "unresolved": 303033
+    },
+    "new_token_resolution": {
+      "total": 493059,
+      "same": 137485,
+      "changed": 734,
+      "unresolved": 354840
+    },
+    "proven": {
+      "reported_regions": 112,
+      "expected_regions": 8,
+      "matched_regions": 0,
+      "precision": null,
+      "recall": 0.0,
+      "unlocalized_regions": 112
+    },
+    "quality": {
+      "evaluable_trials": 1,
+      "complete_trials": 0,
+      "scoped_complete_trials": 0,
+      "partial_trials": 1,
+      "expected_changes": 8,
+      "reported_changes": 263,
+      "matched_changes": 1,
+      "kind_correct": 1,
+      "candidate_annotated_counterparts": 5,
+      "candidate_evaluable_counterparts": 4,
+      "candidate_recalled_counterparts": 4,
+      "candidate_unavailable_counterparts": 1,
+      "candidate_groups": 3284,
+      "candidate_tokens": 158735,
+      "candidate_precision": null,
+      "candidate_recall": 0.25,
+      "generator_candidate_recall_at_k": 1.0,
+      "candidate_event_expected_changes": 8,
+      "candidate_event_matched_changes": 2,
+      "precision": null,
+      "recall": 0.125,
+      "document_recall": null,
+      "kind_accuracy": 1.0
+    }
+  },
+  "lineage_macro": {
+    "groups": 1,
+    "precision": null,
+    "recall": 0.125,
+    "document_recall": null,
+    "kind_accuracy": 1.0,
+    "candidate_recall": 0.25,
+    "generator_candidate_recall_at_k": 1.0
+  },
+  "producer_macro": {
+    "groups": 0,
+    "precision": null,
+    "recall": null,
+    "document_recall": null,
+    "kind_accuracy": null,
+    "candidate_recall": null,
+    "generator_candidate_recall_at_k": null
+  },
+  "baselines": []
+}

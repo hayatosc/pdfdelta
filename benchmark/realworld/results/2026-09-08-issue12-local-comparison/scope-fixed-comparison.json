@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "source_manifest": "scope-fixed-source-manifest.json",
+  "records": [
+    {
+      "pair_id": "nist-csf-v1-1-to-v2-0",
+      "previous_capture": "validated-csf-evaluation.json",
+      "current_capture": "scope-fixed-csf-evaluation.json",
+      "comparison_evidence_unchanged": true,
+      "previous_matches": 0,
+      "current_matches": 0,
+      "scoped_false_positive_tokens": 0
+    },
+    {
+      "pair_id": "nist-fips-186-4-to-5",
+      "previous_capture": "validated-fips-evaluation.json",
+      "current_capture": "scope-fixed-fips-evaluation.json",
+      "comparison_evidence_unchanged": true,
+      "previous_matches": 0,
+      "current_matches": 0,
+      "scoped_false_positive_tokens": 0
+    },
+    {
+      "pair_id": "ecma-109-ed10-to-ed11",
+      "previous_capture": "validated-ecma-evaluation.json",
+      "current_capture": "scope-fixed-ecma-evaluation.json",
+      "comparison_evidence_unchanged": true,
+      "previous_matches": 0,
+      "current_matches": 0,
+      "scoped_false_positive_tokens": 0
+    },
+    {
+      "pair_id": "nist-sp800-57-part1-r4-to-r5",
+      "previous_capture": "validated-sp800-evaluation.json",
+      "current_capture": "scope-fixed-sp800-evaluation.json",
+      "comparison_evidence_unchanged": true,
+      "previous_matches": null,
+      "current_matches": 1,
+      "scoped_false_positive_tokens": 2
+    },
+    {
+      "pair_id": "edpb-right-of-access-v1-to-final",
+      "previous_capture": "validated-edpb-evaluation.json",
+      "current_capture": "scope-fixed-edpb-evaluation.json",
+      "comparison_evidence_unchanged": true,
+      "previous_matches": 0,
+      "current_matches": 0,
+      "scoped_false_positive_tokens": 0
+    }
+  ]
+}

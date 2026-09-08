@@ -1,0 +1,89 @@
+--- a/crates/pdfdelta-core/src/diff/assessment/views.rs
++++ b/crates/pdfdelta-core/src/diff/assessment/views.rs
+@@ -94,12 +94,36 @@
+         return Ok(Vec::new());
+     }
+ 
++    for (side_index, (side, intervals)) in sides.iter().zip([
++        recovery.old_trusted_run_intervals,
++        recovery.new_trusted_run_intervals,
++    ]).enumerate() {
++        for (index, block) in side.blocks.iter().enumerate() {
++            eprintln!("ISSUE12_BLOCK {}", serde_json::json!({
++                "side": side_index, "index": index, "id": block.block.0,
++                "text": block.canonical.text,
++                "interval": format!("{:?}", intervals[index]),
++                "issues": format!("{:?}", block.issues),
++                "pages": block.pages,
++            }));
++        }
++    }
+     let old_descriptors = recovery
+         .old_trusted_run_evidence
+         .map(|evidence| evidence.descriptors);
+     let new_descriptors = recovery
+         .new_trusted_run_evidence
+         .map(|evidence| evidence.descriptors);
++    for (side, descriptors) in [old_descriptors, new_descriptors].into_iter().enumerate() {
++        for descriptor in descriptors.into_iter().flatten() {
++            eprintln!("ISSUE12_DESCRIPTOR {}", serde_json::json!({
++                "side": side, "id": descriptor.id.0,
++                "blocks": descriptor.block_indices,
++                "trusted_blocks": descriptor.trusted_block_indices,
++                "role": format!("{:?}", descriptor.role),
++            }));
++        }
++    }
+     let Some(old_views) = build_views(
+         sides[0],
+         recovery.old_trusted_run_intervals,
+@@ -122,6 +146,18 @@
+         return Ok(Vec::new());
+     }
+ 
++    for (side, views) in [&old_views, &new_views].into_iter().enumerate() {
++        for (index, view) in views.iter().enumerate() {
++            eprintln!("ISSUE12_VIEW {}", serde_json::json!({
++                "side": side, "index": index, "kind": format!("{:?}", view.kind),
++                "blocks": view.block_indices,
++                "tokens": view.group.tokens.iter().map(|token| match token {
++                    ComparableToken::Scalar(value) => *value,
++                    ComparableToken::Unmapped { .. } => '\u{fffd}',
++                }).collect::<String>(),
++            }));
++        }
++    }
+     let mut pair_anchors = BTreeMap::<(usize, usize), Vec<AnchorHit>>::new();
+     for (input_index, (old_anchor, new_anchor)) in exact_anchors.iter().enumerate() {
+         let Some(old_tokens) = anchor_tokens(sides[0], old_anchor, remaining_work)? else {
+@@ -188,6 +224,16 @@
+     }
+ 
+     let valid_pairs = one_to_one_pairs(&pair_anchors);
++    for (&(old_view, new_view), anchors) in &pair_anchors {
++        eprintln!("ISSUE12_PAIR {}", serde_json::json!({
++            "old_view": old_view, "new_view": new_view,
++            "valid": valid_pairs.contains(&(old_view,new_view)),
++            "anchors": anchors.iter().map(|a| serde_json::json!({
++                "input": a.input_index,
++                "old": [a.old_start,a.old_end], "new": [a.new_start,a.new_end],
++            })).collect::<Vec<_>>(),
++        }));
++    }
+     let mut domains = Vec::new();
+     for (pair, mut anchors) in pair_anchors {
+         if !valid_pairs.contains(&pair) {
+@@ -204,6 +250,13 @@
+         let Some(domain) = close_domain(&old_views, &new_views, &mut anchors) else {
+             continue;
+         };
++        eprintln!("ISSUE12_DOMAIN {}", serde_json::json!({
++            "old_view": pair.0, "new_view": pair.1,
++            "old_blocks": domain.old_span.blocks.iter().map(|b|b.0).collect::<Vec<_>>(),
++            "new_blocks": domain.new_span.blocks.iter().map(|b|b.0).collect::<Vec<_>>(),
++            "old_range": [domain.old_span.comparable_range.start,domain.old_span.comparable_range.end],
++            "new_range": [domain.new_span.comparable_range.start,domain.new_span.comparable_range.end],
++        }));
+         let separated = !compatible_roles(sides, [&domain.old_span, &domain.new_span], remaining_work)?
+             || super::span_has_source_issues(sides[0], &domain.old_span, remaining_work)?
+             || super::span_has_source_issues(sides[1], &domain.new_span, remaining_work)?;

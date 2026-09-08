@@ -695,11 +695,17 @@ fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
         &new_without_rules,
         PipelineOptions::default(),
     )?;
-    assert_eq!(without_rules.changes.len(), 1, "{without_rules:#?}");
-    assert_eq!(without_rules.changes[0].kind, ChangeKind::Replacement);
-    assert_eq!(without_rules.changes[0].confidence, Confidence::Medium);
+    assert!(without_rules.changes.is_empty(), "{without_rules:#?}");
     assert_eq!(
-        without_rules.changes[0].occurrences[0].old_span,
+        without_rules.change_candidates.len(),
+        1,
+        "{without_rules:#?}"
+    );
+    let candidate = &without_rules.change_candidates[0];
+    assert_eq!(candidate.change.kind, ChangeKind::Replacement);
+    assert_eq!(candidate.change.confidence, Confidence::Medium);
+    assert_eq!(
+        candidate.change.occurrences[0].old_span,
         Some(TextSpan {
             blocks: vec![BlockId(4)],
             separator: None,
@@ -708,7 +714,7 @@ fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
         })
     );
     assert_eq!(
-        without_rules.changes[0].occurrences[0].new_span,
+        candidate.change.occurrences[0].new_span,
         Some(TextSpan {
             blocks: vec![BlockId(4)],
             separator: None,
@@ -717,11 +723,27 @@ fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
         })
     );
     assert!(
-        without_rules.unresolved_regions.is_empty(),
+        without_rules
+            .assessment
+            .as_ref()
+            .expect("candidate assessment")
+            .relations[candidate.relation]
+            .reasons
+            .contains(&pdfdelta_core::diff::AssessmentReason::UnknownReadingOrder),
         "{without_rules:#?}"
     );
-    assert_eq!(without_rules.old_coverage.ratio, Some(1.0));
-    assert_eq!(without_rules.new_coverage.ratio, Some(1.0));
+    assert_eq!(
+        without_rules.unresolved_regions.len(),
+        6,
+        "{without_rules:#?}"
+    );
+    assert!(without_rules.unresolved_regions.iter().all(|region| {
+        region.evidence == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    }));
+    assert_eq!(without_rules.old_coverage.resolved_tokens, 14);
+    assert_eq!(without_rules.old_coverage.total_tokens, 38);
+    assert_eq!(without_rules.new_coverage.resolved_tokens, 14);
+    assert_eq!(without_rules.new_coverage.total_tokens, 38);
 
     let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
     assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");

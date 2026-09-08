@@ -1,0 +1,25 @@
+OK pair=nist-sp800-57-part1-r4-to-r5 set=dev role=standard provenance=verified extracted=complete comparison=incomplete coverage=old=0.379,new=0.339,comp=0.339 unresolved=9441 reported=998 expected=8 recall=0.125 precision=unknown kind=1.000 hunks/matched=998.000 tinyFP=686 runtime_ms=588913 candidate_visits=1971934/512000000 required_candidate_visits=1971934 required_candidate_components=exact:2003,ngram:1967915,short_fallback:2016 visit_pressure=p50:8003,p95:99701,max:200259,upper:85497311,limit:512000000,upper_exceeds:false ngram_pressure=total:87016642,dominant:2545968,df:1711,shared:7532,top10:16989198,n50:59,n90:444,df_p50:4,df_p95:215,df_max:1711
+1/1 revision pairs healthy; 0 stopped at resource limits; 0 failed
+	Command being timed: "/tmp/pdfdelta-issue12-scope-fixed-pdfbench revisions --manifest benchmark/realworld/manifest.tsv --cache-dir benchmark/realworld/cache --set dev --pair nist-sp800-57-part1-r4-to-r5 --json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-fixed-sp800-raw.json --summary-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-fixed-sp800-summary.json --evaluation-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/scope-fixed-sp800-evaluation.json"
+	User time (seconds): 598.64
+	System time (seconds): 2.81
+	Percent of CPU this job got: 100%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 10:01.25
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1608512
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 743162
+	Voluntary context switches: 70
+	Involuntary context switches: 816
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 5872
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

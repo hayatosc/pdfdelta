@@ -1,0 +1,26 @@
+LIMIT pair=nist-fips-186-4-to-5 set=dev role=standard provenance=verified extracted=complete comparison=incomplete coverage=old=0.157,new=0.198,comp=0.157 unresolved=4549 reported=81 expected=7 recall=0.000 precision=unknown kind=unknown hunks/matched=unknown tinyFP=66 runtime_ms=96022 candidate_visits=404565/16000000 required_candidate_visits=404565 required_candidate_components=exact:254,ngram:404038,short_fallback:273 visit_pressure=p50:2079,p95:20990,max:62702,upper:16152932,limit:16000000,upper_exceeds:true ngram_pressure=total:16118379,dominant:666000,df:740,shared:6723,top10:4154778,n50:42,n90:391,df_p50:4,df_p95:81,df_max:740 limit_failure="comparison assessment search reached a resource limit" quality_skipped="comparison stopped at a resource limit"
+0/1 revision pairs healthy; 1 stopped at resource limits; 0 failed
+Command exited with non-zero status 1
+	Command being timed: "/tmp/pdfdelta-issue12-distinct-pdfbench revisions --manifest benchmark/realworld/manifest.tsv --cache-dir benchmark/realworld/cache --set dev --pair nist-fips-186-4-to-5 --json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/distinct-fips-raw.json --summary-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/distinct-fips-summary.json --evaluation-json-output benchmark/realworld/results/2026-09-08-issue12-local-comparison/distinct-fips-evaluation.json"
+	User time (seconds): 94.84
+	System time (seconds): 1.25
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:36.14
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 883388
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 374441
+	Voluntary context switches: 36
+	Involuntary context switches: 94
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 1888
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1
