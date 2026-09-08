@@ -2,9 +2,10 @@ use crate::{
     Error, Result,
     alignment::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
-        AlignmentSpan, InvertedIndexCandidateGenerator, align_ordered_with_metrics_and_gap_plan,
-        build_block_features, estimate_ngram_token_elements, plan_ordered_gaps,
-        validate_alignment_options, validate_ngram_size,
+        AlignmentSpan, BlockFeatures, InvertedIndexCandidateGenerator,
+        align_ordered_with_metrics_and_gap_plan, build_block_features,
+        estimate_ngram_token_elements, plan_ordered_gaps, validate_alignment_options,
+        validate_ngram_size,
     },
     diff::{
         Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff, RecoveredAtomicDiff,
@@ -27,6 +28,7 @@ use crate::{
     report::{DocumentSide, ExtractionIssueRecord, ExtractionStatus},
     source::{ExtractionIssue, ExtractionOutcome, ExtractionScope},
 };
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PipelineOptions {
@@ -84,7 +86,11 @@ impl PipelineOptions {
         validate_line_options(self.line)?;
         validate_block_options(self.block)?;
         validate_ngram_size(self.ngram_size)?;
-        validate_ngram_token_element_limit(self.max_ngram_token_elements)?;
+        if self.max_ngram_token_elements == 0 {
+            return Err(Error::InvalidConfiguration(
+                "pipeline max_ngram_token_elements must be greater than zero".to_owned(),
+            ));
+        }
         validate_alignment_options(self.alignment)?;
         validate_diff_options(self.diff)?;
         Ok(self)
@@ -320,11 +326,26 @@ pub struct PipelineDiagnosticRecord {
     pub status: PipelinePhaseStatus,
     pub metrics: PipelineMetrics,
     pub error: Option<PipelineErrorSnapshot>,
+    /// Wall time from the previous diagnostic record (or the start of the
+    /// comparison) to this record, so per-phase cost can be attributed without
+    /// threading a clock through every phase call site.
+    pub duration: Duration,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct PipelineDiagnostics {
     records: Vec<PipelineDiagnosticRecord>,
+    /// Start of the interval currently being measured; reset by every record.
+    phase_started: Instant,
+}
+
+impl Default for PipelineDiagnostics {
+    fn default() -> Self {
+        Self {
+            records: Vec::new(),
+            phase_started: Instant::now(),
+        }
+    }
 }
 
 impl PipelineDiagnostics {
@@ -338,6 +359,24 @@ impl PipelineDiagnostics {
 
     fn begin(&mut self) {
         self.records.clear();
+        self.phase_started = Instant::now();
+    }
+
+    /// Appends another diagnostics' records verbatim, keeping their recorded
+    /// durations. Used to merge per-side records from parallel phases back
+    /// into deterministic (old-side first) order. Merged records keep their
+    /// own durations; the parent measurement interval restarts so the next
+    /// parent-side record does not include time already accounted for inside
+    /// the merged per-side records.
+    fn append(&mut self, other: PipelineDiagnostics) {
+        self.records.extend(other.records);
+        self.phase_started = Instant::now();
+    }
+
+    fn push(&mut self, mut record: PipelineDiagnosticRecord) {
+        record.duration = self.phase_started.elapsed();
+        self.phase_started = Instant::now();
+        self.records.push(record);
     }
 
     fn completed(
@@ -346,22 +385,24 @@ impl PipelineDiagnostics {
         side: Option<DocumentSide>,
         metrics: PipelineMetrics,
     ) {
-        self.records.push(PipelineDiagnosticRecord {
+        self.push(PipelineDiagnosticRecord {
             phase,
             side,
             status: PipelinePhaseStatus::Completed,
             metrics,
             error: None,
+            duration: Duration::ZERO,
         });
     }
 
     fn incomplete(&mut self, phase: PipelinePhase) {
-        self.records.push(PipelineDiagnosticRecord {
+        self.push(PipelineDiagnosticRecord {
             phase,
             side: None,
             status: PipelinePhaseStatus::Incomplete,
             metrics: PipelineMetrics::default(),
             error: None,
+            duration: Duration::ZERO,
         });
     }
 
@@ -376,12 +417,13 @@ impl PipelineDiagnostics {
         error: &Error,
         metrics: PipelineMetrics,
     ) {
-        self.records.push(PipelineDiagnosticRecord {
+        self.push(PipelineDiagnosticRecord {
             phase,
             side,
             status: PipelinePhaseStatus::Failed,
             metrics,
             error: Some(error.into()),
+            duration: Duration::ZERO,
         });
     }
 }
@@ -434,33 +476,6 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
         },
     )
     .map(|outcome| (outcome.outcome, outcome.alignment))
-}
-
-/// Compares extracted documents and observes selected uncertain-region recovery evidence.
-///
-/// Empty queries are equivalent to
-/// [`compare_extraction_outcomes_with_alignment_diagnostics`] and do not add
-/// recovery scanning or similarity work.
-pub fn compare_extraction_outcomes_with_recovery_watch_diagnostics(
-    old: ExtractionOutcome,
-    new: ExtractionOutcome,
-    options: PipelineOptions,
-    diagnostics: &mut PipelineDiagnostics,
-    watch_queries: &[RecoveryWatchQuery<'_>],
-) -> Result<ComparisonOutcomeWithRecoveryWatch> {
-    compare_extraction_outcomes_with_recovery_watch_inner(
-        old,
-        new,
-        options,
-        diagnostics,
-        ExtractionComparisonInstrumentation {
-            watch_queries,
-            enable_known_span_sentence_shadow: false,
-            enable_sentence_edge_gate_shadow: false,
-            retain_atomic_edits: false,
-        },
-    )
-    .map(InstrumentedComparisonOutcome::into_recovery_watch)
 }
 
 /// Compares extracted documents while retaining exact edit traces from both
@@ -790,8 +805,22 @@ fn compare_validated_glyph_documents_inner(
     let old_document = old;
     let new_document = new;
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
-    let old_prepared = prepare(old, options, DocumentSide::Old, diagnostics)?;
-    let new_prepared = prepare(new, options, DocumentSide::New, diagnostics)?;
+    // Line/block reconstruction, normalization, and feature builds are pure
+    // per-side functions, so both sides run in parallel. Each side records
+    // into its own diagnostics, merged afterwards in the same old-then-new
+    // order the sequential pipeline produced, and a failed old side hides the
+    // new side's records exactly as a sequential early return did.
+    let ((old_prepared, old_prepare_diagnostics), (new_prepared, new_prepare_diagnostics)) =
+        rayon::join(
+            || prepare_with_diagnostics(old, options, DocumentSide::Old),
+            || prepare_with_diagnostics(new, options, DocumentSide::New),
+        );
+    diagnostics.append(old_prepare_diagnostics);
+    if old_prepared.is_ok() {
+        diagnostics.append(new_prepare_diagnostics);
+    }
+    let old_prepared = old_prepared?;
+    let new_prepared = new_prepared?;
     let PreparedDocument {
         blocks: old,
         uncertain_block_indices: old_uncertain_block_indices,
@@ -827,36 +856,19 @@ fn compare_validated_glyph_documents_inner(
         },
     );
     record_ngram_token_element_budget(&old, &new, options, diagnostics)?;
-    let old_features = phase_result(
-        diagnostics,
-        PipelinePhase::FeatureBuild,
-        Some(DocumentSide::Old),
-        build_block_features(&old, options.ngram_size),
-    )?;
-    diagnostics.completed(
-        PipelinePhase::FeatureBuild,
-        Some(DocumentSide::Old),
-        PipelineMetrics {
-            normalized_blocks: Some(old.len()),
-            features: Some(old_features.len()),
-            ..PipelineMetrics::default()
-        },
-    );
-    let new_features = phase_result(
-        diagnostics,
-        PipelinePhase::FeatureBuild,
-        Some(DocumentSide::New),
-        build_block_features(&new, options.ngram_size),
-    )?;
-    diagnostics.completed(
-        PipelinePhase::FeatureBuild,
-        Some(DocumentSide::New),
-        PipelineMetrics {
-            normalized_blocks: Some(new.len()),
-            features: Some(new_features.len()),
-            ..PipelineMetrics::default()
-        },
-    );
+    // Feature builds are pure per-side work; run both sides in parallel and
+    // merge records in the same old-then-new order the sequential pipeline
+    // produced. A failed old side hides the new side's records exactly as a
+    // sequential early return did.
+    let ((old_features, old_feature_diagnostics), (new_features, new_feature_diagnostics)) =
+        rayon::join(
+            || build_features_with_diagnostics(&old, options.ngram_size, DocumentSide::Old),
+            || build_features_with_diagnostics(&new, options.ngram_size, DocumentSide::New),
+        );
+    diagnostics.append(old_feature_diagnostics);
+    let old_features = old_features?;
+    diagnostics.append(new_feature_diagnostics);
+    let new_features = new_features?;
     let gap_plan = phase_result(
         diagnostics,
         PipelinePhase::Alignment,
@@ -901,6 +913,17 @@ fn compare_validated_glyph_documents_inner(
         options.alignment,
         gap_plan,
     );
+    let visit_metrics = PipelineMetrics {
+        candidate_visits: Some(attempt.visit_metrics.candidate_visits),
+        candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
+        candidate_visits_required_exact: attempt.visit_metrics.candidate_visits_required_exact,
+        candidate_visits_required_ngram: attempt.visit_metrics.candidate_visits_required_ngram,
+        candidate_visits_required_short_fallback: attempt
+            .visit_metrics
+            .candidate_visits_required_short_fallback,
+        max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
+        ..PipelineMetrics::default()
+    };
     let alignment = match attempt.result {
         Ok(alignment) => {
             diagnostics.completed(
@@ -908,19 +931,7 @@ fn compare_validated_glyph_documents_inner(
                 None,
                 PipelineMetrics {
                     alignment_spans: Some(alignment.spans.len()),
-                    candidate_visits: Some(attempt.visit_metrics.candidate_visits),
-                    candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
-                    candidate_visits_required_exact: attempt
-                        .visit_metrics
-                        .candidate_visits_required_exact,
-                    candidate_visits_required_ngram: attempt
-                        .visit_metrics
-                        .candidate_visits_required_ngram,
-                    candidate_visits_required_short_fallback: attempt
-                        .visit_metrics
-                        .candidate_visits_required_short_fallback,
-                    max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
-                    ..PipelineMetrics::default()
+                    ..visit_metrics
                 },
             );
             if alignment
@@ -937,26 +948,7 @@ fn compare_validated_glyph_documents_inner(
             alignment
         }
         Err(error) => {
-            diagnostics.failed_with_metrics(
-                PipelinePhase::Alignment,
-                None,
-                &error,
-                PipelineMetrics {
-                    candidate_visits: Some(attempt.visit_metrics.candidate_visits),
-                    candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
-                    candidate_visits_required_exact: attempt
-                        .visit_metrics
-                        .candidate_visits_required_exact,
-                    candidate_visits_required_ngram: attempt
-                        .visit_metrics
-                        .candidate_visits_required_ngram,
-                    candidate_visits_required_short_fallback: attempt
-                        .visit_metrics
-                        .candidate_visits_required_short_fallback,
-                    max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
-                    ..PipelineMetrics::default()
-                },
-            );
+            diagnostics.failed_with_metrics(PipelinePhase::Alignment, None, &error, visit_metrics);
             return Err(error);
         }
     };
@@ -1256,34 +1248,30 @@ fn record_ngram_token_element_budget(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<()> {
-    let old_elements = phase_result(
-        diagnostics,
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::Old),
-        estimate_ngram_token_elements(old, options.ngram_size, options.max_ngram_token_elements),
-    )?;
-    diagnostics.completed(
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::Old),
-        PipelineMetrics {
-            ngram_token_elements: Some(old_elements),
-            ..PipelineMetrics::default()
-        },
-    );
-    let new_elements = phase_result(
-        diagnostics,
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::New),
-        estimate_ngram_token_elements(new, options.ngram_size, options.max_ngram_token_elements),
-    )?;
-    diagnostics.completed(
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::New),
-        PipelineMetrics {
-            ngram_token_elements: Some(new_elements),
-            ..PipelineMetrics::default()
-        },
-    );
+    let record_side_elements =
+        |blocks: &[BlockText], side: DocumentSide, diagnostics: &mut PipelineDiagnostics| {
+            let elements = phase_result(
+                diagnostics,
+                PipelinePhase::NgramBudget,
+                Some(side),
+                estimate_ngram_token_elements(
+                    blocks,
+                    options.ngram_size,
+                    options.max_ngram_token_elements,
+                ),
+            )?;
+            diagnostics.completed(
+                PipelinePhase::NgramBudget,
+                Some(side),
+                PipelineMetrics {
+                    ngram_token_elements: Some(elements),
+                    ..PipelineMetrics::default()
+                },
+            );
+            Ok(elements)
+        };
+    let old_elements = record_side_elements(old, DocumentSide::Old, diagnostics)?;
+    let new_elements = record_side_elements(new, DocumentSide::New, diagnostics)?;
     let aggregate = old_elements
         .checked_add(new_elements)
         .ok_or(Error::LimitExceeded {
@@ -1304,71 +1292,43 @@ fn record_ngram_token_element_budget(
     Ok(())
 }
 
-fn validate_ngram_token_element_limit(limit: usize) -> Result<()> {
-    if limit == 0 {
-        return Err(Error::InvalidConfiguration(
-            "pipeline max_ngram_token_elements must be greater than zero".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
 fn record_pre_layout_token_counts(
     old: &Document<Glyph>,
     new: &Document<Glyph>,
     options: DiffOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(usize, usize)> {
-    let old_tokens = phase_result(
-        diagnostics,
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::Old),
-        painting_raw_token_lower_bound(old, options.max_tokens),
-    )?;
-    if old_tokens > options.max_tokens {
-        return phase_result(
-            diagnostics,
-            PipelinePhase::PreLayoutBudget,
-            Some(DocumentSide::Old),
-            Err(Error::LimitExceeded {
-                resource: "diff raw evidence tokens",
-                limit: options.max_tokens,
-            }),
-        );
-    }
-    diagnostics.completed(
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::Old),
-        PipelineMetrics {
-            raw_tokens: Some(old_tokens),
-            ..PipelineMetrics::default()
-        },
-    );
-    let new_tokens = phase_result(
-        diagnostics,
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::New),
-        painting_raw_token_lower_bound(new, options.max_tokens),
-    )?;
-    if new_tokens > options.max_tokens {
-        return phase_result(
-            diagnostics,
-            PipelinePhase::PreLayoutBudget,
-            Some(DocumentSide::New),
-            Err(Error::LimitExceeded {
-                resource: "diff raw evidence tokens",
-                limit: options.max_tokens,
-            }),
-        );
-    }
-    diagnostics.completed(
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::New),
-        PipelineMetrics {
-            raw_tokens: Some(new_tokens),
-            ..PipelineMetrics::default()
-        },
-    );
+    let record_side_tokens =
+        |document: &Document<Glyph>, side: DocumentSide, diagnostics: &mut PipelineDiagnostics| {
+            let tokens = phase_result(
+                diagnostics,
+                PipelinePhase::PreLayoutBudget,
+                Some(side),
+                painting_raw_token_lower_bound(document, options.max_tokens),
+            )?;
+            if tokens > options.max_tokens {
+                return phase_result(
+                    diagnostics,
+                    PipelinePhase::PreLayoutBudget,
+                    Some(side),
+                    Err(Error::LimitExceeded {
+                        resource: "diff raw evidence tokens",
+                        limit: options.max_tokens,
+                    }),
+                );
+            }
+            diagnostics.completed(
+                PipelinePhase::PreLayoutBudget,
+                Some(side),
+                PipelineMetrics {
+                    raw_tokens: Some(tokens),
+                    ..PipelineMetrics::default()
+                },
+            );
+            Ok(tokens)
+        };
+    let old_tokens = record_side_tokens(old, DocumentSide::Old, diagnostics)?;
+    let new_tokens = record_side_tokens(new, DocumentSide::New, diagnostics)?;
     phase_result(
         diagnostics,
         PipelinePhase::PreLayoutBudget,
@@ -1570,6 +1530,46 @@ fn prepare(
         trusted_run_descriptors,
         trusted_region_edges,
     })
+}
+
+/// Prepares one document side with side-local diagnostics so the old and new
+/// sides can run concurrently; the caller merges the records deterministically.
+fn prepare_with_diagnostics(
+    document: &Document<Glyph>,
+    options: PipelineOptions,
+    side: DocumentSide,
+) -> (Result<PreparedDocument>, PipelineDiagnostics) {
+    let mut diagnostics = PipelineDiagnostics::new();
+    let prepared = prepare(document, options, side, &mut diagnostics);
+    (prepared, diagnostics)
+}
+
+/// Builds one side's block features with side-local diagnostics; mirrors the
+/// sequential phase recording including the completed metrics record.
+fn build_features_with_diagnostics(
+    blocks: &[BlockText],
+    ngram_size: usize,
+    side: DocumentSide,
+) -> (Result<Vec<BlockFeatures>>, PipelineDiagnostics) {
+    let mut diagnostics = PipelineDiagnostics::new();
+    let features: Result<Vec<BlockFeatures>> = phase_result(
+        &mut diagnostics,
+        PipelinePhase::FeatureBuild,
+        Some(side),
+        build_block_features(blocks, ngram_size),
+    );
+    if features.is_ok() {
+        diagnostics.completed(
+            PipelinePhase::FeatureBuild,
+            Some(side),
+            PipelineMetrics {
+                normalized_blocks: Some(blocks.len()),
+                features: Some(features.as_ref().map_or(0, Vec::len)),
+                ..PipelineMetrics::default()
+            },
+        );
+    }
+    (features, diagnostics)
 }
 
 struct PreparedDocument {

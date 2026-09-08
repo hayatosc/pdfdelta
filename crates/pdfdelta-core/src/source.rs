@@ -107,15 +107,23 @@ impl ExternalFontIdentities {
     pub(crate) fn get(&self, base_font: &[u8]) -> Option<&FontProgramHash> {
         self.identities.get(base_font)
     }
+
+    /// Iterates the asserted identities in deterministic BaseFont order for
+    /// cache-key hashing and diagnostics.
+    pub fn iter(&self) -> impl Iterator<Item = (&[u8], &FontProgramHash)> {
+        self.identities
+            .iter()
+            .map(|(base_font, identity)| (base_font.as_slice(), identity))
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ExtractionIssueKind {
     Unsupported,
     Unresolved,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum ExtractionScope {
     Document,
@@ -134,7 +142,7 @@ pub enum ExtractionScope {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ExtractionIssue {
     kind: ExtractionIssueKind,
     scope: ExtractionScope,

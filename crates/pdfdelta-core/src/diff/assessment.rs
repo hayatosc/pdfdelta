@@ -394,6 +394,14 @@ struct SourceInterval {
 /// source block. Both scalar and comparable coordinates must describe the same
 /// interval, including zero-width scalar intervals containing unmapped tokens.
 fn project(side: &Side<'_>, span: &TextSpan) -> Result<Vec<SourceInterval>> {
+    if span
+        .separator
+        .is_some_and(|separator| !separator.valid_for(span.blocks.len()))
+    {
+        return Err(invalid(
+            "assessment separator does not match its source blocks",
+        ));
+    }
     let mut ranges = Vec::new();
     ranges
         .try_reserve_exact(span.blocks.len())
@@ -414,7 +422,8 @@ fn project(side: &Side<'_>, span: &TextSpan) -> Result<Vec<SourceInterval>> {
         }
         let tokens = &side.canonical[block_index];
         let separator = position > 0
-            && span.separator == Some(BlockSeparator::Space)
+            && span.separator.map(|separator| separator.at(position - 1))
+                == Some(BlockSeparator::Space)
             && !preceding_space
             && !tokens.first().is_some_and(space_token);
         if separator {
@@ -1207,10 +1216,12 @@ fn assumptions(groups: [&GroupText; 2]) -> Vec<ComparisonAssumption> {
         ComparisonAssumption::InputReadingOrder,
         ComparisonAssumption::CanonicalNormalization,
     ];
-    if groups
-        .iter()
-        .any(|group| group.separator == Some(BlockSeparator::Space))
-    {
+    if groups.iter().any(|group| {
+        group.separator.is_some_and(|separator| {
+            (0..group.blocks.len().saturating_sub(1))
+                .any(|boundary| separator.at(boundary) == BlockSeparator::Space)
+        })
+    }) {
         result.push(ComparisonAssumption::ReconstructedSpacing);
     }
     if groups.iter().any(|group| {
@@ -1279,15 +1290,27 @@ fn locate_in_group(
     };
     let end_block = start_block + span.blocks.len();
     if group.blocks.get(start_block..end_block) != Some(span.blocks.as_slice())
-        || (span.blocks.len() > 1 && span.separator != group.separator)
+        || (span.blocks.len() > 1
+            && span.separator
+                != group
+                    .separator
+                    .map(|separator| separator.subspan(start_block, span.blocks.len())))
     {
         return Ok(None);
     }
-    let prefix = side.canonical_group(&group.blocks[..start_block], group.separator);
+    let prefix = side.canonical_group(
+        &group.blocks[..start_block],
+        group
+            .separator
+            .map(|separator| separator.subspan(0, start_block)),
+    );
     let local = side.canonical_group(&span.blocks, span.separator);
     let separator = usize::from(
         start_block > 0
-            && group.separator == Some(BlockSeparator::Space)
+            && group
+                .separator
+                .map(|separator| separator.at(start_block - 1))
+                == Some(BlockSeparator::Space)
             && !prefix.tokens.last().is_some_and(space_token)
             && !local.tokens.first().is_some_and(space_token),
     );

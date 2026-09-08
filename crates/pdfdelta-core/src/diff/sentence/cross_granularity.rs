@@ -440,16 +440,16 @@ fn collect_cross_granularity_segments(
         {
             continue;
         }
-        let (first_block, _, first_boundary) =
-            match occurrence_boundary_source(side, first, OccurrenceBoundary::End) {
-                Some(value) => value,
-                None => continue,
-            };
-        let (next_block, _, next_boundary) =
-            match occurrence_boundary_source(side, next, OccurrenceBoundary::Start) {
-                Some(value) => value,
-                None => continue,
-            };
+        let Some((first_block, _, first_boundary)) =
+            occurrence_boundary_source(side, first, OccurrenceBoundary::End)
+        else {
+            continue;
+        };
+        let Some((next_block, _, next_boundary)) =
+            occurrence_boundary_source(side, next, OccurrenceBoundary::Start)
+        else {
+            continue;
+        };
         if first_block != next_block
             || first_boundary.comparable.end > next_boundary.comparable.start
             || first_boundary.canonical.end > next_boundary.canonical.start
@@ -727,11 +727,11 @@ fn cross_granularity_pair_is_globally_unique(
         if occurrence.kind != RecoveryUnitKind::Line || occurrence.role != Some(pair.segment.role) {
             continue;
         }
-        let (_, singleton_tokens, singleton_location) =
-            match single_block_occurrence_source(singleton_side, occurrence) {
-                Some(value) => value,
-                None => continue,
-            };
+        let Some((_, singleton_tokens, singleton_location)) =
+            single_block_occurrence_source(singleton_side, occurrence)
+        else {
+            continue;
+        };
         if singleton_tokens.len() < segment_tokens.len() {
             continue;
         }

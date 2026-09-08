@@ -1418,12 +1418,18 @@ mod tests {
             role: BlockRole::Body,
             exact_hash: ExactHash(0),
             canonical_tokens: vec![token.clone()],
-            matching_tokens: vec![token.clone()],
+            matching_tokens: vec![token],
             ngram_counts: HashMap::from([(ngram, 1)]),
             ngram_size: 1,
             page_position: None,
             numeric_mask_applied: false,
             has_normalization_issues: false,
+            first_position: None,
+            last_position: None,
+            first_page: None,
+            last_page: None,
+            first_font_size: None,
+            last_font_size: None,
         }
     }
 

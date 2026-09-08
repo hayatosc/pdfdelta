@@ -100,6 +100,19 @@ pub(super) struct StructuralContainer {
 pub(super) struct StructuralContainerSideAnalysis {
     pub metrics: StructuralContainerSideMetrics,
     pub containers: Vec<StructuralContainer>,
+    pub heading_candidates: Vec<HeadingCandidate>,
+}
+
+/// Broad structural hypotheses. Missing proof never creates a section or Move.
+/// Font weight is not available in normalized evidence, so unnumbered body
+/// blocks remain candidates until verification can reject or strengthen them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct HeadingCandidate {
+    pub block_id: u64,
+    pub numbering_level: Option<u8>,
+    pub single_line: Option<bool>,
+    pub font_prominent: Option<bool>,
+    pub safe_ownership: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -196,6 +209,10 @@ fn analyze_side(
     let mut safe = Vec::new();
     safe.try_reserve(ledger.blocks.len())
         .map_err(|_| StructuralContainerStopReason::AllocationFailure)?;
+    let mut heading_candidates = Vec::new();
+    heading_candidates
+        .try_reserve(ledger.blocks.len())
+        .map_err(|_| StructuralContainerStopReason::AllocationFailure)?;
 
     for (metadata, ranges) in ledger.blocks.iter().zip(&ranges_by_block) {
         metrics.block_visits = checked_inc(metrics.block_visits)?;
@@ -218,6 +235,16 @@ fn analyze_side(
             limits.max_tokens,
             StructuralContainerStopReason::TokenLimit,
         )?;
+
+        if block.role == BlockRole::Body && !tokens.is_empty() {
+            heading_candidates.push(HeadingCandidate {
+                block_id: metadata.block_id,
+                numbering_level: numbering_level(&block.canonical.text),
+                single_line: block.line_breaks.as_ref().map(Vec::is_empty),
+                font_prominent: None,
+                safe_ownership: false,
+            });
+        }
 
         let Some(candidate) = safe_block(
             side_index,
@@ -269,6 +296,7 @@ fn analyze_side(
         .try_reserve(safe.len())
         .map_err(|_| StructuralContainerStopReason::AllocationFailure)?;
     let mut previous: Option<(u64, usize)> = None;
+    let mut candidate_index = 0;
     for block in safe {
         let continuous = previous == Some((block.run_id, block.ordinal_start));
         if !continuous {
@@ -279,6 +307,12 @@ fn analyze_side(
         let prominent = page_medians
             .get(&block.page)
             .is_some_and(|values| block.font_median > values[values.len() / 2]);
+        // Both sequences retain ledger order, so evidence accumulation stays linear.
+        while heading_candidates[candidate_index].block_id != block.block_id {
+            candidate_index += 1;
+        }
+        heading_candidates[candidate_index].safe_ownership = true;
+        heading_candidates[candidate_index].font_prominent = Some(prominent);
         let heading_candidate = block.numbering_level.is_some() || (block.single_line && prominent);
         if heading_candidate {
             metrics.heading_candidates = checked_inc(metrics.heading_candidates)?;
@@ -352,6 +386,7 @@ fn analyze_side(
     Ok(StructuralContainerSideAnalysis {
         metrics,
         containers,
+        heading_candidates,
     })
 }
 
@@ -670,6 +705,31 @@ mod tests {
 
     fn leaf() -> RecoveryOwnership {
         RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody)
+    }
+
+    #[test]
+    fn retains_weak_and_reflowed_heading_candidates_without_accepting_sections() {
+        let blocks = vec![
+            block(1, "4. Security requirements", 20.0, true),
+            block(2, "Style-only heading", 10.0, false),
+            block(3, "Body", 10.0, false),
+        ];
+        let analysis = complete(
+            &blocks,
+            &[(1, 0, 1), (1, 1, 2), (1, 2, 3)],
+            &[leaf(); 3],
+            StructuralContainerLimits::from_max_tokens(128),
+        );
+        let side = &analysis.sides[0];
+        let heading = &side.heading_candidates[0];
+        assert_eq!(heading.numbering_level, Some(1));
+        assert_eq!(heading.single_line, Some(false));
+        assert_eq!(heading.font_prominent, Some(true));
+        assert!(heading.safe_ownership);
+        assert_eq!(side.heading_candidates[1].font_prominent, Some(false));
+        assert_eq!(side.heading_candidates[1].numbering_level, None);
+        assert_eq!(side.metrics.accepted_headings, 0);
+        assert_eq!(side.metrics.sections, 0);
     }
 
     #[test]

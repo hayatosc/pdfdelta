@@ -463,7 +463,9 @@ mod tests {
                 scalar_index: 0,
                 font_hash: FontProgramHash(vec![1]),
                 glyph_id: 7,
-                source: TextSource { atoms: Vec::new() },
+                source: TextSource {
+                    atoms: Default::default(),
+                },
             }],
         };
         BlockText {

@@ -87,6 +87,15 @@ pub struct Cli {
     /// Assert an external font identity as BASE_FONT=IDENTITY for the new PDF.
     #[arg(long, value_name = "BASE_FONT=IDENTITY", requires = "new")]
     pub new_font_identity: Vec<String>,
+
+    /// Reuse cached glyph extraction results stored under this directory.
+    ///
+    /// Cache entries are keyed by the file contents and every extraction
+    /// input; a missing, corrupt, or outdated entry falls back to a fresh
+    /// extraction, so comparison results are identical with or without the
+    /// cache.
+    #[arg(long, value_name = "DIR", requires = "new")]
+    pub extraction_cache_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -173,6 +182,7 @@ pub struct CompareCommand<'a> {
     pub new_font_identities: &'a [String],
     pub limit_scale: f64,
     pub options: ComparisonOptions<'a>,
+    pub extraction_cache_dir: Option<&'a Path>,
 }
 
 #[derive(Clone, Copy)]

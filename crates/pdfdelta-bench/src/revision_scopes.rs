@@ -473,7 +473,7 @@ fn span_range_with_limits(
             .is_some_and(|token| token.scalar_index == 0)
             && mapped.text.chars().next().is_some_and(char::is_whitespace);
         let insert_space = position > 0
-            && separator == BlockSeparator::Space
+            && separator.at(position - 1) == BlockSeparator::Space
             && combined_last_whitespace != Some(true)
             && !next_first_whitespace;
         if insert_space {
@@ -1242,7 +1242,7 @@ fn project_span_intervals(
             .comparable_tokens()
             .map_err(|_| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
         let synthetic_space = position > 0
-            && separator == BlockSeparator::Space
+            && separator.at(position - 1) == BlockSeparator::Space
             && !combined_last.as_ref().is_some_and(is_comparable_whitespace)
             && !tokens.first().is_some_and(is_comparable_whitespace);
         if synthetic_space {
@@ -2541,7 +2541,9 @@ mod tests {
         uncertain.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         resolve_revision_scopes(
             &[scope("s", "known", "text", "new start", "new end")],
@@ -2554,7 +2556,9 @@ mod tests {
         uncertain_anchor.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         assert_eq!(
             resolve_revision_scopes(
@@ -2573,7 +2577,9 @@ mod tests {
         uncertain.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let old = [block(1, "old start"), uncertain, block(3, "old end")];
         let new = [block(4, "new start"), block(5, "new end")];
@@ -2625,7 +2631,9 @@ mod tests {
             uncertain.issues.push(NormalizationIssue {
                 kind: NormalizationIssueKind::AmbiguousLineBreak,
                 raw_range: ScalarRange { start: 0, end: 1 },
-                source: TextSource { atoms: Vec::new() },
+                source: TextSource {
+                    atoms: Vec::new().into(),
+                },
             });
             let expected = [ExpectedChange {
                 id: "reviewed".to_owned(),
@@ -3420,7 +3428,9 @@ mod tests {
         uncertain_old.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let uncertain_scopes = [ResolvedScope {
             id: "body".to_owned(),

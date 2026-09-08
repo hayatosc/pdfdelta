@@ -2198,7 +2198,7 @@ fn enforces_raw_token_lower_bound_before_layout() {
 
 #[test]
 fn enforces_exact_raw_budget_before_building_features() {
-    let document = document(&[line("Generic word-", 0, 100.0), line("break", 0, 88.0)]);
+    let document = document(&[line("Generic word\u{ad}", 0, 100.0), line("break", 0, 88.0)]);
     let options = PipelineOptions {
         diff: DiffOptions {
             max_tokens: 34,

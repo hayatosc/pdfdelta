@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 25;
+const TRACE_SCHEMA_VERSION: u8 = 26;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -300,6 +300,7 @@ impl ExecutionTrace {
         side: TraceSide,
         glyphs: usize,
         issues: &[ExtractionIssue],
+        duration: Option<std::time::Duration>,
     ) {
         let unsupported = issues
             .iter()
@@ -324,7 +325,9 @@ impl ExecutionTrace {
                 ("issues", issues.len()),
                 ("unsupported_issues", unsupported),
                 ("unresolved_issues", unresolved),
-            ],
+            ]
+            .into_iter()
+            .chain(duration.map(|d| ("duration_us", duration_metric(d)))),
             error,
         );
     }
@@ -409,6 +412,34 @@ impl ExecutionTrace {
             .extend(diagnostics.records().iter().map(pipeline_record));
     }
 
+    /// Appends another trace's phase records verbatim, preserving order.
+    ///
+    /// Used to merge the per-side buffers recorded by the concurrent
+    /// extractions back into the shared trace in old-then-new order, so the
+    /// phase sequence matches the sequential pipeline exactly.
+    pub fn extend_trace(&mut self, other: ExecutionTrace) {
+        self.phases.extend(other.phases);
+    }
+
+    /// Records an explicit phase skip so trace consumers see why an expected
+    /// phase is absent (for example, an extraction cache hit bypassing the
+    /// parser and extractor).
+    pub fn skip_phase(
+        &mut self,
+        name: &'static str,
+        side: Option<TraceSide>,
+        reason: &'static str,
+    ) {
+        self.phases.push(TracePhase {
+            name,
+            side,
+            status: TraceStatus::Skipped,
+            metrics: BTreeMap::new(),
+            error: None,
+            skip_reason: Some(reason),
+        });
+    }
+
     pub fn finish(&mut self, result: Result<u8, ()>, incomplete: bool) {
         self.result = match result {
             Ok(exit_code) => TraceResult {
@@ -471,6 +502,10 @@ impl ExecutionTrace {
 }
 
 fn pipeline_record(record: &PipelineDiagnosticRecord) -> TracePhase {
+    let mut metrics = pipeline_metrics(record.metrics, record.side);
+    if let Some(duration_us) = duration_us(record.duration) {
+        metrics.insert("duration_us", duration_us);
+    }
     TracePhase {
         name: pipeline_phase_name(record.phase),
         side: record.side.map(trace_side),
@@ -479,7 +514,7 @@ fn pipeline_record(record: &PipelineDiagnosticRecord) -> TracePhase {
             PipelinePhaseStatus::Incomplete => TraceStatus::Incomplete,
             PipelinePhaseStatus::Failed => TraceStatus::Failed,
         },
-        metrics: pipeline_metrics(record.metrics, record.side),
+        metrics,
         error: record.error.as_ref().map(|error| TraceError {
             kind: match error.kind {
                 PipelineErrorKind::Backend => "backend",
@@ -495,6 +530,26 @@ fn pipeline_record(record: &PipelineDiagnosticRecord) -> TracePhase {
         }),
         skip_reason: None,
     }
+}
+
+/// Converts a phase duration into the `usize` trace metric; returns `None`
+/// on overflow, in which case the metric is dropped from the phase entry.
+fn duration_us(duration: std::time::Duration) -> Option<usize> {
+    u64::try_from(duration.as_micros())
+        .ok()
+        .and_then(|v| usize::try_from(v).ok())
+}
+
+/// Converts a measured interval into the saturating `duration_us` trace
+/// metric used by the CLI extraction phases.
+pub(crate) fn duration_metric(duration: std::time::Duration) -> usize {
+    usize::try_from(duration.as_micros()).unwrap_or(usize::MAX)
+}
+
+/// Flattens an optional stop reason into its one-hot trace metric: 1 when the
+/// reason is present and equal to the variant, 0 otherwise.
+fn stop_flag<T: PartialEq + Copy>(reason: Option<T>, variant: T) -> usize {
+    usize::from(reason == Some(variant))
 }
 
 fn pipeline_metrics(
@@ -1182,52 +1237,31 @@ fn pipeline_metrics(
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_posting_visit_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeGateShadowStopReason::CandidatePostingVisitLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeGateShadowStopReason::CandidatePostingVisitLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_stop_reason_pair_visit_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeGateShadowStopReason::PairVisitLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeGateShadowStopReason::PairVisitLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_stop_reason_similarity_comparison_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeGateShadowStopReason::SimilarityComparisonLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeGateShadowStopReason::SimilarityComparisonLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_count_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeGateShadowStopReason::CandidateCountLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeGateShadowStopReason::CandidateCountLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_stop_reason_allocation_failure",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeGateShadowStopReason::AllocationFailure)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeGateShadowStopReason::AllocationFailure),
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_stop_reason_counter_overflow",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeGateShadowStopReason::CounterOverflow)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeGateShadowStopReason::CounterOverflow),
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_stop_reason_diagnostic_failure",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeGateShadowStopReason::DiagnosticFailure)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeGateShadowStopReason::DiagnosticFailure),
                 ),
                 (
                     "sentence_recovery_sentence_edge_gate_shadow_pairs_considered",
@@ -1305,75 +1339,46 @@ fn pipeline_metrics(
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_index_posting_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::IndexPostingLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::IndexPostingLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_query_posting_visit_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_allocation_failure",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::AllocationFailure),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_counter_overflow",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::CounterOverflow)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::CounterOverflow),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_production_traversal_incomplete",
-                    usize::from(matches!(
+                    stop_flag(
                         shadow.stop_reason,
-                        Some(
-                            SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete
-                        )
-                    )),
+                        SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete,
+                    ),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_candidate_posting_visit_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::CandidatePostingVisitLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::CandidatePostingVisitLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_pair_visit_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::PairVisitLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::PairVisitLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_similarity_comparison_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_candidate_count_limit",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::CandidateCountLimit)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::CandidateCountLimit),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_stop_reason_diagnostic_failure",
-                    usize::from(matches!(
-                        shadow.stop_reason,
-                        Some(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure)
-                    )),
+                    stop_flag(shadow.stop_reason, SentenceEdgeSignatureShadowStopReason::DiagnosticFailure),
                 ),
                 (
                     "sentence_recovery_sentence_edge_signature_shadow_index_posting_items_examined",
@@ -1811,11 +1816,10 @@ fn bounded_message(message: &str) -> String {
     if message.len() <= MAX_ERROR_MESSAGE_BYTES {
         return message.to_owned();
     }
-    let mut end = MAX_ERROR_MESSAGE_BYTES;
-    while !message.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}…", &message[..end])
+    format!(
+        "{}…",
+        &message[..message.floor_char_boundary(MAX_ERROR_MESSAGE_BYTES)]
+    )
 }
 
 fn expected_phases() -> Vec<(&'static str, Option<TraceSide>)> {
@@ -1870,7 +1874,9 @@ mod tests {
 
     #[test]
     fn trace_schema_version_covers_proven_changed_region_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 25);
+        // 26 adds the per-phase `duration_us` metric emitted for pipeline
+        // diagnostics.
+        assert_eq!(TRACE_SCHEMA_VERSION, 26);
     }
 
     #[test]

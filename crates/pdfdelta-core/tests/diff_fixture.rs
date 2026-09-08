@@ -1211,7 +1211,9 @@ fn unmapped_block(id: u64, glyph_id: u16) -> BlockText {
             scalar_index: 0,
             font_hash: FontProgramHash(vec![1, 2, 3]),
             glyph_id,
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         }],
     };
     BlockText {
@@ -1498,7 +1500,9 @@ fn multi_unmapped_block(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> Block
             scalar_index: 0,
             font_hash: font_hash.clone(),
             glyph_id,
-            source: TextSource { atoms: vec![] },
+            source: TextSource {
+                atoms: vec![].into(),
+            },
         });
         matching_tokens.push(ComparableToken::Unmapped {
             font_hash: font_hash.clone(),

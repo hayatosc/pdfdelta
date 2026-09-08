@@ -403,6 +403,7 @@ struct Section {
     parent: Option<usize>,
     strong_parent: Option<usize>,
     prominent: bool,
+    single_line: bool,
     run_id: TrustedRunId,
     ordinal_start: usize,
     ordinal_end: usize,
@@ -570,7 +571,7 @@ fn analyze(
         } else {
             metrics.stripped_heading_pairs = checked_inc(metrics.stripped_heading_pairs)?;
         }
-        let strong = old.prominent && new.prominent;
+        let strong = old.prominent && new.prominent && old.single_line && new.single_line;
         if strong {
             metrics.strong_heading_pairs = checked_inc(metrics.strong_heading_pairs)?;
         } else {
@@ -691,7 +692,7 @@ fn build_structure(
             strong_stack.clear();
         }
         previous = Some((block.run_id, block.ordinal_end));
-        if let Some(numbering) = block.numbering.filter(|_| block.single_line) {
+        if let Some(numbering) = block.numbering {
             while stack
                 .last()
                 .is_some_and(|(_, level, _, _)| *level >= numbering.level)
@@ -707,7 +708,10 @@ fn build_structure(
             let prominent = medians
                 .get(&block.page)
                 .is_some_and(|values| block.font_median > values[values.len() / 2]);
-            let strong_parent = if prominent {
+            // Reflowed headings remain candidates, but strong relations retain
+            // the same single-line and prominence proof as section acceptance.
+            let verified_heading = block.single_line && prominent;
+            let strong_parent = if verified_heading {
                 while strong_stack
                     .last()
                     .is_some_and(|(_, level, _, _)| *level >= numbering.level)
@@ -727,6 +731,7 @@ fn build_structure(
                 parent,
                 strong_parent,
                 prominent,
+                single_line: block.single_line,
                 run_id: block.run_id,
                 ordinal_start: block.ordinal_start,
                 ordinal_end: block.ordinal_end,
@@ -740,7 +745,7 @@ fn build_structure(
                 section_index,
                 block.ordinal_end,
             ));
-            if prominent {
+            if verified_heading {
                 strong_stack.push((
                     block.run_id,
                     numbering.level,
@@ -1312,7 +1317,7 @@ fn classify_exact_range_parents(
             .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
 
         for (old_index, old) in candidates[0].iter().enumerate() {
-            let own = indexes[0].get(&old.hash).map(Vec::as_slice).unwrap_or(&[]);
+            let own = indexes[0].get(&old.hash).map_or(&[][..], Vec::as_slice);
             if exact_occurrence_count(
                 old_index,
                 old,
@@ -1325,7 +1330,7 @@ fn classify_exact_range_parents(
             {
                 continue;
             }
-            let opposite = indexes[1].get(&old.hash).map(Vec::as_slice).unwrap_or(&[]);
+            let opposite = indexes[1].get(&old.hash).map_or(&[][..], Vec::as_slice);
             metrics.hash_matches = parent_add(metrics.hash_matches, opposite.len())?;
             let mut exact_new = None;
             let mut exact_count = 0usize;
@@ -2823,7 +2828,7 @@ mod tests {
                         end: index + 1,
                     },
                     source: TextSource {
-                        atoms: vec![TextSourceAtom::Glyph(GlyphId((index + 1) as u64))],
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId((index + 1) as u64))].into(),
                     },
                 })
                 .collect(),
@@ -2866,6 +2871,25 @@ mod tests {
             total_tokens: canonical.iter().map(Vec::len).sum(),
             canonical,
         }
+    }
+
+    #[test]
+    fn multiline_numbered_headings_remain_weak_section_candidates() {
+        let mut blocks = vec![
+            block(1, "4. Security requirements", 20.0),
+            block(2, "Body", 10.0),
+            block(3, "More body", 10.0),
+        ];
+        blocks[0].line_breaks = Some(vec![12]);
+        let structure = build_structure(&side(&blocks), &intervals(blocks.len()), limits())
+            .expect("valid structure");
+        assert_eq!(structure.sections.len(), 1);
+        let heading = &structure.sections[0];
+        assert!(heading.prominent);
+        assert!(!heading.single_line);
+        assert!(heading.strong_parent.is_none());
+        assert!(heading.strong_paragraphs.is_empty());
+        assert_eq!(heading.paragraphs.len(), 2);
     }
 
     fn intervals(count: usize) -> Vec<Option<TrustedRunInterval>> {
@@ -4197,6 +4221,7 @@ mod tests {
                     parent: None,
                     strong_parent: None,
                     prominent: true,
+                    single_line: true,
                     run_id: TrustedRunId(if new { 2 } else { 1 }),
                     ordinal_start: index,
                     ordinal_end: index + 1,
@@ -4258,6 +4283,7 @@ mod tests {
             parent: None,
             strong_parent: None,
             prominent: true,
+            single_line: true,
             run_id: TrustedRunId(run_id),
             ordinal_start,
             ordinal_end: ordinal_start + 1,
@@ -4322,6 +4348,7 @@ mod tests {
                     parent: None,
                     strong_parent: None,
                     prominent: false,
+                    single_line: true,
                     run_id: TrustedRunId(1),
                     ordinal_start: 0,
                     ordinal_end: 1,
@@ -4334,6 +4361,7 @@ mod tests {
                     parent: Some(0),
                     strong_parent: None,
                     prominent: true,
+                    single_line: true,
                     run_id: TrustedRunId(1),
                     ordinal_start: 1,
                     ordinal_end: 2,

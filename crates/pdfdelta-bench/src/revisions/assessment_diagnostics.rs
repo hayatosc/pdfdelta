@@ -352,6 +352,7 @@ fn span_summary(span: &pdfdelta_core::diff::TextSpan) -> AssessmentSpanSummary {
         separator: span.separator.map(|separator| match separator {
             pdfdelta_core::alignment::BlockSeparator::Space => "space",
             pdfdelta_core::alignment::BlockSeparator::Concatenate => "concatenate",
+            pdfdelta_core::alignment::BlockSeparator::PerBoundary(_) => "per_boundary",
         }),
         canonical_range: [span.canonical_range.start, span.canonical_range.end],
         comparable_range: [span.comparable_range.start, span.comparable_range.end],

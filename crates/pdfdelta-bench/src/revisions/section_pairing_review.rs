@@ -160,6 +160,7 @@ pub struct SectionPairingTextSpanReport {
 pub enum SectionPairingBlockSeparatorReport {
     Concatenate,
     Space,
+    PerBoundary([bool; 2]),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -1639,6 +1640,7 @@ impl From<BlockSeparator> for SectionPairingBlockSeparatorReport {
         match value {
             BlockSeparator::Concatenate => Self::Concatenate,
             BlockSeparator::Space => Self::Space,
+            BlockSeparator::PerBoundary(spaces) => Self::PerBoundary(spaces),
         }
     }
 }
@@ -1746,7 +1748,7 @@ mod tests {
                     end: index + 1,
                 },
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(glyph_id)],
+                    atoms: vec![TextSourceAtom::Glyph(glyph_id)].into(),
                 },
             });
             glyphs.push(GlyphEvidence {

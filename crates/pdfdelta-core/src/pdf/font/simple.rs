@@ -379,14 +379,13 @@ impl SimpleFontDecoder {
     }
 
     fn fallback_mapping(&self, code: u8) -> UnicodeMapping {
-        self.differences
-            .get(&code)
-            .map(|difference| difference.unicode.clone())
-            .unwrap_or_else(|| {
-                fallback_char(self.fallback, code).map_or(UnicodeMapping::Unmapped, |character| {
-                    UnicodeMapping::Mapped(character.into())
-                })
+        if let Some(difference) = self.differences.get(&code) {
+            difference.unicode.clone()
+        } else {
+            fallback_char(self.fallback, code).map_or(UnicodeMapping::Unmapped, |character| {
+                UnicodeMapping::Mapped(character.into())
             })
+        }
     }
 
     fn width(&self, code: u8) -> f64 {

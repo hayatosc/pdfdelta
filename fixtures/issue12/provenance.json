@@ -3,7 +3,6 @@
   "capture_tool": "crates/pdfdelta-bench/examples/capture_glyph_fixture.rs",
   "source_manifest": "benchmark/realworld/manifest.tsv",
   "fips_pair": "nist-fips-186-4-to-5",
-  "csf_pair": "nist-csf-v1-1-to-v2-0",
   "fixtures": [
     {
       "file": "fips-old.glyphs.json",
@@ -37,52 +36,6 @@
         "purpose": "Retain source header repetition and neighboring layout evidence around the introduction."
       },
       "glyphs": 2780,
-      "vector_lines": 0
-    },
-    {
-      "file": "csf-old.glyphs.json",
-      "sha256": "c05223999572ea0180c785e33b8eb3af18384aef5c7889fafd6a5a8f356ac693",
-      "source_sha256": "0f3ca796610ab024cbc3484cbd6799e19b4d9159d3634972a2a76af83f15fb92",
-      "source_pages": [
-        3,
-        4,
-        5,
-        8,
-        9,
-        10
-      ],
-      "selection": {
-        "whole_pages": [
-          4,
-          9
-        ],
-        "other_pages_min_baseline_y": 700,
-        "purpose": "Retain the two reviewed passages and neighboring repeated headers."
-      },
-      "glyphs": 8080,
-      "vector_lines": 0
-    },
-    {
-      "file": "csf-new.glyphs.json",
-      "sha256": "bfcef51517b75673db6a352ddff02cb4f40ea953a5f0b11da44ebdc1c8436e05",
-      "source_sha256": "3c31f46fee98cac0c4323453e5109291a213b4de7fef8c058af9bf67f717433c",
-      "source_pages": [
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-      ],
-      "selection": {
-        "whole_pages": [
-          4,
-          7
-        ],
-        "other_pages_min_baseline_y": 700,
-        "purpose": "Retain the two reviewed passages and neighboring repeated headers."
-      },
-      "glyphs": 5924,
       "vector_lines": 0
     }
   ]

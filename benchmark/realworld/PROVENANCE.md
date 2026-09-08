@@ -1,21 +1,21 @@
 # Benchmark provenance audit
 
 This audit records which revision pairs belong in development or holdout after
-reviewing the checked-in Issue 12 evidence. It does not measure comparison
+reviewing the historical Issue 12 evidence. It does not measure comparison
 quality.
 
 The manifest contains 29 pairs: 19 development pairs and 10 holdout pairs.
 Five pairs were moved from holdout to development and marked `used_for_fix`
 because their source-reviewed scopes and final ownership diagnostics are part
-of the checked-in implementation work:
+of the implementation work:
 
 | Pair | Evidence |
 | --- | --- |
-| `irs-form-1040-2024-to-2025` | [`source-review.json`](results/issue12-anchor-recovery/six-pair-scope-review/irs-form-1040-2024-to-2025/source-review.json), [`final-ownership/source.json`](results/issue12-anchor-recovery/final-ownership/source.json) |
-| `edpb-right-of-access-v1-to-final` | [`source-review.json`](results/issue12-anchor-recovery/six-pair-scope-review/edpb-right-of-access-v1-to-final/source-review.json), [`final-ownership/source.json`](results/issue12-anchor-recovery/final-ownership/source.json) |
-| `oasis-csaf-v2-cs01-to-csd02` | [`source-review.json`](results/issue12-anchor-recovery/six-pair-scope-review/oasis-csaf-v2-cs01-to-csd02/source-review.json), [`final-ownership/source.json`](results/issue12-anchor-recovery/final-ownership/source.json) |
-| `irs-w4-korean-2024-to-2025` | [`source-review.json`](results/issue12-anchor-recovery/six-pair-scope-review/irs-w4-korean-2024-to-2025/source-review.json), [`final-ownership/source.json`](results/issue12-anchor-recovery/final-ownership/source.json) |
-| `nist-csf-v1-1-to-v2-0` | [`source-review.json`](results/issue12-anchor-recovery/six-pair-scope-review/nist-csf-v1-1-to-v2-0/source-review.json), [`final-ownership/source.json`](results/issue12-anchor-recovery/final-ownership/source.json) |
+| `irs-form-1040-2024-to-2025` | [`source-review.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/six-pair-scope-review/irs-form-1040-2024-to-2025/source-review.json), [`final-ownership/source.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/final-ownership/source.json) |
+| `edpb-right-of-access-v1-to-final` | [`source-review.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/six-pair-scope-review/edpb-right-of-access-v1-to-final/source-review.json), [`final-ownership/source.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/final-ownership/source.json) |
+| `oasis-csaf-v2-cs01-to-csd02` | [`source-review.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/six-pair-scope-review/oasis-csaf-v2-cs01-to-csd02/source-review.json), [`final-ownership/source.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/final-ownership/source.json) |
+| `irs-w4-korean-2024-to-2025` | [`source-review.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/six-pair-scope-review/irs-w4-korean-2024-to-2025/source-review.json), [`final-ownership/source.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/final-ownership/source.json) |
+| `nist-csf-v1-1-to-v2-0` | [`source-review.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/six-pair-scope-review/nist-csf-v1-1-to-v2-0/source-review.json), [`final-ownership/source.json`](https://github.com/hayatosc/pdfdelta/blob/d42b27e/benchmark/realworld/results/issue12-anchor-recovery/final-ownership/source.json) |
 
 The QGIS English and Japanese pairs use the same PyQGIS Developer Cookbook
 template and the same 3.28-to-3.34 revision lineage; only the language path

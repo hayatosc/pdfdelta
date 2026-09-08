@@ -230,6 +230,12 @@ fn synthetic_features(blocks: usize) -> Result<Vec<BlockFeatures>> {
             page_position: None,
             numeric_mask_applied: false,
             has_normalization_issues: false,
+            first_position: None,
+            last_position: None,
+            first_page: None,
+            last_page: None,
+            first_font_size: None,
+            last_font_size: None,
         });
     }
     Ok(features)

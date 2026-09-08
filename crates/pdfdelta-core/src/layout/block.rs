@@ -1,8 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+use rayon::prelude::*;
+
 use crate::{
     Error, Result,
-    model::{DecodedText, Document, FontId, Glyph, GlyphId, PageId, Rect, Vec2, index_glyphs},
+    model::{
+        DecodedText, Document, FontId, Glyph, GlyphId, GlyphIndex, PageId, Rect, Vec2, index_glyphs,
+    },
     validate::{validate_non_negative, validate_unit_interval},
 };
 
@@ -284,19 +288,37 @@ pub(crate) fn reconstruct_blocks_with_issues(
     let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
     let mut inferred_order_line_ids = HashSet::new();
-    for (page_num, page_lines) in page_lines_map {
-        let page = PageId(page_num);
-        let page_vector_lines = document
-            .vector_lines()
-            .iter()
-            .filter(|line| line.page == page)
-            .collect::<Vec<_>>();
-        let partition = super::region::partition_regions_from_refs(
-            page,
-            &page_lines,
-            &page_vector_lines,
-            super::region::RegionOptions::default(),
-        )?;
+    // Region partitioning is a pure per-page function, so pages are computed
+    // in parallel and collected in ascending page order; the sequential fold
+    // below then consumes the collected partitions unchanged. Results are
+    // kept as per-page `Result`s so the fold still reports exactly the error
+    // the sequential loop would have reported: the lowest failing page.
+    let page_inputs = page_lines_map
+        .into_iter()
+        .map(|(page_num, page_lines)| {
+            let page = PageId(page_num);
+            let page_vector_lines = document
+                .vector_lines()
+                .iter()
+                .filter(|line| line.page == page)
+                .collect::<Vec<_>>();
+            (page, page_lines, page_vector_lines)
+        })
+        .collect::<Vec<_>>();
+    let partitions = page_inputs
+        .par_iter()
+        .with_min_len(8)
+        .map(|(page, page_lines, page_vector_lines)| {
+            super::region::partition_regions_from_refs(
+                *page,
+                page_lines,
+                page_vector_lines,
+                super::region::RegionOptions::default(),
+            )
+        })
+        .collect::<Vec<_>>();
+    for ((page, page_lines, _), partition) in page_inputs.into_iter().zip(partitions) {
+        let partition = partition?;
         assign_trusted_run_positions(
             &mut trusted_run_positions_by_line_id,
             &mut trusted_run_descriptors,
@@ -409,6 +431,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
         })
         .collect::<BTreeSet<_>>();
     let stats = ordered_stats;
+    let grid = build_grid_scan(&stats);
 
     let pages = page_groups(&stats);
     let roles = detect_repeated_margins(&stats, &pages, options);
@@ -426,7 +449,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
                 body_indices[position],
                 &partial_uncertain_indices,
             )
-            && should_join_body(&stats, &body_indices, position, options)?;
+            && should_join_body(&stats, &grid, &body_indices, position, options)?;
         if joins_previous && let Some(block) = pending.last_mut() {
             block.lines.push(stats[index].line.id);
             continue;
@@ -891,7 +914,7 @@ struct EstablishedMarginStyle {
 impl<'a> LineStats<'a> {
     fn new(
         line: &'a Line,
-        glyph_index: &HashMap<GlyphId, &'a Glyph>,
+        glyph_index: &GlyphIndex<'a>,
         assigned_glyphs: &mut HashSet<GlyphId>,
     ) -> Result<Self> {
         validate_line_geometry(line)?;
@@ -901,7 +924,7 @@ impl<'a> LineStats<'a> {
 
         let mut glyphs = Vec::with_capacity(line.glyphs.len());
         for glyph_id in &line.glyphs {
-            let Some(glyph) = glyph_index.get(glyph_id).copied() else {
+            let Some(glyph) = glyph_index.get(*glyph_id) else {
                 return Err(invalid_line(
                     line,
                     &format!("references unknown glyph {}", glyph_id.0),
@@ -1208,14 +1231,17 @@ fn margin_geometry_is_compatible(
 
 fn should_join_body(
     stats: &[LineStats<'_>],
+    grid: &GridScan,
     body_indices: &[usize],
     position: usize,
     options: BlockOptions,
 ) -> Result<bool> {
-    let previous = &stats[body_indices[position - 1]];
-    let current = &stats[body_indices[position]];
+    let previous_index = body_indices[position - 1];
+    let current_index = body_indices[position];
+    let previous = &stats[previous_index];
+    let current = &stats[current_index];
     if previous.line.page == current.line.page {
-        return should_join(previous, current, stats, options);
+        return should_join(stats, grid, previous_index, current_index, options);
     }
 
     if previous.line.page.0.checked_add(1) != Some(current.line.page.0) {
@@ -1232,8 +1258,14 @@ fn should_join_body(
     let current_neighbor = &stats[current_neighbor_index];
     if previous_neighbor.line.page != previous.line.page
         || current_neighbor.line.page != current.line.page
-        || !should_join(previous_neighbor, previous, stats, options)?
-        || !should_join(current, current_neighbor, stats, options)?
+        || !should_join(
+            stats,
+            grid,
+            body_indices[previous_neighbor_position],
+            previous_index,
+            options,
+        )?
+        || !should_join(stats, grid, current_index, current_neighbor_index, options)?
     {
         return Ok(false);
     }
@@ -1325,24 +1357,98 @@ fn is_same_row_band(target: &LineStats<'_>, candidate: &LineStats<'_>) -> bool {
     vertical_overlap >= 0.4 || (min_height > 0.0 && baseline_dist <= 0.35 * min_height)
 }
 
-fn find_aligned_peers(target: &LineStats<'_>, stats: &[LineStats<'_>]) -> Vec<usize> {
+/// Precomputed per-line scan results for the body-join grid check.
+///
+/// `find_aligned_peers` and `max_column_width` depend only on the target
+/// line, so they are computed once per line instead of once per adjacent
+/// pair. Scans are restricted to the target line's page: `is_same_row_band`
+/// discards every candidate on a different page, so — when pages are
+/// contiguous in `stats` — scanning only the page's span is behaviorally
+/// identical to scanning the whole document while returning global indices.
+/// A `None` span map means pages are not contiguous and every scan falls
+/// back to the full slice, preserving the original behavior exactly.
+struct GridScan {
+    aligned_peers: Vec<Vec<usize>>,
+    column_widths: Vec<f64>,
+    page_spans: Option<BTreeMap<u32, (usize, usize)>>,
+}
+
+impl GridScan {
+    /// Half-open `stats` index range that may contain candidates for `page`.
+    fn scan_range(&self, stats_len: usize, page: u32) -> (usize, usize) {
+        self.page_spans
+            .as_ref()
+            .and_then(|spans| spans.get(&page).copied())
+            .unwrap_or((0, stats_len))
+    }
+}
+
+/// Derives per-page contiguous `[start, end)` spans from the actual stats
+/// slice. Returns `None` when any page appears in more than one run, so the
+/// page-restricted fast path is only used when provably safe.
+fn page_scan_spans(stats: &[LineStats<'_>]) -> Option<BTreeMap<u32, (usize, usize)>> {
+    let mut spans = BTreeMap::new();
+    let mut index = 0;
+    while index < stats.len() {
+        let page = stats[index].line.page.0;
+        let start = index;
+        while index < stats.len() && stats[index].line.page.0 == page {
+            index += 1;
+        }
+        if spans.insert(page, (start, index)).is_some() {
+            return None;
+        }
+    }
+    Some(spans)
+}
+
+/// Builds the per-line aligned-peer lists and maximum column widths, using
+/// page-restricted scans when `stats` is page-contiguous.
+fn build_grid_scan(stats: &[LineStats<'_>]) -> GridScan {
+    let page_spans = page_scan_spans(stats);
+    let scan_range = |page: u32| -> (usize, usize) {
+        page_spans
+            .as_ref()
+            .and_then(|spans| spans.get(&page).copied())
+            .unwrap_or((0, stats.len()))
+    };
+    let aligned_peers = stats
+        .iter()
+        .map(|target| find_aligned_peers(target, stats, scan_range(target.line.page.0)))
+        .collect();
+    let column_widths = stats
+        .iter()
+        .map(|target| max_column_width(target, stats, scan_range(target.line.page.0)))
+        .collect();
+    GridScan {
+        aligned_peers,
+        column_widths,
+        page_spans,
+    }
+}
+
+fn find_aligned_peers(
+    target: &LineStats<'_>,
+    stats: &[LineStats<'_>],
+    range: (usize, usize),
+) -> Vec<usize> {
     let mut peers = Vec::new();
-    for (index, candidate) in stats.iter().enumerate() {
+    for (index, candidate) in stats[range.0..range.1].iter().enumerate() {
         if candidate.line.id == target.line.id || !is_same_row_band(target, candidate) {
             continue;
         }
         let horizontal_gap = interval_gap(target.inline_interval, candidate.inline_interval);
         let min_font_size = target.median_font_size.min(candidate.median_font_size);
         if horizontal_gap >= 0.2 * min_font_size {
-            peers.push(index);
+            peers.push(range.0 + index);
         }
     }
     peers
 }
 
-fn max_column_width(target: &LineStats<'_>, stats: &[LineStats<'_>]) -> f64 {
+fn max_column_width(target: &LineStats<'_>, stats: &[LineStats<'_>], range: (usize, usize)) -> f64 {
     let mut max_width = target.line.bbox.max.x - target.line.bbox.min.x;
-    for candidate in stats {
+    for candidate in &stats[range.0..range.1] {
         if !is_same_row_band(target, candidate) {
             continue;
         }
@@ -1356,12 +1462,16 @@ fn max_column_width(target: &LineStats<'_>, stats: &[LineStats<'_>]) -> f64 {
 }
 
 fn crosses_grid_cell_boundary(
-    previous: &LineStats<'_>,
-    current: &LineStats<'_>,
+    previous_index: usize,
+    current_index: usize,
     stats: &[LineStats<'_>],
+    grid: &GridScan,
 ) -> bool {
-    let prev_peers = find_aligned_peers(previous, stats);
-    let curr_peers = find_aligned_peers(current, stats);
+    let previous = &stats[previous_index];
+    let current = &stats[current_index];
+    let scan = grid.scan_range(stats.len(), previous.line.page.0);
+    let prev_peers = &grid.aligned_peers[previous_index];
+    let curr_peers = &grid.aligned_peers[current_index];
 
     // If previous and current share an aligned peer line, they are lines in the
     // same multi-line cell of that row band.
@@ -1381,9 +1491,8 @@ fn crosses_grid_cell_boundary(
     // must be justified by benchmark fixture evidence of intermediate column widths.
     let min_prose_width = 12.0 * min_font_size;
 
-    let col_width_prev = max_column_width(previous, stats);
-    let col_width_curr = max_column_width(current, stats);
-    let candidate_col_width = col_width_prev.max(col_width_curr);
+    let candidate_col_width =
+        grid.column_widths[previous_index].max(grid.column_widths[current_index]);
 
     // If the candidate column is narrow (not wide enough for prose), then being
     // aligned with distinct peer lines indicates separate grid/table/form cells.
@@ -1434,7 +1543,8 @@ fn crosses_grid_cell_boundary(
             .iter()
             .any(|&idx| stats[idx].line.bbox.max.x - stats[idx].line.bbox.min.x < min_prose_width);
         if has_curr_narrow_peer {
-            for candidate in stats {
+            for index in scan.0..scan.1 {
+                let candidate = &stats[index];
                 if candidate.line.page != previous.line.page
                     || candidate.line.bbox.min.y <= previous.line.bbox.min.y
                 {
@@ -1443,7 +1553,7 @@ fn crosses_grid_cell_boundary(
                 // Preceding line in the same candidate column
                 if interval_overlap_ratio(previous.inline_interval, candidate.inline_interval) > 0.5
                 {
-                    let cand_peers = find_aligned_peers(candidate, stats);
+                    let cand_peers = &grid.aligned_peers[index];
                     if prev_peers.is_empty() {
                         // Pattern 1 (Top-aligned price): prev_peers is empty, cand line has a narrow peer in the same peer column.
                         let has_top_narrow_peer = cand_peers.iter().any(|&cand_p_idx| {
@@ -1506,11 +1616,14 @@ fn crosses_grid_cell_boundary(
 }
 
 fn should_join(
-    previous: &LineStats<'_>,
-    current: &LineStats<'_>,
     stats: &[LineStats<'_>],
+    grid: &GridScan,
+    previous_index: usize,
+    current_index: usize,
     options: BlockOptions,
 ) -> Result<bool> {
+    let previous = &stats[previous_index];
+    let current = &stats[current_index];
     if previous.line.page != current.line.page
         || !is_horizontal(previous.direction)
         || !is_horizontal(current.direction)
@@ -1519,7 +1632,7 @@ fn should_join(
         return Ok(false);
     }
 
-    if crosses_grid_cell_boundary(previous, current, stats) {
+    if crosses_grid_cell_boundary(previous_index, current_index, stats, grid) {
         return Ok(false);
     }
 

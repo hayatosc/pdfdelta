@@ -831,13 +831,11 @@ fn project_group_span(
     separator: Option<BlockSeparator>,
 ) -> Option<ProjectedSpan> {
     let mut group_scalars = group.first()?.text.chars().count();
-    for blocks in group.windows(2) {
-        let separator_scalars = match separator? {
-            BlockSeparator::Concatenate => 0,
-            BlockSeparator::Space => {
-                usize::from(needs_group_space(&blocks[0].text, &blocks[1].text))
-            }
-        };
+    for (boundary, blocks) in group.windows(2).enumerate() {
+        let separator_scalars = usize::from(
+            separator?.at(boundary) == BlockSeparator::Space
+                && needs_group_space(&blocks[0].text, &blocks[1].text),
+        );
         if blocks[1].source_gap_before != separator_scalars {
             return None;
         }

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     Error, Result,
     layout::{BlockId, BlockRole},
-    normalize::{BlockText, ComparableToken},
+    normalize::{BlockText, ComparableToken, FontSizeSignature, PositionSignature},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -28,6 +28,12 @@ pub struct BlockFeatures {
     pub page_position: Option<u16>,
     pub numeric_mask_applied: bool,
     pub has_normalization_issues: bool,
+    pub first_position: Option<PositionSignature>,
+    pub last_position: Option<PositionSignature>,
+    pub first_page: Option<u32>,
+    pub last_page: Option<u32>,
+    pub first_font_size: Option<FontSizeSignature>,
+    pub last_font_size: Option<FontSizeSignature>,
 }
 
 pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<Vec<BlockFeatures>> {
@@ -63,6 +69,28 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
             page_position: relative_page_position(block.pages.first().copied(), page_bounds),
             numeric_mask_applied: block.numeric_mask_applied,
             has_normalization_issues: !block.issues.is_empty(),
+            first_position: block
+                .position_signatures
+                .as_ref()
+                .and_then(|positions| positions.first())
+                .copied(),
+            last_position: block
+                .position_signatures
+                .as_ref()
+                .and_then(|positions| positions.last())
+                .copied(),
+            first_page: block.pages.first().copied(),
+            last_page: block.pages.last().copied(),
+            first_font_size: block
+                .font_size_signatures
+                .as_ref()
+                .and_then(|sizes| sizes.first())
+                .cloned(),
+            last_font_size: block
+                .font_size_signatures
+                .as_ref()
+                .and_then(|sizes| sizes.last())
+                .cloned(),
         });
     }
     Ok(features)
@@ -89,15 +117,22 @@ pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
 }
 
 pub fn multiset_dice_similarity(left: &NGramCounts, right: &NGramCounts) -> f64 {
+    // Shared mass is symmetric, so iterating the smaller multiset minimizes
+    // lookups without changing the result.
+    let (queried, indexed) = if left.len() <= right.len() {
+        (left, right)
+    } else {
+        (right, left)
+    };
     let left_total = left.values().map(|count| *count as f64).sum::<f64>();
     let right_total = right.values().map(|count| *count as f64).sum::<f64>();
     let total = left_total + right_total;
     if total == 0.0 {
         return 1.0;
     }
-    let shared = left
+    let shared = queried
         .iter()
-        .map(|(ngram, left_count)| *left_count.min(right.get(ngram).unwrap_or(&0)) as f64)
+        .map(|(ngram, count)| *count.min(indexed.get(ngram).unwrap_or(&0)) as f64)
         .sum::<f64>();
     2.0 * shared / total
 }

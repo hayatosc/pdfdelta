@@ -1,2 +1,0 @@
-OK pair=postgresql-16-to-17 set=holdout role=stress provenance=verified extracted=incomplete comparison=incomplete coverage=old=unknown,new=unknown,comp=unknown unresolved=1 runtime_ms=3146 candidate_visits=39/1000000 required_candidate_visits=39 required_candidate_components=exact:0,ngram:39,short_fallback:0 quality_skipped="no expected annotations are recorded for this pair"
-1/1 revision pairs healthy; 0 stopped at resource limits; 0 failed

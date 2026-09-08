@@ -37,7 +37,7 @@ pub struct PdfVersion {
     pub minor: u8,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ObjectRef {
     pub object_number: u32,
     pub generation: u16,

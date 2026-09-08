@@ -7,6 +7,7 @@ use clap::{CommandFactory, Parser};
 
 mod args;
 mod compare;
+mod extraction_cache;
 mod fs;
 mod inspect;
 mod trace;
@@ -64,6 +65,7 @@ fn main() -> ExitCode {
                 old_font_identities: &cli.old_font_identity,
                 new_font_identities: &cli.new_font_identity,
                 limit_scale: cli.limit_scale,
+                extraction_cache_dir: cli.extraction_cache_dir.as_deref(),
                 options: args::ComparisonOptions {
                     json_path: cli.json.as_deref(),
                     output_path: cli.output.as_deref(),

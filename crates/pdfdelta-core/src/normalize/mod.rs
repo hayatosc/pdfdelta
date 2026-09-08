@@ -1,12 +1,16 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
-use unicode_normalization::UnicodeNormalization;
+use rayon::prelude::*;
+use smallvec::SmallVec;
+use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfc_quick};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     Error, Result,
     layout::{Block, BlockId, BlockRole, Line, LineId},
-    model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId, Vec2, index_glyphs},
+    model::{
+        DecodedText, Document, FontProgramHash, Glyph, GlyphId, GlyphIndex, Vec2, index_glyphs,
+    },
 };
 
 pub const DEFAULT_MAX_NUMERIC_MASK_RATIO: f64 = 0.3;
@@ -16,6 +20,16 @@ const NUMBER_MASK: &str = "<NUM>";
 pub struct ScalarRange {
     pub start: usize,
     pub end: usize,
+}
+
+/// A canonical insertion boundary projected through all contributing raw sources.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RawBoundary {
+    Exact(usize),
+    /// The boundary splits a source shared by adjacent canonical scalars.
+    WithinSource(ScalarRange),
+    /// Deleted or inconsistent evidence leaves multiple possible raw positions.
+    Ambiguous(ScalarRange),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -31,9 +45,16 @@ pub enum TextSourceAtom {
     },
 }
 
+/// Source atoms of one canonical token.
+///
+/// The overwhelming majority of sources hold exactly one atom, so the vector
+/// is an inline-capacity-1 [`SmallVec`]: single-atom sources (one per
+/// character in the hot normalization path) clone and move without a heap
+/// allocation. Iteration order and equality semantics match the previous
+/// `Vec` representation exactly.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextSource {
-    pub atoms: Vec<TextSourceAtom>,
+    pub atoms: SmallVec<[TextSourceAtom; 1]>,
 }
 
 /// Exact effective font sizes observed for one canonical comparable token.
@@ -250,10 +271,7 @@ impl MappedText {
                 .source_map
                 .get(source_index)
                 .filter(|entry| entry.output_range.start <= index && index < entry.output_range.end)
-                .map_or_else(
-                    || TextSource { atoms: Vec::new() },
-                    |entry| entry.source.clone(),
-                );
+                .map_or_else(TextSource::default, |entry| entry.source.clone());
             tokens.push((ComparableToken::Scalar(scalar), source));
         }
 
@@ -339,7 +357,9 @@ impl MappedText {
                     }
                 }
             }
-            return TextSource { atoms };
+            return TextSource {
+                atoms: atoms.into(),
+            };
         }
 
         for entry in &self.source_map {
@@ -362,7 +382,9 @@ impl MappedText {
             }
         }
 
-        TextSource { atoms }
+        TextSource {
+            atoms: atoms.into(),
+        }
     }
 
     /// Returns all unique `GlyphId`s associated with the given output `ScalarRange`.
@@ -400,7 +422,7 @@ impl MappedText {
 
     /// Returns the ordered list of `TextSourceAtom`s covering the given output `ScalarRange`.
     pub fn project_source_atoms(&self, range: ScalarRange) -> Vec<TextSourceAtom> {
-        self.project_source(range).atoms
+        self.project_source(range).atoms.into_vec()
     }
 }
 
@@ -578,7 +600,11 @@ impl BlockText {
         Ok(ranges)
     }
 
-    /// Projects a canonical `ScalarRange` to the corresponding raw `ScalarRange` in `self.raw`.
+    /// Projects a canonical scalar range to its complete raw source extent.
+    ///
+    /// Empty ranges return a point only for an exact boundary; otherwise they
+    /// return the containing raw extent. Use [`Self::canonical_to_raw_boundary`]
+    /// to distinguish a shared source from an ambiguous boundary.
     pub fn canonical_to_raw_range(&self, canonical_range: ScalarRange) -> ScalarRange {
         if canonical_range.start == canonical_range.end {
             return self.canonical_point_to_raw_offset(canonical_range.start);
@@ -641,7 +667,10 @@ impl BlockText {
                 end: max_raw,
             }
         } else {
-            self.canonical_point_to_raw_offset(canonical_range.start)
+            ScalarRange {
+                start: 0,
+                end: self.raw.text.chars().count(),
+            }
         }
     }
 
@@ -720,37 +749,70 @@ impl BlockText {
         self.canonical.project_glyph_ids(canonical_range)
     }
 
-    fn canonical_point_to_raw_offset(&self, canonical_offset: usize) -> ScalarRange {
-        for entry in &self.canonical.source_map {
-            if entry.output_range.start <= canonical_offset
-                && canonical_offset <= entry.output_range.end
-            {
-                let source = &entry.source;
-                for raw_entry in &self.raw.source_map {
-                    if raw_entry
-                        .source
-                        .atoms
-                        .iter()
-                        .any(|atom| source.atoms.contains(atom))
-                    {
-                        let offset = if canonical_offset == entry.output_range.start {
-                            raw_entry.output_range.start
-                        } else {
-                            raw_entry.output_range.end
-                        };
-                        return ScalarRange {
-                            start: offset,
-                            end: offset,
-                        };
-                    }
+    /// Projects an insertion boundary without placing it inside a composed source.
+    ///
+    /// Returns `None` for an out-of-range offset or missing scalar evidence.
+    pub fn canonical_to_raw_boundary(&self, offset: usize) -> Option<RawBoundary> {
+        let canonical_len = self.canonical.text.chars().count();
+        let raw_len = self.raw.text.chars().count();
+        if offset > canonical_len {
+            return None;
+        }
+        let extent = |index| {
+            let range = ScalarRange {
+                start: index,
+                end: index + 1,
+            };
+            let source = self.canonical.project_source(range);
+            if source.atoms.is_empty() {
+                return None;
+            }
+            let mut missing = source.atoms.iter().collect::<HashSet<_>>();
+            for entry in &self.raw.source_map {
+                for atom in &entry.source.atoms {
+                    missing.remove(atom);
                 }
             }
-        }
-        let raw_len = self.raw.text.chars().count();
-        let clamped = canonical_offset.min(raw_len);
-        ScalarRange {
-            start: clamped,
-            end: clamped,
+            missing
+                .is_empty()
+                .then(|| self.canonical_to_raw_range(range))
+        };
+        let left = if offset == 0 {
+            0
+        } else {
+            extent(offset - 1)?.end
+        };
+        let right = if offset == canonical_len {
+            raw_len
+        } else {
+            extent(offset)?.start
+        };
+        Some(if left == right {
+            RawBoundary::Exact(left)
+        } else if left > right {
+            RawBoundary::WithinSource(ScalarRange {
+                start: right,
+                end: left,
+            })
+        } else {
+            RawBoundary::Ambiguous(ScalarRange {
+                start: left,
+                end: right,
+            })
+        })
+    }
+
+    fn canonical_point_to_raw_offset(&self, canonical_offset: usize) -> ScalarRange {
+        match self.canonical_to_raw_boundary(canonical_offset) {
+            Some(RawBoundary::Exact(offset)) => ScalarRange {
+                start: offset,
+                end: offset,
+            },
+            Some(RawBoundary::WithinSource(range) | RawBoundary::Ambiguous(range)) => range,
+            None => ScalarRange {
+                start: 0,
+                end: self.raw.text.chars().count(),
+            },
         }
     }
 
@@ -898,8 +960,17 @@ pub fn normalize_blocks(
     let mut block_ids = HashSet::with_capacity(blocks.len());
     let mut assigned_lines = HashSet::new();
     let mut assigned_glyphs = HashSet::new();
-    let mut normalized = Vec::with_capacity(blocks.len());
 
+    // Raw-block building mutates shared duplicate-detection sets, so it stays
+    // sequential in block order and stops at the first build error, exactly
+    // like the original single-threaded loop. `normalize_block` is pure given
+    // its raw block, so the collected raws are normalized in parallel and
+    // consumed in block order: the first normalization error (lowest block
+    // index) is reported, or the deferred build error when every
+    // normalization succeeded — the same error the sequential loop would
+    // have reported.
+    let mut raws = Vec::with_capacity(blocks.len());
+    let mut build_error = None;
     for block in blocks {
         if !block_ids.insert(block.id) {
             return Err(Error::Unresolved(format!(
@@ -914,15 +985,34 @@ pub fn normalize_blocks(
             )));
         }
 
-        let raw = build_raw_block(
+        match build_raw_block(
             block,
             &lines,
             &glyphs,
             &mut assigned_lines,
             &mut assigned_glyphs,
-        )?;
-        let pages = block_pages(block, &lines);
-        normalized.push(normalize_block(block.id, block.role, raw, pages, &glyphs)?);
+        ) {
+            Ok(raw) => {
+                let pages = block_pages(block, &lines);
+                raws.push((block.id, block.role, raw, pages));
+            }
+            Err(error) => {
+                build_error = Some(error);
+                break;
+            }
+        }
+    }
+
+    let normalized = raws
+        .into_par_iter()
+        .map(|(block, role, raw, pages)| normalize_block(block, role, raw, pages, &glyphs))
+        .collect::<Vec<Result<_>>>();
+    let mut normalized_blocks = Vec::with_capacity(normalized.len());
+    for result in normalized {
+        normalized_blocks.push(result?);
+    }
+    if let Some(error) = build_error {
+        return Err(error);
     }
 
     if assigned_lines.len() != lines.len() {
@@ -940,7 +1030,48 @@ pub fn normalize_blocks(
         )));
     }
 
-    Ok(normalized)
+    Ok(normalized_blocks)
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NormalizationKinds(u8);
+
+impl NormalizationKinds {
+    /// Bit index of a kind equals its `NormalizationKind` discriminant, so
+    /// ascending bit iteration reproduces the previous `BTreeSet` order and
+    /// `NormalizationEvent` ordering is unchanged.
+    fn bit(kind: NormalizationKind) -> u8 {
+        1 << (kind as u8)
+    }
+
+    fn insert(&mut self, kind: NormalizationKind) {
+        self.0 |= Self::bit(kind);
+    }
+
+    fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Iterates the present kinds in ascending discriminant order.
+    fn iter(self) -> impl Iterator<Item = NormalizationKind> {
+        (0u8..5).filter_map(move |bit| {
+            if self.0 & (1 << bit) != 0 {
+                Some(match bit {
+                    0 => NormalizationKind::Nfc,
+                    1 => NormalizationKind::SoftLineBreak,
+                    2 => NormalizationKind::WhitespaceCollapse,
+                    3 => NormalizationKind::HyphenationJoin,
+                    _ => NormalizationKind::LigatureExpansion,
+                })
+            } else {
+                None
+            }
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -958,7 +1089,7 @@ struct Atom {
     value: AtomValue,
     raw_range: ScalarRange,
     source: TextSource,
-    kinds: BTreeSet<NormalizationKind>,
+    kinds: NormalizationKinds,
 }
 
 #[derive(Clone, Debug)]
@@ -985,7 +1116,7 @@ fn index_lines(lines: &[Line]) -> Result<HashMap<LineId, &Line>> {
 fn build_raw_block(
     block: &Block,
     lines: &HashMap<LineId, &Line>,
-    glyphs: &HashMap<GlyphId, &Glyph>,
+    glyphs: &GlyphIndex<'_>,
     assigned_lines: &mut HashSet<LineId>,
     assigned_glyphs: &mut HashSet<GlyphId>,
 ) -> Result<RawBlock> {
@@ -1034,7 +1165,7 @@ fn build_raw_block(
                     glyph_id.0
                 )));
             }
-            let glyph = glyphs.get(&glyph_id).ok_or_else(|| {
+            let glyph = glyphs.get(glyph_id).ok_or_else(|| {
                 Error::Unresolved(format!(
                     "line {} references unknown glyph {}",
                     line.id.0, glyph_id.0
@@ -1061,7 +1192,7 @@ fn build_raw_block(
     Ok(builder.finish())
 }
 
-fn validate_line(line: &Line, glyphs: &HashMap<GlyphId, &Glyph>) -> Result<(GlyphId, GlyphId)> {
+fn validate_line(line: &Line, glyphs: &GlyphIndex<'_>) -> Result<(GlyphId, GlyphId)> {
     let Some(first_glyph) = line.glyphs.first().copied() else {
         return Err(Error::Unresolved(format!(
             "line {} contains no glyphs",
@@ -1093,7 +1224,7 @@ fn validate_line(line: &Line, glyphs: &HashMap<GlyphId, &Glyph>) -> Result<(Glyp
     }
 
     for glyph_id in &line.glyphs {
-        let glyph = glyphs.get(glyph_id).ok_or_else(|| {
+        let glyph = glyphs.get(*glyph_id).ok_or_else(|| {
             Error::Unresolved(format!(
                 "line {} references unknown glyph {}",
                 line.id.0, glyph_id.0
@@ -1156,7 +1287,7 @@ impl RawBuilder {
                         end: self.scalar_index,
                     },
                     source,
-                    kinds: BTreeSet::new(),
+                    kinds: NormalizationKinds::default(),
                 });
             }
         }
@@ -1181,7 +1312,7 @@ impl RawBuilder {
                 end: self.scalar_index,
             },
             source,
-            kinds: BTreeSet::new(),
+            kinds: NormalizationKinds::default(),
         });
     }
 
@@ -1199,17 +1330,37 @@ impl RawBuilder {
     }
 }
 
+impl Default for TextSource {
+    fn default() -> Self {
+        Self {
+            atoms: SmallVec::new(),
+        }
+    }
+}
+
 impl TextSource {
     fn single(atom: TextSourceAtom) -> Self {
-        Self { atoms: vec![atom] }
+        Self {
+            atoms: SmallVec::from_buf([atom]),
+        }
     }
 
     fn combine<'a>(sources: impl IntoIterator<Item = &'a Self>) -> Self {
-        let mut seen = HashSet::new();
-        let mut atoms = Vec::new();
+        // Keep tiny merges allocation-free; whitespace runs can contain arbitrarily
+        // many distinct atoms, so bound linear scans before switching to a set.
+        const LINEAR_LIMIT: usize = 16;
+        let mut atoms = SmallVec::new();
+        let mut seen = None::<HashSet<TextSourceAtom>>;
         for source in sources {
             for atom in &source.atoms {
-                if seen.insert(atom.clone()) {
+                if atoms.len() == LINEAR_LIMIT && seen.is_none() {
+                    seen = Some(atoms.iter().cloned().collect());
+                }
+                let duplicate = match &mut seen {
+                    Some(seen) => !seen.insert(atom.clone()),
+                    None => atoms.contains(atom),
+                };
+                if !duplicate {
                     atoms.push(atom.clone());
                 }
             }
@@ -1234,14 +1385,18 @@ fn normalize_block(
     role: BlockRole,
     raw: RawBlock,
     pages: Vec<u32>,
-    glyphs: &HashMap<GlyphId, &Glyph>,
+    glyphs: &GlyphIndex<'_>,
 ) -> Result<BlockText> {
     let mut issues = Vec::new();
     let line_break_following_glyphs = raw.line_break_following_glyphs;
     let page_break_following_glyphs = raw.page_break_following_glyphs;
-    let atoms = expand_ligatures(raw.atoms);
-    let atoms = resolve_line_breaks(atoms, &mut issues);
-    let atoms = collapse_whitespace(atoms);
+    // Only ligature expansion can grow the atom vector, so it owns the one
+    // allocation of the pipeline; the line-break and whitespace passes
+    // rewrite the buffer in place (their output never exceeds the input),
+    // and NFC consumes it.
+    let mut atoms = expand_ligatures(raw.atoms);
+    resolve_line_breaks(&mut atoms, &mut issues);
+    collapse_whitespace(&mut atoms);
     let pieces = normalize_nfc(atoms);
     let (canonical, events) = assemble_canonical(pieces);
     let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
@@ -1271,7 +1426,7 @@ fn normalize_block(
 
 fn canonical_font_size_signatures(
     tokens: &[(ComparableToken, TextSource)],
-    glyphs: &HashMap<GlyphId, &Glyph>,
+    glyphs: &GlyphIndex<'_>,
 ) -> Result<Option<Vec<FontSizeSignature>>> {
     let mut signatures = Vec::with_capacity(tokens.len());
 
@@ -1304,7 +1459,7 @@ fn canonical_font_size_signatures(
 
 fn canonical_position_signatures(
     tokens: &[(ComparableToken, TextSource)],
-    glyphs: &HashMap<GlyphId, &Glyph>,
+    glyphs: &GlyphIndex<'_>,
 ) -> Result<Option<Vec<PositionSignature>>> {
     let mut signatures = Vec::with_capacity(tokens.len());
 
@@ -1316,7 +1471,7 @@ fn canonical_position_signatures(
         }) else {
             return Ok(None);
         };
-        let glyph = glyphs.get(&glyph_id).ok_or_else(|| {
+        let glyph = glyphs.get(glyph_id).ok_or_else(|| {
             Error::Unresolved(format!(
                 "canonical text references unknown glyph {}",
                 glyph_id.0
@@ -1334,12 +1489,8 @@ fn canonical_position_signatures(
     Ok(Some(signatures))
 }
 
-fn push_font_size(
-    sizes: &mut Vec<f64>,
-    glyph_id: GlyphId,
-    glyphs: &HashMap<GlyphId, &Glyph>,
-) -> Result<()> {
-    let glyph = glyphs.get(&glyph_id).ok_or_else(|| {
+fn push_font_size(sizes: &mut Vec<f64>, glyph_id: GlyphId, glyphs: &GlyphIndex<'_>) -> Result<()> {
+    let glyph = glyphs.get(glyph_id).ok_or_else(|| {
         Error::Unresolved(format!(
             "canonical text references unknown glyph {}",
             glyph_id.0
@@ -1514,7 +1665,7 @@ fn expand_ligatures(atoms: Vec<Atom>) -> Vec<Atom> {
         };
 
         for scalar in replacement.chars() {
-            let mut kinds = atom.kinds.clone();
+            let mut kinds = atom.kinds;
             kinds.insert(NormalizationKind::LigatureExpansion);
             expanded.push(Atom {
                 value: AtomValue::Scalar(scalar),
@@ -1539,60 +1690,78 @@ fn ligature_expansion(scalar: char) -> Option<&'static str> {
     }
 }
 
-fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -> Vec<Atom> {
-    let mut resolved = Vec::with_capacity(atoms.len());
+/// Resolves line-break atoms in place.
+///
+/// Every input atom yields at most one output atom, so the write cursor never
+/// overtakes the read cursor and the output is written back into the same
+/// buffer, avoiding a full `Vec<Atom>` rebuild. Slots below the write cursor
+/// hold finished output and are never read again; slots at or above the read
+/// cursor still hold the untouched input the lookahead consults.
+fn resolve_line_breaks(atoms: &mut Vec<Atom>, issues: &mut Vec<NormalizationIssue>) {
+    let mut write = 0;
     let mut index = 0;
 
     while index < atoms.len() {
         if !matches!(atoms[index].value, AtomValue::Scalar('\n')) {
-            resolved.push(atoms[index].clone());
+            atoms.swap(write, index);
+            write += 1;
             index += 1;
             continue;
         }
 
-        let previous = resolved.last();
-        let following = atoms.get(index + 1);
-        let previous_scalar = previous.and_then(Atom::scalar);
-        let following_scalar = following.and_then(Atom::scalar);
+        let previous_scalar = (write > 0).then(|| atoms[write - 1].scalar()).flatten();
+        let following_scalar = atoms.get(index + 1).and_then(Atom::scalar);
 
-        let latin_prefix_len = latin_prefix_len_before_hyphen(&resolved);
-        let latin_suffix_len = latin_suffix_len_after_break(&atoms, index);
+        let latin_prefix_len = latin_prefix_len_before_hyphen(&atoms[..write]);
+        let latin_suffix_len = latin_suffix_len_after_break(atoms, index);
 
-        let is_hyphenation = is_hyphen(previous_scalar)
+        let ambiguous_hyphenation = is_hyphen(previous_scalar)
             && latin_prefix_len >= 2
             && latin_suffix_len >= 2
             && following_scalar.is_some_and(is_latin_lowercase);
 
         let is_lexical_hyphen = is_hyphen(previous_scalar)
-            && resolved
-                .get(resolved.len().saturating_sub(2))
-                .and_then(Atom::scalar)
+            && (write > 1)
+                .then(|| atoms[write - 2].scalar())
+                .flatten()
                 .is_some_and(|s| is_latin_letter_or_digit(s) || is_cjk(s))
             && following_scalar.is_some_and(|s| is_latin_letter_or_digit(s) || is_cjk(s));
 
-        if is_hyphenation && let Some(hyphen) = resolved.pop() {
-            resolved.push(deleted_atom(
-                [&hyphen, &atoms[index]],
+        if previous_scalar == Some('\u{ad}') && following_scalar.is_some() {
+            let replacement = deleted_atom(
+                [&atoms[write - 1], &atoms[index]],
                 NormalizationKind::HyphenationJoin,
-            ));
+            );
+            atoms[write - 1] = replacement;
         } else if is_lexical_hyphen {
+            if ambiguous_hyphenation {
+                issues.push(NormalizationIssue {
+                    kind: NormalizationIssueKind::AmbiguousLineBreak,
+                    raw_range: atoms[write - 1].raw_range,
+                    source: atoms[write - 1].source.clone(),
+                });
+            }
             // A lexical hyphen before a line break (e.g. "Franco-\nPrussian", "pre-\n1990",
             // "COVID-\n19", "X-\nray", "1990-\n2000") is retained in place; the trailing
             // line break is deleted as a soft line break so no spurious space is inserted.
-            resolved.push(changed_atom(
+            let replacement = changed_atom(
                 &atoms[index],
                 AtomValue::Deleted,
                 NormalizationKind::SoftLineBreak,
-            ));
+            );
+            atoms[write] = replacement;
+            write += 1;
         } else if previous_scalar.is_some_and(is_decimal_digit)
             && following_scalar.is_some_and(is_decimal_digit)
         {
             // Breaks between digits insert a space to avoid merging numeric values.
-            resolved.push(changed_atom(
+            let replacement = changed_atom(
                 &atoms[index],
                 AtomValue::Scalar(' '),
                 NormalizationKind::SoftLineBreak,
-            ));
+            );
+            atoms[write] = replacement;
+            write += 1;
         } else if previous_scalar.is_some_and(is_horizontal_whitespace)
             || following_scalar.is_some_and(is_horizontal_whitespace)
             // CJK-CJK and CJK-Latin/digit boundaries join without inserted spaces.
@@ -1602,43 +1771,52 @@ fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -
             || previous_scalar.is_some_and(is_latin_letter_or_digit)
                 && following_scalar.is_some_and(is_cjk)
         {
-            resolved.push(changed_atom(
+            let replacement = changed_atom(
                 &atoms[index],
                 AtomValue::Deleted,
                 NormalizationKind::SoftLineBreak,
-            ));
+            );
+            atoms[write] = replacement;
+            write += 1;
         } else if previous_scalar.is_some_and(is_latin_letter_or_digit)
             && following_scalar.is_some_and(is_latin_letter_or_digit)
         {
-            resolved.push(changed_atom(
+            let replacement = changed_atom(
                 &atoms[index],
                 AtomValue::Scalar(' '),
                 NormalizationKind::SoftLineBreak,
-            ));
+            );
+            atoms[write] = replacement;
+            write += 1;
         } else {
             issues.push(NormalizationIssue {
                 kind: NormalizationIssueKind::AmbiguousLineBreak,
                 raw_range: atoms[index].raw_range,
                 source: atoms[index].source.clone(),
             });
-            resolved.push(atoms[index].clone());
+            atoms.swap(write, index);
+            write += 1;
         }
         index += 1;
     }
 
-    resolved
+    atoms.truncate(write);
 }
 
-fn collapse_whitespace(atoms: Vec<Atom>) -> Vec<Atom> {
-    let mut collapsed = Vec::with_capacity(atoms.len());
+/// Collapses horizontal whitespace runs in place.
+///
+/// Runs shrink to a single atom, so the write cursor never overtakes the read
+/// cursor and the output reuses the input buffer. Read ranges always lie at
+/// or above the write cursor, so finished output slots are never re-read.
+fn collapse_whitespace(atoms: &mut Vec<Atom>) {
+    let mut write = 0;
     let mut index = 0;
 
     while index < atoms.len() {
-        let Some(first) = atoms.get(index) else {
-            break;
-        };
-        if !first.scalar().is_some_and(is_horizontal_whitespace) {
-            collapsed.push(first.clone());
+        let first_is_ws = atoms[index].scalar().is_some_and(is_horizontal_whitespace);
+        if !first_is_ws {
+            atoms.swap(write, index);
+            write += 1;
             index += 1;
             continue;
         }
@@ -1651,25 +1829,29 @@ fn collapse_whitespace(atoms: Vec<Atom>) -> Vec<Atom> {
         {
             index += 1;
         }
-        let run = &atoms[start..index];
-        if run.len() == 1 && run[0].scalar() == Some(' ') {
-            collapsed.push(run[0].clone());
+        let run_len = index - start;
+        let single_space = run_len == 1 && atoms[start].scalar() == Some(' ');
+        if single_space {
+            // Preserve the original atom (including its source and kinds).
+            atoms.swap(write, start);
         } else {
-            collapsed.push(Atom {
+            let merged = Atom {
                 value: AtomValue::Scalar(' '),
-                raw_range: union_range(run.iter().map(|atom| atom.raw_range)),
-                source: TextSource::combine(run.iter().map(|atom| &atom.source)),
-                kinds: merged_kinds(run, NormalizationKind::WhitespaceCollapse),
-            });
+                raw_range: union_range(atoms[start..index].iter().map(|atom| atom.raw_range)),
+                source: TextSource::combine(atoms[start..index].iter().map(|atom| &atom.source)),
+                kinds: merged_kinds(&atoms[start..index], NormalizationKind::WhitespaceCollapse),
+            };
+            atoms[write] = merged;
         }
+        write += 1;
     }
 
-    collapsed
+    atoms.truncate(write);
 }
 
 #[derive(Clone, Debug)]
 enum FinalValue {
-    Text(String),
+    Text(TextPiece),
     Unmapped {
         font_hash: FontProgramHash,
         glyph_id: u16,
@@ -1677,12 +1859,38 @@ enum FinalValue {
     Deleted,
 }
 
+/// Canonical text of one NFC piece.
+///
+/// Unchanged single-scalar graphemes — the overwhelming majority — carry the
+/// scalar inline so the per-character hot path allocates no `String`.
+#[derive(Clone, Debug)]
+enum TextPiece {
+    Char(char),
+    Str(String),
+}
+
+impl TextPiece {
+    fn push_into(self, text: &mut String) -> usize {
+        match self {
+            Self::Char(scalar) => {
+                text.push(scalar);
+                1
+            }
+            Self::Str(value) => {
+                let count = value.chars().count();
+                text.push_str(&value);
+                count
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct FinalPiece {
     value: FinalValue,
     raw_range: ScalarRange,
     source: TextSource,
-    kinds: BTreeSet<NormalizationKind>,
+    kinds: NormalizationKinds,
 }
 
 fn normalize_nfc(atoms: Vec<Atom>) -> Vec<FinalPiece> {
@@ -1732,16 +1940,37 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
     for grapheme in text.graphemes(true) {
         let scalar_count = grapheme.chars().count();
         let atoms = &run[scalar_offset..scalar_offset + scalar_count];
-        let normalized = grapheme.nfc().collect::<String>();
+        // The overwhelming majority of graphemes are already NFC, often a
+        // single scalar: skip the normalization iterator and its per-character
+        // String allocation for them. `IsNormalized::Maybe` only means the
+        // quick check is inconclusive, so those graphemes still have to be
+        // normalized and compared — reporting `Nfc` for them unconditionally
+        // would record a normalization that never happened.
+        let (value, normalized) = match is_nfc_quick(grapheme.chars()) {
+            IsNormalized::Yes => {
+                let mut chars = grapheme.chars();
+                let value = match (chars.next(), chars.next()) {
+                    (Some(single), None) => TextPiece::Char(single),
+                    _ => TextPiece::Str(grapheme.to_owned()),
+                };
+                (value, false)
+            }
+            _ => {
+                let canonical = grapheme.nfc().collect::<String>();
+                let normalized = canonical != grapheme;
+                (TextPiece::Str(canonical), normalized)
+            }
+        };
         let mut kinds = atoms
             .iter()
-            .flat_map(|atom| atom.kinds.iter().copied())
-            .collect::<BTreeSet<_>>();
-        if normalized != grapheme {
+            .fold(NormalizationKinds::default(), |acc, atom| {
+                acc.union(atom.kinds)
+            });
+        if normalized {
             kinds.insert(NormalizationKind::Nfc);
         }
         pieces.push(FinalPiece {
-            value: FinalValue::Text(normalized),
+            value: FinalValue::Text(value),
             raw_range: union_range(atoms.iter().map(|atom| atom.raw_range)),
             source: TextSource::combine(atoms.iter().map(|atom| &atom.source)),
             kinds,
@@ -1760,40 +1989,67 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
 
     for piece in pieces {
         let start = scalar_index;
+        // The piece owns its source, so the consumer can move it instead of
+        // cloning; only the rare event-per-piece path needs a copy.
+        let mut source = piece.source;
         match piece.value {
             FinalValue::Text(value) => {
-                scalar_index += value.chars().count();
-                text.push_str(&value);
+                scalar_index += value.push_into(&mut text);
+                let entry_source = if piece.kinds.is_empty() {
+                    std::mem::take(&mut source)
+                } else {
+                    source.clone()
+                };
                 source_map.push(SourceMapEntry {
                     output_range: ScalarRange {
                         start,
                         end: scalar_index,
                     },
-                    source: piece.source.clone(),
+                    source: entry_source,
                 });
+                emit_piece_events(
+                    &mut events,
+                    piece.kinds,
+                    piece.raw_range,
+                    start,
+                    scalar_index,
+                    &mut source,
+                );
             }
             FinalValue::Unmapped {
                 font_hash,
                 glyph_id,
-            } => unmapped.push(UnmappedToken {
-                scalar_index,
-                font_hash,
-                glyph_id,
-                source: piece.source.clone(),
-            }),
-            FinalValue::Deleted => {}
-        }
-
-        for kind in piece.kinds {
-            events.push(NormalizationEvent {
-                kind,
-                raw_range: piece.raw_range,
-                canonical_range: ScalarRange {
+            } => {
+                let token_source = if piece.kinds.is_empty() {
+                    std::mem::take(&mut source)
+                } else {
+                    source.clone()
+                };
+                unmapped.push(UnmappedToken {
+                    scalar_index,
+                    font_hash,
+                    glyph_id,
+                    source: token_source,
+                });
+                emit_piece_events(
+                    &mut events,
+                    piece.kinds,
+                    piece.raw_range,
                     start,
-                    end: scalar_index,
-                },
-                source: piece.source.clone(),
-            });
+                    scalar_index,
+                    &mut source,
+                );
+            }
+            FinalValue::Deleted => {
+                emit_piece_events(
+                    &mut events,
+                    piece.kinds,
+                    piece.raw_range,
+                    start,
+                    scalar_index,
+                    &mut source,
+                );
+            }
         }
     }
 
@@ -1807,6 +2063,32 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
     )
 }
 
+/// Emits one event per kind, moving the owned source into the last event and
+/// cloning it only for the earlier ones.
+fn emit_piece_events(
+    events: &mut Vec<NormalizationEvent>,
+    kinds: NormalizationKinds,
+    raw_range: ScalarRange,
+    start: usize,
+    end: usize,
+    source: &mut TextSource,
+) {
+    let count = kinds.iter().count();
+    for (index, kind) in kinds.iter().enumerate() {
+        let event_source = if index + 1 == count {
+            std::mem::take(source)
+        } else {
+            source.clone()
+        };
+        events.push(NormalizationEvent {
+            kind,
+            raw_range,
+            canonical_range: ScalarRange { start, end },
+            source: event_source,
+        });
+    }
+}
+
 impl Atom {
     fn scalar(&self) -> Option<char> {
         match self.value {
@@ -1817,7 +2099,7 @@ impl Atom {
 }
 
 fn changed_atom(atom: &Atom, value: AtomValue, kind: NormalizationKind) -> Atom {
-    let mut kinds = atom.kinds.clone();
+    let mut kinds = atom.kinds;
     kinds.insert(kind);
     Atom {
         value,
@@ -1839,11 +2121,12 @@ fn deleted_atom<const N: usize>(atoms: [&Atom; N], kind: NormalizationKind) -> A
 fn merged_kinds<'a>(
     atoms: impl IntoIterator<Item = &'a Atom>,
     kind: NormalizationKind,
-) -> BTreeSet<NormalizationKind> {
+) -> NormalizationKinds {
     let mut kinds = atoms
         .into_iter()
-        .flat_map(|atom| atom.kinds.iter().copied())
-        .collect::<BTreeSet<_>>();
+        .fold(NormalizationKinds::default(), |acc, atom| {
+            acc.union(atom.kinds)
+        });
     kinds.insert(kind);
     kinds
 }
@@ -1935,7 +2218,7 @@ fn is_decimal_digit(scalar: char) -> bool {
     matches!(scalar, '0'..='9' | '\u{ff10}'..='\u{ff19}')
 }
 
-fn is_cjk(scalar: char) -> bool {
+pub(crate) fn is_cjk(scalar: char) -> bool {
     matches!(
         scalar,
         '\u{3000}'..='\u{303f}'

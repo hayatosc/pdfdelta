@@ -84,6 +84,89 @@ fn comparison_limit_scale_is_available_and_never_lowers_defaults() {
 }
 
 #[test]
+fn extraction_cache_produces_identical_reports_cold_and_warm() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    let cache_dir = directory.join("cache");
+    let baseline = directory.join("baseline.json");
+    let cold = directory.join("cold.json");
+    let warm = directory.join("warm.json");
+    let warm_trace = directory.join("warm-trace.json");
+
+    let baseline_output = compare(&old, &new, &["--json", path_text(&baseline)]);
+    assert_eq!(
+        baseline_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&baseline_output)
+    );
+    let cold_output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&cold),
+            "--extraction-cache-dir",
+            path_text(&cache_dir),
+        ],
+    );
+    assert_eq!(
+        cold_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&cold_output)
+    );
+    let warm_output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&warm),
+            "--trace-json",
+            path_text(&warm_trace),
+            "--extraction-cache-dir",
+            path_text(&cache_dir),
+        ],
+    );
+    assert_eq!(
+        warm_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&warm_output)
+    );
+
+    // Comparison results must be identical with and without the cache.
+    let baseline_report = read_json(&baseline);
+    assert_eq!(read_json(&cold), baseline_report);
+    assert_eq!(read_json(&warm), baseline_report);
+
+    // The warm run must actually serve both sides from the cache.
+    let trace = read_json(&warm_trace);
+    for side in ["old", "new"] {
+        let parse = phase(&trace, "pdf_parse", Some(side));
+        assert_eq!(parse["status"], "skipped");
+        assert_eq!(parse["skip_reason"], "extraction_cache_hit");
+    }
+}
+
+#[test]
 fn inspect_without_flags_prints_backend_summary() {
     let directory = TestDirectory::new();
     let document = directory.join("document.pdf");
@@ -610,7 +693,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 25);
+    assert_eq!(trace["trace_schema_version"], 26);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);
@@ -808,6 +891,35 @@ fn trace_records_candidate_visit_metrics_on_the_alignment_phase() {
         "required components must sum to the required total"
     );
     assert_eq!(alignment["metrics"]["max_candidate_visits"], 1_000_000);
+}
+
+#[test]
+fn concurrent_extraction_matches_sequential_phases_when_the_old_side_fails() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let trace_path = directory.join("trace.json");
+    fs::write(&old, b"not a PDF").expect("malformed fixture should be written");
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &["--trace-json", path_text(&trace_path)]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let trace = read_json(&trace_path);
+    // The sides extract concurrently, but a failed old side must discard the
+    // new side's phase records so the trace matches the sequential run where
+    // the new side never ran: new-side entries may only be the
+    // `prior_phase_did_not_complete` skip placeholders, and the old side's
+    // error still wins.
+    let phases = trace["phases"].as_array().expect("trace phases");
+    assert!(
+        phases
+            .iter()
+            .all(|phase| phase["side"] != Value::String("new".to_owned())
+                || phase["status"] == "skipped"),
+        "{phases:#?}"
+    );
+    assert_eq!(phase(&trace, "pdf_parse", Some("old"))["status"], "failed");
 }
 
 #[test]

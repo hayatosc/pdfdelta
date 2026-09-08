@@ -41,7 +41,9 @@ fn source_ids(blocks: &[BlockText], span: Option<&TextSpan>) -> BTreeSet<GlyphId
         {
             tokens.push((
                 ComparableToken::Scalar(' '),
-                TextSource { atoms: Vec::new() },
+                TextSource {
+                    atoms: Default::default(),
+                },
             ));
         }
         tokens.extend(next);

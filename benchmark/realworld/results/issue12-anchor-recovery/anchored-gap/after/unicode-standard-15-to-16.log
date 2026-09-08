@@ -1,2 +1,0 @@
-LIMIT pair=unicode-standard-15-to-16 set=holdout role=stress provenance=verified compared=false runtime_ms=40752 candidate_visits=4011736/4000000 required_candidate_visits=8739239 required_candidate_components=exact:372,ngram:8735027,short_fallback:3840 limit_failure="alignment candidate visits exceeded its limit of 4000000" quality_skipped="comparison stopped at a resource limit"
-0/1 revision pairs healthy; 1 stopped at resource limits; 0 failed

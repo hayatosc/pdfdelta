@@ -1,7 +1,7 @@
 # Source glyph reductions for local correspondence
 
-These fixtures are filtered captures of the NIST FIPS 186 and Cybersecurity
-Framework revision pairs. `provenance.json` records the source PDF hashes,
+These fixtures are filtered captures of the NIST FIPS 186
+revision pair. `provenance.json` records the source PDF hashes,
 zero-based pages, selection predicates, fixture hashes, and record counts.
 The revision manifest records the original download locations.
 
@@ -25,10 +25,6 @@ under an unclosed parent. Its available exact sentence anchors end near
 the beginning of the introduction and do not close the note. The reduction
 does not preserve the original full PDF's mixed-role classification; that
 separate blocker is recorded in the full-document diagnostic capture.
-
-The CSF reduction retains both reviewed scope/functions passages and their
-surrounding text. The saved baseline produces no established changes and
-supplies no exact recovery anchors to local correspondence discovery.
 
 The local comparison regression fixes five independently checked FIPS
 introduction edits to their original glyph IDs:

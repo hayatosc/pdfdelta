@@ -464,11 +464,14 @@ fn record_boundary_separators(
     work: &mut usize,
     max_work: usize,
 ) -> Option<()> {
-    let evidence = match separator.unwrap_or(BlockSeparator::Concatenate) {
-        BlockSeparator::Concatenate => BoundarySeparator::Concatenate,
-        BlockSeparator::Space => BoundarySeparator::Space,
-    };
-    for pair in blocks.windows(2) {
+    for (index, pair) in blocks.windows(2).enumerate() {
+        let evidence = if separator.unwrap_or(BlockSeparator::Concatenate).at(index)
+            == BlockSeparator::Space
+        {
+            BoundarySeparator::Space
+        } else {
+            BoundarySeparator::Concatenate
+        };
         charge_work(work, 1, max_work)?;
         let left = *side.index.get(&pair[0])?;
         let right = *side.index.get(&pair[1])?;
