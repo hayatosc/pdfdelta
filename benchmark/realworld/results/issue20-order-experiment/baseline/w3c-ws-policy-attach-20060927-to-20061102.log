@@ -1,0 +1,4 @@
+
+thread 'main' (79) panicked at crates/pdfdelta-core/src/alignment/score.rs:26:20:
+index out of bounds: the len is 2 but the index is 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

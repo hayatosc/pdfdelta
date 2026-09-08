@@ -1,0 +1,20 @@
+{
+  "documents": 24,
+  "pages": 1435,
+  "device": [
+    "cpu"
+  ],
+  "threads": [
+    2
+  ],
+  "model_revisions": [
+    "97d101e6db2642e162a1d05392d1b0231c91033e"
+  ],
+  "sum_document_seconds": 3669.8986459900407,
+  "sum_page_seconds": 3649.4659368170323,
+  "median_page_seconds": 2.4934580370027106,
+  "max_document_peak_rss_bytes": 1963581440,
+  "min_regions_per_page": 0,
+  "max_regions_per_page": 61,
+  "pages_without_regions": 5
+}

@@ -102,6 +102,7 @@ mod assessment_evidence;
 mod exact_range_parent;
 #[path = "revisions/fragment_review.rs"]
 mod fragment_review;
+pub mod order_probe;
 #[path = "revision_diagnostics.rs"]
 mod revision_diagnostics;
 #[path = "revision_scopes.rs"]

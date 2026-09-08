@@ -1,0 +1,5107 @@
+{
+  "schema_version": 67,
+  "records": [
+    {
+      "pair_id": "oasis-mqtt-311-to-50",
+      "set": "dev",
+      "role": "standard",
+      "in_scope": true,
+      "status": "limit",
+      "provenance_verified": true,
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "limit_scale_used": 1.0,
+      "resource_limit_failure": "comparison assessment search reached a resource limit",
+      "coverage_old": 0.0,
+      "coverage_new": 0.0,
+      "coverage_comparison": 0.0,
+      "unresolved_regions": 8237,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0,
+      "reported_content_changes": 0,
+      "reported_formatting_changes": 0,
+      "reported_proven_changed_regions": 0,
+      "reported_uncertain_changes": 0,
+      "sentence_recovery_metrics": {
+        "change_origins": {
+          "ordered_alignment": {
+            "event_count": 64,
+            "old_changed_tokens": 343,
+            "new_changed_tokens": 513,
+            "old_resolved_context_tokens": 5782,
+            "new_resolved_context_tokens": 5952
+          },
+          "sentence_near": {
+            "event_count": 1039,
+            "old_changed_tokens": 29764,
+            "new_changed_tokens": 95755,
+            "old_resolved_context_tokens": 49686,
+            "new_resolved_context_tokens": 115677
+          },
+          "local_fragment": {
+            "event_count": 15,
+            "old_changed_tokens": 567,
+            "new_changed_tokens": 568,
+            "old_resolved_context_tokens": 100,
+            "new_resolved_context_tokens": 101
+          },
+          "cross_granularity": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 0,
+            "new_resolved_context_tokens": 0
+          },
+          "trusted_tail": {
+            "event_count": 496,
+            "old_changed_tokens": 23829,
+            "new_changed_tokens": 31615,
+            "old_resolved_context_tokens": 25633,
+            "new_resolved_context_tokens": 33419
+          },
+          "exact_tail": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 193,
+            "new_resolved_context_tokens": 193
+          },
+          "running_matter": {
+            "event_count": 1,
+            "old_changed_tokens": 9,
+            "new_changed_tokens": 9,
+            "old_resolved_context_tokens": 513,
+            "new_resolved_context_tokens": 513
+          },
+          "range_local_exact": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 11863,
+            "new_resolved_context_tokens": 11863
+          },
+          "trusted_residual_exact": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 391,
+            "new_resolved_context_tokens": 391
+          },
+          "anchored_gap": {
+            "event_count": 42,
+            "old_changed_tokens": 165,
+            "new_changed_tokens": 203,
+            "old_resolved_context_tokens": 431,
+            "new_resolved_context_tokens": 469
+          }
+        },
+        "local_fragment_review_bundle": {
+          "status": "complete",
+          "total_traces": 1,
+          "total_occurrences": 1,
+          "sample_limit": 256,
+          "truncated": false,
+          "samples": [
+            {
+              "origin": "local_fragment",
+              "old_alignment_span": 26,
+              "new_alignment_span": 26,
+              "old_relation": {
+                "best_score": 10000,
+                "second_score": 0,
+                "margin": 10000,
+                "scope": null
+              },
+              "new_relation": {
+                "best_score": 10000,
+                "second_score": 0,
+                "margin": 10000,
+                "scope": null
+              },
+              "old_context": {
+                "blocks": [
+                  305
+                ],
+                "separator": null,
+                "canonical_start": 672,
+                "canonical_end": 772,
+                "comparable_start": 672,
+                "comparable_end": 772
+              },
+              "new_context": {
+                "blocks": [
+                  403
+                ],
+                "separator": null,
+                "canonical_start": 301,
+                "canonical_end": 402,
+                "comparable_start": 301,
+                "comparable_end": 402
+              },
+              "old_context_text": {
+                "text": "Unless stated otherwise all UTF-8 encoded strings can have any length in the range 0 to 65535 bytes.",
+                "total_scalars": 100,
+                "truncated": false
+              },
+              "new_context_text": {
+                "text": "Unless stated otherwise all UTF-8 encoded strings can have any length in the range 0 to 65,535 bytes.",
+                "total_scalars": 101,
+                "truncated": false
+              },
+              "old_source": {
+                "total": 100,
+                "truncated": true,
+                "samples": [
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45468,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 72.024,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 79.21512,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45469,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 79.21512,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 84.75288,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45470,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 84.75288,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 86.964,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45471,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 86.90424,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 92.44200000000001,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45472,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 92.44200000000001,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 97.42200000000001,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45473,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 97.45188000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 102.43188000000002,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45474,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 102.48168000000003,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 105.25056000000002,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45475,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 105.25056000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 110.23056000000003,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45476,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 110.27040000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 113.03928000000002,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45477,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 113.03928000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 118.57704000000003,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45478,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 118.57704000000003,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 121.34592000000002,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45479,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 121.41564000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 126.95340000000003,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45480,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 126.95340000000003,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 132.49116000000004,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45481,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 132.45132000000004,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 135.22020000000003,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45482,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 135.22020000000003,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 140.75796000000003,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45483,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 140.83764000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 143.60652000000002,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45484,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 143.60652000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 149.14428,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45485,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 149.14428,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 154.68204,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45486,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 154.6422,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 157.95888,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45487,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 158.10828,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 165.29940000000002,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45488,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 165.29940000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 167.51052,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45489,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 167.47068000000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 172.45068,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45490,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 172.50048,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 178.03824,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45491,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 178.03824,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 180.80712,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45492,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 180.80712,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 186.34488,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45493,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 186.41459999999998,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 188.62571999999997,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45494,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 188.57591999999997,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 190.78703999999996,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45495,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 190.73723999999996,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 193.50611999999995,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45496,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 193.60571999999996,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 200.79683999999997,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45497,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 200.79683999999997,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 206.88239999999996,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45498,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 207.03179999999998,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 213.11735999999996,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1353
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45499,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 213.29,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 216.60667999999998,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1357
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45500,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 216.65,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 222.18776,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45501,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 222.18776,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 224.95664,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45502,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 224.95664,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 230.49439999999998,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45503,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 230.45456,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 235.99231999999998,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45504,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 235.99231999999998,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 240.97231999999997,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45505,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 241.00219999999996,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 246.53995999999995,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45506,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 246.53995999999995,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 252.07771999999994,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45507,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 252.03787999999994,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 257.57563999999996,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45508,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 257.57563999999996,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 263.11339999999996,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45509,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 263.07355999999993,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 265.84243999999995,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45510,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 265.84243999999995,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 270.82244,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45511,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 270.86228,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 273.63116,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45512,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 273.63116,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 276.94784000000004,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45513,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 276.96776000000006,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 279.17888000000005,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45514,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 279.23864000000003,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 284.7764,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45515,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 284.7764,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 290.31416,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45516,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 290.27432,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 295.25432,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45517,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 295.30412,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 298.07300000000004,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45518,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 298.07300000000004,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 303.05300000000005,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45519,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 303.0928400000001,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 308.6306000000001,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45520,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 308.6306000000001,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 314.16836000000006,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45521,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 314.2380800000001,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 317.0069600000001,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45522,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 317.0069600000001,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 322.5447200000001,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45523,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 322.5447200000001,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 328.0824800000001,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45524,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 328.1522000000001,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 333.1322000000001,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45525,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 333.07244000000014,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 338.61020000000013,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45526,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 338.61020000000013,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 341.37908000000016,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45527,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 341.37908000000016,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 346.91684000000015,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45528,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 346.98656000000017,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 352.52432000000016,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45529,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 352.61396000000013,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 357.59396000000015,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45530,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 357.41468000000015,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 360.18356000000017,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 45531,
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 360.2831600000002,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 362.4942800000002,
+                        "y": 192.9938
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 382,
+                      "generation": 0
+                    },
+                    "operator_index": 1361
+                  }
+                ],
+                "pages": [
+                  {
+                    "page": 12,
+                    "bbox": {
+                      "min": {
+                        "x": 72.024,
+                        "y": 181.8884
+                      },
+                      "max": {
+                        "x": 522.39212,
+                        "y": 192.9938
+                      }
+                    }
+                  }
+                ]
+              },
+              "new_source": {
+                "total": 101,
+                "truncated": true,
+                "samples": [
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65925,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 72.024,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 79.21512,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65926,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 79.21512,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 84.75288,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65927,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 84.75288,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 86.964,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65928,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 86.90424,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 92.44200000000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65929,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 92.44200000000001,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 97.42200000000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65930,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 97.45188000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 102.43188000000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65931,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 102.48168000000003,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 105.25056000000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65932,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 105.25056000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 110.23056000000003,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65933,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 110.27040000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 113.03928000000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65934,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 113.03928000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 118.57704000000003,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65935,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 118.57704000000003,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 121.34592000000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65936,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 121.41564000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 126.95340000000003,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65937,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 126.95340000000003,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 132.49116000000004,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65938,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 132.45132000000004,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 135.22020000000003,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65939,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 135.22020000000003,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 140.75796000000003,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65940,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 140.83764000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 143.60652000000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65941,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 143.60652000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 149.14428,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65942,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 149.14428,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 154.68204,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65943,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 154.6422,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 157.95888,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65944,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 158.10828,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 165.29940000000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65945,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 165.29940000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 167.51052,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65946,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 167.47068000000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 172.45068,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65947,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 172.50048,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 178.03824,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65948,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 178.03824,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 180.80712,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65949,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 180.80712,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 186.34488,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65950,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 186.41459999999998,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 188.62571999999997,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65951,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 188.57591999999997,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 190.78703999999996,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65952,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 190.73723999999996,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 193.50611999999995,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65953,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 193.60571999999996,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 200.79683999999997,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65954,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 200.79683999999997,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 206.88239999999996,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65955,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 207.03179999999998,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 213.11735999999996,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 923
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65956,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 213.29,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 216.60667999999998,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 935
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65957,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 216.65,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 222.18776,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 947
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65958,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 222.17,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 224.93887999999998,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 959
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65959,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 224.93,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 230.46776,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65960,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 230.46776,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 236.00552,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65961,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 235.96568,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 240.94567999999998,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65962,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 240.99548,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 246.53323999999998,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65963,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 246.53323999999998,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 252.07099999999997,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65964,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 252.03115999999997,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 257.56892,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65965,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 257.56892,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 263.10668,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65966,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 263.06683999999996,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 265.83572,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65967,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 265.83572,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 270.81572,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65968,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 270.85556,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 273.62444000000005,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65969,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 273.62444000000005,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 276.94112000000007,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65970,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 276.9610400000001,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 279.1721600000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65971,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 279.23192000000006,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 284.76968000000005,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65972,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 284.76968000000005,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 290.30744000000004,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65973,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 290.2676,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 295.24760000000003,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65974,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 295.29740000000004,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 298.06628000000006,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65975,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 298.06628000000006,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 303.0462800000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65976,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 303.0861200000001,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 308.6238800000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65977,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 308.6238800000001,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 314.1616400000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65978,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 314.2313600000001,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 317.00024000000013,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65979,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 317.00024000000013,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 322.5380000000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65980,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 322.5380000000001,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 328.0757600000001,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65981,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 328.14548000000013,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 333.12548000000015,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65982,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 333.06572000000017,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 338.60348000000016,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65983,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 338.60348000000016,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 341.3723600000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65984,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 341.3723600000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 346.9101200000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65985,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 346.9798400000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 352.5176000000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65986,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 352.60724000000016,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 357.5872400000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65987,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 357.4079600000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 360.1768400000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  },
+                  {
+                    "kind": "glyph",
+                    "glyph_id": 65988,
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 360.2764400000002,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 362.4875600000002,
+                        "y": 665.6338
+                      }
+                    },
+                    "content_stream": {
+                      "object_number": 1189,
+                      "generation": 0
+                    },
+                    "operator_index": 971
+                  }
+                ],
+                "pages": [
+                  {
+                    "page": 16,
+                    "bbox": {
+                      "min": {
+                        "x": 72.024,
+                        "y": 654.5284
+                      },
+                      "max": {
+                        "x": 525.5346400000001,
+                        "y": 665.6338
+                      }
+                    }
+                  }
+                ]
+              },
+              "edits": [
+                {
+                  "old_start": 90,
+                  "old_end": 90,
+                  "new_start": 90,
+                  "new_end": 91
+                }
+              ],
+              "changed_occurrences": [
+                {
+                  "old_span": {
+                    "blocks": [
+                      305
+                    ],
+                    "separator": null,
+                    "canonical_start": 762,
+                    "canonical_end": 762,
+                    "comparable_start": 762,
+                    "comparable_end": 762
+                  },
+                  "new_span": {
+                    "blocks": [
+                      403
+                    ],
+                    "separator": null,
+                    "canonical_start": 391,
+                    "canonical_end": 392,
+                    "comparable_start": 391,
+                    "comparable_end": 392
+                  },
+                  "old_text": {
+                    "text": "",
+                    "total_scalars": 0,
+                    "truncated": false
+                  },
+                  "new_text": {
+                    "text": ",",
+                    "total_scalars": 1,
+                    "truncated": false
+                  },
+                  "old_source": {
+                    "total": 0,
+                    "truncated": false,
+                    "samples": [],
+                    "pages": []
+                  },
+                  "new_source": {
+                    "total": 1,
+                    "truncated": false,
+                    "samples": [
+                      {
+                        "kind": "glyph",
+                        "glyph_id": 66015,
+                        "page": 16,
+                        "bbox": {
+                          "min": {
+                            "x": 476.62,
+                            "y": 654.5284
+                          },
+                          "max": {
+                            "x": 479.38888000000003,
+                            "y": 665.6338
+                          }
+                        },
+                        "content_stream": {
+                          "object_number": 1189,
+                          "generation": 0
+                        },
+                        "operator_index": 983
+                      }
+                    ],
+                    "pages": [
+                      {
+                        "page": 16,
+                        "bbox": {
+                          "min": {
+                            "x": 476.62,
+                            "y": 654.5284
+                          },
+                          "max": {
+                            "x": 479.38888000000003,
+                            "y": 665.6338
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "edit_start": 0,
+                  "edit_end": 1
+                }
+              ]
+            }
+          ]
+        },
+        "section_pairing_proposal_review_bundle": {
+          "status": "complete",
+          "total": 0,
+          "strong": 0,
+          "number_only": 0,
+          "ownership_adoptable": 0,
+          "exact_edits": 0,
+          "edit_distance_exceeded": 0,
+          "existing_change_overlap": 0,
+          "initial_structural_gate": 0,
+          "sample_limit": 256,
+          "truncated": false,
+          "fingerprint_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "samples": []
+        },
+        "recovery_leaf_partition_complete": true,
+        "recovery_leaf_partition_stop_reason": null,
+        "recovery_ownership_partition": {
+          "old": {
+            "total": {
+              "ranges": 5993,
+              "canonical_tokens": 184369,
+              "comparable_tokens": 184370,
+              "max_range_tokens": 7073,
+              "trust": {
+                "trusted_tokens": 172463,
+                "untrusted_tokens": 11907
+              },
+              "roles": {
+                "body_tokens": 178029,
+                "repeated_header_tokens": 21,
+                "repeated_footer_tokens": 6320
+              }
+            },
+            "accepted": {
+              "ranges": 1552,
+              "canonical_tokens": 88810,
+              "comparable_tokens": 88810,
+              "max_range_tokens": 7073,
+              "trust": {
+                "trusted_tokens": 88454,
+                "untrusted_tokens": 356
+              },
+              "roles": {
+                "body_tokens": 88297,
+                "repeated_header_tokens": 0,
+                "repeated_footer_tokens": 513
+              }
+            },
+            "leaves": {
+              "sentence_body": {
+                "ranges": 1078,
+                "canonical_tokens": 59637,
+                "comparable_tokens": 59637,
+                "max_range_tokens": 801,
+                "trust": {
+                  "trusted_tokens": 59637,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 57129,
+                  "repeated_header_tokens": 18,
+                  "repeated_footer_tokens": 2490
+                }
+              },
+              "line_body": {
+                "ranges": 569,
+                "canonical_tokens": 4244,
+                "comparable_tokens": 4244,
+                "max_range_tokens": 82,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 4244
+                },
+                "roles": {
+                  "body_tokens": 4244,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "trusted_run_residual": {
+                "ranges": 2087,
+                "canonical_tokens": 24368,
+                "comparable_tokens": 24368,
+                "max_range_tokens": 600,
+                "trust": {
+                  "trusted_tokens": 24368,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 24287,
+                  "repeated_header_tokens": 3,
+                  "repeated_footer_tokens": 78
+                }
+              },
+              "heading": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "list_item": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "footnote": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "code_line": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "table_cell": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "gaps": {
+              "no_trusted_run": {
+                "ranges": 688,
+                "canonical_tokens": 3969,
+                "comparable_tokens": 3969,
+                "max_range_tokens": 79,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 3969
+                },
+                "roles": {
+                  "body_tokens": 730,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 3239
+                }
+              },
+              "mixed_trusted_runs": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "ordinal_gap": {
+                "ranges": 12,
+                "canonical_tokens": 3209,
+                "comparable_tokens": 3209,
+                "max_range_tokens": 577,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 3209
+                },
+                "roles": {
+                  "body_tokens": 3209,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "role_boundary": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "location_projection_failed": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "normalization_issue": {
+                "ranges": 4,
+                "canonical_tokens": 4,
+                "comparable_tokens": 4,
+                "max_range_tokens": 1,
+                "trust": {
+                  "trusted_tokens": 4,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 4,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unmapped_changed_evidence": {
+                "ranges": 1,
+                "canonical_tokens": 0,
+                "comparable_tokens": 1,
+                "max_range_tokens": 1,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 1
+                },
+                "roles": {
+                  "body_tokens": 1,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unsupported_line_policy": {
+                "ranges": 2,
+                "canonical_tokens": 128,
+                "comparable_tokens": 128,
+                "max_range_tokens": 80,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 128
+                },
+                "roles": {
+                  "body_tokens": 128,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "samples": [
+              {
+                "block_id": 2,
+                "canonical_start": 0,
+                "canonical_end": 31,
+                "comparable_start": 0,
+                "comparable_end": 31,
+                "ownership": {
+                  "leaf": "trusted_run_residual"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 0,
+                  "ordinal_start": 2,
+                  "ordinal_end": 4,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 75.1884
+                    },
+                    "max": {
+                      "x": 536.6386399999998,
+                      "y": 684.7138
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 20,
+                "canonical_start": 150,
+                "canonical_end": 423,
+                "comparable_start": 150,
+                "comparable_end": 423,
+                "ownership": "accepted",
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 0,
+                  "ordinal_start": 31,
+                  "ordinal_end": 38,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 75.1884
+                    },
+                    "max": {
+                      "x": 536.6386399999998,
+                      "y": 684.7138
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 20,
+                "canonical_start": 521,
+                "canonical_end": 522,
+                "comparable_start": 521,
+                "comparable_end": 522,
+                "ownership": {
+                  "gap": "normalization_issue"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 0,
+                  "ordinal_start": 31,
+                  "ordinal_end": 38,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 75.1884
+                    },
+                    "max": {
+                      "x": 536.6386399999998,
+                      "y": 684.7138
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 26,
+                "canonical_start": 58,
+                "canonical_end": 78,
+                "comparable_start": 58,
+                "comparable_end": 78,
+                "ownership": {
+                  "leaf": "sentence_body"
+                },
+                "trusted": true,
+                "role": "repeated_footer",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 3,
+                  "ordinal_end": 4,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 36.111599999999996
+                    },
+                    "max": {
+                      "x": 542.35512,
+                      "y": 54.316199999999995
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 145,
+                "canonical_start": 0,
+                "canonical_end": 1,
+                "comparable_start": 0,
+                "comparable_end": 1,
+                "ownership": {
+                  "leaf": "line_body"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 8,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 145,
+                "canonical_start": 1,
+                "canonical_end": 2,
+                "comparable_start": 1,
+                "comparable_end": 2,
+                "ownership": {
+                  "gap": "no_trusted_run"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 8,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 323,
+                "canonical_start": 25,
+                "canonical_end": 25,
+                "comparable_start": 25,
+                "comparable_end": 26,
+                "ownership": {
+                  "gap": "unmapped_changed_evidence"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 13,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 920,
+                "canonical_start": 0,
+                "canonical_end": 196,
+                "comparable_start": 0,
+                "comparable_end": 196,
+                "ownership": {
+                  "gap": "ordinal_gap"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": 1,
+                  "page": 27,
+                  "bbox": {
+                    "min": {
+                      "x": 37.44,
+                      "y": 681.5284
+                    },
+                    "max": {
+                      "x": 542.8352800000002,
+                      "y": 719.7538
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 3353,
+                "canonical_start": 0,
+                "canonical_end": 80,
+                "comparable_start": 0,
+                "comparable_end": 80,
+                "ownership": {
+                  "gap": "unsupported_line_policy"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 80,
+                  "bbox": null
+                }
+              }
+            ]
+          },
+          "new": {
+            "total": {
+              "ranges": 10126,
+              "canonical_tokens": 363308,
+              "comparable_tokens": 363308,
+              "max_range_tokens": 1779,
+              "trust": {
+                "trusted_tokens": 340978,
+                "untrusted_tokens": 22330
+              },
+              "roles": {
+                "body_tokens": 352485,
+                "repeated_header_tokens": 0,
+                "repeated_footer_tokens": 10823
+              }
+            },
+            "accepted": {
+              "ranges": 2357,
+              "canonical_tokens": 162626,
+              "comparable_tokens": 162626,
+              "max_range_tokens": 916,
+              "trust": {
+                "trusted_tokens": 162253,
+                "untrusted_tokens": 373
+              },
+              "roles": {
+                "body_tokens": 162113,
+                "repeated_header_tokens": 0,
+                "repeated_footer_tokens": 513
+              }
+            },
+            "leaves": {
+              "sentence_body": {
+                "ranges": 2087,
+                "canonical_tokens": 140120,
+                "comparable_tokens": 140120,
+                "max_range_tokens": 1779,
+                "trust": {
+                  "trusted_tokens": 140120,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 138169,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 1951
+                }
+              },
+              "line_body": {
+                "ranges": 1086,
+                "canonical_tokens": 8288,
+                "comparable_tokens": 8288,
+                "max_range_tokens": 95,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 8288
+                },
+                "roles": {
+                  "body_tokens": 8288,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "trusted_run_residual": {
+                "ranges": 3246,
+                "canonical_tokens": 38603,
+                "comparable_tokens": 38603,
+                "max_range_tokens": 1276,
+                "trust": {
+                  "trusted_tokens": 38603,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 38539,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 64
+                }
+              },
+              "heading": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "list_item": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "footnote": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "code_line": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "table_cell": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "gaps": {
+              "no_trusted_run": {
+                "ranges": 1323,
+                "canonical_tokens": 10003,
+                "comparable_tokens": 10003,
+                "max_range_tokens": 100,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 10003
+                },
+                "roles": {
+                  "body_tokens": 1708,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 8295
+                }
+              },
+              "mixed_trusted_runs": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "ordinal_gap": {
+                "ranges": 25,
+                "canonical_tokens": 3666,
+                "comparable_tokens": 3666,
+                "max_range_tokens": 630,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 3666
+                },
+                "roles": {
+                  "body_tokens": 3666,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "role_boundary": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "location_projection_failed": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "normalization_issue": {
+                "ranges": 2,
+                "canonical_tokens": 2,
+                "comparable_tokens": 2,
+                "max_range_tokens": 1,
+                "trust": {
+                  "trusted_tokens": 2,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 2,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unmapped_changed_evidence": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unsupported_line_policy": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "samples": [
+              {
+                "block_id": 2,
+                "canonical_start": 0,
+                "canonical_end": 29,
+                "comparable_start": 0,
+                "comparable_end": 29,
+                "ownership": {
+                  "leaf": "trusted_run_residual"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 0,
+                  "ordinal_start": 2,
+                  "ordinal_end": 4,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 65.7324
+                    },
+                    "max": {
+                      "x": 536.8378000000002,
+                      "y": 685.3137999999999
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 22,
+                "canonical_start": 144,
+                "canonical_end": 417,
+                "comparable_start": 144,
+                "comparable_end": 417,
+                "ownership": "accepted",
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 0,
+                  "ordinal_start": 36,
+                  "ordinal_end": 43,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 65.7324
+                    },
+                    "max": {
+                      "x": 536.8378000000002,
+                      "y": 685.3137999999999
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 22,
+                "canonical_start": 515,
+                "canonical_end": 516,
+                "comparable_start": 515,
+                "comparable_end": 516,
+                "ownership": {
+                  "gap": "normalization_issue"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 0,
+                  "ordinal_start": 36,
+                  "ordinal_end": 43,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 65.7324
+                    },
+                    "max": {
+                      "x": 536.8378000000002,
+                      "y": 685.3137999999999
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 26,
+                "canonical_start": 58,
+                "canonical_end": 78,
+                "comparable_start": 58,
+                "comparable_end": 78,
+                "ownership": {
+                  "leaf": "sentence_body"
+                },
+                "trusted": true,
+                "role": "repeated_footer",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 3,
+                  "ordinal_end": 4,
+                  "region_id": 1,
+                  "page": 0,
+                  "bbox": {
+                    "min": {
+                      "x": 72.024,
+                      "y": 35.8956
+                    },
+                    "max": {
+                      "x": 542.3351200000001,
+                      "y": 54.1002
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 260,
+                "canonical_start": 0,
+                "canonical_end": 12,
+                "comparable_start": 0,
+                "comparable_end": 12,
+                "ownership": {
+                  "leaf": "line_body"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 10,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 260,
+                "canonical_start": 12,
+                "canonical_end": 13,
+                "comparable_start": 12,
+                "comparable_end": 13,
+                "ownership": {
+                  "gap": "no_trusted_run"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 10,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 525,
+                "canonical_start": 0,
+                "canonical_end": 8,
+                "comparable_start": 0,
+                "comparable_end": 8,
+                "ownership": {
+                  "gap": "ordinal_gap"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": 1,
+                  "page": 18,
+                  "bbox": {
+                    "min": {
+                      "x": 37.44,
+                      "y": 583.3684000000001
+                    },
+                    "max": {
+                      "x": 415.51888,
+                      "y": 608.0337999999999
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "structural_container_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "old": {
+            "documents": 1,
+            "sections": 231,
+            "paragraphs": 2218,
+            "heading_candidates": 1099,
+            "accepted_headings": 231,
+            "rejected_unsafe": 745,
+            "rejected_not_single_line": 211,
+            "rejected_without_numbering": 9,
+            "rejected_not_font_prominent": 792,
+            "block_visits": 3194,
+            "range_visits": 5998,
+            "token_visits": 184471,
+            "font_evidence_visits": 167889,
+            "max_section_depth": 3
+          },
+          "new": {
+            "documents": 1,
+            "sections": 339,
+            "paragraphs": 3621,
+            "heading_candidates": 1705,
+            "accepted_headings": 339,
+            "rejected_unsafe": 1381,
+            "rejected_not_single_line": 471,
+            "rejected_without_numbering": 12,
+            "rejected_not_font_prominent": 1258,
+            "block_visits": 5341,
+            "range_visits": 10130,
+            "token_visits": 363383,
+            "font_evidence_visits": 337660,
+            "max_section_depth": 3
+          }
+        },
+        "section_pairing_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "old_sections": 1135,
+          "new_sections": 1738,
+          "old_paragraphs": 460,
+          "new_paragraphs": 703,
+          "old_strong_paragraph_memberships": 270,
+          "new_strong_paragraph_memberships": 319,
+          "old_number_only_paragraph_memberships": 460,
+          "new_number_only_paragraph_memberships": 703,
+          "match_spans_examined": 180,
+          "ambiguous_span_vetoes": 6,
+          "exact_heading_pairs": 33,
+          "stripped_heading_pairs": 0,
+          "strong_heading_pairs": 1,
+          "number_only_section_pairs": 32,
+          "parent_consistent_pairs": 1,
+          "parent_changed_pairs": 0,
+          "parent_unknown_pairs": 0,
+          "number_only_parent_consistent": 32,
+          "number_only_parent_changed": 0,
+          "number_only_parent_unknown": 0,
+          "monotone_pairs": 0,
+          "crossing_pairs": 0,
+          "topology_unknown_pairs": 1,
+          "strong_paragraph_anchor_pairs": 0,
+          "number_only_paragraph_anchor_pairs": 34,
+          "paragraph_pair_visits_attempted": 192,
+          "paragraph_pair_visits_examined": 192,
+          "paragraph_token_comparisons_attempted": 868,
+          "paragraph_token_comparisons_examined": 868,
+          "paragraph_anchor_crossing_vetoes": 0,
+          "insertion_gaps": 0,
+          "deletion_gaps": 0,
+          "one_to_one_gaps": 0,
+          "many_to_many_gaps": 0,
+          "changed_one_to_one_gaps": 0,
+          "changed_one_to_one_same_unresolved_span": 0,
+          "number_only_insertion_gaps": 1,
+          "number_only_deletion_gaps": 1,
+          "number_only_one_to_one_gaps": 0,
+          "number_only_many_to_many_gaps": 1,
+          "number_only_changed_one_to_one_gaps": 0,
+          "number_only_changed_one_to_one_same_unresolved_span": 0
+        },
+        "exact_range_parent_outcome": {
+          "status": "complete",
+          "metrics": {
+            "old_candidates": 20497,
+            "new_candidates": 37468,
+            "accepted_candidates": 40217,
+            "gap_barriers": 4035,
+            "short_evidence_omitted": 12844,
+            "hash_matches": 1607,
+            "token_verified_matches": 1607,
+            "unique_pairs": 1,
+            "same_paired_parent": 0,
+            "changed_paired_parent": 0,
+            "parent_unknown": 1,
+            "overlap_vetoes": 0,
+            "nesting_vetoes": 0,
+            "token_comparisons": 250249
+          },
+          "samples": [
+            {
+              "relation": "unknown",
+              "old_source_token_count": 19,
+              "new_source_token_count": 19,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 1929,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 1930,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 3158,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "sentence_body"
+                  }
+                },
+                {
+                  "block": 3159,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "sentence_body"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 1919,
+              "new_parent_heading_block": 3148,
+              "old_parent_heading_evidence": null,
+              "new_parent_heading_evidence": null,
+              "old_parent_confidence": null,
+              "new_parent_confidence": null
+            }
+          ]
+        },
+        "old_trusted_run_source_tokens": 178660,
+        "new_trusted_run_source_tokens": 347345,
+        "structural_pairing_available": true,
+        "old_structural_descriptors": 625,
+        "new_structural_descriptors": 1011,
+        "old_structural_eligible_descriptors": 570,
+        "new_structural_eligible_descriptors": 954,
+        "old_structural_mixed_descriptors": 43,
+        "new_structural_mixed_descriptors": 32,
+        "old_structural_split_descriptors": 12,
+        "new_structural_split_descriptors": 25,
+        "structural_shared_profiles": 3,
+        "structural_candidate_pairs": 347308,
+        "structural_largest_posting": 821,
+        "structural_duplicate_pairs": 347308,
+        "structural_unique_reciprocal_pairs": 0,
+        "structural_unique_no_anchor_pairs": 0,
+        "structural_unique_monotone_anchor_pairs": 0,
+        "structural_unique_crossing_veto_pairs": 0,
+        "run_signature_available": true,
+        "run_signature_complete": true,
+        "old_run_signature_unique_units": 758,
+        "new_run_signature_unique_units": 1693,
+        "old_run_signature_duplicate_units": 1,
+        "new_run_signature_duplicate_units": 1,
+        "run_signature_shared_unit_keys": 13,
+        "run_signature_largest_posting": 4,
+        "run_signature_posting_visits_attempted": 49,
+        "run_signature_posting_visits_examined": 49,
+        "run_signature_token_verifications_attempted": 279,
+        "run_signature_token_verifications_examined": 279,
+        "run_signature_candidate_pairs": 49,
+        "run_signature_globally_anchored_runs_skipped": 64,
+        "run_signature_reciprocal_unique_pairs": 7,
+        "run_signature_margin_qualified_pairs": 0,
+        "run_signature_margin_veto_pairs": 7,
+        "run_signature_monotone_pairs": 0,
+        "run_signature_crossing_veto_pairs": 0,
+        "run_signature_max_shared_units": 1,
+        "run_signature_stop_reason": null,
+        "exact_shared_units": 68,
+        "old_exact_one_sided_units": 956,
+        "new_exact_one_sided_units": 1910,
+        "exact_tail_recovery_complete": true,
+        "exact_tail_recovery_stop_reason": null,
+        "exact_tail_old_units": 150,
+        "exact_tail_new_units": 291,
+        "exact_tail_census_units_examined": 5925,
+        "exact_tail_census_token_comparisons": 547756,
+        "exact_tail_token_verification_comparisons": 193,
+        "exact_tail_conflicting_normal_units": 0,
+        "exact_tail_multiplicity_vetoed_candidates": 0,
+        "exact_tail_verification_vetoed_candidates": 0,
+        "exact_tail_candidates": 3,
+        "exact_tail_matches_committed": 3,
+        "trusted_residual_exact_complete": true,
+        "trusted_residual_exact_stop_reason": null,
+        "trusted_residual_exact_old_candidates": 287,
+        "trusted_residual_exact_new_candidates": 435,
+        "trusted_residual_exact_matches_selected": 8,
+        "paired_sequence_relation_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "qualified_edges": 28,
+          "intervals": 12,
+          "canonical_path_edges": 28,
+          "locally_vetoed_edges": 0,
+          "globally_forced_edges": 28,
+          "downstream_vetoed_forced_edges": 0,
+          "adoptable_forced_edges": 0,
+          "crossing_vetoes": 0,
+          "fragment_completion_vetoes": 0,
+          "exact_tail_conflict_vetoes": 0,
+          "external_competitor_vetoes": 0,
+          "path_margin_count": 28,
+          "path_margin_sum": 251814,
+          "path_margin_min": 7017,
+          "path_margin_max": 10000,
+          "veto_reasons": {
+            "tied_best": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "insufficient_margin": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "disqualifying_competitor": {
+              "old_candidate_units": 2,
+              "new_candidate_units": 4,
+              "old_source_tokens": 217,
+              "new_source_tokens": 362
+            },
+            "reciprocal_failure": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "crossing_relation": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "fragment_completion": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            }
+          }
+        },
+        "near_relation_complete": true,
+        "relation_floor_pairs_considered": 24464,
+        "relation_floor_word_scans": 952,
+        "relation_floor_stop_opportunities": 680,
+        "relation_floor_potential_saved_word_comparisons": 4712,
+        "near_sentence_work": {
+          "edge_posting_visits_examined": 0,
+          "edge_posting_visits_attempted": 0,
+          "line_trigram_posting_visits_examined": 0,
+          "line_trigram_posting_visits_attempted": 0,
+          "edge_query_union_candidates": 0,
+          "line_trigram_only_query_union_candidates": 0,
+          "filtered_candidates": 26443,
+          "pair_visits_examined": 26443,
+          "pair_visits_attempted": 26443,
+          "similarity_comparisons_examined": 170836,
+          "similarity_comparisons_attempted": 170836
+        },
+        "near_line_work": {
+          "edge_posting_visits_examined": 17027,
+          "edge_posting_visits_attempted": 17027,
+          "line_trigram_posting_visits_examined": 15430,
+          "line_trigram_posting_visits_attempted": 15430,
+          "edge_query_union_candidates": 6947,
+          "line_trigram_only_query_union_candidates": 0,
+          "filtered_candidates": 6694,
+          "pair_visits_examined": 6694,
+          "pair_visits_attempted": 6694,
+          "similarity_comparisons_examined": 39235,
+          "similarity_comparisons_attempted": 39235
+        },
+        "near_paired_interval_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 33,
+            "pair_visits_examined": 33,
+            "pair_visits_attempted": 33,
+            "similarity_comparisons_examined": 2956,
+            "similarity_comparisons_attempted": 2956
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_paired_cross_interval_veto_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 6,
+            "pair_visits_examined": 6,
+            "pair_visits_attempted": 6,
+            "similarity_comparisons_examined": 374,
+            "similarity_comparisons_attempted": 374
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_same_or_ambiguous_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 1940,
+            "pair_visits_examined": 1940,
+            "pair_visits_attempted": 1940,
+            "similarity_comparisons_examined": 42260,
+            "similarity_comparisons_attempted": 42260
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 10255,
+            "edge_posting_visits_attempted": 10255,
+            "line_trigram_posting_visits_examined": 4319,
+            "line_trigram_posting_visits_attempted": 4319,
+            "edge_query_union_candidates": 186,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 171,
+            "pair_visits_examined": 171,
+            "pair_visits_attempted": 171,
+            "similarity_comparisons_examined": 3173,
+            "similarity_comparisons_attempted": 3173
+          }
+        },
+        "near_same_known_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 1867,
+            "pair_visits_examined": 1867,
+            "pair_visits_attempted": 1867,
+            "similarity_comparisons_examined": 33982,
+            "similarity_comparisons_attempted": 33982
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 196,
+            "edge_posting_visits_attempted": 196,
+            "line_trigram_posting_visits_examined": 1675,
+            "line_trigram_posting_visits_attempted": 1675,
+            "edge_query_union_candidates": 186,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 171,
+            "pair_visits_examined": 171,
+            "pair_visits_attempted": 171,
+            "similarity_comparisons_examined": 3173,
+            "similarity_comparisons_attempted": 3173
+          }
+        },
+        "near_ambiguous_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 32,
+            "pair_visits_examined": 32,
+            "pair_visits_attempted": 32,
+            "similarity_comparisons_examined": 909,
+            "similarity_comparisons_attempted": 909
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_same_or_ambiguous_shared_query_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 41,
+            "pair_visits_examined": 41,
+            "pair_visits_attempted": 41,
+            "similarity_comparisons_examined": 7369,
+            "similarity_comparisons_attempted": 7369
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 10059,
+            "edge_posting_visits_attempted": 10059,
+            "line_trigram_posting_visits_examined": 2644,
+            "line_trigram_posting_visits_attempted": 2644,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_cross_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 24464,
+            "pair_visits_examined": 24464,
+            "pair_visits_attempted": 24464,
+            "similarity_comparisons_examined": 125246,
+            "similarity_comparisons_attempted": 125246
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 6772,
+            "edge_posting_visits_attempted": 6772,
+            "line_trigram_posting_visits_examined": 11111,
+            "line_trigram_posting_visits_attempted": 11111,
+            "edge_query_union_candidates": 6761,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 6523,
+            "pair_visits_examined": 6523,
+            "pair_visits_attempted": 6523,
+            "similarity_comparisons_examined": 36062,
+            "similarity_comparisons_attempted": 36062
+          }
+        },
+        "known_span_sentence_shadow": null,
+        "sentence_edge_gate_shadow": {
+          "complete": false,
+          "stop_reason": "diagnostic_failure",
+          "pairs_considered": 38234,
+          "pairs_retained": 26402,
+          "pairs_rejected": 11832,
+          "same_known_rejected": 809,
+          "ambiguous_rejected": 107,
+          "cross_span_rejected": 10912,
+          "unclassified_rejected": 4,
+          "projected_pair_visits": 26402,
+          "projected_similarity_comparisons": 163467,
+          "rejected_max_production_score": 2987,
+          "threshold_violations": 0,
+          "veto_mismatches": 0,
+          "unique_partner_mismatches": 0,
+          "reciprocal_pair_mismatches": 0,
+          "adopted_replacement_mismatches": 0,
+          "insertion_deletion_veto_mismatches": 0
+        },
+        "sentence_edge_signature_shadow": {
+          "complete": false,
+          "stop_reason": "candidate_posting_visit_limit",
+          "index_posting_items_examined": 334650,
+          "index_posting_items_attempted": 334650,
+          "query_posting_visits_examined": 38006,
+          "query_posting_visits_attempted": 38006,
+          "pairs_considered": 1327772,
+          "signature_candidates": 30121,
+          "projected_pairs_pruned": 1297651,
+          "exact_edge_retained_pairs": 19846,
+          "verification_evaluable": false,
+          "retained_pair_misses": 0,
+          "signature_not_in_edge_union": 0,
+          "largest_signature_candidate_set": 264,
+          "paired_interval_pairs": 759,
+          "paired_cross_interval_pairs": 999,
+          "same_known_pairs": 60411,
+          "ambiguous_pairs": 52830,
+          "cross_span_shared_pairs": 1212773,
+          "parity_evaluable": false,
+          "plan_parity": false
+        },
+        "sentence_edge_signature_direct_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "signature_index_items_examined": 334650,
+          "signature_index_items_attempted": 334650,
+          "signature_query_visits_examined": 48952,
+          "signature_query_visits_attempted": 48952,
+          "signature_index_own_distinct_keys": 13540,
+          "signature_index_all_distinct_keys": 236130,
+          "signature_index_distinct_keys_examined": 249670,
+          "signature_index_distinct_keys_attempted": 249670,
+          "signature_index_own_key_capacity": 13540,
+          "signature_index_all_key_capacity": 236130,
+          "signature_index_own_posting_items": 16534,
+          "signature_index_all_posting_items": 318116,
+          "signature_index_posting_capacity_items": 334650,
+          "signature_index_largest_posting": 1758,
+          "signature_index_estimated_logical_bytes": 8670944,
+          "signature_index_estimated_logical_bytes_examined": 8670944,
+          "signature_index_estimated_logical_bytes_attempted": 8670944,
+          "signature_index_depth_1_posting_items": 16516,
+          "signature_index_depth_2_to_3_posting_items": 32464,
+          "signature_index_depth_4_plus_posting_items": 285670,
+          "signature_queries": 5774,
+          "signature_queries_attempted": 5774,
+          "signature_depth_1_queries": 0,
+          "signature_depth_2_to_3_queries": 90,
+          "signature_depth_4_plus_queries": 5684,
+          "signature_depth_1_candidate_union": 0,
+          "signature_depth_2_to_3_candidate_union": 1136,
+          "signature_depth_4_plus_candidate_union": 37098,
+          "direct_candidates": 38234,
+          "signature_candidate_union_attempted": 38234,
+          "paired_interval_candidates": 53,
+          "paired_cross_interval_candidates": 17,
+          "same_known_candidates": 2660,
+          "ambiguous_candidates": 139,
+          "cross_span_candidates": 35365,
+          "edge_filter_pairs_examined": 38234,
+          "edge_filter_pairs_attempted": 38234,
+          "edge_filter_comparisons_examined": 227344,
+          "edge_filter_comparisons_attempted": 227344,
+          "exact_edge_retained_pairs": 26402,
+          "exact_edge_rechecks": 38234,
+          "exact_edge_rechecks_attempted": 38234,
+          "exact_edge_recheck_comparisons_examined": 227344,
+          "exact_edge_recheck_comparisons_attempted": 227344,
+          "exact_edge_rejected_pairs": 11832,
+          "cross_orientation_only_candidates": 759,
+          "sentence_broad_edge_postings_examined": 0,
+          "sentence_broad_edge_postings_attempted": 0,
+          "downstream_candidate_postings_examined": 32457,
+          "downstream_candidate_postings_attempted": 32457,
+          "downstream_pair_visits_examined": 33137,
+          "downstream_pair_visits_attempted": 33137,
+          "downstream_similarity_comparisons_examined": 210071,
+          "downstream_similarity_comparisons_attempted": 210071,
+          "fragment_veto_pair_visits_examined": 1278,
+          "fragment_veto_pair_visits_attempted": 1278,
+          "fragment_veto_similarity_comparisons_examined": 1271,
+          "fragment_veto_similarity_comparisons_attempted": 1271,
+          "watch_probe_pairs_examined": 0,
+          "watch_probe_pairs_attempted": 0,
+          "watch_probe_similarity_comparisons_examined": 0,
+          "watch_probe_similarity_comparisons_attempted": 0,
+          "watch_probe_missing_signature_candidates": 0,
+          "watch_probe_invariant_violations": 0,
+          "watch_preservation_evaluable": false,
+          "watch_evidence_preserved": false,
+          "watch_preservation_mismatches": 0,
+          "watch_exact_parity_evaluable": false,
+          "watch_exact_parity": false,
+          "candidate_count_truncated": false,
+          "parity_evaluable": false,
+          "plan_parity": false,
+          "verification_evaluable": false,
+          "retained_pair_misses": 0,
+          "retained_pair_count_mismatches": 0,
+          "retained_pair_set_mismatches": 0,
+          "retained_pair_order_mismatches": 0
+        },
+        "sentence_edge_signature_direct_execution": "production_accepted",
+        "sentence_edge_signature_reference_oracle": null,
+        "local_fragment_shadow": {
+          "complete": false,
+          "stop_reason": "similarity_comparison_limit",
+          "work": {
+            "enumeration_examined": 109387,
+            "enumeration_attempted": 109387,
+            "signature_token_steps_examined": 656322,
+            "signature_token_steps_attempted": 656322,
+            "temporary_signature_keys_examined": 151227,
+            "temporary_signature_keys_attempted": 151227,
+            "postings_examined": 63044,
+            "postings_attempted": 63044,
+            "queries_examined": 6,
+            "queries_attempted": 6,
+            "posting_visits_examined": 22030,
+            "posting_visits_attempted": 22030,
+            "boundary_postings_examined": 150378,
+            "boundary_postings_attempted": 150378,
+            "boundary_queries_examined": 657273,
+            "boundary_queries_attempted": 657273,
+            "boundary_posting_visits_examined": 106658,
+            "boundary_posting_visits_attempted": 106658,
+            "parent_candidate_pairs_examined": 7140,
+            "parent_candidate_pairs_attempted": 7140,
+            "candidate_pairs_examined": 105528,
+            "candidate_pairs_attempted": 105528,
+            "comparisons_examined": 6509440,
+            "comparisons_attempted": 6510248,
+            "prefix_edge_comparisons_examined": 247852,
+            "prefix_edge_comparisons_attempted": 247852,
+            "suffix_edge_comparisons_examined": 4032639,
+            "suffix_edge_comparisons_attempted": 4032639,
+            "word_range_scan_comparisons_examined": 2210722,
+            "word_range_scan_comparisons_attempted": 2211530,
+            "word_merge_comparisons_examined": 18227,
+            "word_merge_comparisons_attempted": 18227,
+            "edge_gate_passed_pairs": 5586,
+            "edge_gate_rejected_pairs": 99942,
+            "length_aware_signature_necessary_pairs": 21356,
+            "edit_work_examined": 0,
+            "edit_work_attempted": 0,
+            "output_examined": 0,
+            "output_attempted": 0
+          },
+          "min_tokens": 16,
+          "signature_depth": 3,
+          "old_eligible_parents": 0,
+          "new_eligible_parents": 0,
+          "old_prefix_fragments": 0,
+          "old_suffix_fragments": 0,
+          "new_prefix_fragments": 0,
+          "new_suffix_fragments": 0,
+          "index_posting_items": 0,
+          "queries": 0,
+          "posting_visits": 0,
+          "boundary_index_posting_items": 0,
+          "boundary_queries": 0,
+          "boundary_posting_visits": 0,
+          "parent_candidate_pairs": 0,
+          "candidate_pairs": 0,
+          "exact_edge_rechecks": 0,
+          "similarity_comparisons": 0,
+          "score_qualified_pairs": 0,
+          "exact_pairs": 0,
+          "nonexact_pairs": 0,
+          "old_unique_relations": 0,
+          "new_unique_relations": 0,
+          "reciprocal_pairs": 0,
+          "reciprocal_nonexact_pairs": 0,
+          "edit_distance_sampled_pairs": 0,
+          "edit_distance_available_pairs": 0,
+          "edit_distance_skipped_pairs": 0,
+          "best_sampled_nonexact_pair": null,
+          "best_sampled_prefix_nonexact_pair": null,
+          "best_sampled_suffix_nonexact_pair": null
+        },
+        "local_fragment_length_aware_shadow": {
+          "complete": false,
+          "stop_reason": "query_limit",
+          "work": {
+            "enumeration_examined": 109387,
+            "enumeration_attempted": 109387,
+            "signature_token_steps_examined": 8122590,
+            "signature_token_steps_attempted": 8122590,
+            "posting_items_examined": 5559782,
+            "posting_items_attempted": 5559782,
+            "distinct_keys_examined": 2716994,
+            "distinct_keys_attempted": 2716994,
+            "estimated_bytes_examined": 268574656,
+            "estimated_bytes_attempted": 268574656,
+            "queries_examined": 3254736,
+            "queries_attempted": 3254737,
+            "posting_visits_examined": 1079483,
+            "posting_visits_attempted": 1079483,
+            "candidate_union_examined": 963217,
+            "candidate_union_attempted": 963217,
+            "exact_recheck_pairs_examined": 963217,
+            "exact_recheck_pairs_attempted": 963217,
+            "exact_recheck_comparisons_examined": 11631043,
+            "exact_recheck_comparisons_attempted": 11631043
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "max_own_depth": 0,
+          "fixed_distinct_keys": 0,
+          "own_distinct_keys": 0,
+          "all_distinct_keys": 0,
+          "parent_distinct_keys": 0,
+          "fixed_posting_items": 0,
+          "own_posting_items": 0,
+          "all_posting_items": 0,
+          "parent_posting_items": 0,
+          "fixed_key_capacity": 0,
+          "own_key_capacity": 0,
+          "all_key_capacity": 0,
+          "parent_key_capacity": 0,
+          "posting_capacity_items": 0,
+          "fragment_capacity_items": 0,
+          "signature_capacity_items": 0,
+          "peak_temporary_capacity_items": 0,
+          "estimated_logical_bytes": 0,
+          "estimated_capacity_bytes": 0,
+          "largest_posting": 0,
+          "depth_1_fragments": 0,
+          "depth_2_to_3_fragments": 0,
+          "depth_4_plus_fragments": 0,
+          "depth_1_posting_items": 0,
+          "depth_2_to_3_posting_items": 0,
+          "depth_4_plus_posting_items": 0,
+          "depth_1_queries": 0,
+          "depth_2_to_3_queries": 0,
+          "depth_4_plus_queries": 0,
+          "depth_1_candidate_union": 0,
+          "depth_2_to_3_candidate_union": 0,
+          "depth_4_plus_candidate_union": 0,
+          "fixed_pre_recheck_candidates": 0,
+          "length_aware_pre_recheck_candidates": 0,
+          "fixed_exact_retained_pairs": 0,
+          "length_aware_exact_retained_pairs": 0,
+          "missing_retained_pairs": 0,
+          "extra_retained_pairs": 0,
+          "order_mismatches": 0,
+          "compared_queries": 0
+        },
+        "local_fragment_global_length_aware_shadow": {
+          "complete": false,
+          "stop_reason": "exact_recheck_comparison_limit",
+          "work": {
+            "enumeration_examined": 109387,
+            "enumeration_attempted": 109387,
+            "signature_token_steps_examined": 8122590,
+            "signature_token_steps_attempted": 8122590,
+            "posting_items_examined": 5559782,
+            "posting_items_attempted": 5559782,
+            "distinct_keys_examined": 2065803,
+            "distinct_keys_attempted": 2065803,
+            "estimated_bytes_examined": 215618288,
+            "estimated_bytes_attempted": 215618288,
+            "queries_examined": 6317,
+            "queries_attempted": 6317,
+            "posting_visits_examined": 6893186,
+            "posting_visits_attempted": 6893186,
+            "candidate_union_examined": 6188682,
+            "candidate_union_attempted": 6188682,
+            "exact_recheck_pairs_examined": 6185504,
+            "exact_recheck_pairs_attempted": 6185504,
+            "exact_recheck_comparisons_examined": 52075776,
+            "exact_recheck_comparisons_attempted": 52075777
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "max_own_depth": 0,
+          "old_fragments": 0,
+          "new_fragments": 0,
+          "fixed_distinct_keys": 0,
+          "own_distinct_keys": 0,
+          "all_distinct_keys": 0,
+          "parent_distinct_keys": 0,
+          "fixed_posting_items": 0,
+          "own_posting_items": 0,
+          "all_posting_items": 0,
+          "parent_posting_items": 0,
+          "fixed_key_capacity": 0,
+          "own_key_capacity": 0,
+          "all_key_capacity": 0,
+          "parent_key_capacity": 0,
+          "posting_capacity_items": 0,
+          "fragment_capacity_items": 0,
+          "signature_capacity_items": 0,
+          "peak_temporary_capacity_items": 0,
+          "estimated_logical_bytes": 0,
+          "estimated_capacity_bytes": 0,
+          "largest_posting": 0,
+          "projected_parent_scoped_queries": 0,
+          "parent_admission_queries": 0,
+          "global_queries": 0,
+          "raw_signature_hits": 0,
+          "parent_admissible_hits": 0,
+          "parent_rejected_hits": 0,
+          "duplicate_candidate_occurrences": 0,
+          "fixed_pre_recheck_candidates": 0,
+          "length_aware_pre_recheck_candidates": 0,
+          "missing_pre_recheck_candidates": 0,
+          "extra_pre_recheck_candidates": 0,
+          "pre_recheck_order_mismatches": 0,
+          "fixed_exact_retained_pairs": 0,
+          "length_aware_exact_retained_pairs": 0,
+          "missing_retained_pairs": 0,
+          "extra_retained_pairs": 0,
+          "order_mismatches": 0,
+          "compared_queries": 0,
+          "parent_scoped_parity_available": false,
+          "fixed_pre_recheck_fingerprint_mismatches": 0,
+          "length_aware_pre_recheck_fingerprint_mismatches": 0,
+          "fixed_retained_fingerprint_mismatches": 0,
+          "length_aware_retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_recheck_reuse_shadow": {
+          "complete": false,
+          "stop_reason": "exact_recheck_comparison_limit",
+          "work": {
+            "enumeration_examined": 109387,
+            "enumeration_attempted": 109387,
+            "signature_token_steps_examined": 8122590,
+            "signature_token_steps_attempted": 8122590,
+            "posting_items_examined": 5559782,
+            "posting_items_attempted": 5559782,
+            "distinct_keys_examined": 2065803,
+            "distinct_keys_attempted": 2065803,
+            "estimated_bytes_examined": 215618288,
+            "estimated_bytes_attempted": 215618288,
+            "queries_examined": 8213,
+            "queries_attempted": 8213,
+            "posting_visits_examined": 9543879,
+            "posting_visits_attempted": 9543879,
+            "candidate_union_examined": 8514423,
+            "candidate_union_attempted": 8514423,
+            "exact_recheck_pairs_examined": 6939308,
+            "exact_recheck_pairs_attempted": 6939308,
+            "exact_recheck_comparisons_examined": 52075776,
+            "exact_recheck_comparisons_attempted": 52075777
+          },
+          "work_attribution": {
+            "candidate_queries_collected": 8041,
+            "recheck_queries_completed": 8040,
+            "fixed_candidates_collected": 6939432,
+            "length_aware_candidates_collected": 1574991,
+            "shared_candidates_collected": 1574991,
+            "fixed_only_candidates_collected": 5364441,
+            "length_aware_only_candidates_collected": 0,
+            "unique_candidates_collected": 6939432,
+            "recheck_pairs_started": 6939308,
+            "recheck_pairs_completed": 6939307,
+            "accepted_pairs": 398865,
+            "rejected_pairs": 6540442,
+            "prefix_comparisons": 19463066,
+            "suffix_comparisons": 32612710,
+            "prefix_threshold_accepts": 94077,
+            "suffix_threshold_accepts": 304788,
+            "shared": {
+              "pairs_started": 1574942,
+              "pairs_completed": 1574942,
+              "accepted_pairs": 398865,
+              "rejected_pairs": 1176077,
+              "comparisons": 14259957
+            },
+            "fixed_only": {
+              "pairs_started": 5364366,
+              "pairs_completed": 5364365,
+              "accepted_pairs": 0,
+              "rejected_pairs": 5364365,
+              "comparisons": 37815819
+            },
+            "length_aware_only": {
+              "pairs_started": 0,
+              "pairs_completed": 0,
+              "accepted_pairs": 0,
+              "rejected_pairs": 0,
+              "comparisons": 0
+            }
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 0,
+          "new_fragments": 0,
+          "parent_admission_queries": 0,
+          "global_queries": 0,
+          "fixed_pre_recheck_candidates": 0,
+          "length_aware_pre_recheck_candidates": 0,
+          "shared_pre_recheck_candidates": 0,
+          "fixed_only_pre_recheck_candidates": 0,
+          "length_aware_only_pre_recheck_candidates": 0,
+          "unique_recheck_pairs": 0,
+          "projected_duplicate_recheck_pairs": 0,
+          "avoided_recheck_pairs": 0,
+          "actual_recheck_comparisons": 0,
+          "projected_duplicate_recheck_comparisons": 0,
+          "avoided_recheck_comparisons": 0,
+          "fixed_exact_retained_pairs": 0,
+          "length_aware_exact_retained_pairs": 0,
+          "missing_retained_pairs": 0,
+          "extra_retained_pairs": 0,
+          "order_mismatches": 0,
+          "compared_queries": 0,
+          "global_parity_available": false,
+          "fixed_pre_recheck_fingerprint_mismatches": 0,
+          "length_aware_pre_recheck_fingerprint_mismatches": 0,
+          "fixed_retained_fingerprint_mismatches": 0,
+          "length_aware_retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_length_aware_recheck_shadow": {
+          "complete": false,
+          "stop_reason": "candidate_union_limit",
+          "work": {
+            "enumeration_examined": 109387,
+            "enumeration_attempted": 109387,
+            "signature_token_steps_examined": 8122590,
+            "signature_token_steps_attempted": 8122590,
+            "posting_items_examined": 5559782,
+            "posting_items_attempted": 5559782,
+            "distinct_keys_examined": 2065803,
+            "distinct_keys_attempted": 2065803,
+            "estimated_bytes_examined": 215618288,
+            "estimated_bytes_attempted": 215618288,
+            "queries_examined": 10390,
+            "queries_attempted": 10390,
+            "posting_visits_examined": 14415381,
+            "posting_visits_attempted": 14415381,
+            "candidate_union_examined": 13018512,
+            "candidate_union_attempted": 13019013,
+            "exact_recheck_pairs_examined": 2287836,
+            "exact_recheck_pairs_attempted": 2287836,
+            "exact_recheck_comparisons_examined": 20532487,
+            "exact_recheck_comparisons_attempted": 20532487
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 0,
+          "new_fragments": 0,
+          "parent_admission_queries": 0,
+          "global_queries": 0,
+          "compared_queries": 0,
+          "pre_recheck_candidates": 0,
+          "recheck_pairs": 0,
+          "recheck_comparisons": 0,
+          "retained_pairs": 0,
+          "reuse_parity_available": false,
+          "length_aware_pre_recheck_fingerprint_mismatches": 0,
+          "fixed_retained_fingerprint_mismatches": 0,
+          "length_aware_retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_length_only_candidate_shadow": {
+          "complete": false,
+          "stop_reason": "exact_recheck_comparison_limit",
+          "work": {
+            "enumeration_examined": 109387,
+            "enumeration_attempted": 109387,
+            "signature_token_steps_examined": 8122590,
+            "signature_token_steps_attempted": 8122590,
+            "posting_items_examined": 5409404,
+            "posting_items_attempted": 5409404,
+            "distinct_keys_examined": 2060832,
+            "distinct_keys_attempted": 2060832,
+            "estimated_bytes_examined": 214176656,
+            "estimated_bytes_attempted": 214176656,
+            "queries_examined": 23006,
+            "queries_attempted": 23006,
+            "posting_visits_examined": 9013651,
+            "posting_visits_attempted": 9013651,
+            "candidate_union_examined": 5687146,
+            "candidate_union_attempted": 5687146,
+            "exact_recheck_pairs_examined": 5686807,
+            "exact_recheck_pairs_attempted": 5686807,
+            "exact_recheck_comparisons_examined": 52075776,
+            "exact_recheck_comparisons_attempted": 52075777
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 0,
+          "new_fragments": 0,
+          "parent_admission_queries": 0,
+          "global_queries": 0,
+          "compared_queries": 0,
+          "pre_recheck_candidates": 0,
+          "recheck_pairs": 0,
+          "recheck_comparisons": 0,
+          "retained_pairs": 0,
+          "v47_parity_available": false,
+          "pre_recheck_candidate_count_mismatches": 0,
+          "recheck_pair_count_mismatches": 0,
+          "recheck_comparison_count_mismatches": 0,
+          "retained_pair_count_mismatches": 0,
+          "pre_recheck_fingerprint_mismatches": 0,
+          "retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_exact_boundary_trie_shadow": {
+          "complete": false,
+          "stop_reason": "candidate_union_limit",
+          "work": {
+            "enumeration_examined": 109387,
+            "enumeration_attempted": 109387,
+            "signature_token_steps_examined": 16245180,
+            "signature_token_steps_attempted": 16245180,
+            "posting_items_examined": 5409404,
+            "posting_items_attempted": 5409404,
+            "distinct_keys_examined": 5011927,
+            "distinct_keys_attempted": 5011927,
+            "estimated_bytes_examined": 397201184,
+            "estimated_bytes_attempted": 397201184,
+            "queries_examined": 31672,
+            "queries_attempted": 31672,
+            "posting_visits_examined": 18005347,
+            "posting_visits_attempted": 18005347,
+            "candidate_union_examined": 13018695,
+            "candidate_union_attempted": 13020180,
+            "exact_recheck_pairs_examined": 13018695,
+            "exact_recheck_pairs_attempted": 13018695,
+            "exact_recheck_comparisons_examined": 49445871,
+            "exact_recheck_comparisons_attempted": 49445871
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 0,
+          "new_fragments": 0,
+          "parent_admission_queries": 0,
+          "global_queries": 0,
+          "compared_queries": 0,
+          "trie_nodes": 0,
+          "trie_transitions": 0,
+          "trie_token_steps": 0,
+          "trie_distinct_keys": 0,
+          "trie_estimated_bytes": 0,
+          "trie_largest_fanout": 0,
+          "hash_candidates": 0,
+          "exact_certified_candidates": 0,
+          "hash_collision_only_candidates": 0,
+          "prefix_only_candidates": 0,
+          "suffix_only_candidates": 0,
+          "both_candidates": 0,
+          "certified_tokens_credited": 0,
+          "recheck_pairs_started": 0,
+          "recheck_pairs_completed": 0,
+          "recheck_comparisons": 0,
+          "projected_avoided_comparisons": 0,
+          "retained_pairs": 0,
+          "depth_1_candidates": 0,
+          "depth_2_to_3_candidates": 0,
+          "depth_4_plus_candidates": 0,
+          "v48_parity_available": false,
+          "retained_count_mismatches": 0,
+          "retained_order_mismatches": 0,
+          "retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_flat_exact_boundary_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "work": {
+            "common": {
+              "enumeration_examined": 109387,
+              "enumeration_attempted": 109387,
+              "signature_token_steps_examined": 16136410,
+              "signature_token_steps_attempted": 16136410,
+              "posting_items_examined": 63044,
+              "posting_items_attempted": 63044,
+              "distinct_keys_examined": 4594,
+              "distinct_keys_attempted": 4594,
+              "estimated_bytes_examined": 190025720,
+              "estimated_bytes_attempted": 190025720,
+              "queries_examined": 35049,
+              "queries_attempted": 35049,
+              "posting_visits_examined": 5445491,
+              "posting_visits_attempted": 5445491,
+              "candidate_union_examined": 4498578,
+              "candidate_union_attempted": 4498578,
+              "exact_recheck_pairs_examined": 4498578,
+              "exact_recheck_pairs_attempted": 4498578,
+              "exact_recheck_comparisons_examined": 0,
+              "exact_recheck_comparisons_attempted": 0
+            },
+            "offset_items_examined": 109388,
+            "offset_items_attempted": 109388,
+            "class_slots_examined": 16136410,
+            "class_slots_attempted": 16136410,
+            "radix_records_examined": 16136410,
+            "radix_records_attempted": 16136410,
+            "active_fragment_visits_examined": 8177591,
+            "active_fragment_visits_attempted": 8177591,
+            "radix_work_examined": 484092300,
+            "radix_work_attempted": 484092300,
+            "class_ids_examined": 16136410,
+            "class_ids_attempted": 16136410,
+            "exact_rank_comparisons_examined": 16480258,
+            "exact_rank_comparisons_attempted": 16480258,
+            "exact_join_postings_examined": 16136410,
+            "exact_join_postings_attempted": 16136410,
+            "exact_join_intersections_examined": 17854327,
+            "exact_join_intersections_attempted": 17854327,
+            "exact_join_admissions_examined": 5679150,
+            "exact_join_admissions_attempted": 5679150,
+            "exact_join_sort_items_examined": 5679150,
+            "exact_join_sort_items_attempted": 5679150,
+            "exact_join_estimated_bytes_examined": 596493176,
+            "exact_join_estimated_bytes_attempted": 596493176
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 34198,
+          "new_fragments": 75189,
+          "parent_admission_queries": 858,
+          "global_queries": 34191,
+          "compared_queries": 34191,
+          "offset_items": 109388,
+          "class_slots": 16136410,
+          "class_storage_bytes": 64983192,
+          "radix_scratch_bytes": 6125672,
+          "max_depth": 2201,
+          "peak_radix_records": 109387,
+          "radix_passes": 66030,
+          "radix_work": 484092300,
+          "active_fragment_visits": 8177591,
+          "prefix_distinct_classes": 3288473,
+          "suffix_distinct_classes": 3291243,
+          "hash_candidates": 4498578,
+          "exact_certified_candidates": 4498578,
+          "hash_collision_only_candidates": 0,
+          "prefix_only_candidates": 2663800,
+          "suffix_only_candidates": 1707838,
+          "both_candidates": 126940,
+          "certified_tokens_credited": 20676226,
+          "recheck_pairs_started": 4498578,
+          "recheck_pairs_completed": 4498578,
+          "recheck_comparisons": 0,
+          "rank_comparisons": 16480258,
+          "projected_avoided_comparisons": 41215810,
+          "retained_pairs": 4498578,
+          "depth_1_candidates": 0,
+          "depth_2_to_3_candidates": 1989890,
+          "depth_4_plus_candidates": 2508688,
+          "v49_parity_available": false,
+          "hash_candidate_count_mismatches": 0,
+          "exact_certified_count_mismatches": 0,
+          "hash_collision_count_mismatches": 0,
+          "orientation_count_mismatches": 0,
+          "recheck_comparison_mismatches": 0,
+          "avoided_comparison_mismatches": 0,
+          "credited_token_mismatches": 0,
+          "retained_count_mismatches": 0,
+          "retained_order_mismatches": 0,
+          "recheck_pair_count_mismatches": 0,
+          "certification_fingerprint_mismatches": 0,
+          "retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_proposal_complete": true,
+        "local_fragment_proposal_stop_reason": null,
+        "local_fragment_proposals_considered": 1,
+        "local_fragment_proposals_committed": 1,
+        "sentence_edge_filter_complete": true,
+        "sentence_edge_filter_pairs_examined": 38234,
+        "sentence_edge_filter_pairs_attempted": 38234,
+        "sentence_edge_filter_similarity_comparisons_examined": 227344,
+        "sentence_edge_filter_similarity_comparisons_attempted": 227344,
+        "sentence_edge_filter_pairs_retained": 26402,
+        "sentence_edge_filter_pairs_rejected": 11832,
+        "sentence_edge_filter_stop_reason": null,
+        "sentence_edge_filter_full_build_fallback_used": false,
+        "sentence_edge_filter_discarded_near_pair_visits_examined": 0,
+        "sentence_edge_filter_discarded_near_pair_visits_attempted": 0,
+        "sentence_edge_filter_discarded_near_similarity_comparisons_examined": 0,
+        "sentence_edge_filter_discarded_near_similarity_comparisons_attempted": 0,
+        "sentence_edge_filter_discarded_near_candidate_posting_visits_examined": 0,
+        "sentence_edge_filter_discarded_near_candidate_posting_visits_attempted": 0,
+        "near_pair_visits_examined": 33137,
+        "near_pair_visits_attempted": 33137,
+        "near_similarity_comparisons_examined": 210071,
+        "near_similarity_comparisons_attempted": 210071,
+        "near_candidate_posting_visits_examined": 32457,
+        "near_candidate_posting_visits_attempted": 32457,
+        "near_largest_edge_posting": 324,
+        "near_largest_edge_query_union": 328,
+        "near_largest_filtered_candidate_set": 326,
+        "near_candidate_count_truncated": false,
+        "near_relation_stop_reason": null,
+        "near_pair_candidates": 2978,
+        "vetoed_near_pairs": 2824,
+        "recovered_exact_match_old_tokens": 19651,
+        "recovered_exact_match_new_tokens": 19651,
+        "recovered_replacement_old_tokens": 17293,
+        "recovered_replacement_new_tokens": 18375,
+        "recovered_deletion_tokens": 51866,
+        "recovered_insertion_tokens": 124600,
+        "unresolved_remainder_old_source_tokens": 95560,
+        "unresolved_remainder_new_source_tokens": 200682,
+        "remainder_attribution_complete": false,
+        "remainder_attribution_stop_reason": "analysis_incomplete",
+        "remainder_attribution": null
+      },
+      "quality": {
+        "annotation": "scoped_complete",
+        "expected_changes": 0,
+        "reported_changes": 0,
+        "recall": 1.0,
+        "precision": 1.0,
+        "kind_accuracy": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 0,
+        "unresolvable_reported_spans": 0
+      },
+      "quality_skipped_reason": "comparison stopped at a resource limit",
+      "reviewed_recall_metrics": {
+        "content_presence_recall": {
+          "expected": 0,
+          "detected": 0,
+          "recall": null
+        },
+        "exact_localization_recall": {
+          "expected": 0,
+          "detected": 0,
+          "recall": null
+        },
+        "semantic_relation_recall": {
+          "expected": 0,
+          "detected": 0,
+          "recall": null
+        },
+        "move_recall": {
+          "expected": 0,
+          "detected": 0,
+          "recall": null
+        }
+      },
+      "scoped_event_metrics": {
+        "reviewed_scope_count": 1,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "scoped_token_metrics": {
+        "expected_changed_tokens": 0,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "span_iou": 1.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "candidate_recall": null,
+      "expected_change_diagnostics": null
+    }
+  ]
+}

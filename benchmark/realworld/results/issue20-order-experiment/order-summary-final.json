@@ -1,0 +1,1584 @@
+{
+  "pairs": 12,
+  "source_expected": 40,
+  "fixed_source_measurable_expected": 39,
+  "hypothesis_only": true,
+  "totals": {
+    "native_native": {
+      "statuses": {
+        "ok": 12
+      },
+      "matched": 1,
+      "candidate_matched": 10,
+      "accepted_or_candidate_matched": 11,
+      "known_scoped_fp_tokens": 2,
+      "scoped_unmeasured_pairs": [
+        "bis-operational-risk-2011-to-2021"
+      ],
+      "documents_with_assessment_reason": {
+        "NormalizationUncertainty": 10,
+        "DomainNotClosed": 6,
+        "AmbiguousEditLocation": 3,
+        "CompetingCorrespondence": 1
+      }
+    },
+    "model_model": {
+      "statuses": {
+        "ok": 12
+      },
+      "matched": 0,
+      "candidate_matched": 11,
+      "accepted_or_candidate_matched": 11,
+      "known_scoped_fp_tokens": 0,
+      "scoped_unmeasured_pairs": [
+        "ecma-109-ed10-to-ed11",
+        "bis-operational-risk-2011-to-2021"
+      ],
+      "documents_with_assessment_reason": {
+        "NormalizationUncertainty": 10,
+        "DomainNotClosed": 8,
+        "AmbiguousEditLocation": 1
+      }
+    }
+  },
+  "assignments": [
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "side": "old",
+      "blocks": 2734,
+      "model_block_count": 2734,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 2263,
+      "assigned_blocks": 1906,
+      "fallback_blocks": 828,
+      "strict_assignments": 509,
+      "center_fallbacks": 1397,
+      "unassigned_regions": 960,
+      "ambiguous_regions": 96,
+      "unassigned_blocks": 769,
+      "ambiguous_blocks": 59,
+      "order_changed": true
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "side": "new",
+      "blocks": 1809,
+      "model_block_count": 1809,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 1629,
+      "assigned_blocks": 1457,
+      "fallback_blocks": 352,
+      "strict_assignments": 369,
+      "center_fallbacks": 1088,
+      "unassigned_regions": 588,
+      "ambiguous_regions": 58,
+      "unassigned_blocks": 316,
+      "ambiguous_blocks": 36,
+      "order_changed": true
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "side": "old",
+      "blocks": 3687,
+      "model_block_count": 3687,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 2074,
+      "assigned_blocks": 2887,
+      "fallback_blocks": 800,
+      "strict_assignments": 1104,
+      "center_fallbacks": 1783,
+      "unassigned_regions": 504,
+      "ambiguous_regions": 43,
+      "unassigned_blocks": 756,
+      "ambiguous_blocks": 44,
+      "order_changed": true
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "side": "new",
+      "blocks": 4304,
+      "model_block_count": 4304,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 2443,
+      "assigned_blocks": 3366,
+      "fallback_blocks": 938,
+      "strict_assignments": 1150,
+      "center_fallbacks": 2216,
+      "unassigned_regions": 535,
+      "ambiguous_regions": 22,
+      "unassigned_blocks": 925,
+      "ambiguous_blocks": 13,
+      "order_changed": true
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "side": "old",
+      "blocks": 152,
+      "model_block_count": 152,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 6,
+      "assigned_blocks": 148,
+      "fallback_blocks": 4,
+      "strict_assignments": 147,
+      "center_fallbacks": 1,
+      "unassigned_regions": 0,
+      "ambiguous_regions": 3,
+      "unassigned_blocks": 2,
+      "ambiguous_blocks": 2,
+      "order_changed": true
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "side": "new",
+      "blocks": 186,
+      "model_block_count": 186,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 6,
+      "assigned_blocks": 183,
+      "fallback_blocks": 3,
+      "strict_assignments": 181,
+      "center_fallbacks": 2,
+      "unassigned_regions": 0,
+      "ambiguous_regions": 5,
+      "unassigned_blocks": 0,
+      "ambiguous_blocks": 3,
+      "order_changed": true
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "side": "old",
+      "blocks": 1365,
+      "model_block_count": 1365,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 648,
+      "assigned_blocks": 1161,
+      "fallback_blocks": 204,
+      "strict_assignments": 531,
+      "center_fallbacks": 630,
+      "unassigned_regions": 46,
+      "ambiguous_regions": 4,
+      "unassigned_blocks": 202,
+      "ambiguous_blocks": 2,
+      "order_changed": true
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "side": "new",
+      "blocks": 1461,
+      "model_block_count": 1461,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 688,
+      "assigned_blocks": 1215,
+      "fallback_blocks": 246,
+      "strict_assignments": 687,
+      "center_fallbacks": 528,
+      "unassigned_regions": 62,
+      "ambiguous_regions": 10,
+      "unassigned_blocks": 194,
+      "ambiguous_blocks": 52,
+      "order_changed": true
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "side": "old",
+      "blocks": 660,
+      "model_block_count": 660,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 264,
+      "assigned_blocks": 568,
+      "fallback_blocks": 92,
+      "strict_assignments": 537,
+      "center_fallbacks": 31,
+      "unassigned_regions": 69,
+      "ambiguous_regions": 52,
+      "unassigned_blocks": 3,
+      "ambiguous_blocks": 89,
+      "order_changed": true
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "side": "new",
+      "blocks": 660,
+      "model_block_count": 660,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 264,
+      "assigned_blocks": 565,
+      "fallback_blocks": 95,
+      "strict_assignments": 535,
+      "center_fallbacks": 30,
+      "unassigned_regions": 69,
+      "ambiguous_regions": 52,
+      "unassigned_blocks": 6,
+      "ambiguous_blocks": 89,
+      "order_changed": true
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "side": "old",
+      "blocks": 579,
+      "model_block_count": 579,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 417,
+      "assigned_blocks": 542,
+      "fallback_blocks": 37,
+      "strict_assignments": 464,
+      "center_fallbacks": 78,
+      "unassigned_regions": 7,
+      "ambiguous_regions": 24,
+      "unassigned_blocks": 6,
+      "ambiguous_blocks": 31,
+      "order_changed": true
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "side": "new",
+      "blocks": 863,
+      "model_block_count": 863,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 574,
+      "assigned_blocks": 807,
+      "fallback_blocks": 56,
+      "strict_assignments": 709,
+      "center_fallbacks": 98,
+      "unassigned_regions": 18,
+      "ambiguous_regions": 28,
+      "unassigned_blocks": 11,
+      "ambiguous_blocks": 45,
+      "order_changed": true
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "side": "old",
+      "blocks": 648,
+      "model_block_count": 648,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 522,
+      "assigned_blocks": 512,
+      "fallback_blocks": 136,
+      "strict_assignments": 197,
+      "center_fallbacks": 315,
+      "unassigned_regions": 161,
+      "ambiguous_regions": 12,
+      "unassigned_blocks": 126,
+      "ambiguous_blocks": 10,
+      "order_changed": true
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "side": "new",
+      "blocks": 766,
+      "model_block_count": 766,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 509,
+      "assigned_blocks": 596,
+      "fallback_blocks": 170,
+      "strict_assignments": 277,
+      "center_fallbacks": 319,
+      "unassigned_regions": 149,
+      "ambiguous_regions": 15,
+      "unassigned_blocks": 156,
+      "ambiguous_blocks": 14,
+      "order_changed": true
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "side": "old",
+      "blocks": 2776,
+      "model_block_count": 2776,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 2524,
+      "assigned_blocks": 2622,
+      "fallback_blocks": 154,
+      "strict_assignments": 2284,
+      "center_fallbacks": 338,
+      "unassigned_regions": 274,
+      "ambiguous_regions": 8,
+      "unassigned_blocks": 150,
+      "ambiguous_blocks": 4,
+      "order_changed": true
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "side": "new",
+      "blocks": 3182,
+      "model_block_count": 3182,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 3002,
+      "assigned_blocks": 3007,
+      "fallback_blocks": 175,
+      "strict_assignments": 2540,
+      "center_fallbacks": 467,
+      "unassigned_regions": 386,
+      "ambiguous_regions": 14,
+      "unassigned_blocks": 168,
+      "ambiguous_blocks": 7,
+      "order_changed": true
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "side": "old",
+      "blocks": 33,
+      "model_block_count": 33,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 44,
+      "assigned_blocks": 22,
+      "fallback_blocks": 11,
+      "strict_assignments": 14,
+      "center_fallbacks": 8,
+      "unassigned_regions": 32,
+      "ambiguous_regions": 6,
+      "unassigned_blocks": 7,
+      "ambiguous_blocks": 4,
+      "order_changed": true
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "side": "new",
+      "blocks": 33,
+      "model_block_count": 33,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 46,
+      "assigned_blocks": 23,
+      "fallback_blocks": 10,
+      "strict_assignments": 9,
+      "center_fallbacks": 14,
+      "unassigned_regions": 34,
+      "ambiguous_regions": 2,
+      "unassigned_blocks": 9,
+      "ambiguous_blocks": 1,
+      "order_changed": true
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "side": "old",
+      "blocks": 420,
+      "model_block_count": 420,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 282,
+      "assigned_blocks": 317,
+      "fallback_blocks": 103,
+      "strict_assignments": 104,
+      "center_fallbacks": 213,
+      "unassigned_regions": 33,
+      "ambiguous_regions": 0,
+      "unassigned_blocks": 103,
+      "ambiguous_blocks": 0,
+      "order_changed": true
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "side": "new",
+      "blocks": 365,
+      "model_block_count": 365,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 303,
+      "assigned_blocks": 271,
+      "fallback_blocks": 94,
+      "strict_assignments": 25,
+      "center_fallbacks": 246,
+      "unassigned_regions": 94,
+      "ambiguous_regions": 0,
+      "unassigned_blocks": 94,
+      "ambiguous_blocks": 0,
+      "order_changed": true
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "side": "old",
+      "blocks": 3383,
+      "model_block_count": 3383,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 1337,
+      "assigned_blocks": 2992,
+      "fallback_blocks": 391,
+      "strict_assignments": 1917,
+      "center_fallbacks": 1075,
+      "unassigned_regions": 325,
+      "ambiguous_regions": 14,
+      "unassigned_blocks": 383,
+      "ambiguous_blocks": 8,
+      "order_changed": true
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "side": "new",
+      "blocks": 5532,
+      "model_block_count": 5532,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 2450,
+      "assigned_blocks": 4684,
+      "fallback_blocks": 848,
+      "strict_assignments": 3084,
+      "center_fallbacks": 1600,
+      "unassigned_regions": 887,
+      "ambiguous_regions": 53,
+      "unassigned_blocks": 789,
+      "ambiguous_blocks": 59,
+      "order_changed": true
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "side": "old",
+      "blocks": 1527,
+      "model_block_count": 1527,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 544,
+      "assigned_blocks": 1486,
+      "fallback_blocks": 41,
+      "strict_assignments": 1013,
+      "center_fallbacks": 473,
+      "unassigned_regions": 57,
+      "ambiguous_regions": 2,
+      "unassigned_blocks": 40,
+      "ambiguous_blocks": 1,
+      "order_changed": true
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "side": "new",
+      "blocks": 588,
+      "model_block_count": 588,
+      "model_unique_block_ids": true,
+      "model_is_permutation": true,
+      "regions": 409,
+      "assigned_blocks": 464,
+      "fallback_blocks": 124,
+      "strict_assignments": 150,
+      "center_fallbacks": 314,
+      "unassigned_regions": 135,
+      "ambiguous_regions": 2,
+      "unassigned_blocks": 123,
+      "ambiguous_blocks": 1,
+      "order_changed": true
+    }
+  ],
+  "records": [
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "source_expected": 7,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 9249,
+          "changes": 0,
+          "candidate_changes": 1468,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 222131,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 175919,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "dsa-specification-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "diff_rejected_as_implausible"
+            },
+            {
+              "id": "edsa-added",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "dsa-legacy-verification-note",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "deterministic-ecdsa-rfc6979",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "security-level-glossary-note-removed",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "domain-parameter-requirement-moved",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_span_mismatch"
+            },
+            {
+              "id": "per-message-secret-number-scope-generalized",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 8733,
+          "changes": 0,
+          "candidate_changes": 1044,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 222131,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 175919,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "dsa-specification-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "diff_rejected_as_implausible"
+            },
+            {
+              "id": "edsa-added",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "dsa-legacy-verification-note",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "deterministic-ecdsa-rfc6979",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "security-level-glossary-note-removed",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "domain-parameter-requirement-moved",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_span_mismatch"
+            },
+            {
+              "id": "per-message-secret-number-scope-generalized",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "source_expected": 8,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 44356,
+          "changes": 54,
+          "candidate_changes": 3601,
+          "old_coverage": {
+            "resolved_tokens": 32182,
+            "total_tokens": 441446,
+            "ratio": 0.07290132881484938
+          },
+          "new_coverage": {
+            "resolved_tokens": 32439,
+            "total_tokens": 493143,
+            "ratio": 0.06578010840668934
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "footer-rev-branding-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "keying-material-definition-added",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "toolkit-footnote-comma-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_span_mismatch"
+            },
+            {
+              "id": "cryptanalysis-review-window-added",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "toolkit-footnote-renumbered",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "standards-reference-comma-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "approved-definition-comma-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "association-definition-punctuation",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 35648,
+          "changes": 0,
+          "candidate_changes": 3681,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 441446,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 493143,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "footer-rev-branding-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "keying-material-definition-added",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "toolkit-footnote-comma-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_span_mismatch"
+            },
+            {
+              "id": "cryptanalysis-review-window-added",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "toolkit-footnote-renumbered",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "standards-reference-comma-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "approved-definition-comma-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "association-definition-punctuation",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "source_expected": 5,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 264,
+          "changes": 0,
+          "candidate_changes": 59,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 8186,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 9956,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "age-cutoff-1961-primary",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "age-cutoff-1961-spouse",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "mfs-checkbox-restructured",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "combat-zone-deceased-checkbox-added",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "footer-form-year-stamp",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "unit_segmentation_failure"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 262,
+          "changes": 0,
+          "candidate_changes": 60,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 8186,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 9956,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "age-cutoff-1961-primary",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "age-cutoff-1961-spouse",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "mfs-checkbox-restructured",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "combat-zone-deceased-checkbox-added",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "footer-form-year-stamp",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "unit_segmentation_failure"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "source_expected": 4,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 10154,
+          "changes": 0,
+          "candidate_changes": 1316,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 215345,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 220798,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "consultation-watermark-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "completeness-of-copy-clarified",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "exception-effect-qualified",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "rijkeboer-citation-reflow",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_span_mismatch"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 10118,
+          "changes": 0,
+          "candidate_changes": 1558,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 215345,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 220798,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "consultation-watermark-removed",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "completeness-of-copy-clarified",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "exception-effect-qualified",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "rijkeboer-citation-reflow",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_span_mismatch"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "source_expected": 1,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 316,
+          "changes": 2,
+          "candidate_changes": 0,
+          "old_coverage": {
+            "resolved_tokens": 23821,
+            "total_tokens": 38764,
+            "ratio": 0.6145134661025694
+          },
+          "new_coverage": {
+            "resolved_tokens": 23820,
+            "total_tokens": 38763,
+            "ratio": 0.6145035213992726
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "arxiv-version-date-stamp",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 344,
+          "changes": 2,
+          "candidate_changes": 3,
+          "old_coverage": {
+            "resolved_tokens": 23658,
+            "total_tokens": 38764,
+            "ratio": 0.6103085336910535
+          },
+          "new_coverage": {
+            "resolved_tokens": 23657,
+            "total_tokens": 38763,
+            "ratio": 0.6102984805097644
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "arxiv-version-date-stamp",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "source_expected": 4,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 1485,
+          "changes": 15,
+          "candidate_changes": 206,
+          "old_coverage": {
+            "resolved_tokens": 23537,
+            "total_tokens": 70802,
+            "ratio": 0.3324341120307336
+          },
+          "new_coverage": {
+            "resolved_tokens": 23536,
+            "total_tokens": 96649,
+            "ratio": 0.24352036751544248
+          },
+          "scoped_fp_tokens": 2,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "publication-date",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "current-version-url",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "former-current-version-url",
+              "matched": true,
+              "candidate_matched": false,
+              "failure_reason": null
+            },
+            {
+              "id": "previous-version-url",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 1145,
+          "changes": 0,
+          "candidate_changes": 239,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 70802,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 96649,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "publication-date",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "current-version-url",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "former-current-version-url",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_span_mismatch"
+            },
+            {
+              "id": "previous-version-url",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": [
+        "former-current-version-url"
+      ]
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "source_expected": 3,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 2067,
+          "changes": 23,
+          "candidate_changes": 300,
+          "old_coverage": {
+            "resolved_tokens": 32671,
+            "total_tokens": 61466,
+            "ratio": 0.5315296261347737
+          },
+          "new_coverage": {
+            "resolved_tokens": 32683,
+            "total_tokens": 61522,
+            "ratio": 0.5312408569292286
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "edition-date",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "copyright-year",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "occurrence_count_mismatch"
+            },
+            {
+              "id": "copyright-notice-updated",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 1973,
+          "changes": 31,
+          "candidate_changes": 319,
+          "old_coverage": {
+            "resolved_tokens": 32273,
+            "total_tokens": 61466,
+            "ratio": 0.5250545016757232
+          },
+          "new_coverage": {
+            "resolved_tokens": 32252,
+            "total_tokens": 61522,
+            "ratio": 0.5242352329248073
+          },
+          "scoped_fp_tokens": null,
+          "scoped_error": "scoped-complete reported change coordinates are indeterminate",
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "edition-date",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_ambiguous"
+            },
+            {
+              "id": "copyright-year",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "occurrence_count_mismatch"
+            },
+            {
+              "id": "copyright-notice-updated",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "source_expected": 3,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 6695,
+          "changes": 0,
+          "candidate_changes": 1175,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 241023,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 281570,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "publication-stage",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "publication-date",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "cs01-url-moved-to-previous-stage",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_span_mismatch"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 5892,
+          "changes": 0,
+          "candidate_changes": 1270,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 241023,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 281570,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "publication-stage",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "publication-date",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "cs01-url-moved-to-previous-stage",
+              "matched": false,
+              "candidate_matched": true,
+              "failure_reason": "alignment_span_mismatch"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "source_expected": 1,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 128,
+          "changes": 1,
+          "candidate_changes": 415,
+          "old_coverage": {
+            "resolved_tokens": 2527,
+            "total_tokens": 11864,
+            "ratio": 0.21299730276466622
+          },
+          "new_coverage": {
+            "resolved_tokens": 2527,
+            "total_tokens": 12360,
+            "ratio": 0.20444983818770227
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "form-year-footer",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 87,
+          "changes": 5,
+          "candidate_changes": 420,
+          "old_coverage": {
+            "resolved_tokens": 2506,
+            "total_tokens": 11864,
+            "ratio": 0.2112272420768712
+          },
+          "new_coverage": {
+            "resolved_tokens": 2506,
+            "total_tokens": 12360,
+            "ratio": 0.20275080906148868
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "form-year-footer",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "source_expected": 1,
+      "source_measurable": false,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 4241,
+          "changes": 0,
+          "candidate_changes": 0,
+          "old_coverage": {
+            "resolved_tokens": 114,
+            "total_tokens": 61986,
+            "ratio": 0.001839124963701481
+          },
+          "new_coverage": {
+            "resolved_tokens": 114,
+            "total_tokens": 70278,
+            "ratio": 0.0016221292580893025
+          },
+          "scoped_fp_tokens": null,
+          "scoped_error": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+          "quality_error": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+          "error": null,
+          "expectations": [
+            {
+              "id": "change-management-scope-broadened",
+              "matched": null,
+              "candidate_matched": null,
+              "failure_reason": "alignment_span_mismatch"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 4176,
+          "changes": 0,
+          "candidate_changes": 1,
+          "old_coverage": {
+            "resolved_tokens": 114,
+            "total_tokens": 61986,
+            "ratio": 0.001839124963701481
+          },
+          "new_coverage": {
+            "resolved_tokens": 114,
+            "total_tokens": 70278,
+            "ratio": 0.0016221292580893025
+          },
+          "scoped_fp_tokens": null,
+          "scoped_error": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+          "quality_error": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+          "error": null,
+          "expectations": [
+            {
+              "id": "change-management-scope-broadened",
+              "matched": null,
+              "candidate_matched": null,
+              "failure_reason": "alignment_span_mismatch"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "source_expected": 0,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 1272,
+          "changes": 0,
+          "candidate_changes": 39,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 190567,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 369675,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": []
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 1189,
+          "changes": 0,
+          "candidate_changes": 39,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 190567,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 369675,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": []
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "source_expected": 3,
+      "source_measurable": true,
+      "controls": {
+        "native_native": {
+          "status": "ok",
+          "runtime_ms": 375,
+          "changes": 0,
+          "candidate_changes": 0,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 125356,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 68336,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "all-sector-scope-emphasized",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "core-expanded-from-five-to-six-functions",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "candidate_not_generated"
+            },
+            {
+              "id": "governance-and-supply-chain-emphasis-added",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        },
+        "model_model": {
+          "status": "ok",
+          "runtime_ms": 355,
+          "changes": 0,
+          "candidate_changes": 3,
+          "old_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 125356,
+            "ratio": 0.0
+          },
+          "new_coverage": {
+            "resolved_tokens": 0,
+            "total_tokens": 68336,
+            "ratio": 0.0
+          },
+          "scoped_fp_tokens": 0,
+          "scoped_error": null,
+          "quality_error": null,
+          "error": null,
+          "expectations": [
+            {
+              "id": "all-sector-scope-emphasized",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            },
+            {
+              "id": "core-expanded-from-five-to-six-functions",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "candidate_not_generated"
+            },
+            {
+              "id": "governance-and-supply-chain-emphasis-added",
+              "matched": false,
+              "candidate_matched": false,
+              "failure_reason": "alignment_or_candidate"
+            }
+          ]
+        }
+      },
+      "demoted_accepted_to_candidate": []
+    }
+  ]
+}

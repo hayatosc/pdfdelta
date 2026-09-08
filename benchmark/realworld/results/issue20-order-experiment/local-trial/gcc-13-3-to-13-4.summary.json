@@ -1,0 +1,4372 @@
+{
+  "schema_version": 67,
+  "records": [
+    {
+      "pair_id": "gcc-13-3-to-13-4",
+      "set": "dev",
+      "role": "stress",
+      "in_scope": true,
+      "status": "limit",
+      "provenance_verified": true,
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "limit_scale_used": 2.0,
+      "resource_limit_failure": "alignment search recorded incomplete work; comparison assessment search reached a resource limit",
+      "coverage_old": 0.0,
+      "coverage_new": 0.0,
+      "coverage_comparison": 0.0,
+      "unresolved_regions": 20895,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0,
+      "reported_content_changes": 0,
+      "reported_formatting_changes": 0,
+      "reported_proven_changed_regions": 0,
+      "reported_uncertain_changes": 0,
+      "sentence_recovery_metrics": {
+        "change_origins": {
+          "ordered_alignment": {
+            "event_count": 1,
+            "old_changed_tokens": 1,
+            "new_changed_tokens": 1,
+            "old_resolved_context_tokens": 885049,
+            "new_resolved_context_tokens": 885049
+          },
+          "sentence_near": {
+            "event_count": 5,
+            "old_changed_tokens": 32,
+            "new_changed_tokens": 32,
+            "old_resolved_context_tokens": 14854,
+            "new_resolved_context_tokens": 14854
+          },
+          "local_fragment": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 0,
+            "new_resolved_context_tokens": 0
+          },
+          "cross_granularity": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 0,
+            "new_resolved_context_tokens": 0
+          },
+          "trusted_tail": {
+            "event_count": 8,
+            "old_changed_tokens": 122,
+            "new_changed_tokens": 122,
+            "old_resolved_context_tokens": 369,
+            "new_resolved_context_tokens": 369
+          },
+          "exact_tail": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 235,
+            "new_resolved_context_tokens": 235
+          },
+          "running_matter": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 0,
+            "new_resolved_context_tokens": 0
+          },
+          "range_local_exact": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 605,
+            "new_resolved_context_tokens": 605
+          },
+          "trusted_residual_exact": {
+            "event_count": 0,
+            "old_changed_tokens": 0,
+            "new_changed_tokens": 0,
+            "old_resolved_context_tokens": 85942,
+            "new_resolved_context_tokens": 85942
+          },
+          "anchored_gap": {
+            "event_count": 2,
+            "old_changed_tokens": 2,
+            "new_changed_tokens": 2,
+            "old_resolved_context_tokens": 28,
+            "new_resolved_context_tokens": 28
+          }
+        },
+        "local_fragment_review_bundle": {
+          "status": "complete",
+          "total_traces": 0,
+          "total_occurrences": 0,
+          "sample_limit": 256,
+          "truncated": false,
+          "samples": []
+        },
+        "section_pairing_proposal_review_bundle": {
+          "status": "unavailable",
+          "reason": "source_projection_limit"
+        },
+        "recovery_leaf_partition_complete": true,
+        "recovery_leaf_partition_stop_reason": null,
+        "recovery_ownership_partition": {
+          "old": {
+            "total": {
+              "ranges": 19250,
+              "canonical_tokens": 316331,
+              "comparable_tokens": 471529,
+              "max_range_tokens": 681,
+              "trust": {
+                "trusted_tokens": 108756,
+                "untrusted_tokens": 362773
+              },
+              "roles": {
+                "body_tokens": 466674,
+                "repeated_header_tokens": 4854,
+                "repeated_footer_tokens": 1
+              }
+            },
+            "accepted": {
+              "ranges": 1136,
+              "canonical_tokens": 102033,
+              "comparable_tokens": 102033,
+              "max_range_tokens": 681,
+              "trust": {
+                "trusted_tokens": 88898,
+                "untrusted_tokens": 13135
+              },
+              "roles": {
+                "body_tokens": 102033,
+                "repeated_header_tokens": 0,
+                "repeated_footer_tokens": 0
+              }
+            },
+            "leaves": {
+              "sentence_body": {
+                "ranges": 245,
+                "canonical_tokens": 4792,
+                "comparable_tokens": 4792,
+                "max_range_tokens": 160,
+                "trust": {
+                  "trusted_tokens": 4792,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 2512,
+                  "repeated_header_tokens": 2280,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "line_body": {
+                "ranges": 39,
+                "canonical_tokens": 1518,
+                "comparable_tokens": 1518,
+                "max_range_tokens": 52,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 1518
+                },
+                "roles": {
+                  "body_tokens": 1518,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "trusted_run_residual": {
+                "ranges": 757,
+                "canonical_tokens": 14561,
+                "comparable_tokens": 14561,
+                "max_range_tokens": 523,
+                "trust": {
+                  "trusted_tokens": 14561,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 11986,
+                  "repeated_header_tokens": 2574,
+                  "repeated_footer_tokens": 1
+                }
+              },
+              "heading": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "list_item": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "footnote": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "code_line": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "table_cell": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "gaps": {
+              "no_trusted_run": {
+                "ranges": 9880,
+                "canonical_tokens": 192335,
+                "comparable_tokens": 192335,
+                "max_range_tokens": 93,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 192335
+                },
+                "roles": {
+                  "body_tokens": 192335,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "mixed_trusted_runs": {
+                "ranges": 5,
+                "canonical_tokens": 584,
+                "comparable_tokens": 584,
+                "max_range_tokens": 449,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 584
+                },
+                "roles": {
+                  "body_tokens": 584,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "ordinal_gap": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "role_boundary": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "location_projection_failed": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "normalization_issue": {
+                "ranges": 508,
+                "canonical_tokens": 508,
+                "comparable_tokens": 508,
+                "max_range_tokens": 1,
+                "trust": {
+                  "trusted_tokens": 505,
+                  "untrusted_tokens": 3
+                },
+                "roles": {
+                  "body_tokens": 508,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unmapped_changed_evidence": {
+                "ranges": 6680,
+                "canonical_tokens": 0,
+                "comparable_tokens": 155198,
+                "max_range_tokens": 60,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 155198
+                },
+                "roles": {
+                  "body_tokens": 155198,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unsupported_line_policy": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "samples": [
+              {
+                "block_id": 4,
+                "canonical_start": 0,
+                "canonical_end": 13,
+                "comparable_start": 0,
+                "comparable_end": 13,
+                "ownership": {
+                  "leaf": "trusted_run_residual"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 0,
+                  "ordinal_end": 2,
+                  "region_id": 1,
+                  "page": 1,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 352.9806346
+                    },
+                    "max": {
+                      "x": 236.29975614931632,
+                      "y": 431.41091539999996
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 4,
+                "canonical_start": 13,
+                "canonical_end": 14,
+                "comparable_start": 13,
+                "comparable_end": 14,
+                "ownership": {
+                  "gap": "normalization_issue"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 0,
+                  "ordinal_end": 2,
+                  "region_id": 1,
+                  "page": 1,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 352.9806346
+                    },
+                    "max": {
+                      "x": 236.29975614931632,
+                      "y": 431.41091539999996
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 5,
+                "canonical_start": 0,
+                "canonical_end": 17,
+                "comparable_start": 0,
+                "comparable_end": 17,
+                "ownership": "accepted",
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 2,
+                  "ordinal_end": 3,
+                  "region_id": 1,
+                  "page": 1,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 352.9806346
+                    },
+                    "max": {
+                      "x": 236.29975614931632,
+                      "y": 431.41091539999996
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 14,
+                "canonical_start": 0,
+                "canonical_end": 49,
+                "comparable_start": 0,
+                "comparable_end": 49,
+                "ownership": {
+                  "gap": "mixed_trusted_runs"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 1,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 14,
+                "canonical_start": 60,
+                "canonical_end": 60,
+                "comparable_start": 60,
+                "comparable_end": 61,
+                "ownership": {
+                  "gap": "unmapped_changed_evidence"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 1,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 20,
+                "canonical_start": 0,
+                "canonical_end": 41,
+                "comparable_start": 0,
+                "comparable_end": 41,
+                "ownership": {
+                  "gap": "no_trusted_run"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 2,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 85,
+                "canonical_start": 0,
+                "canonical_end": 2,
+                "comparable_start": 0,
+                "comparable_end": 2,
+                "ownership": {
+                  "leaf": "sentence_body"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 9,
+                  "ordinal_start": 0,
+                  "ordinal_end": 1,
+                  "region_id": 1,
+                  "page": 5,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 731.8316346
+                    },
+                    "max": {
+                      "x": 98.78837069366455,
+                      "y": 741.5189154
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 15671,
+                "canonical_start": 0,
+                "canonical_end": 10,
+                "comparable_start": 0,
+                "comparable_end": 10,
+                "ownership": {
+                  "leaf": "line_body"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 703,
+                  "bbox": null
+                }
+              }
+            ]
+          },
+          "new": {
+            "total": {
+              "ranges": 19249,
+              "canonical_tokens": 316306,
+              "comparable_tokens": 471542,
+              "max_range_tokens": 681,
+              "trust": {
+                "trusted_tokens": 108723,
+                "untrusted_tokens": 362819
+              },
+              "roles": {
+                "body_tokens": 466717,
+                "repeated_header_tokens": 4824,
+                "repeated_footer_tokens": 1
+              }
+            },
+            "accepted": {
+              "ranges": 1136,
+              "canonical_tokens": 102033,
+              "comparable_tokens": 102033,
+              "max_range_tokens": 681,
+              "trust": {
+                "trusted_tokens": 88898,
+                "untrusted_tokens": 13135
+              },
+              "roles": {
+                "body_tokens": 102033,
+                "repeated_header_tokens": 0,
+                "repeated_footer_tokens": 0
+              }
+            },
+            "leaves": {
+              "sentence_body": {
+                "ranges": 247,
+                "canonical_tokens": 5152,
+                "comparable_tokens": 5152,
+                "max_range_tokens": 160,
+                "trust": {
+                  "trusted_tokens": 5152,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 2902,
+                  "repeated_header_tokens": 2250,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "line_body": {
+                "ranges": 39,
+                "canonical_tokens": 1518,
+                "comparable_tokens": 1518,
+                "max_range_tokens": 52,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 1518
+                },
+                "roles": {
+                  "body_tokens": 1518,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "trusted_run_residual": {
+                "ranges": 756,
+                "canonical_tokens": 14171,
+                "comparable_tokens": 14171,
+                "max_range_tokens": 523,
+                "trust": {
+                  "trusted_tokens": 14171,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 11596,
+                  "repeated_header_tokens": 2574,
+                  "repeated_footer_tokens": 1
+                }
+              },
+              "heading": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "list_item": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "footnote": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "code_line": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "table_cell": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "gaps": {
+              "no_trusted_run": {
+                "ranges": 9880,
+                "canonical_tokens": 192343,
+                "comparable_tokens": 192343,
+                "max_range_tokens": 93,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 192343
+                },
+                "roles": {
+                  "body_tokens": 192343,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "mixed_trusted_runs": {
+                "ranges": 5,
+                "canonical_tokens": 584,
+                "comparable_tokens": 584,
+                "max_range_tokens": 449,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 584
+                },
+                "roles": {
+                  "body_tokens": 584,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "ordinal_gap": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "role_boundary": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "location_projection_failed": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "normalization_issue": {
+                "ranges": 505,
+                "canonical_tokens": 505,
+                "comparable_tokens": 505,
+                "max_range_tokens": 1,
+                "trust": {
+                  "trusted_tokens": 502,
+                  "untrusted_tokens": 3
+                },
+                "roles": {
+                  "body_tokens": 505,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unmapped_changed_evidence": {
+                "ranges": 6681,
+                "canonical_tokens": 0,
+                "comparable_tokens": 155236,
+                "max_range_tokens": 60,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 155236
+                },
+                "roles": {
+                  "body_tokens": 155236,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              },
+              "unsupported_line_policy": {
+                "ranges": 0,
+                "canonical_tokens": 0,
+                "comparable_tokens": 0,
+                "max_range_tokens": 0,
+                "trust": {
+                  "trusted_tokens": 0,
+                  "untrusted_tokens": 0
+                },
+                "roles": {
+                  "body_tokens": 0,
+                  "repeated_header_tokens": 0,
+                  "repeated_footer_tokens": 0
+                }
+              }
+            },
+            "samples": [
+              {
+                "block_id": 4,
+                "canonical_start": 0,
+                "canonical_end": 13,
+                "comparable_start": 0,
+                "comparable_end": 13,
+                "ownership": {
+                  "leaf": "trusted_run_residual"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 0,
+                  "ordinal_end": 2,
+                  "region_id": 1,
+                  "page": 1,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 352.9806346
+                    },
+                    "max": {
+                      "x": 236.29975614931632,
+                      "y": 431.41091539999996
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 4,
+                "canonical_start": 13,
+                "canonical_end": 14,
+                "comparable_start": 13,
+                "comparable_end": 14,
+                "ownership": {
+                  "gap": "normalization_issue"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 0,
+                  "ordinal_end": 2,
+                  "region_id": 1,
+                  "page": 1,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 352.9806346
+                    },
+                    "max": {
+                      "x": 236.29975614931632,
+                      "y": 431.41091539999996
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 5,
+                "canonical_start": 0,
+                "canonical_end": 17,
+                "comparable_start": 0,
+                "comparable_end": 17,
+                "ownership": "accepted",
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 1,
+                  "ordinal_start": 2,
+                  "ordinal_end": 3,
+                  "region_id": 1,
+                  "page": 1,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 352.9806346
+                    },
+                    "max": {
+                      "x": 236.29975614931632,
+                      "y": 431.41091539999996
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 14,
+                "canonical_start": 0,
+                "canonical_end": 49,
+                "comparable_start": 0,
+                "comparable_end": 49,
+                "ownership": {
+                  "gap": "mixed_trusted_runs"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 1,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 14,
+                "canonical_start": 60,
+                "canonical_end": 60,
+                "comparable_start": 60,
+                "comparable_end": 61,
+                "ownership": {
+                  "gap": "unmapped_changed_evidence"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 1,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 20,
+                "canonical_start": 0,
+                "canonical_end": 41,
+                "comparable_start": 0,
+                "comparable_end": 41,
+                "ownership": {
+                  "gap": "no_trusted_run"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 2,
+                  "bbox": null
+                }
+              },
+              {
+                "block_id": 85,
+                "canonical_start": 0,
+                "canonical_end": 2,
+                "comparable_start": 0,
+                "comparable_end": 2,
+                "ownership": {
+                  "leaf": "sentence_body"
+                },
+                "trusted": true,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": 9,
+                  "ordinal_start": 0,
+                  "ordinal_end": 1,
+                  "region_id": 1,
+                  "page": 5,
+                  "bbox": {
+                    "min": {
+                      "x": 90.0,
+                      "y": 731.8316346
+                    },
+                    "max": {
+                      "x": 98.78837069366455,
+                      "y": 741.5189154
+                    }
+                  }
+                }
+              },
+              {
+                "block_id": 15714,
+                "canonical_start": 0,
+                "canonical_end": 10,
+                "comparable_start": 0,
+                "comparable_end": 10,
+                "ownership": {
+                  "leaf": "line_body"
+                },
+                "trusted": false,
+                "role": "body",
+                "context": {
+                  "trusted_run_id": null,
+                  "ordinal_start": null,
+                  "ordinal_end": null,
+                  "region_id": null,
+                  "page": 705,
+                  "bbox": null
+                }
+              }
+            ]
+          }
+        },
+        "structural_container_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "old": {
+            "documents": 1,
+            "sections": 173,
+            "paragraphs": 5828,
+            "heading_candidates": 1274,
+            "accepted_headings": 173,
+            "rejected_unsafe": 10518,
+            "rejected_not_single_line": 0,
+            "rejected_without_numbering": 207,
+            "rejected_not_font_prominent": 894,
+            "block_visits": 16519,
+            "range_visits": 51560,
+            "token_visits": 1756852,
+            "font_evidence_visits": 99469,
+            "max_section_depth": 1
+          },
+          "new": {
+            "documents": 1,
+            "sections": 171,
+            "paragraphs": 5863,
+            "heading_candidates": 1279,
+            "accepted_headings": 171,
+            "rejected_unsafe": 10529,
+            "rejected_not_single_line": 0,
+            "rejected_without_numbering": 207,
+            "rejected_not_font_prominent": 901,
+            "block_visits": 16563,
+            "range_visits": 51620,
+            "token_visits": 1760239,
+            "font_evidence_visits": 102055,
+            "max_section_depth": 1
+          }
+        },
+        "section_pairing_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "old_sections": 1681,
+          "new_sections": 1686,
+          "old_paragraphs": 1616,
+          "new_paragraphs": 1621,
+          "old_strong_paragraph_memberships": 1346,
+          "new_strong_paragraph_memberships": 1347,
+          "old_number_only_paragraph_memberships": 1616,
+          "new_number_only_paragraph_memberships": 1621,
+          "match_spans_examined": 11167,
+          "ambiguous_span_vetoes": 0,
+          "exact_heading_pairs": 614,
+          "stripped_heading_pairs": 0,
+          "strong_heading_pairs": 423,
+          "number_only_section_pairs": 191,
+          "parent_consistent_pairs": 418,
+          "parent_changed_pairs": 0,
+          "parent_unknown_pairs": 5,
+          "number_only_parent_consistent": 191,
+          "number_only_parent_changed": 0,
+          "number_only_parent_unknown": 0,
+          "monotone_pairs": 196,
+          "crossing_pairs": 0,
+          "topology_unknown_pairs": 227,
+          "strong_paragraph_anchor_pairs": 1285,
+          "number_only_paragraph_anchor_pairs": 214,
+          "paragraph_pair_visits_attempted": 52993,
+          "paragraph_pair_visits_examined": 52993,
+          "paragraph_token_comparisons_attempted": 239179,
+          "paragraph_token_comparisons_examined": 239179,
+          "paragraph_anchor_crossing_vetoes": 0,
+          "insertion_gaps": 3,
+          "deletion_gaps": 1,
+          "one_to_one_gaps": 35,
+          "many_to_many_gaps": 1,
+          "changed_one_to_one_gaps": 26,
+          "changed_one_to_one_same_unresolved_span": 26,
+          "number_only_insertion_gaps": 0,
+          "number_only_deletion_gaps": 0,
+          "number_only_one_to_one_gaps": 13,
+          "number_only_many_to_many_gaps": 0,
+          "number_only_changed_one_to_one_gaps": 0,
+          "number_only_changed_one_to_one_same_unresolved_span": 0
+        },
+        "exact_range_parent_outcome": {
+          "status": "complete",
+          "metrics": {
+            "old_candidates": 8041,
+            "new_candidates": 8195,
+            "accepted_candidates": 1334,
+            "gap_barriers": 91064,
+            "short_evidence_omitted": 11780,
+            "hash_matches": 4905,
+            "token_verified_matches": 4905,
+            "unique_pairs": 400,
+            "same_paired_parent": 25,
+            "changed_paired_parent": 0,
+            "parent_unknown": 0,
+            "overlap_vetoes": 375,
+            "nesting_vetoes": 237,
+            "token_comparisons": 551912
+          },
+          "samples": [
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 81,
+              "new_source_token_count": 81,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 9534,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9535,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9536,
+                  "comparable_start": 0,
+                  "comparable_end": 57,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 9567,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9568,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9569,
+                  "comparable_start": 0,
+                  "comparable_end": 57,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 9530,
+              "new_parent_heading_block": 9563,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 80,
+              "new_source_token_count": 80,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 19117,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19118,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19119,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19120,
+                  "comparable_start": 0,
+                  "comparable_end": 8,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19121,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19122,
+                  "comparable_start": 0,
+                  "comparable_end": 8,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19123,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19124,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 19160,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19161,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19162,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19163,
+                  "comparable_start": 0,
+                  "comparable_end": 8,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19164,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19165,
+                  "comparable_start": 0,
+                  "comparable_end": 8,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19166,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19167,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 19103,
+              "new_parent_heading_block": 19146,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 71,
+              "new_source_token_count": 71,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 9871,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9872,
+                  "comparable_start": 0,
+                  "comparable_end": 51,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9873,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 9904,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9905,
+                  "comparable_start": 0,
+                  "comparable_end": 51,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 9906,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 9869,
+              "new_parent_heading_block": 9902,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 71,
+              "new_source_token_count": 71,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 14415,
+                  "comparable_start": 0,
+                  "comparable_end": 55,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 14416,
+                  "comparable_start": 0,
+                  "comparable_end": 16,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 14458,
+                  "comparable_start": 0,
+                  "comparable_end": 55,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 14459,
+                  "comparable_start": 0,
+                  "comparable_end": 16,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 14414,
+              "new_parent_heading_block": 14457,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 57,
+              "new_source_token_count": 57,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 21817,
+                  "comparable_start": 0,
+                  "comparable_end": 14,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 21818,
+                  "comparable_start": 0,
+                  "comparable_end": 43,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 21861,
+                  "comparable_start": 0,
+                  "comparable_end": 14,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 21862,
+                  "comparable_start": 0,
+                  "comparable_end": 43,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 21815,
+              "new_parent_heading_block": 21859,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 52,
+              "new_source_token_count": 52,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 19105,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19106,
+                  "comparable_start": 0,
+                  "comparable_end": 16,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19107,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19108,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19109,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19110,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19111,
+                  "comparable_start": 0,
+                  "comparable_end": 2,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19112,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 19148,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19149,
+                  "comparable_start": 0,
+                  "comparable_end": 16,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19150,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19151,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19152,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19153,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19154,
+                  "comparable_start": 0,
+                  "comparable_end": 2,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19155,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 19103,
+              "new_parent_heading_block": 19146,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 42,
+              "new_source_token_count": 42,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 22459,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22460,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22461,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22462,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22463,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22464,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22465,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22466,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 22503,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22504,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22505,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22506,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22507,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22508,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22509,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22510,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 22445,
+              "new_parent_heading_block": 22489,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 32,
+              "new_source_token_count": 32,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 15778,
+                  "comparable_start": 0,
+                  "comparable_end": 20,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15779,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15780,
+                  "comparable_start": 0,
+                  "comparable_end": 10,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15781,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 15821,
+                  "comparable_start": 0,
+                  "comparable_end": 20,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15822,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15823,
+                  "comparable_start": 0,
+                  "comparable_end": 10,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15824,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 15776,
+              "new_parent_heading_block": 15819,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 31,
+              "new_source_token_count": 31,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 22450,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22451,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22452,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22453,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22454,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22455,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22456,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22457,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 22494,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22495,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22496,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22497,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22498,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22499,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22500,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22501,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 22445,
+              "new_parent_heading_block": 22489,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 31,
+              "new_source_token_count": 31,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 23465,
+                  "comparable_start": 0,
+                  "comparable_end": 29,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 23466,
+                  "comparable_start": 0,
+                  "comparable_end": 2,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 23509,
+                  "comparable_start": 0,
+                  "comparable_end": 29,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 23510,
+                  "comparable_start": 0,
+                  "comparable_end": 2,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 23460,
+              "new_parent_heading_block": 23504,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 27,
+              "new_source_token_count": 27,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 22469,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22470,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22471,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22472,
+                  "comparable_start": 0,
+                  "comparable_end": 11,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22473,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22474,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22475,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22476,
+                  "comparable_start": 0,
+                  "comparable_end": 2,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 22513,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22514,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22515,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22516,
+                  "comparable_start": 0,
+                  "comparable_end": 11,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22517,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22518,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22519,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22520,
+                  "comparable_start": 0,
+                  "comparable_end": 2,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 22445,
+              "new_parent_heading_block": 22489,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 27,
+              "new_source_token_count": 27,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 19113,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19114,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19115,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19116,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 19156,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19157,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19158,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 19159,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 19103,
+              "new_parent_heading_block": 19146,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 26,
+              "new_source_token_count": 26,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 22486,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22487,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22488,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 22530,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22531,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22532,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 22445,
+              "new_parent_heading_block": 22489,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 25,
+              "new_source_token_count": 25,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 8108,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 8109,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 8141,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 8142,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 8101,
+              "new_parent_heading_block": 8134,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 24,
+              "new_source_token_count": 24,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 18800,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18801,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 18843,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18844,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 18776,
+              "new_parent_heading_block": 18819,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 24,
+              "new_source_token_count": 24,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 18865,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18866,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 18908,
+                  "comparable_start": 0,
+                  "comparable_end": 15,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18909,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 18776,
+              "new_parent_heading_block": 18819,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 23,
+              "new_source_token_count": 23,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 18758,
+                  "comparable_start": 0,
+                  "comparable_end": 14,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18759,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 18801,
+                  "comparable_start": 0,
+                  "comparable_end": 14,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18802,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 18742,
+              "new_parent_heading_block": 18785,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 23,
+              "new_source_token_count": 23,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 18761,
+                  "comparable_start": 0,
+                  "comparable_end": 14,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18762,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 18804,
+                  "comparable_start": 0,
+                  "comparable_end": 14,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18805,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 18742,
+              "new_parent_heading_block": 18785,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 22,
+              "new_source_token_count": 22,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 18806,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18807,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 18849,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18850,
+                  "comparable_start": 0,
+                  "comparable_end": 9,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 18776,
+              "new_parent_heading_block": 18819,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 21,
+              "new_source_token_count": 21,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 22477,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22478,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22479,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22480,
+                  "comparable_start": 0,
+                  "comparable_end": 3,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22481,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22482,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22483,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22484,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 22521,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22522,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22523,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22524,
+                  "comparable_start": 0,
+                  "comparable_end": 3,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22525,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22526,
+                  "comparable_start": 0,
+                  "comparable_end": 5,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22527,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22528,
+                  "comparable_start": 0,
+                  "comparable_end": 4,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 22445,
+              "new_parent_heading_block": 22489,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 21,
+              "new_source_token_count": 21,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 22654,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22655,
+                  "comparable_start": 0,
+                  "comparable_end": 3,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22656,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 22698,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22699,
+                  "comparable_start": 0,
+                  "comparable_end": 3,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 22700,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 22652,
+              "new_parent_heading_block": 22696,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 21,
+              "new_source_token_count": 21,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 15727,
+                  "comparable_start": 0,
+                  "comparable_end": 20,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15728,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 15770,
+                  "comparable_start": 0,
+                  "comparable_end": 20,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 15771,
+                  "comparable_start": 0,
+                  "comparable_end": 1,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 15725,
+              "new_parent_heading_block": 15768,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 21,
+              "new_source_token_count": 21,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 18809,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18810,
+                  "comparable_start": 0,
+                  "comparable_end": 8,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 18852,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18853,
+                  "comparable_start": 0,
+                  "comparable_end": 8,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 18776,
+              "new_parent_heading_block": 18819,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 19,
+              "new_source_token_count": 19,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 8104,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 8105,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 8137,
+                  "comparable_start": 0,
+                  "comparable_end": 6,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 8138,
+                  "comparable_start": 0,
+                  "comparable_end": 13,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 8101,
+              "new_parent_heading_block": 8134,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            },
+            {
+              "relation": "same_paired_parent",
+              "old_source_token_count": 19,
+              "new_source_token_count": 19,
+              "old_separator": "concatenate",
+              "new_separator": "concatenate",
+              "old_leaves": [
+                {
+                  "block": 18764,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18765,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "new_leaves": [
+                {
+                  "block": 18807,
+                  "comparable_start": 0,
+                  "comparable_end": 12,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                },
+                {
+                  "block": 18808,
+                  "comparable_start": 0,
+                  "comparable_end": 7,
+                  "ownership": {
+                    "kind": "leaf",
+                    "leaf": "trusted_run_residual"
+                  }
+                }
+              ],
+              "old_parent_heading_block": 18742,
+              "new_parent_heading_block": 18785,
+              "old_parent_heading_evidence": "exact",
+              "new_parent_heading_evidence": "exact",
+              "old_parent_confidence": "high",
+              "new_parent_confidence": "high"
+            }
+          ]
+        },
+        "old_trusted_run_source_tokens": 2279128,
+        "new_trusted_run_source_tokens": 2282469,
+        "structural_pairing_available": true,
+        "old_structural_descriptors": 3052,
+        "new_structural_descriptors": 3057,
+        "old_structural_eligible_descriptors": 2001,
+        "new_structural_eligible_descriptors": 2004,
+        "old_structural_mixed_descriptors": 1049,
+        "new_structural_mixed_descriptors": 1051,
+        "old_structural_split_descriptors": 2,
+        "new_structural_split_descriptors": 2,
+        "structural_shared_profiles": 7,
+        "structural_candidate_pairs": 3559063,
+        "structural_largest_posting": 1885,
+        "structural_duplicate_pairs": 3559060,
+        "structural_unique_reciprocal_pairs": 3,
+        "structural_unique_no_anchor_pairs": 2,
+        "structural_unique_monotone_anchor_pairs": 1,
+        "structural_unique_crossing_veto_pairs": 0,
+        "run_signature_available": true,
+        "run_signature_complete": true,
+        "old_run_signature_unique_units": 490,
+        "new_run_signature_unique_units": 493,
+        "old_run_signature_duplicate_units": 0,
+        "new_run_signature_duplicate_units": 0,
+        "run_signature_shared_unit_keys": 407,
+        "run_signature_largest_posting": 10,
+        "run_signature_posting_visits_attempted": 810,
+        "run_signature_posting_visits_examined": 810,
+        "run_signature_token_verifications_attempted": 50326,
+        "run_signature_token_verifications_examined": 50326,
+        "run_signature_candidate_pairs": 567,
+        "run_signature_globally_anchored_runs_skipped": 20,
+        "run_signature_reciprocal_unique_pairs": 151,
+        "run_signature_margin_qualified_pairs": 94,
+        "run_signature_margin_veto_pairs": 57,
+        "run_signature_monotone_pairs": 94,
+        "run_signature_crossing_veto_pairs": 0,
+        "run_signature_max_shared_units": 16,
+        "run_signature_stop_reason": null,
+        "exact_shared_units": 352,
+        "old_exact_one_sided_units": 13,
+        "new_exact_one_sided_units": 14,
+        "exact_tail_recovery_complete": true,
+        "exact_tail_recovery_stop_reason": null,
+        "exact_tail_old_units": 71,
+        "exact_tail_new_units": 69,
+        "exact_tail_census_units_examined": 44473,
+        "exact_tail_census_token_comparisons": 4801064,
+        "exact_tail_token_verification_comparisons": 236,
+        "exact_tail_conflicting_normal_units": 2,
+        "exact_tail_multiplicity_vetoed_candidates": 0,
+        "exact_tail_verification_vetoed_candidates": 0,
+        "exact_tail_candidates": 3,
+        "exact_tail_matches_committed": 3,
+        "trusted_residual_exact_complete": true,
+        "trusted_residual_exact_stop_reason": null,
+        "trusted_residual_exact_old_candidates": 1149,
+        "trusted_residual_exact_new_candidates": 1146,
+        "trusted_residual_exact_matches_selected": 727,
+        "paired_sequence_relation_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "qualified_edges": 3,
+          "intervals": 3,
+          "canonical_path_edges": 3,
+          "locally_vetoed_edges": 0,
+          "globally_forced_edges": 3,
+          "downstream_vetoed_forced_edges": 0,
+          "adoptable_forced_edges": 0,
+          "crossing_vetoes": 0,
+          "fragment_completion_vetoes": 0,
+          "exact_tail_conflict_vetoes": 0,
+          "external_competitor_vetoes": 0,
+          "path_margin_count": 3,
+          "path_margin_sum": 29599,
+          "path_margin_min": 9827,
+          "path_margin_max": 9908,
+          "veto_reasons": {
+            "tied_best": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "insufficient_margin": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "disqualifying_competitor": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "reciprocal_failure": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "crossing_relation": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            },
+            "fragment_completion": {
+              "old_candidate_units": 0,
+              "new_candidate_units": 0,
+              "old_source_tokens": 0,
+              "new_source_tokens": 0
+            }
+          }
+        },
+        "near_relation_complete": false,
+        "relation_floor_pairs_considered": 143938,
+        "relation_floor_word_scans": 137,
+        "relation_floor_stop_opportunities": 133,
+        "relation_floor_potential_saved_word_comparisons": 602,
+        "near_sentence_work": {
+          "edge_posting_visits_examined": 309583,
+          "edge_posting_visits_attempted": 309583,
+          "line_trigram_posting_visits_examined": 0,
+          "line_trigram_posting_visits_attempted": 0,
+          "edge_query_union_candidates": 298658,
+          "line_trigram_only_query_union_candidates": 0,
+          "filtered_candidates": 221358,
+          "pair_visits_examined": 221358,
+          "pair_visits_attempted": 221358,
+          "similarity_comparisons_examined": 715197,
+          "similarity_comparisons_attempted": 715197
+        },
+        "near_line_work": {
+          "edge_posting_visits_examined": 1178,
+          "edge_posting_visits_attempted": 1178,
+          "line_trigram_posting_visits_examined": 12230,
+          "line_trigram_posting_visits_attempted": 12230,
+          "edge_query_union_candidates": 1165,
+          "line_trigram_only_query_union_candidates": 0,
+          "filtered_candidates": 1151,
+          "pair_visits_examined": 1151,
+          "pair_visits_attempted": 1151,
+          "similarity_comparisons_examined": 132787,
+          "similarity_comparisons_attempted": 132787
+        },
+        "near_paired_interval_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 19,
+            "edge_posting_visits_attempted": 19,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 11,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 8,
+            "pair_visits_examined": 8,
+            "pair_visits_attempted": 8,
+            "similarity_comparisons_examined": 266,
+            "similarity_comparisons_attempted": 266
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_paired_cross_interval_veto_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 77,
+            "edge_posting_visits_attempted": 77,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 69,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 58,
+            "pair_visits_examined": 58,
+            "pair_visits_attempted": 58,
+            "similarity_comparisons_examined": 176,
+            "similarity_comparisons_attempted": 176
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_same_or_ambiguous_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 79376,
+            "edge_posting_visits_attempted": 79376,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 77298,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 77354,
+            "pair_visits_examined": 77354,
+            "pair_visits_attempted": 77354,
+            "similarity_comparisons_examined": 248561,
+            "similarity_comparisons_attempted": 248561
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 15,
+            "edge_posting_visits_attempted": 15,
+            "line_trigram_posting_visits_examined": 645,
+            "line_trigram_posting_visits_attempted": 645,
+            "edge_query_union_candidates": 13,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 12,
+            "pair_visits_examined": 12,
+            "pair_visits_attempted": 12,
+            "similarity_comparisons_examined": 1228,
+            "similarity_comparisons_attempted": 1228
+          }
+        },
+        "near_same_known_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 78,
+            "edge_posting_visits_attempted": 78,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 66,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 58,
+            "pair_visits_examined": 58,
+            "pair_visits_attempted": 58,
+            "similarity_comparisons_examined": 812,
+            "similarity_comparisons_attempted": 812
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 15,
+            "edge_posting_visits_attempted": 15,
+            "line_trigram_posting_visits_examined": 583,
+            "line_trigram_posting_visits_attempted": 583,
+            "edge_query_union_candidates": 13,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 12,
+            "pair_visits_examined": 12,
+            "pair_visits_attempted": 12,
+            "similarity_comparisons_examined": 1228,
+            "similarity_comparisons_attempted": 1228
+          }
+        },
+        "near_ambiguous_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 79298,
+            "edge_posting_visits_attempted": 79298,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 77232,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 77232,
+            "pair_visits_examined": 77232,
+            "pair_visits_attempted": 77232,
+            "similarity_comparisons_examined": 242798,
+            "similarity_comparisons_attempted": 242798
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_same_or_ambiguous_shared_query_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 64,
+            "pair_visits_examined": 64,
+            "pair_visits_attempted": 64,
+            "similarity_comparisons_examined": 4951,
+            "similarity_comparisons_attempted": 4951
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 0,
+            "edge_posting_visits_attempted": 0,
+            "line_trigram_posting_visits_examined": 62,
+            "line_trigram_posting_visits_attempted": 62,
+            "edge_query_union_candidates": 0,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 0,
+            "pair_visits_examined": 0,
+            "pair_visits_attempted": 0,
+            "similarity_comparisons_examined": 0,
+            "similarity_comparisons_attempted": 0
+          }
+        },
+        "near_cross_span_work": {
+          "sentence_work": {
+            "edge_posting_visits_examined": 230111,
+            "edge_posting_visits_attempted": 230111,
+            "line_trigram_posting_visits_examined": 0,
+            "line_trigram_posting_visits_attempted": 0,
+            "edge_query_union_candidates": 221280,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 143938,
+            "pair_visits_examined": 143938,
+            "pair_visits_attempted": 143938,
+            "similarity_comparisons_examined": 466194,
+            "similarity_comparisons_attempted": 466194
+          },
+          "line_work": {
+            "edge_posting_visits_examined": 1163,
+            "edge_posting_visits_attempted": 1163,
+            "line_trigram_posting_visits_examined": 11585,
+            "line_trigram_posting_visits_attempted": 11585,
+            "edge_query_union_candidates": 1152,
+            "line_trigram_only_query_union_candidates": 0,
+            "filtered_candidates": 1139,
+            "pair_visits_examined": 1139,
+            "pair_visits_attempted": 1139,
+            "similarity_comparisons_examined": 131559,
+            "similarity_comparisons_attempted": 131559
+          }
+        },
+        "known_span_sentence_shadow": {
+          "complete": true,
+          "pairs_considered": 221228,
+          "pairs_retained": 58,
+          "pairs_rejected": 221170,
+          "cross_span_pairs_considered": 143938,
+          "same_paired_anchor_interval_pairs": 0,
+          "same_paired_stream_other_interval_pairs": 0,
+          "same_page_only_pairs": 202,
+          "unclassified_pairs": 143736,
+          "old_relation_mismatches": 10,
+          "new_relation_mismatches": 11,
+          "best_partner_mismatches": 10,
+          "best_score_mismatches": 19,
+          "second_score_mismatches": 21,
+          "veto_mismatches": 0,
+          "unique_partner_mismatches": 12,
+          "reciprocal_pair_mismatches": 6,
+          "exact_relation_parity": false
+        },
+        "sentence_edge_gate_shadow": {
+          "complete": false,
+          "stop_reason": "candidate_count_limit",
+          "pairs_considered": 221294,
+          "pairs_retained": 1238,
+          "pairs_rejected": 220056,
+          "same_known_rejected": 56,
+          "ambiguous_rejected": 77229,
+          "cross_span_rejected": 142771,
+          "unclassified_rejected": 0,
+          "projected_pair_visits": 1238,
+          "projected_similarity_comparisons": 6934,
+          "rejected_max_production_score": 2954,
+          "threshold_violations": 0,
+          "veto_mismatches": 0,
+          "unique_partner_mismatches": 0,
+          "reciprocal_pair_mismatches": 0,
+          "adopted_replacement_mismatches": 0,
+          "insertion_deletion_veto_mismatches": 0
+        },
+        "sentence_edge_signature_shadow": {
+          "complete": false,
+          "stop_reason": "candidate_count_limit",
+          "index_posting_items_examined": 2560260,
+          "index_posting_items_attempted": 2560260,
+          "query_posting_visits_examined": 2165,
+          "query_posting_visits_attempted": 2165,
+          "pairs_considered": 221294,
+          "signature_candidates": 2074,
+          "projected_pairs_pruned": 219220,
+          "exact_edge_retained_pairs": 1238,
+          "verification_evaluable": false,
+          "retained_pair_misses": 0,
+          "signature_not_in_edge_union": 0,
+          "largest_signature_candidate_set": 242,
+          "paired_interval_pairs": 8,
+          "paired_cross_interval_pairs": 58,
+          "same_known_pairs": 58,
+          "ambiguous_pairs": 77232,
+          "cross_span_shared_pairs": 143938,
+          "parity_evaluable": false,
+          "plan_parity": false
+        },
+        "sentence_edge_signature_direct_shadow": {
+          "complete": false,
+          "stop_reason": "signature_index_estimated_byte_limit",
+          "signature_index_items_examined": 2560260,
+          "signature_index_items_attempted": 2560260,
+          "signature_query_visits_examined": 81,
+          "signature_query_visits_attempted": 81,
+          "signature_index_own_distinct_keys": 127718,
+          "signature_index_all_distinct_keys": 1598026,
+          "signature_index_distinct_keys_examined": 1725744,
+          "signature_index_distinct_keys_attempted": 1725744,
+          "signature_index_own_key_capacity": 134676,
+          "signature_index_all_key_capacity": 1888542,
+          "signature_index_own_posting_items": 144616,
+          "signature_index_all_posting_items": 2415644,
+          "signature_index_posting_capacity_items": 1924226,
+          "signature_index_largest_posting": 16802,
+          "signature_index_estimated_logical_bytes": 63952704,
+          "signature_index_estimated_logical_bytes_examined": 63952704,
+          "signature_index_estimated_logical_bytes_attempted": 77166416,
+          "signature_index_depth_1_posting_items": 144548,
+          "signature_index_depth_2_to_3_posting_items": 286176,
+          "signature_index_depth_4_plus_posting_items": 2129536,
+          "signature_queries": 35,
+          "signature_queries_attempted": 35,
+          "signature_depth_1_queries": 0,
+          "signature_depth_2_to_3_queries": 0,
+          "signature_depth_4_plus_queries": 35,
+          "signature_depth_1_candidate_union": 0,
+          "signature_depth_2_to_3_candidate_union": 0,
+          "signature_depth_4_plus_candidate_union": 56,
+          "direct_candidates": 56,
+          "signature_candidate_union_attempted": 56,
+          "paired_interval_candidates": 3,
+          "paired_cross_interval_candidates": 0,
+          "same_known_candidates": 7,
+          "ambiguous_candidates": 46,
+          "cross_span_candidates": 0,
+          "edge_filter_pairs_examined": 56,
+          "edge_filter_pairs_attempted": 56,
+          "edge_filter_comparisons_examined": 1355,
+          "edge_filter_comparisons_attempted": 1355,
+          "exact_edge_retained_pairs": 13,
+          "exact_edge_rechecks": 56,
+          "exact_edge_rechecks_attempted": 56,
+          "exact_edge_recheck_comparisons_examined": 1355,
+          "exact_edge_recheck_comparisons_attempted": 1355,
+          "exact_edge_rejected_pairs": 43,
+          "cross_orientation_only_candidates": 0,
+          "sentence_broad_edge_postings_examined": 0,
+          "sentence_broad_edge_postings_attempted": 0,
+          "downstream_candidate_postings_examined": 660,
+          "downstream_candidate_postings_attempted": 660,
+          "downstream_pair_visits_examined": 89,
+          "downstream_pair_visits_attempted": 89,
+          "downstream_similarity_comparisons_examined": 7112,
+          "downstream_similarity_comparisons_attempted": 7112,
+          "fragment_veto_pair_visits_examined": 424,
+          "fragment_veto_pair_visits_attempted": 424,
+          "fragment_veto_similarity_comparisons_examined": 0,
+          "fragment_veto_similarity_comparisons_attempted": 0,
+          "watch_probe_pairs_examined": 0,
+          "watch_probe_pairs_attempted": 0,
+          "watch_probe_similarity_comparisons_examined": 0,
+          "watch_probe_similarity_comparisons_attempted": 0,
+          "watch_probe_missing_signature_candidates": 0,
+          "watch_probe_invariant_violations": 0,
+          "watch_preservation_evaluable": false,
+          "watch_evidence_preserved": false,
+          "watch_preservation_mismatches": 0,
+          "watch_exact_parity_evaluable": false,
+          "watch_exact_parity": false,
+          "candidate_count_truncated": true,
+          "parity_evaluable": false,
+          "plan_parity": false,
+          "verification_evaluable": false,
+          "retained_pair_misses": 0,
+          "retained_pair_count_mismatches": 0,
+          "retained_pair_set_mismatches": 0,
+          "retained_pair_order_mismatches": 0
+        },
+        "sentence_edge_signature_direct_execution": "production_discarded",
+        "sentence_edge_signature_reference_oracle": null,
+        "local_fragment_shadow": {
+          "complete": false,
+          "stop_reason": "similarity_comparison_limit",
+          "work": {
+            "enumeration_examined": 381,
+            "enumeration_attempted": 381,
+            "signature_token_steps_examined": 2286,
+            "signature_token_steps_attempted": 2286,
+            "temporary_signature_keys_examined": 508,
+            "temporary_signature_keys_attempted": 508,
+            "postings_examined": 225,
+            "postings_attempted": 225,
+            "queries_examined": 1,
+            "queries_attempted": 1,
+            "posting_visits_examined": 45,
+            "posting_visits_attempted": 45,
+            "boundary_postings_examined": 458,
+            "boundary_postings_attempted": 458,
+            "boundary_queries_examined": 107,
+            "boundary_queries_attempted": 107,
+            "boundary_posting_visits_examined": 320,
+            "boundary_posting_visits_attempted": 320,
+            "parent_candidate_pairs_examined": 7,
+            "parent_candidate_pairs_attempted": 7,
+            "candidate_pairs_examined": 294,
+            "candidate_pairs_attempted": 294,
+            "comparisons_examined": 23647,
+            "comparisons_attempted": 23707,
+            "prefix_edge_comparisons_examined": 4610,
+            "prefix_edge_comparisons_attempted": 4610,
+            "suffix_edge_comparisons_examined": 3584,
+            "suffix_edge_comparisons_attempted": 3584,
+            "word_range_scan_comparisons_examined": 14798,
+            "word_range_scan_comparisons_attempted": 14858,
+            "word_merge_comparisons_examined": 655,
+            "word_merge_comparisons_attempted": 655,
+            "edge_gate_passed_pairs": 248,
+            "edge_gate_rejected_pairs": 46,
+            "length_aware_signature_necessary_pairs": 288,
+            "edit_work_examined": 0,
+            "edit_work_attempted": 0,
+            "output_examined": 0,
+            "output_attempted": 0
+          },
+          "min_tokens": 16,
+          "signature_depth": 3,
+          "old_eligible_parents": 0,
+          "new_eligible_parents": 0,
+          "old_prefix_fragments": 0,
+          "old_suffix_fragments": 0,
+          "new_prefix_fragments": 0,
+          "new_suffix_fragments": 0,
+          "index_posting_items": 0,
+          "queries": 0,
+          "posting_visits": 0,
+          "boundary_index_posting_items": 0,
+          "boundary_queries": 0,
+          "boundary_posting_visits": 0,
+          "parent_candidate_pairs": 0,
+          "candidate_pairs": 0,
+          "exact_edge_rechecks": 0,
+          "similarity_comparisons": 0,
+          "score_qualified_pairs": 0,
+          "exact_pairs": 0,
+          "nonexact_pairs": 0,
+          "old_unique_relations": 0,
+          "new_unique_relations": 0,
+          "reciprocal_pairs": 0,
+          "reciprocal_nonexact_pairs": 0,
+          "edit_distance_sampled_pairs": 0,
+          "edit_distance_available_pairs": 0,
+          "edit_distance_skipped_pairs": 0,
+          "best_sampled_nonexact_pair": null,
+          "best_sampled_prefix_nonexact_pair": null,
+          "best_sampled_suffix_nonexact_pair": null
+        },
+        "local_fragment_length_aware_shadow": {
+          "complete": false,
+          "stop_reason": "exact_recheck_comparison_limit",
+          "work": {
+            "enumeration_examined": 381,
+            "enumeration_attempted": 381,
+            "signature_token_steps_examined": 8406,
+            "signature_token_steps_attempted": 8406,
+            "posting_items_examined": 6019,
+            "posting_items_attempted": 6019,
+            "distinct_keys_examined": 3304,
+            "distinct_keys_attempted": 3304,
+            "estimated_bytes_examined": 323336,
+            "estimated_bytes_attempted": 323336,
+            "queries_examined": 633,
+            "queries_attempted": 633,
+            "posting_visits_examined": 4643,
+            "posting_visits_attempted": 4643,
+            "candidate_union_examined": 4262,
+            "candidate_union_attempted": 4262,
+            "exact_recheck_pairs_examined": 4256,
+            "exact_recheck_pairs_attempted": 4256,
+            "exact_recheck_comparisons_examined": 189184,
+            "exact_recheck_comparisons_attempted": 189185
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "max_own_depth": 0,
+          "fixed_distinct_keys": 0,
+          "own_distinct_keys": 0,
+          "all_distinct_keys": 0,
+          "parent_distinct_keys": 0,
+          "fixed_posting_items": 0,
+          "own_posting_items": 0,
+          "all_posting_items": 0,
+          "parent_posting_items": 0,
+          "fixed_key_capacity": 0,
+          "own_key_capacity": 0,
+          "all_key_capacity": 0,
+          "parent_key_capacity": 0,
+          "posting_capacity_items": 0,
+          "fragment_capacity_items": 0,
+          "signature_capacity_items": 0,
+          "peak_temporary_capacity_items": 0,
+          "estimated_logical_bytes": 0,
+          "estimated_capacity_bytes": 0,
+          "largest_posting": 0,
+          "depth_1_fragments": 0,
+          "depth_2_to_3_fragments": 0,
+          "depth_4_plus_fragments": 0,
+          "depth_1_posting_items": 0,
+          "depth_2_to_3_posting_items": 0,
+          "depth_4_plus_posting_items": 0,
+          "depth_1_queries": 0,
+          "depth_2_to_3_queries": 0,
+          "depth_4_plus_queries": 0,
+          "depth_1_candidate_union": 0,
+          "depth_2_to_3_candidate_union": 0,
+          "depth_4_plus_candidate_union": 0,
+          "fixed_pre_recheck_candidates": 0,
+          "length_aware_pre_recheck_candidates": 0,
+          "fixed_exact_retained_pairs": 0,
+          "length_aware_exact_retained_pairs": 0,
+          "missing_retained_pairs": 0,
+          "extra_retained_pairs": 0,
+          "order_mismatches": 0,
+          "compared_queries": 0
+        },
+        "local_fragment_global_length_aware_shadow": {
+          "complete": false,
+          "stop_reason": "exact_recheck_comparison_limit",
+          "work": {
+            "enumeration_examined": 381,
+            "enumeration_attempted": 381,
+            "signature_token_steps_examined": 8406,
+            "signature_token_steps_attempted": 8406,
+            "posting_items_examined": 6019,
+            "posting_items_attempted": 6019,
+            "distinct_keys_examined": 3008,
+            "distinct_keys_attempted": 3008,
+            "estimated_bytes_examined": 284168,
+            "estimated_bytes_attempted": 284168,
+            "queries_examined": 106,
+            "queries_attempted": 106,
+            "posting_visits_examined": 4643,
+            "posting_visits_attempted": 4643,
+            "candidate_union_examined": 4262,
+            "candidate_union_attempted": 4262,
+            "exact_recheck_pairs_examined": 4256,
+            "exact_recheck_pairs_attempted": 4256,
+            "exact_recheck_comparisons_examined": 189184,
+            "exact_recheck_comparisons_attempted": 189185
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "max_own_depth": 0,
+          "old_fragments": 0,
+          "new_fragments": 0,
+          "fixed_distinct_keys": 0,
+          "own_distinct_keys": 0,
+          "all_distinct_keys": 0,
+          "parent_distinct_keys": 0,
+          "fixed_posting_items": 0,
+          "own_posting_items": 0,
+          "all_posting_items": 0,
+          "parent_posting_items": 0,
+          "fixed_key_capacity": 0,
+          "own_key_capacity": 0,
+          "all_key_capacity": 0,
+          "parent_key_capacity": 0,
+          "posting_capacity_items": 0,
+          "fragment_capacity_items": 0,
+          "signature_capacity_items": 0,
+          "peak_temporary_capacity_items": 0,
+          "estimated_logical_bytes": 0,
+          "estimated_capacity_bytes": 0,
+          "largest_posting": 0,
+          "projected_parent_scoped_queries": 0,
+          "parent_admission_queries": 0,
+          "global_queries": 0,
+          "raw_signature_hits": 0,
+          "parent_admissible_hits": 0,
+          "parent_rejected_hits": 0,
+          "duplicate_candidate_occurrences": 0,
+          "fixed_pre_recheck_candidates": 0,
+          "length_aware_pre_recheck_candidates": 0,
+          "missing_pre_recheck_candidates": 0,
+          "extra_pre_recheck_candidates": 0,
+          "pre_recheck_order_mismatches": 0,
+          "fixed_exact_retained_pairs": 0,
+          "length_aware_exact_retained_pairs": 0,
+          "missing_retained_pairs": 0,
+          "extra_retained_pairs": 0,
+          "order_mismatches": 0,
+          "compared_queries": 0,
+          "parent_scoped_parity_available": false,
+          "fixed_pre_recheck_fingerprint_mismatches": 0,
+          "length_aware_pre_recheck_fingerprint_mismatches": 0,
+          "fixed_retained_fingerprint_mismatches": 0,
+          "length_aware_retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_recheck_reuse_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "work": {
+            "enumeration_examined": 381,
+            "enumeration_attempted": 381,
+            "signature_token_steps_examined": 8406,
+            "signature_token_steps_attempted": 8406,
+            "posting_items_examined": 6019,
+            "posting_items_attempted": 6019,
+            "distinct_keys_examined": 3008,
+            "distinct_keys_attempted": 3008,
+            "estimated_bytes_examined": 284168,
+            "estimated_bytes_attempted": 284168,
+            "queries_examined": 158,
+            "queries_attempted": 158,
+            "posting_visits_examined": 6230,
+            "posting_visits_attempted": 6230,
+            "candidate_union_examined": 5775,
+            "candidate_union_attempted": 5775,
+            "exact_recheck_pairs_examined": 2919,
+            "exact_recheck_pairs_attempted": 2919,
+            "exact_recheck_comparisons_examined": 52815,
+            "exact_recheck_comparisons_attempted": 52815
+          },
+          "work_attribution": {
+            "candidate_queries_collected": 148,
+            "recheck_queries_completed": 148,
+            "fixed_candidates_collected": 2919,
+            "length_aware_candidates_collected": 2856,
+            "shared_candidates_collected": 2856,
+            "fixed_only_candidates_collected": 63,
+            "length_aware_only_candidates_collected": 0,
+            "unique_candidates_collected": 2919,
+            "recheck_pairs_started": 2919,
+            "recheck_pairs_completed": 2919,
+            "accepted_pairs": 2661,
+            "rejected_pairs": 258,
+            "prefix_comparisons": 31741,
+            "suffix_comparisons": 21074,
+            "prefix_threshold_accepts": 1403,
+            "suffix_threshold_accepts": 1258,
+            "shared": {
+              "pairs_started": 2856,
+              "pairs_completed": 2856,
+              "accepted_pairs": 2661,
+              "rejected_pairs": 195,
+              "comparisons": 52334
+            },
+            "fixed_only": {
+              "pairs_started": 63,
+              "pairs_completed": 63,
+              "accepted_pairs": 0,
+              "rejected_pairs": 63,
+              "comparisons": 481
+            },
+            "length_aware_only": {
+              "pairs_started": 0,
+              "pairs_completed": 0,
+              "accepted_pairs": 0,
+              "rejected_pairs": 0,
+              "comparisons": 0
+            }
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 152,
+          "new_fragments": 229,
+          "parent_admission_queries": 10,
+          "global_queries": 148,
+          "fixed_pre_recheck_candidates": 2919,
+          "length_aware_pre_recheck_candidates": 2856,
+          "shared_pre_recheck_candidates": 2856,
+          "fixed_only_pre_recheck_candidates": 63,
+          "length_aware_only_pre_recheck_candidates": 0,
+          "unique_recheck_pairs": 2919,
+          "projected_duplicate_recheck_pairs": 5775,
+          "avoided_recheck_pairs": 2856,
+          "actual_recheck_comparisons": 52815,
+          "projected_duplicate_recheck_comparisons": 105149,
+          "avoided_recheck_comparisons": 52334,
+          "fixed_exact_retained_pairs": 2661,
+          "length_aware_exact_retained_pairs": 2661,
+          "missing_retained_pairs": 0,
+          "extra_retained_pairs": 0,
+          "order_mismatches": 0,
+          "compared_queries": 148,
+          "global_parity_available": false,
+          "fixed_pre_recheck_fingerprint_mismatches": 0,
+          "length_aware_pre_recheck_fingerprint_mismatches": 0,
+          "fixed_retained_fingerprint_mismatches": 0,
+          "length_aware_retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_length_aware_recheck_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "work": {
+            "enumeration_examined": 381,
+            "enumeration_attempted": 381,
+            "signature_token_steps_examined": 8406,
+            "signature_token_steps_attempted": 8406,
+            "posting_items_examined": 6019,
+            "posting_items_attempted": 6019,
+            "distinct_keys_examined": 3008,
+            "distinct_keys_attempted": 3008,
+            "estimated_bytes_examined": 284168,
+            "estimated_bytes_attempted": 284168,
+            "queries_examined": 158,
+            "queries_attempted": 158,
+            "posting_visits_examined": 6230,
+            "posting_visits_attempted": 6230,
+            "candidate_union_examined": 5775,
+            "candidate_union_attempted": 5775,
+            "exact_recheck_pairs_examined": 2856,
+            "exact_recheck_pairs_attempted": 2856,
+            "exact_recheck_comparisons_examined": 52334,
+            "exact_recheck_comparisons_attempted": 52334
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 152,
+          "new_fragments": 229,
+          "parent_admission_queries": 10,
+          "global_queries": 148,
+          "compared_queries": 148,
+          "pre_recheck_candidates": 2856,
+          "recheck_pairs": 2856,
+          "recheck_comparisons": 52334,
+          "retained_pairs": 2661,
+          "reuse_parity_available": true,
+          "length_aware_pre_recheck_fingerprint_mismatches": 0,
+          "fixed_retained_fingerprint_mismatches": 0,
+          "length_aware_retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_length_only_candidate_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "work": {
+            "enumeration_examined": 381,
+            "enumeration_attempted": 381,
+            "signature_token_steps_examined": 8406,
+            "signature_token_steps_attempted": 8406,
+            "posting_items_examined": 5561,
+            "posting_items_attempted": 5561,
+            "distinct_keys_examined": 2822,
+            "distinct_keys_attempted": 2822,
+            "estimated_bytes_examined": 271576,
+            "estimated_bytes_attempted": 271576,
+            "queries_examined": 158,
+            "queries_attempted": 158,
+            "posting_visits_examined": 3177,
+            "posting_visits_attempted": 3177,
+            "candidate_union_examined": 2856,
+            "candidate_union_attempted": 2856,
+            "exact_recheck_pairs_examined": 2856,
+            "exact_recheck_pairs_attempted": 2856,
+            "exact_recheck_comparisons_examined": 52334,
+            "exact_recheck_comparisons_attempted": 52334
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 152,
+          "new_fragments": 229,
+          "parent_admission_queries": 10,
+          "global_queries": 148,
+          "compared_queries": 148,
+          "pre_recheck_candidates": 2856,
+          "recheck_pairs": 2856,
+          "recheck_comparisons": 52334,
+          "retained_pairs": 2661,
+          "v47_parity_available": true,
+          "pre_recheck_candidate_count_mismatches": 0,
+          "recheck_pair_count_mismatches": 0,
+          "recheck_comparison_count_mismatches": 0,
+          "retained_pair_count_mismatches": 0,
+          "pre_recheck_fingerprint_mismatches": 0,
+          "retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_exact_boundary_trie_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "work": {
+            "enumeration_examined": 381,
+            "enumeration_attempted": 381,
+            "signature_token_steps_examined": 16812,
+            "signature_token_steps_attempted": 16812,
+            "posting_items_examined": 5561,
+            "posting_items_attempted": 5561,
+            "distinct_keys_examined": 5394,
+            "distinct_keys_attempted": 5394,
+            "estimated_bytes_examined": 441712,
+            "estimated_bytes_attempted": 441712,
+            "queries_examined": 158,
+            "queries_attempted": 158,
+            "posting_visits_examined": 3177,
+            "posting_visits_attempted": 3177,
+            "candidate_union_examined": 2856,
+            "candidate_union_attempted": 2856,
+            "exact_recheck_pairs_examined": 2856,
+            "exact_recheck_pairs_attempted": 2856,
+            "exact_recheck_comparisons_examined": 25852,
+            "exact_recheck_comparisons_attempted": 25852
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 152,
+          "new_fragments": 229,
+          "parent_admission_queries": 10,
+          "global_queries": 148,
+          "compared_queries": 148,
+          "trie_nodes": 2573,
+          "trie_transitions": 2572,
+          "trie_token_steps": 8406,
+          "trie_distinct_keys": 2572,
+          "trie_estimated_bytes": 102888,
+          "trie_largest_fanout": 46,
+          "hash_candidates": 2856,
+          "exact_certified_candidates": 2856,
+          "hash_collision_only_candidates": 0,
+          "prefix_only_candidates": 1478,
+          "suffix_only_candidates": 1261,
+          "both_candidates": 117,
+          "certified_tokens_credited": 26482,
+          "recheck_pairs_started": 2856,
+          "recheck_pairs_completed": 2856,
+          "recheck_comparisons": 25852,
+          "projected_avoided_comparisons": 26482,
+          "retained_pairs": 2661,
+          "depth_1_candidates": 0,
+          "depth_2_to_3_candidates": 201,
+          "depth_4_plus_candidates": 2655,
+          "v48_parity_available": true,
+          "retained_count_mismatches": 0,
+          "retained_order_mismatches": 0,
+          "retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_flat_exact_boundary_shadow": {
+          "complete": true,
+          "stop_reason": null,
+          "work": {
+            "common": {
+              "enumeration_examined": 381,
+              "enumeration_attempted": 381,
+              "signature_token_steps_examined": 16450,
+              "signature_token_steps_attempted": 16450,
+              "posting_items_examined": 225,
+              "posting_items_attempted": 225,
+              "distinct_keys_examined": 184,
+              "distinct_keys_attempted": 184,
+              "estimated_bytes_examined": 201968,
+              "estimated_bytes_attempted": 201968,
+              "queries_examined": 158,
+              "queries_attempted": 158,
+              "posting_visits_examined": 204,
+              "posting_visits_attempted": 204,
+              "candidate_union_examined": 2661,
+              "candidate_union_attempted": 2661,
+              "exact_recheck_pairs_examined": 2661,
+              "exact_recheck_pairs_attempted": 2661,
+              "exact_recheck_comparisons_examined": 0,
+              "exact_recheck_comparisons_attempted": 0
+            },
+            "offset_items_examined": 382,
+            "offset_items_attempted": 382,
+            "class_slots_examined": 16450,
+            "class_slots_attempted": 16450,
+            "radix_records_examined": 16450,
+            "radix_records_attempted": 16450,
+            "active_fragment_visits_examined": 8604,
+            "active_fragment_visits_attempted": 8604,
+            "radix_work_examined": 493500,
+            "radix_work_attempted": 493500,
+            "class_ids_examined": 16450,
+            "class_ids_attempted": 16450,
+            "exact_rank_comparisons_examined": 12663,
+            "exact_rank_comparisons_attempted": 12663,
+            "exact_join_postings_examined": 16450,
+            "exact_join_postings_attempted": 16450,
+            "exact_join_intersections_examined": 9362,
+            "exact_join_intersections_attempted": 9362,
+            "exact_join_admissions_examined": 5316,
+            "exact_join_admissions_attempted": 5316,
+            "exact_join_sort_items_examined": 5316,
+            "exact_join_sort_items_attempted": 5316,
+            "exact_join_estimated_bytes_examined": 678512,
+            "exact_join_estimated_bytes_attempted": 678512
+          },
+          "min_tokens": 16,
+          "fixed_depth": 3,
+          "old_fragments": 152,
+          "new_fragments": 229,
+          "parent_admission_queries": 10,
+          "global_queries": 148,
+          "compared_queries": 148,
+          "offset_items": 382,
+          "class_slots": 16450,
+          "class_storage_bytes": 67328,
+          "radix_scratch_bytes": 21336,
+          "max_depth": 57,
+          "peak_radix_records": 381,
+          "radix_passes": 1710,
+          "radix_work": 493500,
+          "active_fragment_visits": 8604,
+          "prefix_distinct_classes": 2780,
+          "suffix_distinct_classes": 2928,
+          "hash_candidates": 2661,
+          "exact_certified_candidates": 2661,
+          "hash_collision_only_candidates": 0,
+          "prefix_only_candidates": 1301,
+          "suffix_only_candidates": 1243,
+          "both_candidates": 117,
+          "certified_tokens_credited": 24875,
+          "recheck_pairs_started": 2661,
+          "recheck_pairs_completed": 2661,
+          "recheck_comparisons": 0,
+          "rank_comparisons": 12663,
+          "projected_avoided_comparisons": 49716,
+          "retained_pairs": 2661,
+          "depth_1_candidates": 0,
+          "depth_2_to_3_candidates": 198,
+          "depth_4_plus_candidates": 2463,
+          "v49_parity_available": true,
+          "hash_candidate_count_mismatches": 1,
+          "exact_certified_count_mismatches": 1,
+          "hash_collision_count_mismatches": 0,
+          "orientation_count_mismatches": 1,
+          "recheck_comparison_mismatches": 1,
+          "avoided_comparison_mismatches": 1,
+          "credited_token_mismatches": 1,
+          "retained_count_mismatches": 0,
+          "retained_order_mismatches": 0,
+          "recheck_pair_count_mismatches": 1,
+          "certification_fingerprint_mismatches": 1,
+          "retained_fingerprint_mismatches": 0
+        },
+        "local_fragment_proposal_complete": true,
+        "local_fragment_proposal_stop_reason": null,
+        "local_fragment_proposals_considered": 0,
+        "local_fragment_proposals_committed": 0,
+        "sentence_edge_filter_complete": true,
+        "sentence_edge_filter_pairs_examined": 56,
+        "sentence_edge_filter_pairs_attempted": 56,
+        "sentence_edge_filter_similarity_comparisons_examined": 1355,
+        "sentence_edge_filter_similarity_comparisons_attempted": 1355,
+        "sentence_edge_filter_pairs_retained": 13,
+        "sentence_edge_filter_pairs_rejected": 43,
+        "sentence_edge_filter_stop_reason": null,
+        "sentence_edge_filter_full_build_fallback_used": true,
+        "sentence_edge_filter_discarded_near_pair_visits_examined": 89,
+        "sentence_edge_filter_discarded_near_pair_visits_attempted": 89,
+        "sentence_edge_filter_discarded_near_similarity_comparisons_examined": 7112,
+        "sentence_edge_filter_discarded_near_similarity_comparisons_attempted": 7112,
+        "sentence_edge_filter_discarded_near_candidate_posting_visits_examined": 660,
+        "sentence_edge_filter_discarded_near_candidate_posting_visits_attempted": 660,
+        "near_pair_visits_examined": 222509,
+        "near_pair_visits_attempted": 222509,
+        "near_similarity_comparisons_examined": 847984,
+        "near_similarity_comparisons_attempted": 847984,
+        "near_candidate_posting_visits_examined": 322991,
+        "near_candidate_posting_visits_attempted": 322991,
+        "near_largest_edge_posting": 16939,
+        "near_largest_edge_query_union": 17011,
+        "near_largest_filtered_candidate_set": 11114,
+        "near_candidate_count_truncated": true,
+        "near_relation_stop_reason": "candidate_count_limit",
+        "near_pair_candidates": 58,
+        "vetoed_near_pairs": 54,
+        "recovered_exact_match_old_tokens": 101609,
+        "recovered_exact_match_new_tokens": 101609,
+        "recovered_replacement_old_tokens": 302,
+        "recovered_replacement_new_tokens": 302,
+        "recovered_deletion_tokens": 122,
+        "recovered_insertion_tokens": 122,
+        "unresolved_remainder_old_source_tokens": 369496,
+        "unresolved_remainder_new_source_tokens": 369509,
+        "remainder_attribution_complete": false,
+        "remainder_attribution_stop_reason": "analysis_incomplete",
+        "remainder_attribution": null
+      },
+      "quality": null,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "reviewed_recall_metrics": null,
+      "candidate_recall": null,
+      "expected_change_diagnostics": null
+    }
+  ]
+}

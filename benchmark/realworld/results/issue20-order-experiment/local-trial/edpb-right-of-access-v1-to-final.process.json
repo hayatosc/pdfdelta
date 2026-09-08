@@ -1,0 +1,21 @@
+{
+  "pair": "edpb-right-of-access-v1-to-final",
+  "set": "dev",
+  "annotation": "partial",
+  "tuning_use": "used_for_fix",
+  "seconds": 257.193,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "edpb-right-of-access-v1-to-final",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/edpb-right-of-access-v1-to-final.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/edpb-right-of-access-v1-to-final.summary.json"
+  ],
+  "exit_code": 0
+}

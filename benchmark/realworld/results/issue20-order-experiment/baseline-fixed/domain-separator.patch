@@ -1,0 +1,72 @@
+diff --git a/crates/pdfdelta-core/src/diff/assessment.rs b/crates/pdfdelta-core/src/diff/assessment.rs
+index b3a8ef2..4846494 100644
+--- a/crates/pdfdelta-core/src/diff/assessment.rs
++++ b/crates/pdfdelta-core/src/diff/assessment.rs
+@@ -1182,6 +1182,40 @@ fn domain_group(side: &Side<'_>, range: Range<usize>, separator: BlockSeparator)
+     side.canonical_group(&blocks, (blocks.len() > 1).then_some(separator))
+ }
+ 
++fn domain_separator(
++    separator: Option<BlockSeparator>,
++    proposal: Range<usize>,
++    domain: Range<usize>,
++) -> BlockSeparator {
++    let separator = separator.unwrap_or(BlockSeparator::Space);
++    // A mixed pattern names the two boundaries of its original group. It
++    // cannot describe a wider or shifted proof domain. Use the ordinary
++    // domain spacing model; localization still checks the proposal's own
++    // pattern and rejects an incompatible correspondence.
++    if matches!(separator, BlockSeparator::PerBoundary(_)) && proposal != domain {
++        BlockSeparator::Space
++    } else {
++        separator
++    }
++}
++
++#[cfg(test)]
++mod separator_tests {
++    use super::{BlockSeparator, domain_separator};
++
++    #[test]
++    fn mixed_separators_remain_bound_to_their_original_group() {
++        let mixed = Some(BlockSeparator::PerBoundary([false, true]));
++        assert_eq!(domain_separator(mixed, 2..5, 2..5), mixed.unwrap());
++        assert_eq!(domain_separator(mixed, 2..5, 0..6), BlockSeparator::Space);
++        assert_eq!(domain_separator(mixed, 2..5, 1..4), BlockSeparator::Space);
++        assert_eq!(
++            domain_separator(Some(BlockSeparator::Concatenate), 2..5, 0..6),
++            BlockSeparator::Concatenate,
++        );
++    }
++}
++
+ fn proof_groups(sides: [&Side<'_>; 2], key: &DomainKey) -> Result<[GroupText; 2]> {
+     let Some((old, new)) = &key.local else {
+         return Ok([
+@@ -2439,16 +2473,16 @@ impl<'a, 'document> Assessor<'a, 'document> {
+             local: None,
+             old: starts[0]..ends[0],
+             new: starts[1]..ends[1],
+-            old_separator: proposal
+-                .old
+-                .as_ref()
+-                .and_then(|span| span.separator)
+-                .unwrap_or(BlockSeparator::Space),
+-            new_separator: proposal
+-                .new
+-                .as_ref()
+-                .and_then(|span| span.separator)
+-                .unwrap_or(BlockSeparator::Space),
++            old_separator: domain_separator(
++                proposal.old.as_ref().and_then(|span| span.separator),
++                old,
++                starts[0]..ends[0],
++            ),
++            new_separator: domain_separator(
++                proposal.new.as_ref().and_then(|span| span.separator),
++                new,
++                starts[1]..ends[1],
++            ),
+         })
+     }
+ 

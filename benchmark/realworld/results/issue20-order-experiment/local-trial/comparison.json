@@ -1,0 +1,1936 @@
+{
+  "pairs": 29,
+  "source_expectations": 40,
+  "baseline_status_counts": {
+    "ok": 11,
+    "limit": 9,
+    "unsupported": 8,
+    "unresolved": 1
+  },
+  "trial_status_counts": {
+    "ok": 10,
+    "limit": 10,
+    "unsupported": 8,
+    "unresolved": 1
+  },
+  "expectation_transitions": {
+    "still_unmatched": 37,
+    "retained_match": 2,
+    "unmeasurable": 1
+  },
+  "status_changes": [
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "baseline": "ok",
+      "trial": "limit"
+    }
+  ],
+  "scoped_fp_tokens": {
+    "baseline": 2,
+    "trial": 2
+  },
+  "records": [
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "nist-fips-186-4-to-5",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 129.261,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "nist-fips-186-4-to-5",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-fips-186-4-to-5.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-fips-186-4-to-5.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 7,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 317,
+        "candidate_changes": 1132,
+        "coverage_comparison": 0.21239268719809482,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 261
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 7,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 461,
+        "candidate_changes": 1091,
+        "coverage_comparison": 0.21464361120239858,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 376
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "nist-sp800-57-part1-r4-to-r5",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 741.004,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "nist-sp800-57-part1-r4-to-r5",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-sp800-57-part1-r4-to-r5.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-sp800-57-part1-r4-to-r5.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 1,
+        "expected": 8,
+        "scoped_fp_tokens": 2,
+        "accepted_changes": 934,
+        "candidate_changes": 2324,
+        "coverage_comparison": 0.30554220581048497,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 639
+      },
+      "trial": {
+        "matched": 1,
+        "expected": 8,
+        "scoped_fp_tokens": 2,
+        "accepted_changes": 1299,
+        "candidate_changes": 2215,
+        "coverage_comparison": 0.3084622513145274,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 859
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "irs-form-1040-2024-to-2025",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 0.466,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "irs-form-1040-2024-to-2025",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/irs-form-1040-2024-to-2025.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/irs-form-1040-2024-to-2025.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 5,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 3,
+        "candidate_changes": 39,
+        "coverage_comparison": 0.23071514664523904,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 3
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 5,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 4,
+        "candidate_changes": 37,
+        "coverage_comparison": 0.23161912414624347,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 3
+      }
+    },
+    {
+      "pair": "nist-sp800-171-r2-to-r3",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "nist-sp800-171-r2-to-r3",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 53.001,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "nist-sp800-171-r2-to-r3",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-sp800-171-r2-to-r3.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-sp800-171-r2-to-r3.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 2019,
+        "coverage_comparison": 0.010043236867543036,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 2019,
+        "coverage_comparison": 0.010043236867543036,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "edpb-right-of-access-v1-to-final",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 257.193,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "edpb-right-of-access-v1-to-final",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/edpb-right-of-access-v1-to-final.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/edpb-right-of-access-v1-to-final.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 4,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 346,
+        "candidate_changes": 698,
+        "coverage_comparison": 0.5206025416896892,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 238
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 4,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 461,
+        "candidate_changes": 644,
+        "coverage_comparison": 0.522518319912318,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 302
+      }
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "arxiv-attention-v6-to-v7",
+        "set": "dev",
+        "annotation": "scoped_complete",
+        "tuning_use": "used_for_fix",
+        "seconds": 9.59,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "arxiv-attention-v6-to-v7",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/arxiv-attention-v6-to-v7.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/arxiv-attention-v6-to-v7.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 1,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 0,
+        "candidate_changes": 2,
+        "coverage_comparison": 0.6200856464761119,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 0
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 1,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 0,
+        "candidate_changes": 2,
+        "coverage_comparison": 0.6200856464761119,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 0
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+        "set": "dev",
+        "annotation": "scoped_complete",
+        "tuning_use": "used_for_fix",
+        "seconds": 21.78,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "w3c-ws-policy-attach-20060927-to-20061102",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/w3c-ws-policy-attach-20060927-to-20061102.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/w3c-ws-policy-attach-20060927-to-20061102.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 1,
+        "expected": 4,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 125,
+        "candidate_changes": 143,
+        "coverage_comparison": 0.40867468882243996,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 0
+      },
+      "trial": {
+        "matched": 1,
+        "expected": 4,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 131,
+        "candidate_changes": 138,
+        "coverage_comparison": 0.4089023166302807,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 0
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "ecma-109-ed10-to-ed11",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 15.809,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "ecma-109-ed10-to-ed11",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/ecma-109-ed10-to-ed11.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/ecma-109-ed10-to-ed11.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 3,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 34,
+        "candidate_changes": 136,
+        "coverage_comparison": 0.6038165209193459,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 25
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 3,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 41,
+        "candidate_changes": 134,
+        "coverage_comparison": 0.6041253535320699,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 32
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "oasis-csaf-v2-cs01-to-csd02",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 629.976,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "oasis-csaf-v2-cs01-to-csd02",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-csaf-v2-cs01-to-csd02.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-csaf-v2-cs01-to-csd02.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 3,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 202,
+        "candidate_changes": 344,
+        "coverage_comparison": 0.5849096139503498,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 79
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 3,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 212,
+        "candidate_changes": 339,
+        "coverage_comparison": 0.5850658805980751,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 85
+      }
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "irs-w4-korean-2024-to-2025",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 0.466,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "irs-w4-korean-2024-to-2025",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/irs-w4-korean-2024-to-2025.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/irs-w4-korean-2024-to-2025.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 1,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 1,
+        "candidate_changes": 88,
+        "coverage_comparison": 0.15736245954692557,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 1
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 1,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 3,
+        "candidate_changes": 88,
+        "coverage_comparison": 0.1581715210355987,
+        "comparison_complete": false,
+        "quality_skipped_reason": null,
+        "unmatched_tiny_changes": 1
+      }
+    },
+    {
+      "pair": "hmrc-sa100-2023-to-2024",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "hmrc-sa100-2023-to-2024",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 0.164,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "hmrc-sa100-2023-to-2024",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/hmrc-sa100-2023-to-2024.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/hmrc-sa100-2023-to-2024.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 1,
+        "candidate_changes": 10,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 1,
+        "candidate_changes": 10,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "edpb-dark-patterns-v1-to-v2",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "ok",
+      "trial_status": "ok",
+      "trial_process": {
+        "pair": "edpb-dark-patterns-v1-to-v2",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 51.142,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "edpb-dark-patterns-v1-to-v2",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/edpb-dark-patterns-v1-to-v2.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/edpb-dark-patterns-v1-to-v2.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 459,
+        "candidate_changes": 325,
+        "coverage_comparison": 0.30375571458883893,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 524,
+        "candidate_changes": 322,
+        "coverage_comparison": 0.30483594066472486,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "ok",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "bis-operational-risk-2011-to-2021",
+        "set": "dev",
+        "annotation": "scoped_complete",
+        "tuning_use": "used_for_fix",
+        "seconds": 24.58,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "bis-operational-risk-2011-to-2021",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/bis-operational-risk-2011-to-2021.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/bis-operational-risk-2011-to-2021.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 70,
+        "candidate_changes": 420,
+        "coverage_comparison": 0.10723128148211389,
+        "comparison_complete": false,
+        "quality_skipped_reason": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 119,
+        "candidate_changes": 401,
+        "coverage_comparison": 0.10990637183755941,
+        "comparison_complete": false,
+        "quality_skipped_reason": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "oasis-odf-packages-v1-2-to-v1-3",
+      "split": "dev",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "oasis-odf-packages-v1-2-to-v1-3",
+        "set": "dev",
+        "annotation": "none",
+        "tuning_use": "used_for_fix",
+        "seconds": 0.465,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "oasis-odf-packages-v1-2-to-v1-3",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-odf-packages-v1-2-to-v1-3.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-odf-packages-v1-2-to-v1-3.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 10,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 10,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "qgis-pyqgis-en-328-to-334",
+      "split": "dev",
+      "annotated": false,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "qgis-pyqgis-en-328-to-334",
+        "set": "dev",
+        "annotation": "none",
+        "tuning_use": "used_for_fix",
+        "seconds": 14.583,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "qgis-pyqgis-en-328-to-334",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-pyqgis-en-328-to-334.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-pyqgis-en-328-to-334.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 30,
+        "candidate_changes": 95,
+        "coverage_comparison": 0.5333806390285374,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 30,
+        "candidate_changes": 95,
+        "coverage_comparison": 0.5333806390285374,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "jvms-se17-to-se21",
+      "split": "dev",
+      "annotated": false,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "jvms-se17-to-se21",
+        "set": "dev",
+        "annotation": "none",
+        "tuning_use": "used_for_fix",
+        "seconds": 42.031,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "jvms-se17-to-se21",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/jvms-se17-to-se21.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/jvms-se17-to-se21.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": null,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": null,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "bis-core-principles-2012-to-2024",
+      "split": "dev",
+      "annotated": false,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "bis-core-principles-2012-to-2024",
+        "set": "dev",
+        "annotation": "none",
+        "tuning_use": "used_for_fix",
+        "seconds": 57.793,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "bis-core-principles-2012-to-2024",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/bis-core-principles-2012-to-2024.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/bis-core-principles-2012-to-2024.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 7,
+        "candidate_changes": 1592,
+        "coverage_comparison": 0.029241356146362724,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 7,
+        "candidate_changes": 1592,
+        "coverage_comparison": 0.029241356146362724,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "oasis-mqtt-311-to-50",
+        "set": "dev",
+        "annotation": "scoped_complete",
+        "tuning_use": "used_for_fix",
+        "seconds": 410.569,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "oasis-mqtt-311-to-50",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-mqtt-311-to-50.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-mqtt-311-to-50.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 0,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 0,
+        "candidate_changes": 1889,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "unmatched_tiny_changes": 0
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 0,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 0,
+        "candidate_changes": 1889,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "unmatched_tiny_changes": 0
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "split": "dev",
+      "annotated": true,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "nist-csf-v1-1-to-v2-0",
+        "set": "dev",
+        "annotation": "partial",
+        "tuning_use": "used_for_fix",
+        "seconds": 28.191,
+        "timeout_seconds": 900,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "nist-csf-v1-1-to-v2-0",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-csf-v1-1-to-v2-0.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nist-csf-v1-1-to-v2-0.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": 0,
+        "expected": 3,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 6,
+        "candidate_changes": 869,
+        "coverage_comparison": 0.00490602763330036,
+        "comparison_complete": false,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "unmatched_tiny_changes": 1
+      },
+      "trial": {
+        "matched": 0,
+        "expected": 3,
+        "scoped_fp_tokens": 0,
+        "accepted_changes": 6,
+        "candidate_changes": 869,
+        "coverage_comparison": 0.00490602763330036,
+        "comparison_complete": false,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "unmatched_tiny_changes": 1
+      }
+    },
+    {
+      "pair": "kicad-getting-started-7-to-8",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "kicad-getting-started-7-to-8",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 0.365,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "kicad-getting-started-7-to-8",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/kicad-getting-started-7-to-8.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/kicad-getting-started-7-to-8.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 11,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 11,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "qgis-pyqgis-ja-328-to-334",
+      "split": "dev",
+      "annotated": false,
+      "baseline_status": "unresolved",
+      "trial_status": "unresolved",
+      "trial_process": {
+        "pair": "qgis-pyqgis-ja-328-to-334",
+        "set": "dev",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 0.164,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "qgis-pyqgis-ja-328-to-334",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-pyqgis-ja-328-to-334.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-pyqgis-ja-328-to-334.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "qgis-doc-guidelines-es-328-to-334",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "qgis-doc-guidelines-es-328-to-334",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 1.416,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "qgis-doc-guidelines-es-328-to-334",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-doc-guidelines-es-328-to-334.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-doc-guidelines-es-328-to-334.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 107,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 107,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "oecd-corporate-governance-2015-to-2023",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "oecd-corporate-governance-2015-to-2023",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 1.37,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "oecd-corporate-governance-2015-to-2023",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oecd-corporate-governance-2015-to-2023.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/oecd-corporate-governance-2015-to-2023.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "libreoffice-getting-started-74-to-75",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "libreoffice-getting-started-74-to-75",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 53.99,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "libreoffice-getting-started-74-to-75",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/libreoffice-getting-started-74-to-75.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/libreoffice-getting-started-74-to-75.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 1131,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 1131,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "gcc-13-3-to-13-4",
+      "split": "dev",
+      "annotated": false,
+      "baseline_status": "limit",
+      "trial_status": "limit",
+      "trial_process": {
+        "pair": "gcc-13-3-to-13-4",
+        "set": "dev",
+        "annotation": "none",
+        "tuning_use": "used_for_fix",
+        "seconds": 34.576,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "gcc-13-3-to-13-4",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/gcc-13-3-to-13-4.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/gcc-13-3-to-13-4.summary.json"
+        ],
+        "exit_code": 1
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 16,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 16,
+        "coverage_comparison": 0.0,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "khronos-data-format-1-3-to-1-4",
+      "split": "dev",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "khronos-data-format-1-3-to-1-4",
+        "set": "dev",
+        "annotation": "none",
+        "tuning_use": "used_for_fix",
+        "seconds": 18.27,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "khronos-data-format-1-3-to-1-4",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/khronos-data-format-1-3-to-1-4.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/khronos-data-format-1-3-to-1-4.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 757,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 757,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "postgresql-16-to-17",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "postgresql-16-to-17",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 2.521,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "postgresql-16-to-17",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/postgresql-16-to-17.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/postgresql-16-to-17.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 1,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 5.628,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "nasa-systems-engineering-handbook-rev1-to-rev2",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nasa-systems-engineering-handbook-rev1-to-rev2.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/nasa-systems-engineering-handbook-rev1-to-rev2.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 0,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    },
+    {
+      "pair": "unicode-standard-15-to-16",
+      "split": "holdout",
+      "annotated": false,
+      "baseline_status": "unsupported",
+      "trial_status": "unsupported",
+      "trial_process": {
+        "pair": "unicode-standard-15-to-16",
+        "set": "holdout",
+        "annotation": "none",
+        "tuning_use": "unused",
+        "seconds": 16.45,
+        "timeout_seconds": 180,
+        "command": [
+          "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+          "revisions",
+          "--cache-dir",
+          "benchmark/realworld/cache",
+          "--pair",
+          "unicode-standard-15-to-16",
+          "--evaluation-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/unicode-standard-15-to-16.evaluation.json",
+          "--summary-json-output",
+          "benchmark/realworld/results/issue20-order-experiment/local-trial/unicode-standard-15-to-16.summary.json"
+        ],
+        "exit_code": 0
+      },
+      "baseline": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 183,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      },
+      "trial": {
+        "matched": null,
+        "expected": null,
+        "scoped_fp_tokens": null,
+        "accepted_changes": 0,
+        "candidate_changes": 183,
+        "coverage_comparison": null,
+        "comparison_complete": false,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "unmatched_tiny_changes": null
+      }
+    }
+  ],
+  "expectations": [
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "dsa-specification-removed",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "dsa-specification-removed",
+        "reason": "reading_order_unresolved",
+        "side": "old"
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "edsa-added",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "edsa-added",
+        "reason": "reading_order_unresolved",
+        "side": "new"
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "dsa-legacy-verification-note",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "dsa-legacy-verification-note",
+        "reason": "reading_order_unresolved",
+        "side": "new"
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "deterministic-ecdsa-rfc6979",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "deterministic-ecdsa-rfc6979",
+        "reason": "reading_order_unresolved",
+        "side": "new"
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "security-level-glossary-note-removed",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "security-level-glossary-note-removed",
+        "reason": "reading_order_unresolved",
+        "side": "old"
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "domain-parameter-requirement-moved",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "domain-parameter-requirement-moved",
+        "reason": "reading_order_unresolved",
+        "side": "both"
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "per-message-secret-number-scope-generalized",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "per-message-secret-number-scope-generalized",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "footer-rev-branding-removed",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "footer-rev-branding-removed",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "keying-material-definition-added",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "keying-material-definition-added",
+        "reason": "reading_order_unresolved",
+        "side": "new"
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "toolkit-footnote-comma-removed",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "toolkit-footnote-comma-removed",
+        "reason": "reading_order_unresolved",
+        "side": "both"
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "cryptanalysis-review-window-added",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "cryptanalysis-review-window-added",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "toolkit-footnote-renumbered",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "toolkit-footnote-renumbered",
+        "reason": "reading_order_unresolved",
+        "side": "both"
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "standards-reference-comma-removed",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "standards-reference-comma-removed",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "approved-definition-comma-removed",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "approved-definition-comma-removed",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "association-definition-punctuation",
+      "baseline_matched": true,
+      "trial_matched": true,
+      "transition": "retained_match",
+      "failure": null
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "age-cutoff-1961-primary",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "age-cutoff-1961-primary",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "age-cutoff-1961-spouse",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "age-cutoff-1961-spouse",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "mfs-checkbox-restructured",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "mfs-checkbox-restructured",
+        "reason": "reading_order_unresolved",
+        "side": "old"
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "combat-zone-deceased-checkbox-added",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "combat-zone-deceased-checkbox-added",
+        "reason": "reading_order_unresolved",
+        "side": "new"
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "footer-form-year-stamp",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "footer-form-year-stamp",
+        "reason": "unit_segmentation_failure",
+        "side": "old"
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "consultation-watermark-removed",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "consultation-watermark-removed",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "completeness-of-copy-clarified",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "completeness-of-copy-clarified",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "exception-effect-qualified",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "exception-effect-qualified",
+        "reason": "reading_order_unresolved",
+        "side": "both"
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "rijkeboer-citation-reflow",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "rijkeboer-citation-reflow",
+        "reason": "reading_order_unresolved",
+        "side": "both"
+      }
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "expected_id": "arxiv-version-date-stamp",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": null
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "publication-date",
+      "baseline_matched": true,
+      "trial_matched": true,
+      "transition": "retained_match",
+      "failure": null
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "current-version-url",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": null
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "former-current-version-url",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": null
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "previous-version-url",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": null
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "expected_id": "edition-date",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "edition-date",
+        "reason": "reading_order_unresolved",
+        "side": "both"
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "expected_id": "copyright-year",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "copyright-year",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "expected_id": "copyright-notice-updated",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "copyright-notice-updated",
+        "reason": "reading_order_unresolved",
+        "side": "both"
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "expected_id": "publication-stage",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "publication-stage",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "expected_id": "publication-date",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "publication-date",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "expected_id": "cs01-url-moved-to-previous-stage",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "cs01-url-moved-to-previous-stage",
+        "reason": "alignment_span_mismatch"
+      }
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "expected_id": "form-year-footer",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "form-year-footer",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "expected_id": "change-management-scope-broadened",
+      "baseline_matched": null,
+      "trial_matched": null,
+      "transition": "unmeasurable",
+      "failure": null
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "expected_id": "all-sector-scope-emphasized",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "all-sector-scope-emphasized",
+        "reason": "alignment_or_candidate",
+        "diagnostic_limited": false
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "expected_id": "core-expanded-from-five-to-six-functions",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "core-expanded-from-five-to-six-functions",
+        "reason": "candidate_not_generated"
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "expected_id": "governance-and-supply-chain-emphasis-added",
+      "baseline_matched": false,
+      "trial_matched": false,
+      "transition": "still_unmatched",
+      "failure": {
+        "expected_id": "governance-and-supply-chain-emphasis-added",
+        "reason": "reading_order_unresolved",
+        "side": "new"
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "pair": "nist-sp800-57-part1-r4-to-r5",
+  "seconds": 84.0256889420125,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/compare_order_hypotheses_source_fixed",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/nist-sp800-57-part1-r4-to-r5-old.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/nist-sp800-57-part1-r4-to-r5-new.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/expected/nist-sp800-57-part1-r4-to-r5.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/nist-sp800-57-part1-r4-to-r5-old.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/nist-sp800-57-part1-r4-to-r5-new.json",
+    "--limit-scale",
+    "512.0"
+  ],
+  "exit_code": 0
+}

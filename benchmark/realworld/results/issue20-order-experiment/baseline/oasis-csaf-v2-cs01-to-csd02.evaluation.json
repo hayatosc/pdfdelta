@@ -1,0 +1,540 @@
+{
+  "schema_version": 3,
+  "records": [
+    {
+      "pair_id": "oasis-csaf-v2-cs01-to-csd02",
+      "document_series_id": "oasis-csaf-v2-cs01-to-csd02",
+      "derivation_group": "oasis-csaf-v2-cs01-to-csd02",
+      "producer_family": "unknown",
+      "producer_version": "unknown",
+      "split": "dev",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "coverage_old": 0.6832252523618078,
+      "coverage_new": 0.5849096139503498,
+      "coverage_comparison": 0.5849096139503498,
+      "unresolved_old_token_share": 0.31678719458308957,
+      "unresolved_new_token_share": 0.4150974890790922,
+      "accepted_changes": 202,
+      "candidate_changes": 344,
+      "formatting_only_changes": 1357,
+      "uncertain_changes": 0,
+      "unresolved_regions": 2001,
+      "unlocalized_changed_regions": 23,
+      "quality_skipped_reason": null,
+      "trial_runtime_ms": 453961,
+      "peak_memory_bytes": 665894912,
+      "limit_scale_used": 64.0,
+      "resolved_old_tokens": 164673,
+      "resolved_new_tokens": 164693,
+      "old_token_resolution": {
+        "total": 241023,
+        "same": 164060,
+        "changed": 613,
+        "unresolved": 76350
+      },
+      "new_token_resolution": {
+        "total": 281570,
+        "same": 164059,
+        "changed": 634,
+        "unresolved": 116877
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 2048000000,
+        "work_used": 1586256856,
+        "work_by_stage": {
+          "anchor_verification": 93797423,
+          "local_views": 1291363344,
+          "localization": 88761374,
+          "emission": 112334715
+        },
+        "candidates_truncated": false
+      },
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 3,
+        "reported_changes": 202,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.3333333333333333,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 79,
+        "unresolvable_reported_spans": 0
+      },
+      "candidate": {
+        "top_k": 32,
+        "annotated_counterparts": 3,
+        "evaluable_counterparts": 1,
+        "recalled_counterparts": 1,
+        "unavailable_counterparts": 2,
+        "recall_at_k": 1.0,
+        "candidate_groups": 344,
+        "candidate_tokens": 25349,
+        "precision": null,
+        "final_event": {
+          "expected_changes": 3,
+          "reported_changes": 344,
+          "matched_changes": 1,
+          "recall": 0.3333333333333333,
+          "precision": null
+        }
+      },
+      "proven": {
+        "reported_regions": 23,
+        "expected_regions": 3,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 23
+      },
+      "scoped_event": {
+        "reviewed_scope_count": 1,
+        "precision": 1.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 25,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "reviewed_recall": {
+        "content_presence_recall": 0.0,
+        "exact_localization_recall": 0.0,
+        "semantic_relation_recall": 0.0,
+        "move_recall": 0.0
+      }
+    }
+  ],
+  "document_totals": [
+    {
+      "group_id": "oasis-csaf-v2-cs01-to-csd02",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 453961,
+          "p50_ms": 453961,
+          "p95_ms": 453961,
+          "max_ms": 453961
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 665894912,
+          "p50_bytes": 665894912,
+          "p95_bytes": 665894912,
+          "max_bytes": 665894912
+        }
+      },
+      "accepted_changes": 202,
+      "candidate_changes": 344,
+      "formatting_only_changes": 1357,
+      "uncertain_changes": 0,
+      "unresolved_regions": 2001,
+      "unlocalized_changed_regions": 23,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 241023,
+        "same": 164060,
+        "changed": 613,
+        "unresolved": 76350
+      },
+      "new_token_resolution": {
+        "total": 281570,
+        "same": 164059,
+        "changed": 634,
+        "unresolved": 116877
+      },
+      "proven": {
+        "reported_regions": 23,
+        "expected_regions": 3,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 23
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 3,
+        "reported_changes": 202,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 3,
+        "candidate_evaluable_counterparts": 1,
+        "candidate_recalled_counterparts": 1,
+        "candidate_unavailable_counterparts": 2,
+        "candidate_groups": 344,
+        "candidate_tokens": 25349,
+        "candidate_precision": null,
+        "candidate_recall": 0.3333333333333333,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 3,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "series_totals": [
+    {
+      "group_id": "oasis-csaf-v2-cs01-to-csd02",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 453961,
+          "p50_ms": 453961,
+          "p95_ms": 453961,
+          "max_ms": 453961
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 665894912,
+          "p50_bytes": 665894912,
+          "p95_bytes": 665894912,
+          "max_bytes": 665894912
+        }
+      },
+      "accepted_changes": 202,
+      "candidate_changes": 344,
+      "formatting_only_changes": 1357,
+      "uncertain_changes": 0,
+      "unresolved_regions": 2001,
+      "unlocalized_changed_regions": 23,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 241023,
+        "same": 164060,
+        "changed": 613,
+        "unresolved": 76350
+      },
+      "new_token_resolution": {
+        "total": 281570,
+        "same": 164059,
+        "changed": 634,
+        "unresolved": 116877
+      },
+      "proven": {
+        "reported_regions": 23,
+        "expected_regions": 3,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 23
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 3,
+        "reported_changes": 202,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 3,
+        "candidate_evaluable_counterparts": 1,
+        "candidate_recalled_counterparts": 1,
+        "candidate_unavailable_counterparts": 2,
+        "candidate_groups": 344,
+        "candidate_tokens": 25349,
+        "candidate_precision": null,
+        "candidate_recall": 0.3333333333333333,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 3,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "producer_totals": [
+    {
+      "group_id": "unknown",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 453961,
+          "p50_ms": 453961,
+          "p95_ms": 453961,
+          "max_ms": 453961
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 665894912,
+          "p50_bytes": 665894912,
+          "p95_bytes": 665894912,
+          "max_bytes": 665894912
+        }
+      },
+      "accepted_changes": 202,
+      "candidate_changes": 344,
+      "formatting_only_changes": 1357,
+      "uncertain_changes": 0,
+      "unresolved_regions": 2001,
+      "unlocalized_changed_regions": 23,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 241023,
+        "same": 164060,
+        "changed": 613,
+        "unresolved": 76350
+      },
+      "new_token_resolution": {
+        "total": 281570,
+        "same": 164059,
+        "changed": 634,
+        "unresolved": 116877
+      },
+      "proven": {
+        "reported_regions": 23,
+        "expected_regions": 3,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 23
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 3,
+        "reported_changes": 202,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 3,
+        "candidate_evaluable_counterparts": 1,
+        "candidate_recalled_counterparts": 1,
+        "candidate_unavailable_counterparts": 2,
+        "candidate_groups": 344,
+        "candidate_tokens": 25349,
+        "candidate_precision": null,
+        "candidate_recall": 0.3333333333333333,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 3,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "split_totals": [
+    {
+      "group_id": "dev",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 453961,
+          "p50_ms": 453961,
+          "p95_ms": 453961,
+          "max_ms": 453961
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 665894912,
+          "p50_bytes": 665894912,
+          "p95_bytes": 665894912,
+          "max_bytes": 665894912
+        }
+      },
+      "accepted_changes": 202,
+      "candidate_changes": 344,
+      "formatting_only_changes": 1357,
+      "uncertain_changes": 0,
+      "unresolved_regions": 2001,
+      "unlocalized_changed_regions": 23,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 241023,
+        "same": 164060,
+        "changed": 613,
+        "unresolved": 76350
+      },
+      "new_token_resolution": {
+        "total": 281570,
+        "same": 164059,
+        "changed": 634,
+        "unresolved": 116877
+      },
+      "proven": {
+        "reported_regions": 23,
+        "expected_regions": 3,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 23
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 3,
+        "reported_changes": 202,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 3,
+        "candidate_evaluable_counterparts": 1,
+        "candidate_recalled_counterparts": 1,
+        "candidate_unavailable_counterparts": 2,
+        "candidate_groups": 344,
+        "candidate_tokens": 25349,
+        "candidate_precision": null,
+        "candidate_recall": 0.3333333333333333,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 3,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "totals": {
+    "group_id": "all",
+    "operational": {
+      "trials": 1,
+      "ok": 1,
+      "skipped": 0,
+      "unsupported": 0,
+      "unresolved": 0,
+      "limit": 0,
+      "fatal": 0,
+      "runtime": {
+        "samples": 1,
+        "min_ms": 453961,
+        "p50_ms": 453961,
+        "p95_ms": 453961,
+        "max_ms": 453961
+      },
+      "peak_memory": {
+        "samples": 1,
+        "min_bytes": 665894912,
+        "p50_bytes": 665894912,
+        "p95_bytes": 665894912,
+        "max_bytes": 665894912
+      }
+    },
+    "accepted_changes": 202,
+    "candidate_changes": 344,
+    "formatting_only_changes": 1357,
+    "uncertain_changes": 0,
+    "unresolved_regions": 2001,
+    "unlocalized_changed_regions": 23,
+    "quality_skip_reasons": {},
+    "old_token_resolution": {
+      "total": 241023,
+      "same": 164060,
+      "changed": 613,
+      "unresolved": 76350
+    },
+    "new_token_resolution": {
+      "total": 281570,
+      "same": 164059,
+      "changed": 634,
+      "unresolved": 116877
+    },
+    "proven": {
+      "reported_regions": 23,
+      "expected_regions": 3,
+      "matched_regions": 0,
+      "precision": null,
+      "recall": 0.0,
+      "unlocalized_regions": 23
+    },
+    "quality": {
+      "evaluable_trials": 1,
+      "complete_trials": 0,
+      "scoped_complete_trials": 0,
+      "partial_trials": 1,
+      "expected_changes": 3,
+      "reported_changes": 202,
+      "matched_changes": 0,
+      "kind_correct": 0,
+      "candidate_annotated_counterparts": 3,
+      "candidate_evaluable_counterparts": 1,
+      "candidate_recalled_counterparts": 1,
+      "candidate_unavailable_counterparts": 2,
+      "candidate_groups": 344,
+      "candidate_tokens": 25349,
+      "candidate_precision": null,
+      "candidate_recall": 0.3333333333333333,
+      "generator_candidate_recall_at_k": 1.0,
+      "candidate_event_expected_changes": 3,
+      "candidate_event_matched_changes": 1,
+      "precision": null,
+      "recall": 0.0,
+      "document_recall": null,
+      "kind_accuracy": null
+    }
+  },
+  "lineage_macro": {
+    "groups": 1,
+    "precision": null,
+    "recall": 0.0,
+    "document_recall": null,
+    "kind_accuracy": null,
+    "candidate_recall": 0.3333333333333333,
+    "generator_candidate_recall_at_k": 1.0
+  },
+  "producer_macro": {
+    "groups": 0,
+    "precision": null,
+    "recall": null,
+    "document_recall": null,
+    "kind_accuracy": null,
+    "candidate_recall": null,
+    "generator_candidate_recall_at_k": null
+  },
+  "baselines": []
+}

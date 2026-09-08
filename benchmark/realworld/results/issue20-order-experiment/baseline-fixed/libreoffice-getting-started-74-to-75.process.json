@@ -1,0 +1,21 @@
+{
+  "pair": "libreoffice-getting-started-74-to-75",
+  "set": "holdout",
+  "annotation": "none",
+  "tuning_use": "unused",
+  "seconds": 97.966,
+  "timeout_seconds": 180,
+  "command": [
+    "/tmp/pdfdelta-issue20-baseline/target-fixed/release/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "libreoffice-getting-started-74-to-75",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline-fixed/libreoffice-getting-started-74-to-75.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline-fixed/libreoffice-getting-started-74-to-75.summary.json"
+  ],
+  "exit_code": 1
+}

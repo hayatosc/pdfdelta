@@ -1,0 +1,540 @@
+{
+  "schema_version": 3,
+  "records": [
+    {
+      "pair_id": "edpb-right-of-access-v1-to-final",
+      "document_series_id": "edpb-right-of-access-v1-to-final",
+      "derivation_group": "edpb-right-of-access-v1-to-final",
+      "producer_family": "unknown",
+      "producer_version": "unknown",
+      "split": "dev",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "coverage_old": 0.5320717917759874,
+      "coverage_new": 0.5206025416896892,
+      "coverage_comparison": 0.5206025416896892,
+      "unresolved_old_token_share": 0.46792820822401265,
+      "unresolved_new_token_share": 0.4793974583103108,
+      "accepted_changes": 346,
+      "candidate_changes": 698,
+      "formatting_only_changes": 254,
+      "uncertain_changes": 0,
+      "unresolved_regions": 3039,
+      "unlocalized_changed_regions": 127,
+      "quality_skipped_reason": null,
+      "trial_runtime_ms": 171193,
+      "peak_memory_bytes": 716136448,
+      "limit_scale_used": 64.0,
+      "resolved_old_tokens": 114579,
+      "resolved_new_tokens": 114948,
+      "old_token_resolution": {
+        "total": 215345,
+        "same": 113893,
+        "changed": 686,
+        "unresolved": 100766
+      },
+      "new_token_resolution": {
+        "total": 220798,
+        "same": 113893,
+        "changed": 1055,
+        "unresolved": 105850
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 2048000000,
+        "work_used": 580711081,
+        "work_by_stage": {
+          "anchor_verification": 26167682,
+          "local_views": 413248709,
+          "localization": 8651975,
+          "emission": 132642715
+        },
+        "candidates_truncated": false
+      },
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 4,
+        "reported_changes": 346,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 238,
+        "unresolvable_reported_spans": 0
+      },
+      "candidate": {
+        "top_k": 32,
+        "annotated_counterparts": 2,
+        "evaluable_counterparts": 2,
+        "recalled_counterparts": 2,
+        "unavailable_counterparts": 0,
+        "recall_at_k": 1.0,
+        "candidate_groups": 690,
+        "candidate_tokens": 33677,
+        "precision": null,
+        "final_event": {
+          "expected_changes": 4,
+          "reported_changes": 698,
+          "matched_changes": 1,
+          "recall": 0.25,
+          "precision": null
+        }
+      },
+      "proven": {
+        "reported_regions": 127,
+        "expected_regions": 4,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 127
+      },
+      "scoped_event": {
+        "reviewed_scope_count": 1,
+        "precision": 1.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 10,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "reviewed_recall": {
+        "content_presence_recall": 0.3333333333333333,
+        "exact_localization_recall": 0.0,
+        "semantic_relation_recall": 0.0,
+        "move_recall": 0.0
+      }
+    }
+  ],
+  "document_totals": [
+    {
+      "group_id": "edpb-right-of-access-v1-to-final",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 171193,
+          "p50_ms": 171193,
+          "p95_ms": 171193,
+          "max_ms": 171193
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 716136448,
+          "p50_bytes": 716136448,
+          "p95_bytes": 716136448,
+          "max_bytes": 716136448
+        }
+      },
+      "accepted_changes": 346,
+      "candidate_changes": 698,
+      "formatting_only_changes": 254,
+      "uncertain_changes": 0,
+      "unresolved_regions": 3039,
+      "unlocalized_changed_regions": 127,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 215345,
+        "same": 113893,
+        "changed": 686,
+        "unresolved": 100766
+      },
+      "new_token_resolution": {
+        "total": 220798,
+        "same": 113893,
+        "changed": 1055,
+        "unresolved": 105850
+      },
+      "proven": {
+        "reported_regions": 127,
+        "expected_regions": 4,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 127
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 4,
+        "reported_changes": 346,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 2,
+        "candidate_evaluable_counterparts": 2,
+        "candidate_recalled_counterparts": 2,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 690,
+        "candidate_tokens": 33677,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 4,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "series_totals": [
+    {
+      "group_id": "edpb-right-of-access-v1-to-final",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 171193,
+          "p50_ms": 171193,
+          "p95_ms": 171193,
+          "max_ms": 171193
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 716136448,
+          "p50_bytes": 716136448,
+          "p95_bytes": 716136448,
+          "max_bytes": 716136448
+        }
+      },
+      "accepted_changes": 346,
+      "candidate_changes": 698,
+      "formatting_only_changes": 254,
+      "uncertain_changes": 0,
+      "unresolved_regions": 3039,
+      "unlocalized_changed_regions": 127,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 215345,
+        "same": 113893,
+        "changed": 686,
+        "unresolved": 100766
+      },
+      "new_token_resolution": {
+        "total": 220798,
+        "same": 113893,
+        "changed": 1055,
+        "unresolved": 105850
+      },
+      "proven": {
+        "reported_regions": 127,
+        "expected_regions": 4,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 127
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 4,
+        "reported_changes": 346,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 2,
+        "candidate_evaluable_counterparts": 2,
+        "candidate_recalled_counterparts": 2,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 690,
+        "candidate_tokens": 33677,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 4,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "producer_totals": [
+    {
+      "group_id": "unknown",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 171193,
+          "p50_ms": 171193,
+          "p95_ms": 171193,
+          "max_ms": 171193
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 716136448,
+          "p50_bytes": 716136448,
+          "p95_bytes": 716136448,
+          "max_bytes": 716136448
+        }
+      },
+      "accepted_changes": 346,
+      "candidate_changes": 698,
+      "formatting_only_changes": 254,
+      "uncertain_changes": 0,
+      "unresolved_regions": 3039,
+      "unlocalized_changed_regions": 127,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 215345,
+        "same": 113893,
+        "changed": 686,
+        "unresolved": 100766
+      },
+      "new_token_resolution": {
+        "total": 220798,
+        "same": 113893,
+        "changed": 1055,
+        "unresolved": 105850
+      },
+      "proven": {
+        "reported_regions": 127,
+        "expected_regions": 4,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 127
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 4,
+        "reported_changes": 346,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 2,
+        "candidate_evaluable_counterparts": 2,
+        "candidate_recalled_counterparts": 2,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 690,
+        "candidate_tokens": 33677,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 4,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "split_totals": [
+    {
+      "group_id": "dev",
+      "operational": {
+        "trials": 1,
+        "ok": 1,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 0,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 171193,
+          "p50_ms": 171193,
+          "p95_ms": 171193,
+          "max_ms": 171193
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 716136448,
+          "p50_bytes": 716136448,
+          "p95_bytes": 716136448,
+          "max_bytes": 716136448
+        }
+      },
+      "accepted_changes": 346,
+      "candidate_changes": 698,
+      "formatting_only_changes": 254,
+      "uncertain_changes": 0,
+      "unresolved_regions": 3039,
+      "unlocalized_changed_regions": 127,
+      "quality_skip_reasons": {},
+      "old_token_resolution": {
+        "total": 215345,
+        "same": 113893,
+        "changed": 686,
+        "unresolved": 100766
+      },
+      "new_token_resolution": {
+        "total": 220798,
+        "same": 113893,
+        "changed": 1055,
+        "unresolved": 105850
+      },
+      "proven": {
+        "reported_regions": 127,
+        "expected_regions": 4,
+        "matched_regions": 0,
+        "precision": null,
+        "recall": 0.0,
+        "unlocalized_regions": 127
+      },
+      "quality": {
+        "evaluable_trials": 1,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 1,
+        "expected_changes": 4,
+        "reported_changes": 346,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 2,
+        "candidate_evaluable_counterparts": 2,
+        "candidate_recalled_counterparts": 2,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 690,
+        "candidate_tokens": 33677,
+        "candidate_precision": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "candidate_event_expected_changes": 4,
+        "candidate_event_matched_changes": 1,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "totals": {
+    "group_id": "all",
+    "operational": {
+      "trials": 1,
+      "ok": 1,
+      "skipped": 0,
+      "unsupported": 0,
+      "unresolved": 0,
+      "limit": 0,
+      "fatal": 0,
+      "runtime": {
+        "samples": 1,
+        "min_ms": 171193,
+        "p50_ms": 171193,
+        "p95_ms": 171193,
+        "max_ms": 171193
+      },
+      "peak_memory": {
+        "samples": 1,
+        "min_bytes": 716136448,
+        "p50_bytes": 716136448,
+        "p95_bytes": 716136448,
+        "max_bytes": 716136448
+      }
+    },
+    "accepted_changes": 346,
+    "candidate_changes": 698,
+    "formatting_only_changes": 254,
+    "uncertain_changes": 0,
+    "unresolved_regions": 3039,
+    "unlocalized_changed_regions": 127,
+    "quality_skip_reasons": {},
+    "old_token_resolution": {
+      "total": 215345,
+      "same": 113893,
+      "changed": 686,
+      "unresolved": 100766
+    },
+    "new_token_resolution": {
+      "total": 220798,
+      "same": 113893,
+      "changed": 1055,
+      "unresolved": 105850
+    },
+    "proven": {
+      "reported_regions": 127,
+      "expected_regions": 4,
+      "matched_regions": 0,
+      "precision": null,
+      "recall": 0.0,
+      "unlocalized_regions": 127
+    },
+    "quality": {
+      "evaluable_trials": 1,
+      "complete_trials": 0,
+      "scoped_complete_trials": 0,
+      "partial_trials": 1,
+      "expected_changes": 4,
+      "reported_changes": 346,
+      "matched_changes": 0,
+      "kind_correct": 0,
+      "candidate_annotated_counterparts": 2,
+      "candidate_evaluable_counterparts": 2,
+      "candidate_recalled_counterparts": 2,
+      "candidate_unavailable_counterparts": 0,
+      "candidate_groups": 690,
+      "candidate_tokens": 33677,
+      "candidate_precision": null,
+      "candidate_recall": 0.25,
+      "generator_candidate_recall_at_k": 1.0,
+      "candidate_event_expected_changes": 4,
+      "candidate_event_matched_changes": 1,
+      "precision": null,
+      "recall": 0.0,
+      "document_recall": null,
+      "kind_accuracy": null
+    }
+  },
+  "lineage_macro": {
+    "groups": 1,
+    "precision": null,
+    "recall": 0.0,
+    "document_recall": null,
+    "kind_accuracy": null,
+    "candidate_recall": 0.25,
+    "generator_candidate_recall_at_k": 1.0
+  },
+  "producer_macro": {
+    "groups": 0,
+    "precision": null,
+    "recall": null,
+    "document_recall": null,
+    "kind_accuracy": null,
+    "candidate_recall": null,
+    "generator_candidate_recall_at_k": null
+  },
+  "baselines": []
+}

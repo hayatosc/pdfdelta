@@ -1,0 +1,14 @@
+{
+  "input": "irs-w4-korean-2024-to-2025-old",
+  "timeout_seconds": 900,
+  "seconds": 15.776313353999285,
+  "command": [
+    "/tmp/pdfdelta-issue20-ml-env/bin/python",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/issue20_model_order.py",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/irs-w4-korean-2024-to-2025-old.pdf",
+    "benchmark/realworld/results/issue20-order-experiment/model/irs-w4-korean-2024-to-2025-old.json",
+    "--model",
+    "/tmp/pdfdelta-issue20-model.json"
+  ],
+  "exit_code": 0
+}

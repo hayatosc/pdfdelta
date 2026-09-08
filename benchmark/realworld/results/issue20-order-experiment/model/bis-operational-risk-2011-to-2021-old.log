@@ -1,0 +1,28 @@
+Loading weights:   0%|          | 0/858 [00:00<?, ?it/s]Loading weights:  29%|██▉       | 247/858 [00:00<00:00, 2439.52it/s]Loading weights:  57%|█████▋    | 491/858 [00:00<00:00, 2211.04it/s]Loading weights:  83%|████████▎ | 714/858 [00:00<00:00, 2181.64it/s]Loading weights: 100%|██████████| 858/858 [00:00<00:00, 2176.85it/s]
+page=0 regions=5 seconds=2.928
+page=1 regions=0 seconds=2.607
+page=2 regions=4 seconds=2.435
+page=3 regions=0 seconds=2.401
+page=4 regions=8 seconds=2.325
+page=5 regions=1 seconds=2.568
+page=6 regions=3 seconds=2.386
+page=7 regions=0 seconds=2.472
+page=8 regions=10 seconds=2.487
+page=9 regions=11 seconds=2.663
+page=10 regions=11 seconds=2.525
+page=11 regions=11 seconds=2.620
+page=12 regions=14 seconds=2.593
+page=13 regions=17 seconds=2.512
+page=14 regions=11 seconds=2.511
+page=15 regions=19 seconds=2.572
+page=16 regions=14 seconds=2.465
+page=17 regions=11 seconds=2.594
+page=18 regions=15 seconds=2.514
+page=19 regions=10 seconds=2.574
+page=20 regions=15 seconds=2.613
+page=21 regions=18 seconds=2.626
+page=22 regions=21 seconds=2.493
+page=23 regions=15 seconds=2.520
+page=24 regions=11 seconds=2.489
+page=25 regions=10 seconds=2.513
+page=26 regions=17 seconds=2.394

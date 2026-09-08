@@ -1,0 +1,7 @@
+{
+  "pair": "jvms-se17-to-se21",
+  "set": "dev",
+  "annotation": "none",
+  "status": "interrupted",
+  "reason": "prioritized crash-fixed annotated comparison after all 12 original annotated pairs completed"
+}

@@ -1,0 +1,61 @@
+Loading weights:   0%|          | 0/858 [00:00<?, ?it/s]Loading weights:  36%|███▌      | 311/858 [00:00<00:00, 3086.48it/s]Loading weights:  72%|███████▏  | 620/858 [00:00<00:00, 2560.36it/s]Loading weights: 100%|██████████| 858/858 [00:00<00:00, 2589.15it/s]
+page=0 regions=1 seconds=2.500
+page=1 regions=16 seconds=2.405
+page=2 regions=11 seconds=2.145
+page=3 regions=10 seconds=2.122
+page=4 regions=4 seconds=2.194
+page=5 regions=3 seconds=2.125
+page=6 regions=15 seconds=2.415
+page=7 regions=9 seconds=2.549
+page=8 regions=14 seconds=2.284
+page=9 regions=11 seconds=2.166
+page=10 regions=10 seconds=2.183
+page=11 regions=14 seconds=2.161
+page=12 regions=10 seconds=1.991
+page=13 regions=12 seconds=1.864
+page=14 regions=10 seconds=2.088
+page=15 regions=9 seconds=2.088
+page=16 regions=10 seconds=2.216
+page=17 regions=10 seconds=2.165
+page=18 regions=12 seconds=2.205
+page=19 regions=13 seconds=2.235
+page=20 regions=13 seconds=2.192
+page=21 regions=8 seconds=2.441
+page=22 regions=14 seconds=2.301
+page=23 regions=12 seconds=2.191
+page=24 regions=13 seconds=2.263
+page=25 regions=9 seconds=2.322
+page=26 regions=10 seconds=2.198
+page=27 regions=14 seconds=2.370
+page=28 regions=11 seconds=2.149
+page=29 regions=16 seconds=2.181
+page=30 regions=17 seconds=2.170
+page=31 regions=9 seconds=2.141
+page=32 regions=13 seconds=2.158
+page=33 regions=11 seconds=2.297
+page=34 regions=9 seconds=2.239
+page=35 regions=8 seconds=2.160
+page=36 regions=9 seconds=2.163
+page=37 regions=11 seconds=2.289
+page=38 regions=12 seconds=2.742
+page=39 regions=10 seconds=2.573
+page=40 regions=11 seconds=2.500
+page=41 regions=12 seconds=2.577
+page=42 regions=9 seconds=2.534
+page=43 regions=13 seconds=2.394
+page=44 regions=10 seconds=2.437
+page=45 regions=7 seconds=2.446
+page=46 regions=12 seconds=2.358
+page=47 regions=16 seconds=2.444
+page=48 regions=13 seconds=2.413
+page=49 regions=12 seconds=2.526
+page=50 regions=8 seconds=2.403
+page=51 regions=6 seconds=2.365
+page=52 regions=14 seconds=2.387
+page=53 regions=13 seconds=2.388
+page=54 regions=10 seconds=2.367
+page=55 regions=17 seconds=2.317
+page=56 regions=14 seconds=2.385
+page=57 regions=5 seconds=2.316
+page=58 regions=8 seconds=2.260
+page=59 regions=5 seconds=2.381

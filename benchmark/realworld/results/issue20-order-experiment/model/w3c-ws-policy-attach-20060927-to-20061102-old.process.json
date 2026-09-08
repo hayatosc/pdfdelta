@@ -1,0 +1,14 @@
+{
+  "input": "w3c-ws-policy-attach-20060927-to-20061102-old",
+  "timeout_seconds": 900,
+  "seconds": 83.76693439100927,
+  "command": [
+    "/tmp/pdfdelta-issue20-ml-env/bin/python",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/issue20_model_order.py",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/w3c-ws-policy-attach-20060927-to-20061102-old.pdf",
+    "benchmark/realworld/results/issue20-order-experiment/model/w3c-ws-policy-attach-20060927-to-20061102-old.json",
+    "--model",
+    "/tmp/pdfdelta-issue20-model.json"
+  ],
+  "exit_code": 0
+}

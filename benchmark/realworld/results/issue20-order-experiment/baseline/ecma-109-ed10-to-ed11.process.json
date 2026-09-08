@@ -1,0 +1,21 @@
+{
+  "pair": "ecma-109-ed10-to-ed11",
+  "set": "dev",
+  "annotation": "partial",
+  "tuning_use": "used_for_fix",
+  "seconds": 11.044,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-baseline/target/release/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "ecma-109-ed10-to-ed11",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline/ecma-109-ed10-to-ed11.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline/ecma-109-ed10-to-ed11.summary.json"
+  ],
+  "exit_code": 0
+}

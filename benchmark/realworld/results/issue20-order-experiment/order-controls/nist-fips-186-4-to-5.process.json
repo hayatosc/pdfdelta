@@ -1,0 +1,16 @@
+{
+  "pair": "nist-fips-186-4-to-5",
+  "seconds": 37.60737227699428,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/compare_order_hypotheses",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/nist-fips-186-4-to-5-old.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/nist-fips-186-4-to-5-new.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/expected/nist-fips-186-4-to-5.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/nist-fips-186-4-to-5-old.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/nist-fips-186-4-to-5-new.json",
+    "--limit-scale",
+    "16.0"
+  ],
+  "exit_code": 0
+}

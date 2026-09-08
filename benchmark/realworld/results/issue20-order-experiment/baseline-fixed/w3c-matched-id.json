@@ -1,0 +1,11 @@
+{
+  "matched": [
+    {
+      "expected_id": "publication-date",
+      "reported_preview_index": 14
+    }
+  ],
+  "evidence": "Exact kind and old/new quoted text in raw reported preview; agrees with benchmark matched_changes=1.",
+  "command": "timeout 180 /tmp/pdfdelta-issue20-baseline/target-fixed/release/pdfbench revisions --cache-dir benchmark/realworld/cache --pair w3c-ws-policy-attach-20060927-to-20061102 --json-output benchmark/realworld/results/issue20-order-experiment/baseline-fixed/w3c-matched-id.raw.json",
+  "exit_code": 0
+}
