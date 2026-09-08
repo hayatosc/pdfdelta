@@ -1552,6 +1552,7 @@ mod tests {
             assessment: None,
             proven: None,
             expected_change_diagnostics: None,
+            expected_matches: None,
             resource_limit_failure: None,
             candidate_visits: None,
             candidate_visits_required: None,

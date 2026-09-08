@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "pair": "ietf-structured-fields-8941-to-9651",
+  "source_artifacts": {
+    "raw": "../results/2026-09-09-claims/holdout/ietf-structured-fields-8941-to-9651.raw.json",
+    "summary": "../results/2026-09-09-claims/holdout/ietf-structured-fields-8941-to-9651.summary.json",
+    "evaluation": "../results/2026-09-09-claims/holdout/ietf-structured-fields-8941-to-9651.evaluation.json"
+  },
+  "diagnosis": {
+    "extraction_issue_count": 5,
+    "unsupported_issue_count": 5,
+    "issues": [
+      {
+        "side": "old",
+        "scope": "page 5",
+        "kind": "unsupported",
+        "description": "curved clipping path at content operator index 59"
+      },
+      {
+        "side": "old",
+        "scope": "page 6",
+        "kind": "unsupported",
+        "description": "curved clipping path at content operator index 59"
+      },
+      {
+        "side": "new",
+        "scope": "page 5",
+        "kind": "unsupported",
+        "description": "curved clipping path at content operator index 135"
+      },
+      {
+        "side": "new",
+        "scope": "page 6",
+        "kind": "unsupported",
+        "description": "curved clipping path at content operator index 57"
+      },
+      {
+        "side": "new",
+        "scope": "page 28",
+        "kind": "unsupported",
+        "description": "curved clipping path at content operator index 404"
+      }
+    ],
+    "page_counts": {
+      "old": 2,
+      "new": 3
+    },
+    "cause_boundary": "The extraction failure is the explicit unsupported curved-clipping-path outcome at the listed content operators; the ledger does not infer a lower-level PDF cause."
+  },
+  "observed_outcome": {
+    "extraction_complete": false,
+    "comparison_complete": false,
+    "unresolved_regions": 142,
+    "unresolved_old_token_share": 1.0,
+    "unresolved_new_token_share": 1.0,
+    "resolved_old_tokens": 0,
+    "resolved_new_tokens": 0,
+    "reported_content_changes": 0,
+    "accepted_changes": 0,
+    "candidate_changes": 9,
+    "quality_skipped_reason": "no expected annotations are recorded for this pair",
+    "runner_failure": "manifest expected complete extraction but extraction was incomplete",
+    "process_exit_code": 1
+  },
+  "existing_minimal_fixture_mapping": {
+    "test_path": "crates/pdfdelta-core/tests/content_stream_extraction.rs",
+    "test_name": "rejects_non_rectangular_and_multiple_line_built_clips",
+    "coverage": "The synthetic test builds unsupported non-rectangular clipping paths and asserts an incomplete ExtractionOutcome, ExtractionIssueKind::Unsupported, and the corresponding clipping-path description. It exercises the same public unsupported-extraction taxonomy; it does not reproduce either RFC PDF."
+  }
+}

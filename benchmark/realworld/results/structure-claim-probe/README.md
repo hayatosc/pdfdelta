@@ -23,8 +23,8 @@ The probe keeps two questions separate:
 
 | Domain | Supplied policy | Result |
 | --- | --- | --- |
-| arXiv distribution stamp | Version and date fields form one event | Grouping improves from two fields to one event, but the derived mask equals the literal-minimal baseline (cost 7; each side has FP 0 and FN 2) |
-| CSF core-functions sentence | The whole supplied sentence is a structure-first diagnostic domain | The derived supplied-role mask costs 213 versus the literal-minimal baseline 147 (expected annotation mask: 178); its annotation gap is 65 versus 91, but false positives rise to 50 |
+| arXiv distribution stamp | Version and date fields form one event | Grouping improves from two fields to one event, but the derived mask equals the literal-minimal baseline (`derived_changed_count=7`; baseline mandatory count 7, optimal edit cost 7; each side has FP 0 and FN 2) |
+| CSF core-functions sentence | The whole supplied sentence is a structure-first diagnostic domain | The derived supplied-role mask has `derived_changed_count=213` versus the literal baseline mandatory count 147 and optimal edit cost 158 (expected annotation mask: 178); its annotation gap is 65 versus 91, with 50 total false positives |
 | DSA approved-algorithm list | DSA list-item membership | One supplied deletion event, independent of the DSA topic note |
 | DSA full introduction / topic note | Full supplied introduction correspondence | The new 107-scalar note has 103..107 inserted scalars; 74 positions are certainly changed and 33 are ambiguous |
 | DSA paired paragraph / topic note | Supplied old/new paragraph correspondence | The same 107-scalar query has 26..27 inserted scalars, with 22 certainly changed, 8 ambiguous, and 77 certainly same |
@@ -42,9 +42,16 @@ supplied function identities case-insensitively, aligns the ordered old/new
 member lists, and applies the same local refinement. The untouched annotations
 are consulted only afterward to report per-side true positives, false
 positives, false negatives, edit cost, and event-group agreement. Each role
-also records the unconstrained literal-minimal mask as a baseline. For the
-stamp, the supplied policy leaves that mask unchanged, so grouping alone does
-not solve the annotated Attention change.
+also records the unconstrained literal-minimal mask as a baseline. A baseline
+mandatory changed count counts positions that are changed on every optimal path.
+A role-derived changed count reports positions marked by the supplied role
+mask. The optimal edit cost is the objective distance `old + new - 2 * LCS`; a
+mask is a complete edit witness when its kept residues are equal, while
+`minimal_complete_edit_witness` additionally requires its changed count to
+equal that cost. A positive optimal cost with no complete witness is reported
+as `changed_unlocalized`. For the stamp, the supplied policy leaves
+the literal mask unchanged, so grouping alone does not solve the annotated
+Attention change.
 
 The implementation uses a bounded scalar LCS dynamic program. Forward and
 reverse `u32` tables are guarded by a 64 MiB allocation limit. A second rolling
@@ -62,18 +69,20 @@ programmatically constructed `Document<Glyph>` fixtures, one glyph per scalar,
 to verify the core pipeline entry point. The report compares the actual
 canonical spans emitted by the production pipeline with the mandatory masks and
 checks their exact glyph-id projection; a failure is recorded in the JSON
-without changing production behavior. With the restored production pipeline,
-the `Standard` fixture passes, while `. F` → `; f` fails because one emitted
-span includes the shared space and both changed scalars. The scalar mask guard
-still passes, so this known production limitation does not become a claimed
-success.
+without changing production behavior. The exact-mask production pipeline passes
+both fixtures: the punctuation replacement retains two disjoint changed ranges
+and leaves the shared space equal. The report derives this result from the
+actual emitted spans and source projection.
 
 The stamp derivation has TP 7, FP 0, and FN 4, exactly the same changed mask
-as the unconstrained literal baseline. Grouping improves from two fields to
-one event, but that does not reduce the fixed mask gap. The CSF function-list
-derivation has false positives against its partial annotation. Neither result
-justifies automatic glyph/PDF role discovery, so that extension is not
-implemented. Repeated supplied function identities are rejected as ambiguous.
+as the unconstrained literal baseline. Its expected annotation mask costs 11,
+while the literal objective costs 7, so that annotation is outside the
+literal-minimal solution set. Grouping improves from two fields to one event,
+but that does not reduce the fixed mask gap. The CSF function-list derivation
+has false positives against its partial annotation and remains an incomplete,
+unlocalized witness. Neither result justifies automatic glyph/PDF role
+discovery, so that extension is not implemented. Repeated supplied function
+identities are rejected as ambiguous.
 The decision predicate also checks an empty-mask counterexample: merely
 reporting fewer changed tokens than the gold mask is not an improvement.
 

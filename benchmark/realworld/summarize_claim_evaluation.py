@@ -277,6 +277,32 @@ def expected_match_statuses(
     }
     diagnostic_error = None
     attribution_inferences: list[str] = []
+    official_source = next((record for record in (evaluation, summary)
+                            if isinstance(record, dict) and "expected_matches" in record), None)
+    if official_source is not None:
+        assignments = official_source["expected_matches"]
+        if assignments is not None:
+            if not isinstance(assignments, list) or any(
+                not isinstance(item, dict) or not isinstance(item.get("expected_id"), str)
+                or not isinstance(item.get("matched"), bool) for item in assignments
+            ):
+                raise DataError("invalid official expected-match assignments")
+            assigned_ids = [item["expected_id"] for item in assignments]
+            if len(assigned_ids) != len(ids) or set(assigned_ids) != set(ids):
+                raise DataError("official expected-match IDs do not cover the annotation exactly")
+            statuses = {item["expected_id"]: item["matched"] for item in assignments}
+            if expected_count != len(ids) or matched_count != sum(statuses.values()):
+                raise DataError("official expected-match assignments disagree with quality counts")
+            bases = {change_id: "official_event_matcher" for change_id in ids}
+        # Explicit unavailability must never become a match inferred from preview text.
+        return statuses, bases, {
+            "quality_expected_changes": expected_count,
+            "quality_matched_changes": matched_count,
+            "diagnostic_complete": diagnostic_complete,
+            "diagnostic_error": None,
+            "attribution_inferences": [],
+            "official_assignments": assignments,
+        }
     if diagnostic_complete is True and isinstance(failures, list):
         unknown_ids = set(failure_by_id) - set(ids)
         failure_ids = [item.get("expected_id") for item in failures if isinstance(item, dict)]
@@ -590,6 +616,10 @@ def build_report(candidate_dir: Path, baseline_dir: Path, manifest_path: Path) -
                 "candidate_matched": candidate_matched,
                 "transition": expected_transition(baseline_matched, candidate_matched),
                 "candidate_match_basis": candidate_bases[change_id],
+                "candidate_official_assignment": next(
+                    (item for item in candidate_evidence.get("official_assignments") or []
+                     if item["expected_id"] == change_id), None,
+                ),
                 "candidate_failure": None,
             }
             diagnostic = candidate_outputs.get("summary", {}).get("expected_change_diagnostics")
@@ -636,7 +666,7 @@ def build_report(candidate_dir: Path, baseline_dir: Path, manifest_path: Path) -
         f"{item['pair']}:{item['expected_id']}"
         for item in expectations
         if item["candidate_matched"] is True
-        and item["candidate_match_basis"] == "expected_change_diagnostics"
+        and item["candidate_match_basis"] in ("official_event_matcher", "expected_change_diagnostics")
     ]
     baseline_measurable = [item for item in expectations if item["baseline_matched"] is not None]
     if baseline_annotated.get("source_expected") != len(expectations):
@@ -690,7 +720,7 @@ def build_report(candidate_dir: Path, baseline_dir: Path, manifest_path: Path) -
         "schema_version": REPORT_SCHEMA_VERSION,
         "comparer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "methodology": {
-            "exact_event_matches": "The aggregate uses official quality matched_changes over the frozen measurable expectations; it is unavailable if any formerly measurable pair loses its quality count. Per-ID attribution is separate: exact IDs require complete diagnostics, while unmasked injective raw-preview quotes remain attribution inferences.",
+            "exact_event_matches": "The aggregate uses official quality matched_changes over the frozen measurable expectations; it is unavailable if any formerly measurable pair loses its quality count. New per-ID assignments come directly from the official matcher; an explicit null remains unavailable. Legacy runs can use complete diagnostics, while unmasked injective raw-preview quotes remain attribution inferences.",
             "unavailable_measurements": "null; missing artifacts and incomplete diagnostics are retained in each pair record.",
             "denominator": "The frozen baseline denominator remains 40 reviewed expectations, of which 39 were measurable; candidate measurability is reported separately.",
         },

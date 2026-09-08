@@ -27,6 +27,9 @@ const EXPECTED_CSF: &str =
     include_str!("../../../benchmark/realworld/expected/nist-csf-v1-1-to-v2-0.json");
 const EXPECTED_ATTENTION: &str =
     include_str!("../../../benchmark/realworld/expected/arxiv-attention-v6-to-v7.json");
+#[cfg(test)]
+const EXPECTED_IRS: &str =
+    include_str!("../../../benchmark/realworld/expected/irs-form-1040-2024-to-2025.json");
 const HISTORY_FIPS: &str = include_str!(
     "../../../benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/nist-fips-186-4-to-5.json"
 );
@@ -501,11 +504,7 @@ fn mask_facts(
         .map_err(|_| invalid("LCS length cannot be represented as usize"))?;
     let expected_mask_cost = old_changed.iter().filter(|changed| **changed).count()
         + new_changed.iter().filter(|changed| **changed).count();
-    let scalar_optimal_cost = old
-        .len()
-        .checked_add(new.len())
-        .and_then(|length| length.checked_sub(2 * scalar_lcs))
-        .ok_or_else(|| invalid("optimal edit cost underflow"))?;
+    let scalar_optimal_cost = optimal_edit_cost(old.len(), new.len(), scalar_lcs)?;
     let expected_kept_pairs = kept_old.chars().count();
     Ok(MaskFacts {
         audit: MaskAudit {
@@ -548,21 +547,74 @@ fn annotation_audit(revision: &ExpectedRevision, id: &str) -> ProbeResult<Annota
     })
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct EditFacts {
+    changed_count: usize,
+    optimal_edit_cost: usize,
+    complete_edit_witness: bool,
+    minimal_complete_edit_witness: bool,
+    changed_unlocalized: bool,
+}
+
 #[derive(Clone, Debug)]
 struct DerivedMask {
     old_changed: Vec<bool>,
     new_changed: Vec<bool>,
 }
 
-fn literal_mandatory_mask(old_text: &str, new_text: &str) -> ProbeResult<DerivedMask> {
+fn optimal_edit_cost(old_length: usize, new_length: usize, lcs: usize) -> ProbeResult<usize> {
+    old_length
+        .checked_add(new_length)
+        .and_then(|length| {
+            lcs.checked_mul(2)
+                .and_then(|matched| length.checked_sub(matched))
+        })
+        .ok_or_else(|| invalid("optimal edit cost underflow"))
+}
+
+fn edit_facts(
+    old: &[char],
+    new: &[char],
+    mask: &DerivedMask,
+    optimal_edit_cost: usize,
+) -> ProbeResult<EditFacts> {
+    if mask.old_changed.len() != old.len() || mask.new_changed.len() != new.len() {
+        return Err(invalid("edit facts mask lengths do not match source text"));
+    }
+    let old_changed_count = changed_count(&mask.old_changed);
+    let new_changed_count = changed_count(&mask.new_changed);
+    let changed_count = old_changed_count
+        .checked_add(new_changed_count)
+        .ok_or_else(|| invalid("mandatory changed count overflow"))?;
+    let complete_edit_witness =
+        kept_text(old, &mask.old_changed) == kept_text(new, &mask.new_changed);
+    let minimal_complete_edit_witness = complete_edit_witness && changed_count == optimal_edit_cost;
+    Ok(EditFacts {
+        changed_count,
+        optimal_edit_cost,
+        complete_edit_witness,
+        minimal_complete_edit_witness,
+        changed_unlocalized: optimal_edit_cost > 0 && !complete_edit_witness,
+    })
+}
+
+fn literal_mandatory_evidence(
+    old_text: &str,
+    new_text: &str,
+) -> ProbeResult<(DerivedMask, EditFacts)> {
     let old = chars(old_text);
     let new = chars(new_text);
     let tables = LcsTables::new(&old, &new)?;
     let (old_changed, new_changed) = tables.mandatory_changed(&old, &new);
-    Ok(DerivedMask {
+    let mask = DerivedMask {
         old_changed,
         new_changed,
-    })
+    };
+    let scalar_lcs = usize::try_from(tables.lcs)
+        .map_err(|_| invalid("LCS length cannot be represented as usize"))?;
+    let optimal_edit_cost = optimal_edit_cost(old.len(), new.len(), scalar_lcs)?;
+    let facts = edit_facts(&old, &new, &mask, optimal_edit_cost)?;
+    Ok((mask, facts))
 }
 
 type AnchorRanges = (Option<Range<usize>>, Option<Range<usize>>);
@@ -724,7 +776,11 @@ struct RoleComparison {
     baseline_new_changed_ranges: Vec<RangeValue>,
     baseline_old_changed_count: usize,
     baseline_new_changed_count: usize,
-    baseline_edit_cost: usize,
+    baseline_mandatory_changed_count: usize,
+    baseline_optimal_edit_cost: usize,
+    baseline_complete_edit_witness: bool,
+    baseline_minimal_complete_edit_witness: bool,
+    baseline_changed_unlocalized: bool,
     baseline_old_mask: MaskScore,
     baseline_new_mask: MaskScore,
     baseline_mask_gap: usize,
@@ -732,7 +788,11 @@ struct RoleComparison {
     derived_new_changed_ranges: Vec<RangeValue>,
     derived_old_changed_count: usize,
     derived_new_changed_count: usize,
-    derived_edit_cost: usize,
+    derived_changed_count: usize,
+    derived_optimal_edit_cost: usize,
+    derived_complete_edit_witness: bool,
+    derived_minimal_complete_edit_witness: bool,
+    derived_changed_unlocalized: bool,
     old_mask: MaskScore,
     new_mask: MaskScore,
     derived_mask_gap: usize,
@@ -750,9 +810,18 @@ fn changed_count(mask: &[bool]) -> usize {
     mask.iter().filter(|changed| **changed).count()
 }
 
-fn event_kind(old_changed: &[bool], new_changed: &[bool]) -> &'static str {
+fn event_kind(
+    old_changed: &[bool],
+    new_changed: &[bool],
+    old_length: usize,
+    new_length: usize,
+    optimal_edit_cost: usize,
+) -> &'static str {
     match (changed_count(old_changed), changed_count(new_changed)) {
-        (0, 0) => "unchanged",
+        (0, 0) if optimal_edit_cost == 0 => "unchanged",
+        (0, 0) if old_length < new_length => "insertion",
+        (0, 0) if old_length > new_length => "deletion",
+        (0, 0) => "replacement",
         (0, _) => "insertion",
         (_, 0) => "deletion",
         _ => "replacement",
@@ -797,7 +866,7 @@ fn compare_role_masks(
         derived.new_changed.len(),
         "expected new changed ranges",
     )?;
-    let baseline = literal_mandatory_mask(old_text, new_text)?;
+    let (baseline, baseline_facts) = literal_mandatory_evidence(old_text, new_text)?;
     if baseline.old_changed.len() != derived.old_changed.len()
         || baseline.new_changed.len() != derived.new_changed.len()
     {
@@ -807,9 +876,6 @@ fn compare_role_masks(
     }
     let baseline_old_count = changed_count(&baseline.old_changed);
     let baseline_new_count = changed_count(&baseline.new_changed);
-    let baseline_edit_cost = baseline_old_count
-        .checked_add(baseline_new_count)
-        .ok_or_else(|| invalid("literal baseline edit cost overflow"))?;
     let baseline_old_mask = mask_score(&baseline.old_changed, &old_expected);
     let baseline_new_mask = mask_score(&baseline.new_changed, &new_expected);
     let old_mask = mask_score(&derived.old_changed, &old_expected);
@@ -818,17 +884,28 @@ fn compare_role_masks(
     let derived_mask_gap = combined_mask_gap(&old_mask, &new_mask);
     let old_count = changed_count(&derived.old_changed);
     let new_count = changed_count(&derived.new_changed);
-    let derived_edit_cost = old_count
-        .checked_add(new_count)
-        .ok_or_else(|| invalid("derived role edit cost overflow"))?;
+    let old = chars(old_text);
+    let new = chars(new_text);
+    let derived_facts = edit_facts(&old, &new, derived, baseline_facts.optimal_edit_cost)?;
+    let derived_changed_count = derived_facts.changed_count;
     let derived_event_count = unique_group_count(role_groups);
-    let derived_event_kind = event_kind(&derived.old_changed, &derived.new_changed);
+    let derived_event_kind = event_kind(
+        &derived.old_changed,
+        &derived.new_changed,
+        old.len(),
+        new.len(),
+        derived_facts.optimal_edit_cost,
+    );
     Ok(RoleComparison {
         baseline_old_changed_ranges: mask_ranges(&baseline.old_changed),
         baseline_new_changed_ranges: mask_ranges(&baseline.new_changed),
         baseline_old_changed_count: baseline_old_count,
         baseline_new_changed_count: baseline_new_count,
-        baseline_edit_cost,
+        baseline_mandatory_changed_count: baseline_facts.changed_count,
+        baseline_optimal_edit_cost: baseline_facts.optimal_edit_cost,
+        baseline_complete_edit_witness: baseline_facts.complete_edit_witness,
+        baseline_minimal_complete_edit_witness: baseline_facts.minimal_complete_edit_witness,
+        baseline_changed_unlocalized: baseline_facts.changed_unlocalized,
         baseline_old_mask,
         baseline_new_mask,
         baseline_mask_gap,
@@ -836,7 +913,11 @@ fn compare_role_masks(
         derived_new_changed_ranges: mask_ranges(&derived.new_changed),
         derived_old_changed_count: old_count,
         derived_new_changed_count: new_count,
-        derived_edit_cost,
+        derived_changed_count,
+        derived_optimal_edit_cost: derived_facts.optimal_edit_cost,
+        derived_complete_edit_witness: derived_facts.complete_edit_witness,
+        derived_minimal_complete_edit_witness: derived_facts.minimal_complete_edit_witness,
+        derived_changed_unlocalized: derived_facts.changed_unlocalized,
         old_mask,
         new_mask,
         derived_mask_gap,
@@ -2462,7 +2543,7 @@ fn build_report() -> ProbeResult<ProbeReport> {
         discovery_decision,
         limitations: vec![
             "All role domains and source correspondences are caller-supplied diagnostic hypotheses; the stamp policy improves grouping only and does not improve the literal mask.",
-            "The restored production pipeline passes the Standard case-fold fixture but fails the punctuation-and-case fixture by grouping the shared space with both changes; the mandatory scalar mask guards still pass.",
+            "Production fixture results are derived from emitted spans and exact source projection; scalar mask guards alone do not establish production correctness.",
             "Automatic glyph/PDF role discovery is not implemented because the supplied policies did not improve fixed masks without false positives.",
             "The probe does not change production candidate selection or enable unconditional role matching.",
             "The literal-minimal objective remains separate from structure-first event grouping.",
@@ -2482,7 +2563,20 @@ fn main() -> ProbeResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{MaskScore, combined_mask_gap};
+    use super::{
+        EXPECTED_ATTENTION, EXPECTED_CSF, EXPECTED_IRS, MaskScore, combined_mask_gap, event_kind,
+        expected_change, literal_mandatory_evidence, parse_expected, required_quote,
+    };
+
+    fn literal_facts(manifest: &str, pair: &str, change_id: &str) -> super::EditFacts {
+        let revision = parse_expected(manifest, pair).expect("manifest should parse");
+        let change = expected_change(&revision, change_id).expect("change should exist");
+        let old = required_quote(&change.old_quote, "old quote").expect("old quote required");
+        let new = required_quote(&change.new_quote, "new quote").expect("new quote required");
+        literal_mandatory_evidence(old, new)
+            .expect("literal evidence should compute")
+            .1
+    }
 
     #[test]
     fn empty_mask_is_not_an_improvement() {
@@ -2498,5 +2592,81 @@ mod tests {
         };
 
         assert!(combined_mask_gap(&empty, &empty) > combined_mask_gap(&baseline, &baseline));
+    }
+
+    #[test]
+    fn csf_mandatory_positions_are_an_incomplete_witness() {
+        let facts = literal_facts(
+            EXPECTED_CSF,
+            "nist-csf-v1-1-to-v2-0",
+            "core-expanded-from-five-to-six-functions",
+        );
+
+        assert_eq!(facts.changed_count, 147);
+        assert_eq!(facts.optimal_edit_cost, 158);
+        assert!(!facts.complete_edit_witness);
+        assert!(!facts.minimal_complete_edit_witness);
+        assert!(facts.changed_unlocalized);
+    }
+
+    #[test]
+    fn attention_mandatory_positions_are_a_complete_seven_edit_witness() {
+        let facts = literal_facts(
+            EXPECTED_ATTENTION,
+            "arxiv-attention-v6-to-v7",
+            "arxiv-version-date-stamp",
+        );
+
+        assert_eq!(facts.changed_count, 7);
+        assert_eq!(facts.optimal_edit_cost, 7);
+        assert!(facts.complete_edit_witness);
+        assert!(facts.minimal_complete_edit_witness);
+        assert!(!facts.changed_unlocalized);
+    }
+
+    #[test]
+    fn nonminimal_mask_is_complete_but_not_minimal() {
+        let old = super::chars("a");
+        let new = super::chars("a");
+        let mask = super::DerivedMask {
+            old_changed: vec![true],
+            new_changed: vec![true],
+        };
+        let facts = super::edit_facts(&old, &new, &mask, 0).expect("edit facts should compute");
+
+        assert_eq!(facts.changed_count, 2);
+        assert_eq!(facts.optimal_edit_cost, 0);
+        assert!(facts.complete_edit_witness);
+        assert!(!facts.minimal_complete_edit_witness);
+        assert!(!facts.changed_unlocalized);
+    }
+
+    #[test]
+    fn irs_footer_is_a_complete_seventeen_edit_witness() {
+        let facts = literal_facts(
+            EXPECTED_IRS,
+            "irs-form-1040-2024-to-2025",
+            "footer-form-year-stamp",
+        );
+
+        assert_eq!(facts.changed_count, 17);
+        assert_eq!(facts.optimal_edit_cost, 17);
+        assert!(facts.complete_edit_witness);
+        assert!(!facts.changed_unlocalized);
+    }
+
+    #[test]
+    fn repeated_insertion_is_changed_but_unlocalized() {
+        let (mask, facts) =
+            literal_mandatory_evidence("a", "aa").expect("literal evidence should compute");
+
+        assert_eq!(facts.changed_count, 0);
+        assert_eq!(facts.optimal_edit_cost, 1);
+        assert!(!facts.complete_edit_witness);
+        assert!(facts.changed_unlocalized);
+        assert_eq!(
+            event_kind(&mask.old_changed, &mask.new_changed, 1, 2, 1),
+            "insertion"
+        );
     }
 }

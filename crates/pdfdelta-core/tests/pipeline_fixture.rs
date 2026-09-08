@@ -44,6 +44,204 @@ fn ignores_line_wrap_only_changes() -> Result<()> {
 }
 
 #[test]
+fn semantic_replacements_own_only_atomic_changed_glyphs() -> Result<()> {
+    use pdfdelta_core::diff::ResolutionState;
+
+    for (old_text, new_text, changed, equal, occurrences) in
+        [(". F", "; f", 2, 1, 2), ("Standard", "standard", 1, 7, 1)]
+    {
+        let old = document(&[line(old_text, 0, 300.0)]);
+        let new = document(&[line(new_text, 0, 300.0)]);
+        let outcome = compare_extraction_outcomes(
+            ExtractionOutcome::complete(old),
+            ExtractionOutcome::complete(new),
+            PipelineOptions::default(),
+        )?;
+        let comparison = &outcome.comparison;
+        assert_eq!(comparison.changes.len(), 1, "{old_text}: {comparison:?}");
+        let event = &comparison.changes[0];
+        assert_eq!(event.kind, ChangeKind::Replacement);
+        assert_eq!(event.occurrences.len(), occurrences);
+        let assessment = comparison.assessment.as_ref().expect("source ownership");
+        for partition in [&assessment.old_resolution, &assessment.new_resolution] {
+            let count = |state| {
+                partition
+                    .iter()
+                    .filter(|part| part.state == state)
+                    .map(|part| part.comparable_range.end - part.comparable_range.start)
+                    .sum::<usize>()
+            };
+            assert_eq!(count(ResolutionState::Changed), changed);
+            assert_eq!(count(ResolutionState::Equal), equal);
+            assert_eq!(count(ResolutionState::Unresolved), 0);
+        }
+        let mut output = Vec::new();
+        pdfdelta_core::report::write_json(
+            &mut output,
+            &outcome.old_blocks,
+            &outcome.new_blocks,
+            &outcome.old_glyph_evidence,
+            &outcome.new_glyph_evidence,
+            comparison,
+            &outcome.extraction,
+        )?;
+        let json: serde_json::Value = serde_json::from_slice(&output).expect("source report");
+        let json_occurrences = json["changes"][0]["occurrences"]
+            .as_array()
+            .expect("occurrences");
+        for occurrence in json_occurrences {
+            for side in ["old_span", "new_span"] {
+                assert_eq!(
+                    occurrence[side]["text"]
+                        .as_str()
+                        .expect("text")
+                        .chars()
+                        .count(),
+                    1
+                );
+                assert!(
+                    !occurrence[side]["sources"]
+                        .as_array()
+                        .expect("glyph sources")
+                        .is_empty()
+                );
+            }
+        }
+        for side in ["old_span", "new_span"] {
+            let ids = json_occurrences
+                .iter()
+                .flat_map(|occurrence| {
+                    occurrence[side]["sources"]
+                        .as_array()
+                        .expect("glyph sources")
+                        .iter()
+                })
+                .filter_map(|source| source["glyph_id"].as_u64())
+                .collect::<Vec<_>>();
+            assert_eq!(ids, (1..=changed as u64).collect::<Vec<_>>());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn page_local_footer_preserves_disjoint_year_and_creation_edits() -> Result<()> {
+    use pdfdelta_core::diff::ComparisonAssumption;
+
+    let old_text =
+        "Reviewed catalog instructions remain available. Cat. No. 11320B Form 1040 (2024)";
+    let new_text = "Reviewed catalog instructions remain available. Cat. No. 11320B Form 1040 (2025) Created 9/5/25";
+    let make = |footer, split| {
+        let mut lines = vec![
+            line_at("Left body remains open", 0, 0.0, 300.0),
+            line_at("Right body remains open", 0, 300.0, 300.0),
+            line_at("Left body changes later", 0, 0.0, 288.0),
+            line_at("Right body changes later", 0, 300.0, 288.0),
+        ];
+        if split {
+            // Native form footers can paint the right-hand label first.
+            lines.extend([
+                line_at("Form 1040 (2024)", 0, 420.0, 30.0),
+                line_at(
+                    "Reviewed catalog instructions remain available.",
+                    0,
+                    0.0,
+                    30.1,
+                ),
+                line_at("Cat. No. 11320B", 0, 320.0, 30.2),
+            ]);
+        } else {
+            lines.push(line(footer, 0, 30.0));
+        }
+        document(&lines)
+    };
+    for split in [false, true] {
+        let comparison = compare_glyph_documents(
+            &make(old_text, split),
+            &make(new_text, false),
+            PipelineOptions::default(),
+        )?;
+        let assessment = comparison.assessment.as_ref().expect("source assessment");
+        assert!(
+            assessment.relations.iter().any(|relation| relation
+                .assumptions
+                .contains(&ComparisonAssumption::PageLocalFooterIdentity)),
+            "{comparison:#?}"
+        );
+        assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+        let change = &comparison.changes[0];
+        assert_eq!(change.kind, ChangeKind::Replacement);
+        assert_eq!(change.occurrences.len(), 2);
+        let changed = change
+            .occurrences
+            .iter()
+            .flat_map(|part| [&part.old_span, &part.new_span])
+            .flatten()
+            .map(|span| span.comparable_range.end - span.comparable_range.start)
+            .sum::<usize>();
+        assert_eq!(changed, 17);
+    }
+    Ok(())
+}
+
+#[test]
+fn page_local_footer_rejects_duplicate_keys_and_missing_source() -> Result<()> {
+    use pdfdelta_core::diff::{ComparisonAssumption, RelationOutcome};
+
+    let old_footer =
+        "Reviewed catalog instructions remain available. Cat. No. 98Z76 Form 4567 (2030)";
+    let new_footer =
+        "Reviewed catalog instructions remain available. Cat. No. 98Z76 Form 4567 (2031)";
+    let make = |footer, duplicate| {
+        document(&[
+            line(
+                if duplicate {
+                    "A competing Cat. No. 98Z76 Form 4567 identifier"
+                } else {
+                    "Ordinary page content remains here"
+                },
+                0,
+                300.0,
+            ),
+            line(footer, 0, 30.0),
+        ])
+    };
+    for (duplicate, missing_source) in [(true, false), (false, true)] {
+        let old = if missing_source {
+            let source = make(old_footer, duplicate);
+            let retained_before = source.items().len() - 3;
+            ExtractionOutcome::new(
+                source,
+                vec![ExtractionIssue::new(
+                    ExtractionIssueKind::Unresolved,
+                    ExtractionScope::GlyphGap { retained_before },
+                    "Footer source evidence is incomplete",
+                )?],
+            )?
+        } else {
+            ExtractionOutcome::complete(make(old_footer, duplicate))
+        };
+        let outcome = compare_extraction_outcomes(
+            old,
+            ExtractionOutcome::complete(make(new_footer, duplicate)),
+            PipelineOptions::default(),
+        )?;
+        let assessment = outcome
+            .comparison
+            .assessment
+            .as_ref()
+            .expect("source assessment");
+        assert!(!assessment.relations.iter().any(|relation| {
+            relation.outcome == RelationOutcome::Established
+                && relation
+                    .assumptions
+                    .contains(&ComparisonAssumption::PageLocalFooterIdentity)
+        }));
+    }
+    Ok(())
+}
+
+#[test]
 fn normalization_claims_project_back_to_original_glyph_evidence() -> Result<()> {
     let old = document(&[
         line("inter-", 0, 300.0),
@@ -405,22 +603,40 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
 
     assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
     assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
-    let established = &comparison.changes[0].occurrences[0];
+    let established = comparison.changes[0]
+        .occurrences
+        .iter()
+        .map(|occurrence| {
+            (
+                occurrence
+                    .old_span
+                    .as_ref()
+                    .map(|span| span.comparable_range),
+                occurrence
+                    .new_span
+                    .as_ref()
+                    .map(|span| span.comparable_range),
+            )
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
-        established
-            .old_span
-            .as_ref()
-            .map(|span| span.comparable_range),
-        Some(TokenRange { start: 52, end: 62 })
+        established,
+        [
+            (
+                Some(TokenRange { start: 52, end: 55 }),
+                Some(TokenRange { start: 52, end: 53 })
+            ),
+            (
+                Some(TokenRange { start: 56, end: 57 }),
+                Some(TokenRange { start: 54, end: 56 })
+            ),
+            (
+                Some(TokenRange { start: 58, end: 62 }),
+                Some(TokenRange { start: 57, end: 59 })
+            ),
+        ]
     );
-    assert_eq!(
-        established
-            .new_span
-            .as_ref()
-            .map(|span| span.comparable_range),
-        Some(TokenRange { start: 52, end: 59 })
-    );
-    assert_eq!(comparison.change_candidates.len(), 2, "{comparison:#?}");
+    assert_eq!(comparison.change_candidates.len(), 3, "{comparison:#?}");
     assert!(
         comparison
             .change_candidates
@@ -458,8 +674,12 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
                 Some(TokenRange { start: 72, end: 76 }),
             ),
             (
-                Some(TokenRange { start: 76, end: 82 }),
-                Some(TokenRange { start: 77, end: 80 }),
+                Some(TokenRange { start: 76, end: 76 }),
+                Some(TokenRange { start: 77, end: 78 }),
+            ),
+            (
+                Some(TokenRange { start: 77, end: 81 }),
+                Some(TokenRange { start: 79, end: 79 }),
             ),
         ]
     );

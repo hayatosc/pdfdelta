@@ -6,6 +6,7 @@
 
 mod claims;
 mod exact;
+mod footers;
 mod hypotheses;
 mod local;
 mod normalization;
@@ -68,6 +69,9 @@ pub enum ComparisonAssumption {
     LocalEvidenceBoundaries,
     /// Every retained discretionary line-end hyphen interpretation is included.
     AlternativeLineBreakNormalization,
+    /// A terminal source line has a unique catalog/form identifier on the
+    /// corresponding page and identical preceding context on both sides.
+    PageLocalFooterIdentity,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -1123,20 +1127,36 @@ struct DomainProof {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ProjectedEvent {
     kind: ChangeKind,
+    occurrences: Vec<ProjectedOccurrence>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ProjectedOccurrence {
     old: Option<Vec<SourceInterval>>,
     new: Option<Vec<SourceInterval>>,
 }
 
-fn projected_event(
-    sides: [&Side<'_>; 2],
-    kind: ChangeKind,
-    old: Option<&TextSpan>,
-    new: Option<&TextSpan>,
-) -> Result<ProjectedEvent> {
+fn projected_event(sides: [&Side<'_>; 2], event: &ChangeEvent) -> Result<ProjectedEvent> {
     Ok(ProjectedEvent {
-        kind,
-        old: old.map(|span| project(sides[0], span)).transpose()?,
-        new: new.map(|span| project(sides[1], span)).transpose()?,
+        kind: event.kind,
+        occurrences: event
+            .occurrences
+            .iter()
+            .map(|occurrence| {
+                Ok(ProjectedOccurrence {
+                    old: occurrence
+                        .old_span
+                        .as_ref()
+                        .map(|span| project(sides[0], span))
+                        .transpose()?,
+                    new: occurrence
+                        .new_span
+                        .as_ref()
+                        .map(|span| project(sides[1], span))
+                        .transpose()?,
+                })
+            })
+            .collect::<Result<_>>()?,
     })
 }
 
@@ -1188,13 +1208,19 @@ fn semantic_signature(
     }
     let mut output = Vec::new();
     let mut error = None;
-    let mut visit = |hunk: super::SemanticHunk, kind: ChangeKind| {
+    let mut visit = |hunk: super::SemanticHunk, _kind: ChangeKind| {
         if output.len() >= limit || !charge_work(remaining, token_work) {
             return false;
         }
-        let old_span = (!hunk.old.is_empty()).then(|| old.span(hunk.old.start, hunk.old.end));
-        let new_span = (!hunk.new.is_empty()).then(|| new.span(hunk.new.start, hunk.new.end));
-        match projected_event(sides, kind, old_span.as_ref(), new_span.as_ref()) {
+        let mut events = Vec::new();
+        super::append_semantic_hunk(old, new, edits, hunk, super::Confidence::High, &mut events);
+        let Some(event) = events.first() else {
+            return true;
+        };
+        if event.occurrences.len() > limit || !charge_work(remaining, event.occurrences.len()) {
+            return false;
+        }
+        match projected_event(sides, event) {
             Ok(event) => {
                 output.push(event);
                 true
@@ -2099,6 +2125,7 @@ struct Assessor<'a, 'document> {
     semantic_acceptance: HashMap<usize, DomainKey>,
     local_domains: Vec<views::LocalDomain>,
     local_anchors: Vec<views::LocalDomain>,
+    footer_domains: Vec<views::LocalDomain>,
     localized_edits: Vec<LocalizedEditScript>,
     localized_edit_count: usize,
     proposal_relations: HashMap<ProposalKey, usize>,
@@ -2133,6 +2160,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             if change.kind == ChangeKind::Move {
                 continue;
             }
+            let mut contained = Vec::new();
             for occurrence in &change.occurrences {
                 let source_work = occurrence
                     .old_span
@@ -2155,13 +2183,17 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 if contains_span(self.sides[0], old.as_ref(), occurrence.old_span.as_ref())?
                     && contains_span(self.sides[1], new.as_ref(), occurrence.new_span.as_ref())?
                 {
-                    actual.push(projected_event(
-                        self.sides,
-                        change.kind,
-                        occurrence.old_span.as_ref(),
-                        occurrence.new_span.as_ref(),
-                    )?);
+                    contained.push(occurrence.clone());
                 }
+            }
+            if !contained.is_empty() {
+                actual.push(projected_event(
+                    self.sides,
+                    &ChangeEvent {
+                        occurrences: contained,
+                        ..change.clone()
+                    },
+                )?);
             }
         }
         if actual == expected {
@@ -2251,7 +2283,8 @@ impl<'a, 'document> Assessor<'a, 'document> {
     }
     fn discover_local_domains(&mut self, proposals: &[ProposedRelation]) -> Result<()> {
         if self.source_reasons().is_empty() {
-            return self.discover_ordered_domains();
+            self.discover_ordered_domains()?;
+            return self.discover_footer_domains();
         }
         let Some(recovery) = self.recovery else {
             return Ok(());
@@ -2275,6 +2308,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
         )?;
         self.local_domains = discovery.domains;
         self.local_anchors = discovery.anchors;
+        self.discover_footer_domains()?;
         if self.remaining_work == 0 {
             // The root already retains reading-order uncertainty. Record the
             // unfinished optional search without changing established local
@@ -2286,6 +2320,27 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 .contains(&AssessmentReason::WorkLimit)
             {
                 self.records[root].reasons.push(AssessmentReason::WorkLimit);
+            }
+        }
+        Ok(())
+    }
+
+    fn discover_footer_domains(&mut self) -> Result<()> {
+        let Some(recovery) = self.recovery else {
+            return Ok(());
+        };
+        self.footer_domains = footers::discover(
+            self.sides,
+            recovery,
+            &mut self.remaining_work,
+            self.options.max_assessment_ranges,
+        )?;
+        for domain in &self.footer_domains {
+            if self.local_domains.len() == self.options.max_assessment_ranges {
+                break;
+            }
+            if !self.local_domains.contains(domain) {
+                self.local_domains.push(domain.clone());
             }
         }
         Ok(())
@@ -2641,6 +2696,13 @@ impl<'a, 'document> Assessor<'a, 'document> {
         if isolated {
             domain_assumptions.push(ComparisonAssumption::LocalEvidenceBoundaries);
         }
+        if key.local.as_ref().is_some_and(|(old, new)| {
+            self.footer_domains
+                .iter()
+                .any(|domain| &domain.old_span == old && &domain.new_span == new)
+        }) {
+            domain_assumptions.push(ComparisonAssumption::PageLocalFooterIdentity);
+        }
         let relation = self.record(RelationAssessment {
             old_span: nonempty_span(&old),
             new_span: nonempty_span(&new),
@@ -2812,6 +2874,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             semantic_acceptance: HashMap::new(),
             local_domains: Vec::new(),
             local_anchors: Vec::new(),
+            footer_domains: Vec::new(),
             localized_edits: Vec::new(),
             localized_edit_count: 0,
             proposal_relations: HashMap::new(),

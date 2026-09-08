@@ -18,7 +18,7 @@ use pdfdelta_core::{
 use super::{
     ActualChange, ActualChangeOccurrence, ActualRelationTraceStatus, CandidateRecallMetrics,
     ChangeOriginReport, ExpectedChange, ExpectedChangeDiagnostics, ExpectedChangeFailure,
-    ExpectedChangeFailureReason, ExpectedChangedRange, ExpectedKind,
+    ExpectedChangeFailureReason, ExpectedChangeMatchEvaluation, ExpectedChangedRange, ExpectedKind,
     MAX_EXPECTED_CHANGE_DIAGNOSTICS, MatchOutcome, MissSide, WrongChangeKindDiagnostic,
     WrongChangeKindDiagnosticStopReason, WrongChangeKindSemanticHunkReport,
     WrongChangeKindTraceReport, build_block_map, change_kind_name, collapse_whitespace,
@@ -2185,8 +2185,40 @@ fn evaluate_reviewed_diagnostics_with_limits(
             failures,
             recovery_watch: None,
             final_assessment,
+            expected_matches: expected_match_evaluations(processed_expected, actuals, outcome),
         },
     })
+}
+
+pub(super) fn expected_match_evaluations(
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    outcome: &MatchOutcome,
+) -> Vec<ExpectedChangeMatchEvaluation> {
+    expected
+        .iter()
+        .enumerate()
+        .map(|(expected_index, change)| {
+            let actual_index = outcome
+                .claimed_actual_by_expected
+                .get(expected_index)
+                .copied()
+                .flatten();
+            let actual_kind = actual_index
+                .and_then(|index| actuals.get(index))
+                .map(|actual| change_kind_name(actual.kind).to_owned());
+            let kind_agrees = actual_index
+                .and_then(|index| actuals.get(index))
+                .map(|actual| change.kind.agrees_with(actual.kind));
+            ExpectedChangeMatchEvaluation {
+                expected_id: change.id.clone(),
+                matched: actual_index.is_some(),
+                actual_index,
+                actual_kind,
+                kind_agrees,
+            }
+        })
+        .collect()
 }
 
 pub(super) fn evaluate_reviewed_diagnostics(
@@ -3587,6 +3619,16 @@ mod tests {
         .expect("diagnostics succeed");
         assert_eq!(candidate_recall(&diagnostics).annotated_counterparts, 1);
         assert_eq!(candidate_recall(&diagnostics).recalled_counterparts, 1);
+        assert_eq!(
+            diagnostics.expected_change_diagnostics.expected_matches,
+            vec![ExpectedChangeMatchEvaluation {
+                expected_id: "replace".to_owned(),
+                matched: true,
+                actual_index: Some(0),
+                actual_kind: Some("move".to_owned()),
+                kind_agrees: Some(false),
+            }]
+        );
         assert_eq!(
             diagnostics.expected_change_diagnostics.failures[0].reason,
             ExpectedChangeFailureReason::WrongChangeKind {

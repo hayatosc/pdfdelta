@@ -91,9 +91,10 @@ use crate::{
     evaluation::{
         AssessmentClaimEvaluation, AssessmentEvaluation, AssessmentWorkEvaluation,
         BenchmarkProvenance, CandidateEvaluation, CandidateEventEvaluation, EvaluationRecord,
-        EvaluationSummary, ManifestProvenanceEntry, PROVENANCE_COLUMNS, ProvenEvaluation,
-        QualityEvaluation, ReviewedRecallEvaluation, ScopedEventEvaluation, ScopedTokenEvaluation,
-        TokenResolutionCounts, TrialStatus, validate_manifest_provenance,
+        EvaluationSummary, ExpectedChangeMatchEvaluation, ManifestProvenanceEntry,
+        PROVENANCE_COLUMNS, ProvenEvaluation, QualityEvaluation, ReviewedRecallEvaluation,
+        ScopedEventEvaluation, ScopedTokenEvaluation, TokenResolutionCounts, TrialStatus,
+        validate_manifest_provenance,
     },
 };
 
@@ -115,7 +116,9 @@ use fragment_review::{
     LocalFragmentReviewBundleReport, build_local_fragment_review_bundle,
     validate_local_fragment_review_bundle_contract,
 };
-use revision_diagnostics::{ComparisonDiagnosticInput, evaluate_reviewed_diagnostics};
+use revision_diagnostics::{
+    ComparisonDiagnosticInput, evaluate_reviewed_diagnostics, expected_match_evaluations,
+};
 use revision_scopes::{
     SCOPED_CHANGE_INDETERMINATE, classify_scoped_changes, classify_scoped_proven_changed_regions,
     evaluate_scoped_token_metrics, resolve_revision_scopes, validate_scoped_expected_changes,
@@ -208,8 +211,8 @@ pub struct ActualChange {
     /// Number of exact hunks emitted by the source
     /// [`ChangeEvent`](pdfdelta_core::diff::ChangeEvent).
     ///
-    /// Event matching may coalesce recovered hunks into one logical
-    /// occurrence, but quality metrics must still report the public output's
+    /// Event matching may coalesce exact hunks from one proved relation
+    /// into one logical occurrence, but quality metrics must still report the public output's
     /// actual fragmentation.
     pub reported_hunk_count: usize,
 }
@@ -511,6 +514,9 @@ pub struct ExpectedChangeDiagnostics {
     pub failures: Vec<ExpectedChangeFailure>,
     pub recovery_watch: Option<RecoveryWatchDiagnosticsReport>,
     pub final_assessment: Option<revision_diagnostics::FinalAssessmentDiagnostics>,
+    /// Per-expectation assignments retained for the versioned evaluation artifact.
+    #[serde(skip)]
+    pub expected_matches: Vec<ExpectedChangeMatchEvaluation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -5055,6 +5061,10 @@ pub struct PairRunReport {
     /// schema v3 so the full report v1 key set remains unchanged.
     #[serde(skip)]
     pub expected_change_diagnostics: Option<ExpectedChangeDiagnostics>,
+    /// Per-expectation assignments from the official matcher, available even
+    /// when the additional diagnostics pass is unavailable.
+    #[serde(skip)]
+    pub expected_matches: Option<Vec<ExpectedChangeMatchEvaluation>>,
     pub resource_limit_failure: Option<String>,
     /// Sum of `CandidateGenerator::estimated_visits` charged against
     /// `max_candidate_visits` for non-anchor old blocks; on a candidate
@@ -7403,6 +7413,32 @@ fn flatten_actual_changes(
                     reported_hunk_count,
                 };
             }
+            // Multiple exact hunks from one matched source relation describe
+            // one logical occurrence. Never infer this grouping from text.
+            if change.occurrences.len() > 1 {
+                let first = &change.occurrences[0];
+                let key = relation_group_key(first.old_span.as_ref(), first.new_span.as_ref());
+                let same_group = change.occurrences.iter().all(|part| {
+                    relation_group_key(part.old_span.as_ref(), part.new_span.as_ref()) == key
+                        && recovered
+                            .as_ref()
+                            .is_none_or(|index| !index.occurrences.contains_key(part))
+                });
+                if same_group
+                    && let Some(Some(evidence)) = matched_contexts.get(&key)
+                    && let Some(trace) = matched_atomic_diffs.get(evidence.trace_index)
+                    && let Some(actual) = assessment_evidence::from_witness(
+                        change,
+                        [&trace.old_context, &trace.new_context],
+                        &trace.edits,
+                        blocks_by_side,
+                        ActualRelationTraceStatus::Available(evidence.trace.clone()),
+                        &mut assessment_budget,
+                    )
+                {
+                    return actual;
+                }
+            }
             let allow_individual_recovered_evidence = change.occurrences.len() == 1;
             let occurrences = change
                 .occurrences
@@ -8479,8 +8515,10 @@ fn scoped_quality(
     actuals: &[ActualChange],
     actual_scopes: &[Option<String>],
 ) -> (QualityMetrics, ScopedEventMetrics) {
-    try_scoped_quality(reviewed_scope_count, expected, actuals, actual_scopes)
-        .expect("test and fixture matching stays within default resource limits")
+    let (quality, metrics, _) =
+        try_scoped_quality(reviewed_scope_count, expected, actuals, actual_scopes)
+            .expect("test and fixture matching stays within default resource limits");
+    (quality, metrics)
 }
 
 fn try_scoped_quality(
@@ -8488,7 +8526,7 @@ fn try_scoped_quality(
     expected: &[ExpectedChange],
     actuals: &[ActualChange],
     actual_scopes: &[Option<String>],
-) -> MatchingResult<(QualityMetrics, ScopedEventMetrics)> {
+) -> MatchingResult<(QualityMetrics, ScopedEventMetrics, MatchOutcome)> {
     let outcome = try_match_changes_with_scopes(expected, actuals, Some(actual_scopes))?;
     let mut quality =
         quality_from_match_outcome(Annotation::ScopedComplete, expected, actuals, &outcome);
@@ -8517,11 +8555,13 @@ fn try_scoped_quality(
             recall,
             f1,
         },
+        outcome,
     ))
 }
 
 struct CompleteScopeEvaluation {
     quality: QualityMetrics,
+    expected_matches: Vec<ExpectedChangeMatchEvaluation>,
     event_metrics: ScopedEventMetrics,
     token_metrics: ScopedTokenMetrics,
     actual_scopes: Vec<Option<String>>,
@@ -8565,15 +8605,22 @@ fn evaluate_complete_scopes(
         scoped_actuals.push(actual.clone());
         scoped_actual_scopes.push(Some(change.scope_id.clone()));
     }
-    let (quality, event_metrics) = try_scoped_quality(
+    let (quality, event_metrics, matched) = try_scoped_quality(
         scopes.len(),
         &expected,
         &scoped_actuals,
         &scoped_actual_scopes,
     )
     .map_err(str::to_owned)?;
+    let mut expected_matches = expected_match_evaluations(&expected, &scoped_actuals, &matched);
+    for assignment in &mut expected_matches {
+        assignment.actual_index = assignment
+            .actual_index
+            .map(|index| changes[index].change_index);
+    }
     Ok(CompleteScopeEvaluation {
         quality,
+        expected_matches,
         event_metrics,
         token_metrics,
         actual_scopes: all_actual_scopes,
@@ -9110,6 +9157,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         assessment: None,
         proven: None,
         expected_change_diagnostics: None,
+        expected_matches: None,
         resource_limit_failure: None,
         candidate_visits: None,
         candidate_visits_required: None,
@@ -9280,6 +9328,17 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         }
     }
 
+    let evaluation_blocks = expected
+        .as_ref()
+        .filter(|document| !document.scopes.is_empty())
+        .map(|_| revision_scopes::evaluation_block_views(&outcome.old_blocks, &outcome.new_blocks));
+    let evaluation_old_blocks = evaluation_blocks
+        .as_ref()
+        .map_or(outcome.old_blocks.as_slice(), |blocks| blocks[0].as_slice());
+    let evaluation_new_blocks = evaluation_blocks
+        .as_ref()
+        .map_or(outcome.new_blocks.as_slice(), |blocks| blocks[1].as_slice());
+
     let (actuals, proven_regions) = if extraction_complete {
         let old_map = build_block_map(&outcome.old_blocks);
         let new_map = build_block_map(&outcome.new_blocks);
@@ -9290,7 +9349,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 document,
                 &outcome.comparison,
                 &candidate_actuals,
-                [&outcome.old_blocks, &outcome.new_blocks],
+                [evaluation_old_blocks, evaluation_new_blocks],
             ));
             record.reported_candidate_precision =
                 record.candidate_event.and_then(|event| event.precision);
@@ -9302,7 +9361,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 compute_proven_evaluation(
                     document,
                     &outcome.comparison,
-                    [&outcome.old_blocks, &outcome.new_blocks],
+                    [evaluation_old_blocks, evaluation_new_blocks],
                     regions,
                 )
             })
@@ -9340,12 +9399,13 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             match evaluate_complete_scopes(
                 &document,
                 &outcome.comparison,
-                &outcome.old_blocks,
-                &outcome.new_blocks,
+                evaluation_old_blocks,
+                evaluation_new_blocks,
                 actuals.as_deref().unwrap_or_default(),
                 &recovered_atomic_diffs,
             ) {
                 Ok(scoped) => {
+                    record.expected_matches = Some(scoped.expected_matches.clone());
                     record.quality = Some(scoped.quality);
                     record.scoped_event_metrics = Some(scoped.event_metrics);
                     record.scoped_token_metrics = Some(scoped.token_metrics);
@@ -9353,7 +9413,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                         document.annotation,
                         &document.changes,
                         &outcome.comparison,
-                        [&outcome.old_blocks, &outcome.new_blocks],
+                        [evaluation_old_blocks, evaluation_new_blocks],
                         actuals.as_deref().unwrap_or_default(),
                         proven_regions.as_deref().unwrap_or_default(),
                         &scoped,
@@ -9364,7 +9424,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                     record.scoped_token_metrics = scoped_token_metrics_after_event_failure(
                         &document,
                         &outcome.comparison,
-                        [&outcome.old_blocks, &outcome.new_blocks],
+                        [evaluation_old_blocks, evaluation_new_blocks],
                         &recovered_atomic_diffs,
                     );
                 }
@@ -9379,8 +9439,8 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                     evaluate_complete_scopes(
                         &document,
                         &outcome.comparison,
-                        &outcome.old_blocks,
-                        &outcome.new_blocks,
+                        evaluation_old_blocks,
+                        evaluation_new_blocks,
                         &actuals,
                         &recovered_atomic_diffs,
                     )
@@ -9399,6 +9459,11 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             });
             match matched {
                 Ok((scoped, match_outcome)) => {
+                    record.expected_matches = Some(expected_match_evaluations(
+                        &document.changes,
+                        &actuals,
+                        &match_outcome,
+                    ));
                     record.quality = Some(quality_from_match_outcome(
                         document.annotation,
                         &document.changes,
@@ -9410,7 +9475,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                             document.annotation,
                             &document.changes,
                             &outcome.comparison,
-                            [&outcome.old_blocks, &outcome.new_blocks],
+                            [evaluation_old_blocks, evaluation_new_blocks],
                             &actuals,
                             proven_regions.as_deref().unwrap_or_default(),
                             scoped,
@@ -9427,8 +9492,8 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                     };
                     match evaluate_reviewed_diagnostics(
                         &document.changes,
-                        &outcome.old_blocks,
-                        &outcome.new_blocks,
+                        evaluation_old_blocks,
+                        evaluation_new_blocks,
                         ComparisonDiagnosticInput {
                             alignment: alignment.as_ref(),
                             comparison: &outcome.comparison,
@@ -9472,7 +9537,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                     record.scoped_token_metrics = scoped_token_metrics_after_event_failure(
                         &document,
                         &outcome.comparison,
-                        [&outcome.old_blocks, &outcome.new_blocks],
+                        [evaluation_old_blocks, evaluation_new_blocks],
                         &recovered_atomic_diffs,
                     );
                 }
@@ -15112,6 +15177,12 @@ fn evaluation_record_from_pair_report(report: &PairRunReport) -> EvaluationRecor
         old_token_resolution: report.old_token_resolution,
         new_token_resolution: report.new_token_resolution,
         assessment: report.assessment,
+        expected_matches: report.expected_matches.clone().or_else(|| {
+            report
+                .expected_change_diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.expected_matches.clone())
+        }),
         quality: quality.unwrap_or_default(),
         candidate: report
             .candidate_recall
@@ -17024,6 +17095,7 @@ mod tests {
             complete: true,
             failures: Vec::new(),
             final_assessment: None,
+            expected_matches: Vec::new(),
             recovery_watch: Some(RecoveryWatchDiagnosticsReport {
                 complete: true,
                 candidate_generation_complete: true,
@@ -17580,6 +17652,7 @@ mod tests {
         };
         let scoped = CompleteScopeEvaluation {
             quality,
+            expected_matches: Vec::new(),
             event_metrics,
             token_metrics: ScopedTokenMetrics {
                 expected_changed_tokens: 0,
@@ -20295,6 +20368,7 @@ mod tests {
             assessment: None,
             proven: None,
             expected_change_diagnostics: None,
+            expected_matches: None,
             resource_limit_failure: None,
             candidate_visits: None,
             candidate_visits_required: None,
@@ -20366,12 +20440,35 @@ mod tests {
                 normalization_hypothesis_unit_count: 1,
             }),
         });
+        report.expected_change_diagnostics = Some(ExpectedChangeDiagnostics {
+            complete: true,
+            failures: Vec::new(),
+            recovery_watch: None,
+            final_assessment: None,
+            expected_matches: vec![ExpectedChangeMatchEvaluation {
+                expected_id: "change-1".to_owned(),
+                matched: true,
+                actual_index: Some(2),
+                actual_kind: Some("replacement".to_owned()),
+                kind_agrees: Some(true),
+            }],
+        });
 
         let record = evaluation_record_from_pair_report(&report);
         assert_eq!(record.trial_status, TrialStatus::Limit);
         assert_eq!(record.quality.recall, Some(0.0));
         assert_eq!(record.quality.candidate_recall, Some(0.0));
         assert_eq!(record.assessment.expect("assessment").work_used, 100);
+        assert_eq!(
+            record.expected_matches.as_ref().expect("expected matches"),
+            &[ExpectedChangeMatchEvaluation {
+                expected_id: "change-1".to_owned(),
+                matched: true,
+                actual_index: Some(2),
+                actual_kind: Some("replacement".to_owned()),
+                kind_agrees: Some(true),
+            }]
+        );
 
         let summary = EvaluationSummary::from_records(vec![record]);
         assert_eq!(summary.totals.quality.partial_trials, 1);
@@ -20667,6 +20764,116 @@ mod tests {
             })
             .collect();
         Document::new(glyphs)
+    }
+
+    #[test]
+    fn assessed_disjoint_masks_match_one_logical_occurrence() {
+        let document = |footer: &str| {
+            let mut glyphs = Vec::new();
+            for (text, x, y) in [
+                ("Left body remains open", 0.0, 300.0),
+                ("Right body remains open", 300.0, 300.0),
+                ("Left remainder remains open", 0.0, 288.0),
+                ("Right remainder remains open", 300.0, 288.0),
+                (footer, 0.0, 30.0),
+            ] {
+                for mut glyph in glyph_document(text).items().iter().cloned() {
+                    glyph.id = GlyphId(glyphs.len() as u64 + 1);
+                    glyph.render_order = glyphs.len() as u32;
+                    glyph.bbox.min.x += x;
+                    glyph.bbox.max.x += x;
+                    glyph.bbox.min.y += y - 100.0;
+                    glyph.bbox.max.y += y - 100.0;
+                    glyph.baseline.x += x;
+                    glyph.baseline.y = y;
+                    glyphs.push(glyph);
+                }
+            }
+            Document::new(glyphs)
+        };
+        for (old_quote, new_quote, old_ranges, new_ranges, changed) in [
+            (". F", "; f", vec![0..1, 2..3], vec![0..1, 2..3], 4),
+            (
+                "Cat. No. 11320B Form 1040 (2024)",
+                "Cat. No. 11320B Form 1040 (2025) Created 9/5/25",
+                std::iter::once(30..31).collect(),
+                vec![30..31, 32..47],
+                17,
+            ),
+        ] {
+            let make = |quote: &str| {
+                if quote.starts_with("Cat.") {
+                    document(&format!(
+                        "Reviewed catalog instructions remain available. {quote}"
+                    ))
+                } else {
+                    glyph_document(quote)
+                }
+            };
+            let ComparisonWithMetrics {
+                outcome,
+                matched_atomic_diffs,
+                recovered_atomic_diffs,
+                ..
+            } = compare_outcomes_with_metrics(
+                ExtractionOutcome::complete(make(old_quote)),
+                ExtractionOutcome::complete(make(new_quote)),
+                PipelineOptions::default(),
+                &[],
+            )
+            .expect("source comparison");
+            assert_eq!(outcome.comparison.changes.len(), 1);
+            assert_eq!(outcome.comparison.changes[0].occurrences.len(), 2);
+            let maps = [
+                build_block_map(&outcome.old_blocks),
+                build_block_map(&outcome.new_blocks),
+            ];
+            let actuals = flatten_actual_changes(
+                &outcome.comparison,
+                [&maps[0], &maps[1]],
+                &matched_atomic_diffs,
+                &recovered_atomic_diffs,
+            );
+            assert_eq!(actuals[0].occurrences.len(), 1, "{actuals:#?}");
+            assert_eq!(actuals[0].reported_hunk_count, 2);
+            let occurrence = &actuals[0].occurrences[0];
+            assert_eq!(
+                occurrence
+                    .old_atomic_changed_tokens
+                    .expect("old exact count")
+                    + occurrence
+                        .new_atomic_changed_tokens
+                        .expect("new exact count"),
+                changed
+            );
+            let ranges = |ranges: Vec<std::ops::Range<usize>>| {
+                ranges
+                    .into_iter()
+                    .map(|r| serde_json::json!({"start": r.start, "end": r.end}))
+                    .collect::<Vec<_>>()
+            };
+            let expected: Vec<ExpectedChange> = serde_json::from_value(serde_json::json!([{
+                "id":"disjoint", "kind":"replacement", "occurrence_count":1,
+                "old_quote":old_quote, "new_quote":new_quote,
+                "old_changed_ranges":ranges(old_ranges), "new_changed_ranges":ranges(new_ranges),
+            }]))
+            .expect("independent source annotation");
+            assert_eq!(
+                compute_quality(Annotation::Partial, &expected, &actuals).recall,
+                Some(1.0)
+            );
+            let mut reversed = outcome.comparison.clone();
+            reversed.changes[0].occurrences.reverse();
+            assert!(
+                assessment_evidence::for_change(
+                    &reversed,
+                    0,
+                    [&maps[0], &maps[1]],
+                    &mut MatchingScanBudget::default()
+                )
+                .is_none()
+            );
+        }
     }
 
     #[test]
@@ -28332,6 +28539,7 @@ mod tests {
                 assessment: None,
                 proven: None,
                 expected_change_diagnostics: None,
+                expected_matches: None,
                 resource_limit_failure: None,
                 candidate_visits: None,
                 candidate_visits_required: None,
@@ -28477,6 +28685,7 @@ mod tests {
                 assessment: None,
                 proven: None,
                 expected_change_diagnostics: None,
+                expected_matches: None,
                 resource_limit_failure: Some(
                     "alignment candidate visit budget exceeded".to_owned(),
                 ),
@@ -28539,6 +28748,7 @@ mod tests {
                 assessment: None,
                 proven: None,
                 expected_change_diagnostics: None,
+                expected_matches: None,
                 resource_limit_failure: None,
                 candidate_visits: None,
                 candidate_visits_required: None,
@@ -29345,12 +29555,14 @@ mod tests {
             expected_change_diagnostics: Some(ExpectedChangeDiagnostics {
                 complete: true,
                 final_assessment: None,
+                expected_matches: Vec::new(),
                 failures: vec![ExpectedChangeFailure {
                     expected_id: "change-1".to_owned(),
                     reason: ExpectedChangeFailureReason::CandidateNotGenerated,
                 }],
                 recovery_watch: None,
             }),
+            expected_matches: None,
             resource_limit_failure: None,
             candidate_visits: None,
             candidate_visits_required: None,
@@ -29478,6 +29690,7 @@ mod tests {
             assessment: None,
             proven: None,
             expected_change_diagnostics: None,
+            expected_matches: None,
             resource_limit_failure: None,
             candidate_visits: Some(10),
             candidate_visits_required: Some(20),

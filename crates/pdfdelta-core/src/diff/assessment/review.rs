@@ -123,80 +123,54 @@ pub(super) fn collect(
             }
             continue;
         }
-        let query = |old_mask: &[bool], new_mask: &[bool], remaining: &mut usize| {
-            claims::count_bounds(
-                &groups[0].tokens,
-                &groups[1].tokens,
-                old_mask,
-                new_mask,
-                remaining,
-            )
-        };
-        match query(
-            &masks[0].source,
-            &masks[1].source,
-            &mut assessor.remaining_work,
-        ) {
-            Ok(Some(bounds)) => {
-                unit.changed_count = Some(EditCountBounds {
-                    lower: bounds.lower,
-                    upper: bounds.upper,
-                })
-            }
-            Ok(None) | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
-                units.push(unit);
-                continue;
-            }
-            Err(error) => return Err(error),
-        }
-        if masks.iter().all(|mask| mask.source == mask.unresolved) {
-            unit.unresolved_changed_count = unit.changed_count;
-        } else {
-            match query(
-                &masks[0].unresolved,
-                &masks[1].unresolved,
-                &mut assessor.remaining_work,
-            ) {
-                Ok(Some(bounds)) => {
-                    unit.unresolved_changed_count = Some(EditCountBounds {
-                        lower: bounds.lower,
-                        upper: bounds.upper,
-                    })
-                }
-                Ok(None) | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {}
-                Err(error) => return Err(error),
-            }
-        }
-        match claims::mandatory_changed(
+        let literal = match claims::literal_claims(
             &groups[0].tokens,
             &groups[1].tokens,
+            &masks[0].source,
+            &masks[1].source,
+            &masks[0].unresolved,
+            &masks[1].unresolved,
             &mut assessor.remaining_work,
         ) {
-            Ok(Some(mandatory)) => {
-                let mut limit = assessor.options.max_assessment_ranges - output_ranges;
-                if let Some(old) = spans(
-                    &groups[0],
-                    &mandatory.old,
-                    &masks[0].source,
-                    &mut limit,
-                    &mut assessor.remaining_work,
-                )? && let Some(new) = spans(
-                    &groups[1],
-                    &mandatory.new,
-                    &masks[1].source,
-                    &mut limit,
-                    &mut assessor.remaining_work,
-                )? {
-                    output_ranges += old.len() + new.len();
-                    unit.mandatory_old = old;
-                    unit.mandatory_new = new;
-                    if unit.unresolved_changed_count.is_some() {
-                        unit.search = SearchCompleteness::Complete;
-                    }
-                }
-            }
-            Ok(None) | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {}
+            Ok(Some(literal)) => Some(literal),
+            Ok(None) | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => None,
             Err(error) => return Err(error),
+        };
+        let Some(literal) = literal else {
+            units.push(unit);
+            continue;
+        };
+        unit.changed_count = Some(EditCountBounds {
+            lower: literal.source.lower,
+            upper: literal.source.upper,
+        });
+        let residual = if masks.iter().all(|mask| mask.source == mask.unresolved) {
+            literal.source
+        } else {
+            literal.residual
+        };
+        unit.unresolved_changed_count = Some(EditCountBounds {
+            lower: residual.lower,
+            upper: residual.upper,
+        });
+        let mut limit = assessor.options.max_assessment_ranges - output_ranges;
+        if let Some(old) = spans(
+            &groups[0],
+            &literal.mandatory.old,
+            &masks[0].source,
+            &mut limit,
+            &mut assessor.remaining_work,
+        )? && let Some(new) = spans(
+            &groups[1],
+            &literal.mandatory.new,
+            &masks[1].source,
+            &mut limit,
+            &mut assessor.remaining_work,
+        )? {
+            output_ranges += old.len() + new.len();
+            unit.mandatory_old = old;
+            unit.mandatory_new = new;
+            unit.search = SearchCompleteness::Complete;
         }
         units.push(unit);
     }

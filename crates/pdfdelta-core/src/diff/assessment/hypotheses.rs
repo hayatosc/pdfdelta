@@ -5,7 +5,7 @@
 //! active-index path per side and evaluates every old/new hypothesis pair; it
 //! never selects a convenient normalization or stores all expanded variants.
 
-use std::mem::size_of;
+use std::{hash::Hash, mem::size_of};
 
 use super::claims::{self, CountBounds};
 use crate::{Error, Result};
@@ -60,7 +60,7 @@ pub(super) struct UniversalClaims {
 /// their sides, Error::LimitExceeded for overflowing hypothesis counts or the
 /// configured memory ceiling, and Error::Unresolved when a bounded temporary
 /// allocation fails.
-pub(super) fn universal_claims<T: Eq>(
+pub(super) fn universal_claims<T: Eq + Hash>(
     old: HypothesisSide<'_, T>,
     new: HypothesisSide<'_, T>,
     remaining_work: &mut usize,
@@ -143,7 +143,7 @@ fn fill_indices(optional: &[bool], choice: usize, indices: &mut Vec<usize>) -> R
     Ok(())
 }
 
-fn evaluate_pair<T: Eq>(
+fn evaluate_pair<T: Eq + Hash>(
     old: &HypothesisSide<'_, T>,
     new: &HypothesisSide<'_, T>,
     old_indices: &[usize],
@@ -166,28 +166,16 @@ fn evaluate_pair<T: Eq>(
     let old_residual = project(old.residual, old_indices)?;
     let new_residual = project(new.residual, new_indices)?;
 
-    let source = match claims::count_bounds(
+    let literal = match claims::literal_claims(
         &old_values,
         &new_values,
         &old_source,
         &new_source,
-        remaining_work,
-    )? {
-        Some(bounds) => bounds,
-        None => return Ok(false),
-    };
-    let residual = match claims::count_bounds(
-        &old_values,
-        &new_values,
         &old_residual,
         &new_residual,
         remaining_work,
     )? {
-        Some(bounds) => bounds,
-        None => return Ok(false),
-    };
-    let mandatory = match claims::mandatory_changed(&old_values, &new_values, remaining_work)? {
-        Some(mandatory) => mandatory,
+        Some(claims) => claims,
         None => return Ok(false),
     };
     let update_work = old_indices
@@ -197,7 +185,13 @@ fn evaluate_pair<T: Eq>(
     if !charge(remaining_work, update_work) {
         return Ok(false);
     }
-    aggregate.record(source, residual, old_indices, new_indices, &mandatory)?;
+    aggregate.record(
+        literal.source,
+        literal.residual,
+        old_indices,
+        new_indices,
+        &literal.mandatory,
+    )?;
     Ok(true)
 }
 
@@ -577,5 +571,30 @@ mod tests {
             }
         );
         assert!(claims.mandatory_old.iter().all(|changed| *changed));
+    }
+
+    #[test]
+    fn all_hyphen_hypotheses_keep_insertion_ambiguity() {
+        let old = b"a-b";
+        let new = b"ab-b";
+        let old_optional = [false, true, false];
+        let new_optional = none(new);
+        let old_source = all(old);
+        let new_source = all(new);
+        let old_residual = none(old);
+        let new_residual = none(new);
+        let mut work = usize::MAX;
+        let claims = universal_claims(
+            side(old, &old_optional, &old_source, &old_residual),
+            side(new, &new_optional, &new_source, &new_residual),
+            &mut work,
+        )
+        .expect("the hyphen hypotheses should be valid")
+        .expect("all hyphen hypotheses should fit the budget");
+
+        assert_eq!(claims.completed_hypothesis_pairs, 2);
+        assert_eq!(claims.source, CountBounds { lower: 1, upper: 2 });
+        assert_eq!(claims.mandatory_old, vec![false, false, false]);
+        assert_eq!(claims.mandatory_new, vec![false, false, false, false]);
     }
 }

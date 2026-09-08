@@ -1,0 +1,6 @@
+# Round-2 evaluation-only corpus. This manifest is deliberately separate from the original
+# 29-pair corpus and the unannotated RFC 8941 -> RFC 9651 holdout.
+# PDFs remain outside the repository; fetch the HTTPS URLs and verify both byte counts and
+# SHA-256 digests before any evaluation.
+pair_id	set	role	document_type	layout	in_scope	known_issues	captured	expected_extraction	limit_scale_hint	expected_file	old_url	old_byte_count	old_sha256	new_url	new_byte_count	new_sha256	document_series_id	derivation_group	producer_family	producer_version	annotation_scope	first_evaluated	tuning_use
+jls-se17-to-se21	holdout	standard	programming-language-specification	single-column-code-tables	true	unsupported non-rectangular clipping paths affect 14 old pages and 14 new pages; the reviewed scope is on unaffected pattern-definition pages	2026-09-09	incomplete	1.0	expected/jls-se17-to-se21.json	https://docs.oracle.com/javase/specs/jls/se17/jls17.pdf	5111425	11aca060e02f98da855bb86a442f8c8d330da7bde0a43584d8c413b8cd58693c	https://docs.oracle.com/javase/specs/jls/se21/jls21.pdf	5221452	3157fbfb495c2c1b2c00bed1300ddfaf92376894a4fc42fb993837430b7d69b8	jls-se17-to-se21	jls-se17-to-se21	unknown	unknown	partial	2026-09-09	unused

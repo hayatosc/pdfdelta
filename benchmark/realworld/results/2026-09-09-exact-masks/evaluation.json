@@ -1,0 +1,3345 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "9d630455714ad876bbccc02262751f4c106558ca",
+  "fixed_measurable_denominator": 39,
+  "reviewed_expectations": 40,
+  "headline": {
+    "pairs": 29,
+    "reviewed_expectations": 40,
+    "baseline_measurable_expectations": 39,
+    "candidate_measurable_expectations": 39,
+    "baseline_exact_matches": 2,
+    "candidate_exact_matches_lower_bound": 2,
+    "candidate_exact_matches": 2,
+    "baseline_scoped_false_positive_tokens": 2,
+    "candidate_scoped_false_positive_tokens": 0,
+    "baseline_accepted_changes": 2535,
+    "candidate_accepted_changes": 2433
+  },
+  "expected_id_transitions": [
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "dsa-specification-removed",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "dsa-specification-removed",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "edsa-added",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "edsa-added",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "dsa-legacy-verification-note",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "dsa-legacy-verification-note",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "deterministic-ecdsa-rfc6979",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "deterministic-ecdsa-rfc6979",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "security-level-glossary-note-removed",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "security-level-glossary-note-removed",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "domain-parameter-requirement-moved",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "domain-parameter-requirement-moved",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "expected_id": "per-message-secret-number-scope-generalized",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "per-message-secret-number-scope-generalized",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "footer-rev-branding-removed",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "footer-rev-branding-removed",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "keying-material-definition-added",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "keying-material-definition-added",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "toolkit-footnote-comma-removed",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "toolkit-footnote-comma-removed",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "cryptanalysis-review-window-added",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "cryptanalysis-review-window-added",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "toolkit-footnote-renumbered",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "toolkit-footnote-renumbered",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "standards-reference-comma-removed",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "standards-reference-comma-removed",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "approved-definition-comma-removed",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "approved-definition-comma-removed",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "expected_id": "association-definition-punctuation",
+      "baseline_matched": true,
+      "candidate_matched": true,
+      "transition": "retained_match",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "association-definition-punctuation",
+        "matched": true,
+        "actual_index": 754,
+        "actual_kind": "replacement",
+        "kind_agrees": true
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "age-cutoff-1961-primary",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "age-cutoff-1961-primary",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "age-cutoff-1961-spouse",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "age-cutoff-1961-spouse",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "mfs-checkbox-restructured",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "mfs-checkbox-restructured",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "combat-zone-deceased-checkbox-added",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "combat-zone-deceased-checkbox-added",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "expected_id": "footer-form-year-stamp",
+      "baseline_matched": false,
+      "candidate_matched": true,
+      "transition": "gained_match",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "footer-form-year-stamp",
+        "matched": true,
+        "actual_index": 3,
+        "actual_kind": "replacement",
+        "kind_agrees": true
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "consultation-watermark-removed",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "consultation-watermark-removed",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "completeness-of-copy-clarified",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "completeness-of-copy-clarified",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "exception-effect-qualified",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "exception-effect-qualified",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "expected_id": "rijkeboer-citation-reflow",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "rijkeboer-citation-reflow",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "expected_id": "arxiv-version-date-stamp",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "arxiv-version-date-stamp",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "publication-date",
+      "baseline_matched": true,
+      "candidate_matched": false,
+      "transition": "lost_match",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "publication-date",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "current-version-url",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "current-version-url",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "former-current-version-url",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "former-current-version-url",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "expected_id": "previous-version-url",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "previous-version-url",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "expected_id": "edition-date",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "edition-date",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "expected_id": "copyright-year",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "copyright-year",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "expected_id": "copyright-notice-updated",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "copyright-notice-updated",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "expected_id": "publication-stage",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "publication-stage",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "expected_id": "publication-date",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "publication-date",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "expected_id": "cs01-url-moved-to-previous-stage",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "cs01-url-moved-to-previous-stage",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "expected_id": "form-year-footer",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "form-year-footer",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "expected_id": "change-management-scope-broadened",
+      "baseline_matched": null,
+      "candidate_matched": null,
+      "transition": "baseline_unmeasurable",
+      "candidate_match_basis": "unavailable",
+      "candidate_official_assignment": null
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "expected_id": "all-sector-scope-emphasized",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "all-sector-scope-emphasized",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "expected_id": "core-expanded-from-five-to-six-functions",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "core-expanded-from-five-to-six-functions",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "expected_id": "governance-and-supply-chain-emphasis-added",
+      "baseline_matched": false,
+      "candidate_matched": false,
+      "transition": "still_unmatched",
+      "candidate_match_basis": "official_event_matcher",
+      "candidate_official_assignment": {
+        "expected_id": "governance-and-supply-chain-emphasis-added",
+        "matched": false,
+        "actual_index": null,
+        "actual_kind": null,
+        "kind_agrees": null
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "pair_id": "nist-fips-186-4-to-5",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 306,
+      "candidate_changes": 1293,
+      "unresolved_regions": 4378,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.20931792500821586,
+      "coverage_new": 0.2656677220766375,
+      "coverage_comparison": 0.20931792500821586,
+      "unresolved_old_token_share": 0.7906820749917841,
+      "unresolved_new_token_share": 0.7343322779233624,
+      "resolved_old_tokens": 46496,
+      "resolved_new_tokens": 46736,
+      "old_token_resolution": {
+        "total": 222131,
+        "same": 46215,
+        "changed": 281,
+        "unresolved": 175635
+      },
+      "new_token_resolution": {
+        "total": 175919,
+        "same": 46200,
+        "changed": 536,
+        "unresolved": 129183
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 512000000,
+        "work_used": 488811213,
+        "work_by_stage": {
+          "anchor_verification": 8515935,
+          "local_views": 248979227,
+          "localization": 12911659,
+          "emission": 218404392
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 659,
+          "complete_review_unit_count": 659,
+          "positive_lower_bound_unit_count": 175,
+          "mandatory_old_span_count": 1532,
+          "mandatory_new_span_count": 1653,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "dsa-specification-removed",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "edsa-added",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "dsa-legacy-verification-note",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "deterministic-ecdsa-rfc6979",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "security-level-glossary-note-removed",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "domain-parameter-requirement-moved",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "per-message-secret-number-scope-generalized",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 7,
+        "reported_changes": 306,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.8571428571428571,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 255,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 206,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 102213,
+      "peak_memory_bytes": 910270464,
+      "limit_scale_used": 16.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 102.339546477,
+        "peak_rss_bytes": 910270464
+      }
+    },
+    {
+      "pair_id": "nist-sp800-57-part1-r4-to-r5",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 882,
+      "candidate_changes": 2754,
+      "unresolved_regions": 8717,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.336041101289852,
+      "coverage_new": 0.30028004047507517,
+      "coverage_comparison": 0.30028004047507517,
+      "unresolved_old_token_share": 0.663958898710148,
+      "unresolved_new_token_share": 0.6997219873343026,
+      "resolved_old_tokens": 148344,
+      "resolved_new_tokens": 148081,
+      "old_token_resolution": {
+        "total": 441446,
+        "same": 146729,
+        "changed": 1615,
+        "unresolved": 293102
+      },
+      "new_token_resolution": {
+        "total": 493143,
+        "same": 146728,
+        "changed": 1353,
+        "unresolved": 345062
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 16384000000,
+        "work_used": 3081912239,
+        "work_by_stage": {
+          "anchor_verification": 25167954,
+          "local_views": 1814403758,
+          "localization": 80186956,
+          "emission": 1162153571
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 2911,
+          "complete_review_unit_count": 2911,
+          "positive_lower_bound_unit_count": 794,
+          "mandatory_old_span_count": 3563,
+          "mandatory_new_span_count": 5221,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "footer-rev-branding-removed",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "keying-material-definition-added",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "toolkit-footnote-comma-removed",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "cryptanalysis-review-window-added",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "toolkit-footnote-renumbered",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "standards-reference-comma-removed",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "approved-definition-comma-removed",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "association-definition-punctuation",
+          "matched": true,
+          "actual_index": 754,
+          "actual_kind": "replacement",
+          "kind_agrees": true
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 8,
+        "reported_changes": 882,
+        "matched_changes": 1,
+        "kind_correct": 1,
+        "precision": null,
+        "recall": 0.125,
+        "document_recall": null,
+        "kind_accuracy": 1.0,
+        "candidate_recall": 0.125,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": 1037.0,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 628,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 7,
+        "reported_changed_tokens": 6,
+        "true_positive_tokens": 6,
+        "precision": 1.0,
+        "recall": 0.8571428571428571,
+        "f1": 0.923076923076923,
+        "span_iou": 0.8571428571428571,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 586455,
+      "peak_memory_bytes": 1471873024,
+      "limit_scale_used": 512.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 586.6923523410001,
+        "peak_rss_bytes": 1471873024
+      }
+    },
+    {
+      "pair_id": "irs-form-1040-2024-to-2025",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 4,
+      "candidate_changes": 53,
+      "unresolved_regions": 168,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.29623747862203764,
+      "coverage_new": 0.24467657693852954,
+      "coverage_comparison": 0.24467657693852954,
+      "unresolved_old_token_share": 0.7037625213779624,
+      "unresolved_new_token_share": 0.7553234230614705,
+      "resolved_old_tokens": 2425,
+      "resolved_new_tokens": 2436,
+      "old_token_resolution": {
+        "total": 8186,
+        "same": 2421,
+        "changed": 4,
+        "unresolved": 5761
+      },
+      "new_token_resolution": {
+        "total": 9956,
+        "same": 2417,
+        "changed": 19,
+        "unresolved": 7520
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 2405315,
+        "work_by_stage": {
+          "anchor_verification": 124611,
+          "local_views": 1266702,
+          "localization": 77771,
+          "emission": 936231
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 18,
+          "complete_review_unit_count": 18,
+          "positive_lower_bound_unit_count": 6,
+          "mandatory_old_span_count": 16,
+          "mandatory_new_span_count": 33,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "age-cutoff-1961-primary",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "age-cutoff-1961-spouse",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "mfs-checkbox-restructured",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "combat-zone-deceased-checkbox-added",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "footer-form-year-stamp",
+          "matched": true,
+          "actual_index": 3,
+          "actual_kind": "replacement",
+          "kind_agrees": true
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 5,
+        "reported_changes": 4,
+        "matched_changes": 1,
+        "kind_correct": 1,
+        "precision": null,
+        "recall": 0.2,
+        "document_recall": null,
+        "kind_accuracy": 1.0,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": 5.0,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 3,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 17,
+        "reported_changed_tokens": 17,
+        "true_positive_tokens": 17,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "span_iou": 1.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 307,
+      "peak_memory_bytes": 35262464,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 0.366305667000006,
+        "peak_rss_bytes": 35262464
+      }
+    },
+    {
+      "pair_id": "nist-sp800-171-r2-to-r3",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 2056,
+      "unresolved_regions": 7855,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.010043236867543036,
+      "coverage_new": 0.011197092957658803,
+      "coverage_comparison": 0.010043236867543036,
+      "unresolved_old_token_share": 0.989956763132457,
+      "unresolved_new_token_share": 0.9888029070423412,
+      "resolved_old_tokens": 2878,
+      "resolved_new_tokens": 2878,
+      "old_token_resolution": {
+        "total": 286561,
+        "same": 2878,
+        "changed": 0,
+        "unresolved": 283683
+      },
+      "new_token_resolution": {
+        "total": 257031,
+        "same": 2878,
+        "changed": 0,
+        "unresolved": 254153
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 32000000,
+        "work_by_stage": {
+          "anchor_verification": 4088980,
+          "local_views": 27839527,
+          "localization": 71493,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 47378,
+      "peak_memory_bytes": 1133170688,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 47.541446656000005,
+        "peak_rss_bytes": 1133170688
+      }
+    },
+    {
+      "pair_id": "edpb-right-of-access-v1-to-final",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 328,
+      "candidate_changes": 935,
+      "unresolved_regions": 3049,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.5264250388910817,
+      "coverage_new": 0.5151541227728512,
+      "coverage_comparison": 0.5151541227728512,
+      "unresolved_old_token_share": 0.4735749611089182,
+      "unresolved_new_token_share": 0.4848458772271488,
+      "resolved_old_tokens": 113363,
+      "resolved_new_tokens": 113745,
+      "old_token_resolution": {
+        "total": 215345,
+        "same": 112867,
+        "changed": 496,
+        "unresolved": 101982
+      },
+      "new_token_resolution": {
+        "total": 220798,
+        "same": 112867,
+        "changed": 878,
+        "unresolved": 107053
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 2048000000,
+        "work_used": 852054248,
+        "work_by_stage": {
+          "anchor_verification": 26167682,
+          "local_views": 415010360,
+          "localization": 8652079,
+          "emission": 402224127
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 1516,
+          "complete_review_unit_count": 1516,
+          "positive_lower_bound_unit_count": 278,
+          "mandatory_old_span_count": 933,
+          "mandatory_new_span_count": 1357,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "consultation-watermark-removed",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "completeness-of-copy-clarified",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "exception-effect-qualified",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "rijkeboer-citation-reflow",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 4,
+        "reported_changes": 328,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.25,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 235,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 10,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 180491,
+      "peak_memory_bytes": 717660160,
+      "limit_scale_used": 64.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 180.62417305499997,
+        "peak_rss_bytes": 717660160
+      }
+    },
+    {
+      "pair_id": "arxiv-attention-v6-to-v7",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 4,
+      "unresolved_regions": 80,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.6200856464761119,
+      "coverage_new": 0.6201016433196606,
+      "coverage_comparison": 0.6200856464761119,
+      "unresolved_old_token_share": 0.37991435352388814,
+      "unresolved_new_token_share": 0.3798983566803395,
+      "resolved_old_tokens": 24037,
+      "resolved_new_tokens": 24037,
+      "old_token_resolution": {
+        "total": 38764,
+        "same": 24037,
+        "changed": 0,
+        "unresolved": 14727
+      },
+      "new_token_resolution": {
+        "total": 38763,
+        "same": 24037,
+        "changed": 0,
+        "unresolved": 14726
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 512000000,
+        "work_used": 71244374,
+        "work_by_stage": {
+          "anchor_verification": 1827220,
+          "local_views": 42260953,
+          "localization": 102193,
+          "emission": 27054008
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 631,
+          "complete_review_unit_count": 631,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "arxiv-version-date-stamp",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "scoped_complete",
+        "expected_changes": 1,
+        "reported_changes": 0,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": 1.0,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": 0.0,
+        "unmatched_tiny_changes": 0,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 11,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 9388,
+      "peak_memory_bytes": 104697856,
+      "limit_scale_used": 16.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 9.436876698999981,
+        "peak_rss_bytes": 104697856
+      }
+    },
+    {
+      "pair_id": "w3c-ws-policy-attach-20060927-to-20061102",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 125,
+      "candidate_changes": 192,
+      "unresolved_regions": 748,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.5577667297533968,
+      "coverage_new": 0.4089333567858954,
+      "coverage_comparison": 0.4089333567858954,
+      "unresolved_old_token_share": 0.44227564193101887,
+      "unresolved_new_token_share": 0.591128723525334,
+      "resolved_old_tokens": 39491,
+      "resolved_new_tokens": 39523,
+      "old_token_resolution": {
+        "total": 70802,
+        "same": 39317,
+        "changed": 174,
+        "unresolved": 31311
+      },
+      "new_token_resolution": {
+        "total": 96649,
+        "same": 39318,
+        "changed": 205,
+        "unresolved": 57126
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 512000000,
+        "work_used": 304485015,
+        "work_by_stage": {
+          "anchor_verification": 2550545,
+          "local_views": 215906899,
+          "localization": 32399174,
+          "emission": 53628397
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 381,
+          "complete_review_unit_count": 381,
+          "positive_lower_bound_unit_count": 20,
+          "mandatory_old_span_count": 32,
+          "mandatory_new_span_count": 91,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "publication-date",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "current-version-url",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "former-current-version-url",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "previous-version-url",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "scoped_complete",
+        "expected_changes": 4,
+        "reported_changes": 2,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": 0.0,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": 1.25,
+        "unmatched_tiny_changes": 0,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 239,
+        "reported_changed_tokens": 8,
+        "true_positive_tokens": 8,
+        "precision": 1.0,
+        "recall": 0.03347280334728033,
+        "f1": 0.06477732793522266,
+        "span_iou": 0.03347280334728033,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 18900,
+      "peak_memory_bytes": 208728064,
+      "limit_scale_used": 16.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 18.970612590999963,
+        "peak_rss_bytes": 208728064
+      }
+    },
+    {
+      "pair_id": "ecma-109-ed10-to-ed11",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 34,
+      "candidate_changes": 146,
+      "unresolved_regions": 871,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.6040087202681157,
+      "coverage_new": 0.6038165209193459,
+      "coverage_comparison": 0.6038165209193459,
+      "unresolved_old_token_share": 0.3959912797318843,
+      "unresolved_new_token_share": 0.3961834790806541,
+      "resolved_old_tokens": 37126,
+      "resolved_new_tokens": 37148,
+      "old_token_resolution": {
+        "total": 61466,
+        "same": 37090,
+        "changed": 36,
+        "unresolved": 24340
+      },
+      "new_token_resolution": {
+        "total": 61522,
+        "same": 37091,
+        "changed": 57,
+        "unresolved": 24374
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 512000000,
+        "work_used": 103910455,
+        "work_by_stage": {
+          "anchor_verification": 2460777,
+          "local_views": 30060827,
+          "localization": 26112657,
+          "emission": 45276194
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 168,
+          "complete_review_unit_count": 168,
+          "positive_lower_bound_unit_count": 14,
+          "mandatory_old_span_count": 207,
+          "mandatory_new_span_count": 137,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "edition-date",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "copyright-year",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "copyright-notice-updated",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 3,
+        "reported_changes": 34,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 25,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 14,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 11256,
+      "peak_memory_bytes": 337620992,
+      "limit_scale_used": 16.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 11.33538038000006,
+        "peak_rss_bytes": 337620992
+      }
+    },
+    {
+      "pair_id": "oasis-csaf-v2-cs01-to-csd02",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 195,
+      "candidate_changes": 385,
+      "unresolved_regions": 2003,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.6820842824128818,
+      "coverage_new": 0.583925844372625,
+      "coverage_comparison": 0.583925844372625,
+      "unresolved_old_token_share": 0.3179281645320156,
+      "unresolved_new_token_share": 0.41608481017153814,
+      "resolved_old_tokens": 164398,
+      "resolved_new_tokens": 164416,
+      "old_token_resolution": {
+        "total": 241023,
+        "same": 163833,
+        "changed": 565,
+        "unresolved": 76625
+      },
+      "new_token_resolution": {
+        "total": 281570,
+        "same": 163832,
+        "changed": 584,
+        "unresolved": 117154
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 2048000000,
+        "work_used": 2048000000,
+        "work_by_stage": {
+          "anchor_verification": 93797423,
+          "local_views": 1293490838,
+          "localization": 88728276,
+          "emission": 571983463
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 268,
+          "complete_review_unit_count": 268,
+          "positive_lower_bound_unit_count": 22,
+          "mandatory_old_span_count": 22,
+          "mandatory_new_span_count": 415,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "publication-stage",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "publication-date",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "cs01-url-moved-to-previous-stage",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 3,
+        "reported_changes": 195,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.3333333333333333,
+        "generator_candidate_recall_at_k": 1.0,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 77,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 25,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 493171,
+      "peak_memory_bytes": 662851584,
+      "limit_scale_used": 64.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 493.33792468,
+        "peak_rss_bytes": 662851584
+      }
+    },
+    {
+      "pair_id": "irs-w4-korean-2024-to-2025",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 2,
+      "candidate_changes": 87,
+      "unresolved_regions": 15,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.16571139581928523,
+      "coverage_new": 0.15906148867313916,
+      "coverage_comparison": 0.15906148867313916,
+      "unresolved_old_token_share": 0.8342886041807148,
+      "unresolved_new_token_share": 0.8409385113268608,
+      "resolved_old_tokens": 1966,
+      "resolved_new_tokens": 1966,
+      "old_token_resolution": {
+        "total": 11864,
+        "same": 1964,
+        "changed": 2,
+        "unresolved": 9898
+      },
+      "new_token_resolution": {
+        "total": 12360,
+        "same": 1964,
+        "changed": 2,
+        "unresolved": 10394
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 128000000,
+        "work_used": 28542889,
+        "work_by_stage": {
+          "anchor_verification": 138331,
+          "local_views": 6383947,
+          "localization": 2596157,
+          "emission": 19424454
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 31,
+          "complete_review_unit_count": 31,
+          "positive_lower_bound_unit_count": 3,
+          "mandatory_old_span_count": 2,
+          "mandatory_new_span_count": 207,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "form-year-footer",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 1,
+        "reported_changes": 2,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 2,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 2,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 434,
+      "peak_memory_bytes": 75800576,
+      "limit_scale_used": 4.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 0.48255309500007115,
+        "peak_rss_bytes": 75800576
+      }
+    },
+    {
+      "pair_id": "hmrc-sa100-2023-to-2024",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 1,
+      "candidate_changes": 14,
+      "unresolved_regions": 90,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 0.7100440318933714,
+      "unresolved_new_token_share": 0.6987512363996043,
+      "resolved_old_tokens": 4873,
+      "resolved_new_tokens": 4873,
+      "old_token_resolution": {
+        "total": 16806,
+        "same": 4872,
+        "changed": 1,
+        "unresolved": 11933
+      },
+      "new_token_resolution": {
+        "total": 16176,
+        "same": 4872,
+        "changed": 1,
+        "unresolved": 11303
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 128000000,
+        "work_used": 1819426,
+        "work_by_stage": {
+          "anchor_verification": 1096876,
+          "local_views": 0,
+          "localization": 557159,
+          "emission": 165391
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 2,
+          "complete_review_unit_count": 2,
+          "positive_lower_bound_unit_count": 2,
+          "mandatory_old_span_count": 14,
+          "mandatory_new_span_count": 6,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 146,
+      "peak_memory_bytes": 49594368,
+      "limit_scale_used": 4.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 0.1845160189999433,
+        "peak_rss_bytes": 49594368
+      }
+    },
+    {
+      "pair_id": "edpb-dark-patterns-v1-to-v2",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 451,
+      "candidate_changes": 359,
+      "unresolved_regions": 2606,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.34101227416908014,
+      "coverage_new": 0.3007079338747324,
+      "coverage_comparison": 0.3007079338747324,
+      "unresolved_old_token_share": 0.6589877258309199,
+      "unresolved_new_token_share": 0.6992920661252676,
+      "resolved_old_tokens": 61817,
+      "resolved_new_tokens": 62356,
+      "old_token_resolution": {
+        "total": 181275,
+        "same": 61656,
+        "changed": 161,
+        "unresolved": 119458
+      },
+      "new_token_resolution": {
+        "total": 207364,
+        "same": 61779,
+        "changed": 577,
+        "unresolved": 145008
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 2048000000,
+        "work_used": 651708567,
+        "work_by_stage": {
+          "anchor_verification": 1172256,
+          "local_views": 363046447,
+          "localization": 874021,
+          "emission": 286615843
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 1666,
+          "complete_review_unit_count": 1666,
+          "positive_lower_bound_unit_count": 311,
+          "mandatory_old_span_count": 333,
+          "mandatory_new_span_count": 1624,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 50574,
+      "peak_memory_bytes": 669335552,
+      "limit_scale_used": 64.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 50.718252906999965,
+        "peak_rss_bytes": 669335552
+      }
+    },
+    {
+      "pair_id": "bis-operational-risk-2011-to-2021",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 61,
+      "candidate_changes": 499,
+      "unresolved_regions": 1351,
+      "quality_skipped_reason": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+      "coverage_old": 0.11063788597425225,
+      "coverage_new": 0.09863684225504425,
+      "coverage_comparison": 0.09863684225504425,
+      "unresolved_old_token_share": 0.8893621140257477,
+      "unresolved_new_token_share": 0.9013631577449558,
+      "resolved_old_tokens": 6858,
+      "resolved_new_tokens": 6932,
+      "old_token_resolution": {
+        "total": 61986,
+        "same": 6727,
+        "changed": 131,
+        "unresolved": 55128
+      },
+      "new_token_resolution": {
+        "total": 70278,
+        "same": 6727,
+        "changed": 205,
+        "unresolved": 63346
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 32000000,
+        "work_by_stage": {
+          "anchor_verification": 462538,
+          "local_views": 14268226,
+          "localization": 3179,
+          "emission": 17266057
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 156,
+          "complete_review_unit_count": 155,
+          "positive_lower_bound_unit_count": 16,
+          "mandatory_old_span_count": 19,
+          "mandatory_new_span_count": 62,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 16620,
+      "peak_memory_bytes": 361766912,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 16.70415380999998,
+        "peak_rss_bytes": 361766912
+      }
+    },
+    {
+      "pair_id": "oasis-odf-packages-v1-2-to-v1-3",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 11,
+      "unresolved_regions": 27,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.0,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0000256137699628,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 72111,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 72111
+      },
+      "new_token_resolution": {
+        "total": 78083,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 78083
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 2210949,
+        "work_by_stage": {
+          "anchor_verification": 2205737,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 5212
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 425,
+      "peak_memory_bytes": 179478528,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 0.4851517460000423,
+        "peak_rss_bytes": 179478528
+      }
+    },
+    {
+      "pair_id": "qgis-pyqgis-en-328-to-334",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 30,
+      "candidate_changes": 98,
+      "unresolved_regions": 1952,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.5345380394682121,
+      "coverage_new": 0.5333806390285374,
+      "coverage_comparison": 0.5333806390285374,
+      "unresolved_old_token_share": 0.4654619605317879,
+      "unresolved_new_token_share": 0.4666193609714626,
+      "resolved_old_tokens": 159380,
+      "resolved_new_tokens": 159356,
+      "old_token_resolution": {
+        "total": 298164,
+        "same": 159309,
+        "changed": 71,
+        "unresolved": 138784
+      },
+      "new_token_resolution": {
+        "total": 298766,
+        "same": 159309,
+        "changed": 47,
+        "unresolved": 139410
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 256000000,
+        "work_used": 256000000,
+        "work_by_stage": {
+          "anchor_verification": 116088842,
+          "local_views": 64610311,
+          "localization": 75300847,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 10599,
+      "peak_memory_bytes": 704364544,
+      "limit_scale_used": 8.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 10.723754401000065,
+        "peak_rss_bytes": 704364544
+      }
+    },
+    {
+      "pair_id": "jvms-se17-to-se21",
+      "trial_status": "limit",
+      "compared": false,
+      "extraction_complete": null,
+      "comparison_complete": null,
+      "accepted_changes": 0,
+      "candidate_changes": 0,
+      "unresolved_regions": 0,
+      "quality_skipped_reason": "comparison stopped at a resource limit",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": null,
+      "unresolved_new_token_share": null,
+      "resolved_old_tokens": null,
+      "resolved_new_tokens": null,
+      "old_token_resolution": null,
+      "new_token_resolution": null,
+      "assessment": null,
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 31132,
+      "peak_memory_bytes": 1464143872,
+      "limit_scale_used": 128.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 31.296082284999898,
+        "peak_rss_bytes": 1464143872
+      }
+    },
+    {
+      "pair_id": "bis-core-principles-2012-to-2024",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 8,
+      "candidate_changes": 1820,
+      "unresolved_regions": 5203,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.029539102760860084,
+      "coverage_new": 0.029249353235422305,
+      "coverage_comparison": 0.029249353235422305,
+      "unresolved_old_token_share": 0.9704608972391399,
+      "unresolved_new_token_share": 0.9707506467645777,
+      "resolved_old_tokens": 7314,
+      "resolved_new_tokens": 7315,
+      "old_token_resolution": {
+        "total": 247604,
+        "same": 7305,
+        "changed": 9,
+        "unresolved": 240290
+      },
+      "new_token_resolution": {
+        "total": 250091,
+        "same": 7305,
+        "changed": 10,
+        "unresolved": 242776
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 32000000,
+        "work_by_stage": {
+          "anchor_verification": 9339985,
+          "local_views": 7444767,
+          "localization": 15215248,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 49468,
+      "peak_memory_bytes": 1194823680,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 49.642689924000024,
+        "peak_rss_bytes": 1194823680
+      }
+    },
+    {
+      "pair_id": "oasis-mqtt-311-to-50",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 2027,
+      "unresolved_regions": 8237,
+      "quality_skipped_reason": "comparison stopped at a resource limit",
+      "coverage_old": 0.0,
+      "coverage_new": 0.0,
+      "coverage_comparison": 0.0,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 190567,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 190567
+      },
+      "new_token_resolution": {
+        "total": 369675,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 369675
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 32000000,
+        "work_by_stage": {
+          "anchor_verification": 15799133,
+          "local_views": 16200867,
+          "localization": 0,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": "scoped_complete",
+        "expected_changes": 0,
+        "reported_changes": 0,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": 1.0,
+        "recall": 1.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 0,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 0,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "span_iou": 1.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 316601,
+      "peak_memory_bytes": 1840832512,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 316.83719637600007,
+        "peak_rss_bytes": 1840832512
+      }
+    },
+    {
+      "pair_id": "nist-csf-v1-1-to-v2-0",
+      "trial_status": "ok",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 6,
+      "candidate_changes": 874,
+      "unresolved_regions": 2708,
+      "quality_skipped_reason": null,
+      "coverage_old": 0.00490602763330036,
+      "coverage_new": 0.008985015218918285,
+      "coverage_comparison": 0.00490602763330036,
+      "unresolved_old_token_share": 0.9950939723666996,
+      "unresolved_new_token_share": 0.9910149847810817,
+      "resolved_old_tokens": 615,
+      "resolved_new_tokens": 614,
+      "old_token_resolution": {
+        "total": 125356,
+        "same": 590,
+        "changed": 25,
+        "unresolved": 124741
+      },
+      "new_token_resolution": {
+        "total": 68336,
+        "same": 590,
+        "changed": 24,
+        "unresolved": 67722
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 17726497,
+        "work_by_stage": {
+          "anchor_verification": 587838,
+          "local_views": 5289027,
+          "localization": 313,
+          "emission": 11849319
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 140,
+          "complete_review_unit_count": 140,
+          "positive_lower_bound_unit_count": 14,
+          "mandatory_old_span_count": 427,
+          "mandatory_new_span_count": 277,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": [
+        {
+          "expected_id": "all-sector-scope-emphasized",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "core-expanded-from-five-to-six-functions",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        },
+        {
+          "expected_id": "governance-and-supply-chain-emphasis-added",
+          "matched": false,
+          "actual_index": null,
+          "actual_kind": null,
+          "kind_agrees": null
+        }
+      ],
+      "quality": {
+        "annotation": "partial",
+        "expected_changes": 3,
+        "reported_changes": 6,
+        "matched_changes": 0,
+        "kind_correct": null,
+        "precision": null,
+        "recall": 0.0,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": 0.5,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": 1,
+        "unresolvable_reported_spans": 0
+      },
+      "scoped_tokens": {
+        "expected_changed_tokens": 178,
+        "reported_changed_tokens": 0,
+        "true_positive_tokens": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "span_iou": 0.0,
+        "false_positive_tokens_per_10k_unchanged": 0.0
+      },
+      "trial_runtime_ms": 18290,
+      "peak_memory_bytes": 402272256,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 18.38054761100011,
+        "peak_rss_bytes": 402272256
+      }
+    },
+    {
+      "pair_id": "kicad-getting-started-7-to-8",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 11,
+      "unresolved_regions": 184,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 39217,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 39217
+      },
+      "new_token_resolution": {
+        "total": 38541,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 38541
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 1585480,
+        "work_by_stage": {
+          "anchor_verification": 1547747,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 37733
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 392,
+      "peak_memory_bytes": 101732352,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 0.44042856100008976,
+        "peak_rss_bytes": 101732352
+      }
+    },
+    {
+      "pair_id": "qgis-pyqgis-ja-328-to-334",
+      "trial_status": "unresolved",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 0,
+      "unresolved_regions": 1,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": null,
+      "unresolved_new_token_share": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 0,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 0
+      },
+      "new_token_resolution": {
+        "total": 28,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 28
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 90,
+        "work_by_stage": {
+          "anchor_verification": 90,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 130,
+      "peak_memory_bytes": 23171072,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 0.16581090799991216,
+        "peak_rss_bytes": 23564288
+      }
+    },
+    {
+      "pair_id": "qgis-doc-guidelines-es-328-to-334",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 111,
+      "unresolved_regions": 1431,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.0,
+      "coverage_new": 0.0,
+      "coverage_comparison": 0.0,
+      "unresolved_old_token_share": 1.0000224424071726,
+      "unresolved_new_token_share": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 89117,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 89117
+      },
+      "new_token_resolution": {
+        "total": 89499,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 89499
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 32000000,
+        "work_by_stage": {
+          "anchor_verification": 17203726,
+          "local_views": 14796274,
+          "localization": 0,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 1525,
+      "peak_memory_bytes": 219660288,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 1.6056669960000818,
+        "peak_rss_bytes": 219660288
+      }
+    },
+    {
+      "pair_id": "oecd-corporate-governance-2015-to-2023",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 0,
+      "unresolved_regions": 1,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 135410,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 135410
+      },
+      "new_token_resolution": {
+        "total": 185871,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 185871
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 970141,
+        "work_by_stage": {
+          "anchor_verification": 968115,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 2026
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 990,
+      "peak_memory_bytes": 353730560,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 1.066434891999961,
+        "peak_rss_bytes": 353730560
+      }
+    },
+    {
+      "pair_id": "libreoffice-getting-started-74-to-75",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 1439,
+      "unresolved_regions": 5598,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.0,
+      "coverage_new": 0.0,
+      "coverage_comparison": 0.0,
+      "unresolved_old_token_share": 1.0000278653083876,
+      "unresolved_new_token_share": 1.000037202828728,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 861286,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 861286
+      },
+      "new_token_resolution": {
+        "total": 913909,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 913909
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 2048000000,
+        "work_used": 2048000000,
+        "work_by_stage": {
+          "anchor_verification": 229293911,
+          "local_views": 1818706089,
+          "localization": 0,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 55600,
+      "peak_memory_bytes": 2121076736,
+      "limit_scale_used": 64.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 55.919968487999995,
+        "peak_rss_bytes": 2121076736
+      }
+    },
+    {
+      "pair_id": "gcc-13-3-to-13-4",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 16,
+      "unresolved_regions": 20895,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": 0.0,
+      "coverage_new": 0.0,
+      "coverage_comparison": 0.0,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 2641901,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 2641901
+      },
+      "new_token_resolution": {
+        "total": 2645288,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 2645288
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 64000000,
+        "work_used": 64000000,
+        "work_by_stage": {
+          "anchor_verification": 64000000,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 36634,
+      "peak_memory_bytes": 6136881152,
+      "limit_scale_used": 2.0,
+      "process": {
+        "exit_code": 1,
+        "seconds": 37.6402487119999,
+        "peak_rss_bytes": 6136881152
+      }
+    },
+    {
+      "pair_id": "khronos-data-format-1-3-to-1-4",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 926,
+      "unresolved_regions": 5770,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 1.000035275797947,
+      "unresolved_new_token_share": 1.0000600741715773,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 595309,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 595309
+      },
+      "new_token_resolution": {
+        "total": 749074,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 749074
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 1024000000,
+        "work_used": 234225266,
+        "work_by_stage": {
+          "anchor_verification": 233483956,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 741310
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 40960,
+      "peak_memory_bytes": 1471213568,
+      "limit_scale_used": 32.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 41.247709702000066,
+        "peak_rss_bytes": 1471213568
+      }
+    },
+    {
+      "pair_id": "postgresql-16-to-17",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 0,
+      "unresolved_regions": 1,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 0.43478260869565216,
+      "unresolved_new_token_share": 0.43478260869565216,
+      "resolved_old_tokens": 39,
+      "resolved_new_tokens": 39,
+      "old_token_resolution": {
+        "total": 69,
+        "same": 39,
+        "changed": 0,
+        "unresolved": 30
+      },
+      "new_token_resolution": {
+        "total": 69,
+        "same": 39,
+        "changed": 0,
+        "unresolved": 30
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 4935,
+        "work_by_stage": {
+          "anchor_verification": 587,
+          "local_views": 120,
+          "localization": 39,
+          "emission": 4189
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 1,
+          "complete_review_unit_count": 1,
+          "positive_lower_bound_unit_count": 1,
+          "mandatory_old_span_count": 2,
+          "mandatory_new_span_count": 1,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 2431,
+      "peak_memory_bytes": 233361408,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 2.5058090190000257,
+        "peak_rss_bytes": 233754624
+      }
+    },
+    {
+      "pair_id": "nasa-systems-engineering-handbook-rev1-to-rev2",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 0,
+      "unresolved_regions": 1,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 1.0,
+      "unresolved_new_token_share": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 1271478,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 1271478
+      },
+      "new_token_resolution": {
+        "total": 4321,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 4321
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 3907162,
+        "work_by_stage": {
+          "anchor_verification": 3886156,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 21006
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 5872,
+      "peak_memory_bytes": 2019639296,
+      "limit_scale_used": 1.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 6.19550864200005,
+        "peak_rss_bytes": 2019639296
+      }
+    },
+    {
+      "pair_id": "unicode-standard-15-to-16",
+      "trial_status": "unsupported",
+      "compared": true,
+      "extraction_complete": false,
+      "comparison_complete": false,
+      "accepted_changes": 0,
+      "candidate_changes": 196,
+      "unresolved_regions": 1886,
+      "quality_skipped_reason": "no expected annotations are recorded for this pair",
+      "coverage_old": null,
+      "coverage_new": null,
+      "coverage_comparison": null,
+      "unresolved_old_token_share": 1.0000054179127866,
+      "unresolved_new_token_share": 1.0000018406841824,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 2399448,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 2399448
+      },
+      "new_token_resolution": {
+        "total": 2173105,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 2173105
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 128000000,
+        "work_used": 128000000,
+        "work_by_stage": {
+          "anchor_verification": 128000000,
+          "local_views": 0,
+          "localization": 0,
+          "emission": 0
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 0,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "scoped_tokens": null,
+      "trial_runtime_ms": 18085,
+      "peak_memory_bytes": 4697235456,
+      "limit_scale_used": 4.0,
+      "process": {
+        "exit_code": 0,
+        "seconds": 18.78020326700016,
+        "peak_rss_bytes": 4697235456
+      }
+    }
+  ],
+  "attribution_supplements": {
+    "binary_sha256": "ebdc312db1e1a0f488f5410be7fde2ade342ec4f96af718ab145d5fb82f6c28b",
+    "revisions_rs_sha256": "cdb46b983626fdeaabcdd2015373e86e837cec96aab19a00054c58afef4b7c39",
+    "records": [
+      {
+        "pair_id": "w3c-ws-policy-attach-20060927-to-20061102",
+        "purpose": "Populate previously absent per-ID attribution from the same official scoped matcher; primary measurements remain unchanged.",
+        "evaluation_sha256": "52e8dbf597b13debf9a0f90c3f41086f88981e0e2f5dd4aa110ad5f6ba54914d",
+        "only_primary_field_supplemented": "expected_matches",
+        "all_other_nontiming_evaluation_fields_equal": true,
+        "expected_matches": [
+          {
+            "expected_id": "publication-date",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "current-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "former-current-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "previous-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "supplement_runtime_ms": 20861
+      },
+      {
+        "pair_id": "arxiv-attention-v6-to-v7",
+        "purpose": "Populate previously absent per-ID attribution from the same official scoped matcher; primary measurements remain unchanged.",
+        "evaluation_sha256": "fd5a4ab279eef7f9e46053a8bf49bc1a7a6ae5bf0814480052bac827be73f24b",
+        "only_primary_field_supplemented": "expected_matches",
+        "all_other_nontiming_evaluation_fields_equal": true,
+        "expected_matches": [
+          {
+            "expected_id": "arxiv-version-date-stamp",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "supplement_runtime_ms": 10073
+      }
+    ]
+  },
+  "annotated_holdout": {
+    "pair_id": "jls-se17-to-se21",
+    "trial_status": "limit",
+    "compared": true,
+    "extraction_complete": false,
+    "comparison_complete": false,
+    "accepted_changes": 0,
+    "candidate_changes": 2,
+    "unresolved_regions": 10937,
+    "quality_skipped_reason": "extraction was incomplete so reported diffs are suppressed",
+    "coverage_old": null,
+    "coverage_new": null,
+    "coverage_comparison": null,
+    "unresolved_old_token_share": 1.0,
+    "unresolved_new_token_share": 1.0,
+    "resolved_old_tokens": 0,
+    "resolved_new_tokens": 0,
+    "old_token_resolution": {
+      "total": 1522325,
+      "same": 0,
+      "changed": 0,
+      "unresolved": 1522325
+    },
+    "new_token_resolution": {
+      "total": 1559507,
+      "same": 0,
+      "changed": 0,
+      "unresolved": 1559507
+    },
+    "assessment": {
+      "policy_version": 1,
+      "work_limit": 32000000,
+      "work_used": 32000000,
+      "work_by_stage": {
+        "anchor_verification": 32000000,
+        "local_views": 0,
+        "localization": 0,
+        "emission": 0
+      },
+      "candidates_truncated": false,
+      "claim_diagnostics": {
+        "review_unit_count": 0,
+        "complete_review_unit_count": 0,
+        "positive_lower_bound_unit_count": 0,
+        "mandatory_old_span_count": 0,
+        "mandatory_new_span_count": 0,
+        "normalization_hypothesis_unit_count": 0
+      }
+    },
+    "expected_matches": null,
+    "quality": {
+      "annotation": null,
+      "expected_changes": null,
+      "reported_changes": null,
+      "matched_changes": null,
+      "kind_correct": null,
+      "precision": null,
+      "recall": null,
+      "document_recall": null,
+      "kind_accuracy": null,
+      "candidate_recall": null,
+      "generator_candidate_recall_at_k": null,
+      "reported_hunks_per_matched_change": null,
+      "review_hunks_per_expected_change": null,
+      "unmatched_tiny_changes": null,
+      "unresolvable_reported_spans": null
+    },
+    "scoped_tokens": null,
+    "trial_runtime_ms": 11470,
+    "peak_memory_bytes": 3768520704,
+    "limit_scale_used": 1.0,
+    "process": {
+      "exit_code": 1,
+      "seconds": 12.064314071000013,
+      "peak_rss_bytes": 3768520704
+    },
+    "expected_ids": [
+      "record-pattern-definition-added"
+    ]
+  },
+  "measurement_contract": "Official per-ID assignments and fixed source masks. Null is unavailable, not a miss or zero. Non-owning claims do not increase event recall or source coverage. Baseline ID attribution follows the frozen annotated ledger; its W3C date attribution was inferred from the unique quote."
+}

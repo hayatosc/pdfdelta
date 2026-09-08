@@ -4803,7 +4803,7 @@ fn recovered_replacement_event(
     new_recovery: &sentence::RecoveredSentence,
     new: &GroupText,
     edits: &[AtomicEdit],
-    hunk_policy: sentence::RecoveryHunkPolicy,
+    _hunk_policy: sentence::RecoveryHunkPolicy,
     confidence: Confidence,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<(ChangeEvent, Vec<RecoveredAtomicOccurrence>)> {
@@ -4812,7 +4812,9 @@ fn recovered_replacement_event(
     let mut edit_cursor = 0usize;
     let mut failed = false;
     let mut has_character_width_tag = false;
-    let completed = visit_recovered_hunks(&old.tokens, &new.tokens, edits, hunk_policy, |hunk| {
+    // Recovery already supplies the event's semantic unit. Its occurrences
+    // own only atomic edits, regardless of the proposal's context policy.
+    let completed = visit_atomic_hunks(edits, |hunk| {
         let edit_start = edit_cursor;
         while edits
             .get(edit_cursor)
@@ -5897,7 +5899,7 @@ fn compare_match(
     let confidence = span.confidence.into();
     match line_groups {
         Some(grouped) => {
-            append_line_grouped_changes(&old, &new, grouped, confidence, output.changes)
+            append_line_grouped_changes(&old, &new, &edits, grouped, confidence, output.changes)
         }
         None => append_changes(&old, &new, &edits, confidence, output.changes),
     }
@@ -6078,26 +6080,46 @@ fn beneficial_line_grouped_ranges(
     edits: &[AtomicEdit],
 ) -> Option<Vec<(Range<usize>, Range<usize>)>> {
     let grouped = line_grouped_ranges(old, new)?;
+    // Line boundaries are presentation context. They may not cut an edit or
+    // discard edits that cross between the proposed line pairs.
+    if edits.iter().any(|edit| {
+        !grouped.iter().any(|(old, new)| {
+            atomic_edit_belongs_to_hunk(
+                edit,
+                &SemanticHunk {
+                    old: old.clone(),
+                    new: new.clone(),
+                },
+            )
+        })
+    }) {
+        return None;
+    }
     (grouped.len() < count_grouped_hunks(edits, &old.tokens, &new.tokens)).then_some(grouped)
 }
 
 fn append_line_grouped_changes(
     old: &GroupText,
     new: &GroupText,
+    edits: &[AtomicEdit],
     grouped: Vec<(Range<usize>, Range<usize>)>,
     confidence: Confidence,
     changes: &mut Vec<ChangeEvent>,
 ) {
     changes.reserve(grouped.len());
-    changes.extend(grouped.into_iter().map(|(old_range, new_range)| {
-        ChangeEvent::single_occurrence(
-            ChangeKind::Replacement,
-            Some(old.span(old_range.start, old_range.end)),
-            Some(new.span(new_range.start, new_range.end)),
+    for (old_range, new_range) in grouped {
+        append_semantic_hunk(
+            old,
+            new,
+            edits,
+            SemanticHunk {
+                old: old_range,
+                new: new_range,
+            },
             confidence,
-            Vec::new(),
-        )
-    }));
+            changes,
+        );
+    }
 }
 
 fn line_token_ranges(
@@ -6150,7 +6172,7 @@ fn append_changes(
     changes: &mut Vec<ChangeEvent>,
 ) {
     let completed = visit_semantic_hunks(&old.tokens, &new.tokens, edits, |hunk| {
-        append_semantic_hunk(old, new, hunk, confidence, changes);
+        append_semantic_hunk(old, new, edits, hunk, confidence, changes);
         true
     });
     debug_assert!(completed);
@@ -6408,14 +6430,13 @@ fn is_common_punctuation(scalar: char) -> bool {
 fn append_semantic_hunk(
     old: &GroupText,
     new: &GroupText,
+    edits: &[AtomicEdit],
     hunk: SemanticHunk,
     confidence: Confidence,
     changes: &mut Vec<ChangeEvent>,
 ) {
     let kind = change_kind(hunk.old.start, hunk.new.start, hunk.old.end, hunk.new.end)
         .expect("semantic hunk must contain at least one changed side");
-    let old_changed = !hunk.old.is_empty();
-    let new_changed = !hunk.new.is_empty();
     let tags = (kind == ChangeKind::Replacement
         && is_character_width_replacement(
             &old.tokens[hunk.old.clone()],
@@ -6424,13 +6445,33 @@ fn append_semantic_hunk(
     .then_some(ChangeTag::CharacterWidth)
     .into_iter()
     .collect();
-    changes.push(ChangeEvent::single_occurrence(
-        kind,
-        old_changed.then(|| old.span(hunk.old.start, hunk.old.end)),
-        new_changed.then(|| new.span(hunk.new.start, hunk.new.end)),
-        confidence,
-        tags,
-    ));
+    // A semantic envelope groups edits but owns no equal context. Retain
+    // zero-width source boundaries for one-sided edits inside a replacement.
+    let start = edits
+        .partition_point(|edit| edit.old.end <= hunk.old.start && edit.new.end <= hunk.new.start);
+    let end = start
+        + edits[start..]
+            .iter()
+            .take_while(|edit| atomic_edit_belongs_to_hunk(edit, &hunk))
+            .count();
+    let mut occurrences = Vec::new();
+    visit_atomic_hunks(&edits[start..end], |atomic| {
+        occurrences.push(ChangeOccurrence {
+            old_span: (kind != ChangeKind::Insertion)
+                .then(|| old.span(atomic.old.start, atomic.old.end)),
+            new_span: (kind != ChangeKind::Deletion)
+                .then(|| new.span(atomic.new.start, atomic.new.end)),
+        });
+        true
+    });
+    if !occurrences.is_empty() {
+        changes.push(ChangeEvent {
+            kind,
+            occurrences,
+            confidence,
+            tags,
+        });
+    }
 }
 
 fn change_kind(
@@ -7517,30 +7558,55 @@ mod tests {
         )
         .expect("the diff stays within its resource limit")
         .expect("the edit distance stays within its configured bound");
-        let grouped = beneficial_line_grouped_ranges(&old, &new, &edits)
-            .expect("line grouping should reduce reported hunks");
-        append_line_grouped_changes(&old, &new, grouped, Confidence::Low, &mut changes);
-        assert_eq!(changes.len(), 2);
+        assert!(beneficial_line_grouped_ranges(&old, &new, &edits).is_none());
+        append_changes(&old, &new, &edits, Confidence::Low, &mut changes);
+        assert_eq!(changes.len(), 3);
         assert!(
             changes
                 .iter()
                 .all(|change| change.kind == ChangeKind::Replacement)
         );
         assert_eq!(
-            changes[0].occurrences[0].old_span,
-            Some(old.span(0, old_stage.len()))
-        );
-        assert_eq!(
-            changes[0].occurrences[0].new_span,
-            Some(new.span(0, new_stage.len()))
-        );
-        assert_eq!(
-            changes[1].occurrences[0].old_span,
-            Some(old.span(old_stage.len() + 1, old.tokens.len()))
-        );
-        assert_eq!(
-            changes[1].occurrences[0].new_span,
-            Some(new.span(new_stage.len() + 1, new.tokens.len() - 1))
+            changes
+                .iter()
+                .flat_map(|change| change.occurrences.iter())
+                .map(|occurrence| {
+                    (
+                        occurrence
+                            .old_span
+                            .as_ref()
+                            .expect("fallback has an old span")
+                            .comparable_range,
+                        occurrence
+                            .new_span
+                            .as_ref()
+                            .expect("fallback has a new span")
+                            .comparable_range,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    TokenRange { start: 24, end: 26 },
+                    TokenRange { start: 24, end: 29 }
+                ),
+                (
+                    TokenRange { start: 27, end: 28 },
+                    TokenRange { start: 30, end: 31 }
+                ),
+                (
+                    TokenRange { start: 30, end: 37 },
+                    TokenRange { start: 33, end: 38 }
+                ),
+                (
+                    TokenRange { start: 38, end: 38 },
+                    TokenRange { start: 39, end: 41 }
+                ),
+                (
+                    TokenRange { start: 42, end: 43 },
+                    TokenRange { start: 45, end: 47 }
+                ),
+            ]
         );
     }
 
@@ -7659,8 +7725,21 @@ mod tests {
         assert_eq!(retained.comparison.changes.len(), 1);
         assert!(retained.comparison.change_candidates.is_empty());
         let event = &retained.comparison.changes[0];
-        assert_eq!(event.occurrences[0].old_span, Some(test_span(2, 1, 4)));
-        assert_eq!(event.occurrences[0].new_span, Some(test_span(12, 1, 4)));
+        assert_eq!(
+            event.occurrences,
+            vec![
+                ChangeOccurrence {
+                    old_span: Some(test_span(2, 1, 2)),
+                    new_span: Some(test_span(12, 1, 2)),
+                },
+                ChangeOccurrence {
+                    old_span: Some(test_span(2, 3, 4)),
+                    new_span: Some(test_span(12, 3, 4)),
+                },
+            ]
+        );
+        assert_eq!(source_residue("aXcYz", &[1..2, 3..4]), "acz");
+        assert_eq!(source_residue("aUcVz", &[1..2, 3..4]), "acz");
         let [atomic] = retained.matched_atomic_diffs.as_slice() else {
             panic!("only the non-exact second match should retain a trace");
         };
@@ -7712,7 +7791,7 @@ mod tests {
 
         assert_eq!(retained.comparison, legacy);
         assert_eq!(retained.comparison.changes.len(), 0);
-        assert_eq!(retained.comparison.change_candidates.len(), 2);
+        assert_eq!(retained.comparison.change_candidates.len(), 5);
         assert!(
             retained
                 .comparison
@@ -7720,8 +7799,102 @@ mod tests {
                 .iter()
                 .all(|candidate| candidate.change.kind == ChangeKind::Replacement)
         );
+        assert_eq!(
+            retained
+                .comparison
+                .change_candidates
+                .iter()
+                .map(|candidate| {
+                    let occurrence = &candidate.change.occurrences[0];
+                    (
+                        occurrence
+                            .old_span
+                            .as_ref()
+                            .expect("candidate has an old span")
+                            .comparable_range,
+                        occurrence
+                            .new_span
+                            .as_ref()
+                            .expect("candidate has a new span")
+                            .comparable_range,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    TokenRange { start: 24, end: 26 },
+                    TokenRange { start: 24, end: 29 }
+                ),
+                (
+                    TokenRange { start: 27, end: 28 },
+                    TokenRange { start: 30, end: 31 }
+                ),
+                (
+                    TokenRange { start: 30, end: 37 },
+                    TokenRange { start: 33, end: 38 }
+                ),
+                (
+                    TokenRange { start: 38, end: 38 },
+                    TokenRange { start: 39, end: 41 }
+                ),
+                (
+                    TokenRange { start: 42, end: 43 },
+                    TokenRange { start: 45, end: 47 }
+                ),
+            ]
+        );
         assert_eq!(retained.matched_atomic_diffs.len(), 1);
-        assert!(retained.matched_atomic_diffs[0].edits.len() > 2);
+        assert_eq!(
+            retained.matched_atomic_diffs[0].edits,
+            vec![
+                AtomicEdit {
+                    old: 24..26,
+                    new: 24..24
+                },
+                AtomicEdit {
+                    old: 26..26,
+                    new: 24..29
+                },
+                AtomicEdit {
+                    old: 27..28,
+                    new: 30..30
+                },
+                AtomicEdit {
+                    old: 28..28,
+                    new: 30..31
+                },
+                AtomicEdit {
+                    old: 30..37,
+                    new: 33..33
+                },
+                AtomicEdit {
+                    old: 37..37,
+                    new: 33..38
+                },
+                AtomicEdit {
+                    old: 38..38,
+                    new: 39..41
+                },
+                AtomicEdit {
+                    old: 42..43,
+                    new: 45..45
+                },
+                AtomicEdit {
+                    old: 43..43,
+                    new: 45..47
+                },
+            ]
+        );
+        assert_eq!(
+            source_residue(
+                "Committee Specification 01 12 November 2021",
+                &[24..26, 27..28, 30..37, 42..43],
+            ),
+            source_residue(
+                "Committee Specification Draft 02 30 March 2022 ",
+                &[24..29, 30..31, 33..38, 39..41, 45..47],
+            )
+        );
     }
 
     #[test]
@@ -8046,30 +8219,20 @@ mod tests {
         );
 
         assert_eq!(result.changes.len(), 0);
-        assert_eq!(result.change_candidates.len(), 1);
-        assert_eq!(
-            result.change_candidates[0].change.kind,
-            ChangeKind::Replacement
+        assert_atomic_word_replacement_candidates(
+            &result.change_candidates,
+            2,
+            old_clause.find("alpha").expect("old changed word exists"),
+            "alpha",
+            102,
+            new_clause.find("beta").expect("new changed word exists"),
+            "beta",
         );
-        assert_eq!(
-            result.change_candidates[0].change.occurrences[0].old_span,
-            Some(test_span(
-                2,
-                old_clause.find("alpha").expect("old changed word exists"),
-                old_clause.find("alpha").expect("old changed word exists") + "alpha".len(),
-            ))
-        );
-        assert_eq!(
-            result.change_candidates[0].change.occurrences[0].new_span,
-            Some(test_span(
-                102,
-                new_clause.find("beta").expect("new changed word exists"),
-                new_clause.find("beta").expect("new changed word exists") + "beta".len(),
-            ))
-        );
-        assert_eq!(
-            result.change_candidates[0].change.confidence,
-            Confidence::Medium
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.confidence == Confidence::Medium)
         );
     }
 
@@ -8147,7 +8310,7 @@ mod tests {
         let old_date = old_stamp.find("4 Jul").expect("old changed date exists");
         let new_date = new_stamp.find(" Aug").expect("new changed date exists");
         assert!(result.changes.is_empty());
-        assert_eq!(result.change_candidates.len(), 2);
+        assert_eq!(result.change_candidates.len(), 4);
         assert!(
             result
                 .change_candidates
@@ -8162,14 +8325,27 @@ mod tests {
                 (occurrence.old_span.clone(), occurrence.new_span.clone())
             })
             .collect::<Vec<_>>();
-        assert!(candidate_spans.contains(&(
-            Some(test_span(1, old_revision, old_revision + 1)),
-            Some(test_span(101, new_revision, new_revision + 1)),
-        )));
-        assert!(candidate_spans.contains(&(
-            Some(test_span(1, old_date, old_date + "4 Jul".len())),
-            Some(test_span(101, new_date, new_date + " Aug".len())),
-        )));
+        assert_eq!(
+            candidate_spans,
+            vec![
+                (
+                    Some(test_span(1, old_revision, old_revision + 1)),
+                    Some(test_span(101, new_revision, new_revision + 1)),
+                ),
+                (
+                    Some(test_span(1, old_date, old_date + 1)),
+                    Some(test_span(101, new_date, new_date)),
+                ),
+                (
+                    Some(test_span(1, old_date + 2, old_date + 3)),
+                    Some(test_span(101, new_date + 1, new_date + 2)),
+                ),
+                (
+                    Some(test_span(1, old_date + 4, old_date + 5)),
+                    Some(test_span(101, new_date + 3, new_date + 4)),
+                ),
+            ]
+        );
         assert_eq!(result.old_coverage.resolved_tokens, 0);
         assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
@@ -9663,9 +9839,6 @@ mod tests {
                 vec![AlignmentEvidence::ReadingOrderUnknown],
             );
             assert!(result.changes.is_empty());
-            assert_eq!(result.change_candidates.len(), 1);
-            let change = &result.change_candidates[0].change;
-            assert_eq!(change.kind, ChangeKind::Replacement);
             let old_word = if old[0].canonical.text.contains("alpha") {
                 "alpha"
             } else {
@@ -9686,23 +9859,21 @@ mod tests {
                 .text
                 .find(new_word)
                 .expect("new changed word exists");
-            assert_eq!(
-                change.occurrences[0].old_span,
-                Some(test_span(
-                    old[0].block.0,
-                    old_start,
-                    old_start + old_word.len()
-                ))
+            assert_atomic_word_replacement_candidates(
+                &result.change_candidates,
+                old[0].block.0,
+                old_start,
+                old_word,
+                new[0].block.0,
+                new_start,
+                new_word,
             );
-            assert_eq!(
-                change.occurrences[0].new_span,
-                Some(test_span(
-                    new[0].block.0,
-                    new_start,
-                    new_start + new_word.len()
-                ))
+            assert!(
+                result
+                    .change_candidates
+                    .iter()
+                    .all(|candidate| candidate.change.confidence == Confidence::Medium)
             );
-            assert_eq!(change.confidence, Confidence::Medium);
             assert!(!result.unresolved_regions.is_empty());
             assert_eq!(result.old_coverage.resolved_tokens, 0);
             assert_eq!(result.new_coverage.resolved_tokens, 0);
@@ -9733,26 +9904,20 @@ mod tests {
         let old_change_start = old_text.find("alpha").expect("old changed word exists");
         let new_change_start = new_text.find("beta").expect("new changed word exists");
         assert!(result.changes.is_empty());
-        assert_eq!(result.change_candidates.len(), 1);
-        assert_eq!(
-            result.change_candidates[0].change,
-            ChangeEvent {
-                kind: ChangeKind::Replacement,
-                occurrences: vec![ChangeOccurrence {
-                    old_span: Some(test_span(
-                        12,
-                        old_change_start,
-                        old_change_start + "alpha".len(),
-                    )),
-                    new_span: Some(test_span(
-                        13,
-                        new_change_start,
-                        new_change_start + "beta".len(),
-                    )),
-                }],
-                confidence: Confidence::Medium,
-                tags: Vec::new(),
-            }
+        assert_atomic_word_replacement_candidates(
+            &result.change_candidates,
+            12,
+            old_change_start,
+            "alpha",
+            13,
+            new_change_start,
+            "beta",
+        );
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.confidence == Confidence::Medium)
         );
         let mut old_ranges = result
             .unresolved_regions
@@ -9798,9 +9963,17 @@ mod tests {
             );
 
             let expected_kinds = if deletion_first {
-                [ChangeKind::Deletion, ChangeKind::Replacement]
+                [
+                    ChangeKind::Deletion,
+                    ChangeKind::Replacement,
+                    ChangeKind::Replacement,
+                ]
             } else {
-                [ChangeKind::Replacement, ChangeKind::Deletion]
+                [
+                    ChangeKind::Replacement,
+                    ChangeKind::Replacement,
+                    ChangeKind::Deletion,
+                ]
             };
             assert_eq!(
                 result
@@ -9830,24 +10003,37 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             assert!(old_starts.windows(2).all(|pair| pair[0] < pair[1]));
-            let replacement = result
+            let replacement_candidates = result
                 .change_candidates
                 .iter()
-                .find(|candidate| candidate.change.kind == ChangeKind::Replacement)
-                .expect("unique near pair becomes a replacement");
+                .filter(|candidate| candidate.change.kind == ChangeKind::Replacement)
+                .cloned()
+                .collect::<Vec<_>>();
+            assert_atomic_word_replacement_candidates(
+                &replacement_candidates,
+                14,
+                old_text.find("alpha").expect("old changed word exists"),
+                "alpha",
+                15,
+                replacement_new
+                    .find("beta")
+                    .expect("new changed word exists"),
+                "beta",
+            );
+            let deletion = result
+                .change_candidates
+                .iter()
+                .find(|candidate| candidate.change.kind == ChangeKind::Deletion)
+                .expect("the obsolete sentence remains a deletion");
             assert_eq!(
-                replacement.change.occurrences[0].new_span,
+                deletion.change.occurrences[0].old_span,
                 Some(test_span(
-                    15,
-                    replacement_new
-                        .find("beta")
-                        .expect("new changed word exists"),
-                    replacement_new
-                        .find("beta")
-                        .expect("new changed word exists")
-                        + "beta".len(),
+                    14,
+                    old_text.find(deleted).expect("deleted sentence exists"),
+                    old_text.find(deleted).expect("deleted sentence exists") + deleted.len(),
                 ))
             );
+            assert!(deletion.change.occurrences[0].new_span.is_none());
             assert!(!result.unresolved_regions.is_empty());
             assert_eq!(result.old_coverage.resolved_tokens, 0);
             assert_eq!(result.new_coverage.resolved_tokens, 0);
@@ -10087,7 +10273,23 @@ mod tests {
         );
 
         assert!(result.changes.is_empty());
-        assert_eq!(result.change_candidates.len(), 1);
+        assert_atomic_word_replacement_candidates(
+            &result.change_candidates,
+            30,
+            old[0]
+                .canonical
+                .text
+                .find("alpha")
+                .expect("old changed word exists"),
+            "alpha",
+            31,
+            new[0]
+                .canonical
+                .text
+                .find("beta")
+                .expect("new changed word exists"),
+            "beta",
+        );
         assert!(
             result
                 .change_candidates
@@ -11313,28 +11515,20 @@ mod tests {
             result.changes,
             vec![ChangeEvent {
                 kind: ChangeKind::Replacement,
-                occurrences: vec![ChangeOccurrence {
-                    old_span: Some(test_span(
-                        21,
-                        old_parameter
-                            .find("number")
-                            .expect("old changed word exists"),
-                        old_parameter
-                            .find("number")
-                            .expect("old changed word exists")
-                            + "number".len(),
-                    )),
-                    new_span: Some(test_span(
-                        23,
-                        new_parameter
-                            .find("value")
-                            .expect("new changed word exists"),
-                        new_parameter
-                            .find("value")
-                            .expect("new changed word exists")
-                            + "value".len(),
-                    )),
-                }],
+                occurrences: vec![
+                    ChangeOccurrence {
+                        old_span: Some(test_span(21, 23, 24)),
+                        new_span: Some(test_span(23, 23, 26)),
+                    },
+                    ChangeOccurrence {
+                        old_span: Some(test_span(21, 25, 27)),
+                        new_span: Some(test_span(23, 27, 27)),
+                    },
+                    ChangeOccurrence {
+                        old_span: Some(test_span(21, 28, 29)),
+                        new_span: Some(test_span(23, 28, 28)),
+                    },
+                ],
                 confidence: Confidence::Medium,
                 tags: Vec::new(),
             }]
@@ -12057,7 +12251,7 @@ mod tests {
         );
 
         assert!(recovered.changes.is_empty());
-        assert_eq!(recovered.change_candidates.len(), 2);
+        assert_eq!(recovered.change_candidates.len(), 4);
         assert!(
             recovered
                 .change_candidates
@@ -12086,12 +12280,20 @@ mod tests {
                 .collect::<Vec<_>>(),
             [
                 (
-                    ScalarRange { start: 32, end: 38 },
-                    ScalarRange { start: 32, end: 37 },
+                    ScalarRange { start: 32, end: 32 },
+                    ScalarRange { start: 32, end: 35 },
                 ),
                 (
-                    ScalarRange { start: 55, end: 60 },
-                    ScalarRange { start: 54, end: 59 },
+                    ScalarRange { start: 33, end: 38 },
+                    ScalarRange { start: 36, end: 37 },
+                ),
+                (
+                    ScalarRange { start: 55, end: 56 },
+                    ScalarRange { start: 54, end: 58 },
+                ),
+                (
+                    ScalarRange { start: 57, end: 60 },
+                    ScalarRange { start: 59, end: 59 },
                 ),
             ]
         );
@@ -12542,9 +12744,29 @@ mod tests {
                 .collect::<Vec<_>>(),
             [
                 ChangeKind::Replacement,
+                ChangeKind::Replacement,
                 ChangeKind::Deletion,
                 ChangeKind::Insertion,
             ]
+        );
+        let replacement_candidates = comparison
+            .change_candidates
+            .iter()
+            .filter(|candidate| candidate.change.kind == ChangeKind::Replacement)
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_atomic_word_replacement_candidates(
+            &replacement_candidates,
+            51,
+            replacement_old
+                .find("alpha")
+                .expect("old changed word exists"),
+            "alpha",
+            55,
+            replacement_new
+                .find("beta")
+                .expect("new changed word exists"),
+            "beta",
         );
         assert!(
             comparison
@@ -13187,29 +13409,43 @@ mod tests {
         );
 
         assert!(result.changes.is_empty());
-        assert_eq!(result.change_candidates.len(), 1);
-        let replacement = &result.change_candidates[0].change;
-        assert_eq!(replacement.kind, ChangeKind::Replacement);
-        assert_eq!(
-            replacement.occurrences[0].old_span,
-            Some(test_span(
-                2,
-                old_clause
-                    .find("will mostly")
-                    .expect("old changed phrase exists"),
-                old_clause
-                    .find("will mostly")
-                    .expect("old changed phrase exists")
-                    + "will mostly".len(),
-            ))
+        assert_eq!(result.change_candidates.len(), 2);
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement)
         );
         assert_eq!(
-            replacement.occurrences[0].new_span,
-            Some(test_span(
-                102,
-                new_clause.find("may").expect("new changed word exists"),
-                new_clause.find("may").expect("new changed word exists") + "may".len(),
-            ))
+            result
+                .change_candidates
+                .iter()
+                .map(|candidate| {
+                    let occurrence = &candidate.change.occurrences[0];
+                    (
+                        occurrence
+                            .old_span
+                            .as_ref()
+                            .expect("replacement has an old span")
+                            .canonical_range,
+                        occurrence
+                            .new_span
+                            .as_ref()
+                            .expect("replacement has a new span")
+                            .canonical_range,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    ScalarRange { start: 27, end: 32 },
+                    ScalarRange { start: 27, end: 27 },
+                ),
+                (
+                    ScalarRange { start: 33, end: 37 },
+                    ScalarRange { start: 28, end: 29 },
+                ),
+            ]
         );
     }
 
@@ -13322,7 +13558,7 @@ mod tests {
             ),
         ];
 
-        for (case, source, intervals) in cases {
+        for (_case, source, intervals) in cases {
             for reverse in [false, true] {
                 let (old, new, old_intervals, new_intervals) = if reverse {
                     (&[][..], source.as_slice(), &[][..], intervals.as_slice())
@@ -13342,7 +13578,7 @@ mod tests {
                     35,
                     DiffOptions::default(),
                 );
-                assert_eq!(recovered, public, "case={case}, reverse={reverse}");
+                assert_comparison_equivalent_ignoring_work(&recovered, &public);
             }
         }
     }
@@ -13733,10 +13969,23 @@ mod tests {
         .expect("recovery comparison succeeds");
 
         assert!(outcome.comparison.changes.is_empty());
-        assert_eq!(outcome.comparison.change_candidates.len(), 1);
+        assert_atomic_word_replacement_candidates(
+            &outcome.comparison.change_candidates,
+            1,
+            old_text.find("alpha").expect("old changed word exists"),
+            "alpha",
+            2,
+            new_text.find("beta").expect("new changed word exists"),
+            "beta",
+        );
         assert_eq!(
-            outcome.comparison.change_candidates[0].change.confidence,
-            Confidence::Medium
+            outcome
+                .comparison
+                .change_candidates
+                .iter()
+                .map(|candidate| candidate.change.confidence)
+                .collect::<Vec<_>>(),
+            [Confidence::Medium, Confidence::Medium]
         );
         assert!(
             outcome
@@ -13767,7 +14016,10 @@ mod tests {
             recovered[0].new_context,
             test_span(2, 0, new_text.chars().count())
         );
-        assert!(!recovered[0].edits.is_empty());
+        assert_eq!(recovered[0].changed_occurrences.len(), 2);
+        assert_eq!(recovered[0].changed_occurrences[0].edit_range, 0..1);
+        assert_eq!(recovered[0].changed_occurrences[1].edit_range, 1..2);
+        assert_eq!(recovered[0].edits.len(), 2);
     }
 
     #[test]
@@ -14752,7 +15004,7 @@ mod tests {
 
         for (old, new, min_tokens, expected_stop) in cases {
             let (baseline, measured) = compare_run_signature_diagnostics(&old, &new, min_tokens);
-            assert_eq!(measured.comparison, baseline.comparison);
+            assert_comparison_equivalent_ignoring_work(&measured.comparison, &baseline.comparison);
             let metrics = measured
                 .sentence_recovery_metrics
                 .expect("run signature diagnostics should be available");
@@ -14795,7 +15047,7 @@ mod tests {
         let (baseline, measured) =
             compare_run_signature_diagnostics_with_alignment(&old, &new, &alignment, 10_000);
 
-        assert_eq!(measured.comparison, baseline.comparison);
+        assert_comparison_equivalent_ignoring_work(&measured.comparison, &baseline.comparison);
         let metrics = measured
             .sentence_recovery_metrics
             .expect("run signature diagnostics should be available");
@@ -14803,6 +15055,86 @@ mod tests {
         assert_eq!(metrics.new_run_signature_unique_units, 1);
         assert_eq!(metrics.run_signature_posting_visits_attempted, 1);
         assert_eq!(metrics.run_signature_posting_visits_examined, 1);
+    }
+
+    fn assert_atomic_word_replacement_candidates(
+        candidates: &[ChangeCandidate],
+        old_block: u64,
+        old_start: usize,
+        old_word: &str,
+        new_block: u64,
+        new_start: usize,
+        new_word: &str,
+    ) {
+        let expected = match (old_word, new_word) {
+            ("alpha", "beta") => vec![
+                ChangeOccurrence {
+                    old_span: Some(test_span(old_block, old_start, old_start)),
+                    new_span: Some(test_span(new_block, new_start, new_start + 3)),
+                },
+                ChangeOccurrence {
+                    old_span: Some(test_span(old_block, old_start + 1, old_start + 5)),
+                    new_span: Some(test_span(new_block, new_start + 4, new_start + 4)),
+                },
+            ],
+            ("beta", "alpha") => vec![
+                ChangeOccurrence {
+                    old_span: Some(test_span(old_block, old_start, old_start + 3)),
+                    new_span: Some(test_span(new_block, new_start, new_start)),
+                },
+                ChangeOccurrence {
+                    old_span: Some(test_span(old_block, old_start + 4, old_start + 4)),
+                    new_span: Some(test_span(new_block, new_start + 1, new_start + 5)),
+                },
+            ],
+            _ => panic!("helper only covers the alpha/beta fixture pair"),
+        };
+        assert_eq!(candidates.len(), expected.len());
+        assert!(
+            candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement)
+        );
+        assert!(
+            candidates
+                .iter()
+                .all(|candidate| candidate.change.occurrences.len() == 1)
+        );
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.change.occurrences[0].clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    fn assert_comparison_equivalent_ignoring_work(left: &Comparison, right: &Comparison) {
+        let mut left = left.clone();
+        let mut right = right.clone();
+        for comparison in [&mut left, &mut right] {
+            if let Some(assessment) = comparison.assessment.as_mut() {
+                assessment.work_used = 0;
+                assessment.work_by_stage = AssessmentWork::default();
+            }
+        }
+        assert_eq!(left, right);
+    }
+
+    fn source_residue(text: &str, changed: &[std::ops::Range<usize>]) -> String {
+        let chars = text.chars().collect::<Vec<_>>();
+        let mut covered = vec![false; chars.len()];
+        for range in changed {
+            assert!(range.end <= covered.len());
+            for index in range.clone() {
+                covered[index] = true;
+            }
+        }
+        chars
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, scalar)| (!covered[index]).then_some(scalar))
+            .collect()
     }
 
     fn source_tokens(blocks: &[BlockText]) -> usize {
@@ -14957,7 +15289,7 @@ mod tests {
             min_tokens,
             options,
         );
-        assert_eq!(recovered, public);
+        assert_comparison_equivalent_ignoring_work(&recovered, &public);
     }
 
     fn assert_recovery_with_run_ids_keeps_original_unresolved(

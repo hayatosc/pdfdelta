@@ -1,0 +1,47 @@
+{
+  "commands": [
+    "cargo fmt --all -- --check",
+    "cargo clippy --workspace --all-targets -- -D warnings",
+    "cargo test --workspace",
+    "target/release/pdfbench verify"
+  ],
+  "workspace_tests_passed": 2124,
+  "generated": {
+    "renderer_cells": 48,
+    "policy_passed": 48,
+    "strict_author_intent_passed": 42,
+    "candidate_policy_passed": 6,
+    "true_positive_tokens": 810,
+    "false_positive_tokens": 0,
+    "false_negative_tokens": 48,
+    "required_core_cases_passed_in_both_renderers": [
+      "line-wrap invariance",
+      "page-break invariance",
+      "text replacement",
+      "paragraph insertion",
+      "paragraph deletion"
+    ]
+  },
+  "binary_sha256": "69cae8e5d7e905b83b4941c83e37f86cc2af46d68fd942cc93db17eb6b90b6dc",
+  "runner_sha256": "cfd3b0b6451d22782265bf2568602168730cbabdac271d79d2add41cffbb9d96",
+  "manifest_sha256": "2af7292a01836545d2a1ea2571659d6143c133c2c9a226d47ba8ff10f61b6598",
+  "annotation_sha256": {
+    "expected/nist-fips-186-4-to-5.json": "558c07c85e97b7f0bcf8ee8baa5bbe58f01c423e231e6df9ffc4d75f0547657a",
+    "expected/nist-sp800-57-part1-r4-to-r5.json": "15a938df5370fd1bc53897807f02edbe2dc598067dec6f6003ea7feda58b4948",
+    "expected/irs-form-1040-2024-to-2025.json": "e886872234289fec682dc4e695dca7930217516baaf1d460e4f25bda18288f24",
+    "expected/edpb-right-of-access-v1-to-final.json": "ce30469ce94777e03aaaccda3c5019c58b4614c784c4c81dcfd1fa2939dca859",
+    "expected/arxiv-attention-v6-to-v7.json": "440b62a446a5ac4678815e3659e14e678fa774bd06435ed4040cd63a589c18e8",
+    "expected/w3c-ws-policy-attach-20060927-to-20061102.json": "96bfcdde0f2bafef6af778d89b708a9541058b30f9889a80034a6b05416570e4",
+    "expected/ecma-109-ed10-to-ed11.json": "7e84b8cb911631b3c6b4ea1caf7118867455afda057dce887117e76f5c3ff048",
+    "expected/oasis-csaf-v2-cs01-to-csd02.json": "82c19618c5e14374205d305ffc07034f34d6474de64959f5b194ebf91487c741",
+    "expected/irs-w4-korean-2024-to-2025.json": "10a08312fca78927ea9955bcfbb63deb9c924b16e2dfa390e1f8935e1acac078",
+    "expected/bis-operational-risk-2011-to-2021.json": "c1bbfefd3901f7ba31ef60ad05d16928b7f3aa88ea2b3f1daada05b278630e08",
+    "expected/oasis-mqtt-311-to-50.json": "5fda7b676f151d9edf1bc131c3318f50932173153182daa53daaf8f803f57d7d",
+    "expected/nist-csf-v1-1-to-v2-0.json": "dd62aafc8f208a0bd9ebcbcb1b23821d17c092d69339d6ffb1400a2afa61a7a9"
+  },
+  "source_tree_sha256": "162fa15a2646db12aac36424501ff5c7667b43bef04246d588e4a6b3e5c937bf",
+  "source_tree_hash_contract": "SHA-256 of Python json.dumps(source_sha256, sort_keys=True). The runner captures hashes of Cargo.lock, Cargo.toml, and every crates/**/*.rs and crates/**/Cargo.toml.",
+  "post_snapshot_edits": "Test-fixture Clippy correction, descriptive text in the structure probe, and scoped-complete per-ID attribution emitted from the existing match outcome. W3C and Attention were rerun for attribution; all other nontiming evaluation fields equal the primary run. Primary measurements remain unchanged.",
+  "holdout_manifest_sha256": "46b96abdf95806f623215bc094d0d073883259dadd776152f585a8f88becc992",
+  "jobs": 2
+}

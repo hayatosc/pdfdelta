@@ -1,7 +1,7 @@
 //! Joins final local edits by their emitted event indices, never by text alone.
 
 use pdfdelta_core::{
-    diff::{AtomicEdit, RelationOutcome, TokenRange},
+    diff::{AtomicEdit, ChangeEvent, RelationOutcome, TokenRange},
     normalize::ScalarRange,
 };
 
@@ -31,32 +31,17 @@ pub(super) fn for_change(
     }
     let bounded = [relation.old_span.as_ref()?, relation.new_span.as_ref()?];
     let change = comparison.changes.get(change_index)?;
+    if change.occurrences.is_empty() {
+        return None;
+    }
     let limits = MatchingLimits::default();
-    budget
-        .charge_visits(
-            trace.edits.len().checked_mul(change.occurrences.len())?,
-            limits,
-        )
-        .ok()?;
+    budget.charge_visits(trace.edits.len(), limits).ok()?;
     // Quote context may extend beyond the proved interval. It locates source
     // annotations; the relation still records only the bounded comparison.
     let contexts = [
         full_context(bounded[0], maps[0], budget, limits)?,
         full_context(bounded[1], maps[1], budget, limits)?,
     ];
-    let texts = [
-        resolve_span(maps[0], &contexts[0])?,
-        resolve_span(maps[1], &contexts[1])?,
-    ];
-    let bytes = texts[0].0.len().checked_add(texts[1].0.len())?;
-    let repetitions = trace
-        .edits
-        .len()
-        .checked_add(8)?
-        .checked_mul(change.occurrences.len())?;
-    budget
-        .charge_text(bytes.checked_mul(repetitions)?, limits)
-        .ok()?;
     let edits = trace
         .edits
         .iter()
@@ -70,48 +55,138 @@ pub(super) fn for_change(
             })
         })
         .collect::<Option<Vec<_>>>()?;
-    let occurrences = change
+    from_witness(
+        change,
+        [&contexts[0], &contexts[1]],
+        &edits,
+        maps,
+        ActualRelationTraceStatus::Assessed {
+            relation: trace.relation,
+        },
+        budget,
+    )
+}
+
+/// Coalesces only the hunks of one event with one independently selected witness.
+pub(super) fn from_witness(
+    change: &ChangeEvent,
+    contexts: [&TextSpan; 2],
+    edits: &[AtomicEdit],
+    maps: [&HashMap<u64, &BlockText>; 2],
+    relation_trace: ActualRelationTraceStatus,
+    budget: &mut MatchingScanBudget,
+) -> Option<ActualChange> {
+    if change.occurrences.is_empty() {
+        return None;
+    }
+    let limits = MatchingLimits::default();
+    budget
+        .charge_visits(edits.len().checked_mul(change.occurrences.len())?, limits)
+        .ok()?;
+    let texts = [
+        resolve_span(maps[0], contexts[0])?,
+        resolve_span(maps[1], contexts[1])?,
+    ];
+    let bytes = texts[0].0.len().checked_add(texts[1].0.len())?;
+    let repetitions = edits
+        .len()
+        .checked_add(8)?
+        .checked_mul(change.occurrences.len())?;
+    budget
+        .charge_text(bytes.checked_mul(repetitions)?, limits)
+        .ok()?;
+    let hunks = change
         .occurrences
         .iter()
         .map(|occurrence| {
-            let hunk =
-                semantic_hunk_from_edits(occurrence, &contexts[0], &contexts[1], &edits, maps)?;
-            let lengths = [
-                occurrence
-                    .old_span
-                    .as_ref()
-                    .map(|span| span.comparable_range.end - span.comparable_range.start),
-                occurrence
-                    .new_span
-                    .as_ref()
-                    .map(|span| span.comparable_range.end - span.comparable_range.start),
-            ];
-            Some(ActualChangeOccurrence {
-                old_text: hunk.old_text.clone(),
-                new_text: hunk.new_text.clone(),
-                old_relation_context: Some(collapse_whitespace(&texts[0].0)),
-                new_relation_context: Some(collapse_whitespace(&texts[1].0)),
-                old_relation_context_len: Some(texts[0].1),
-                new_relation_context_len: Some(texts[1].1),
-                old_comparable_len: lengths[0],
-                new_comparable_len: lengths[1],
-                old_atomic_changed_tokens: Some(hunk.old_atomic_changed_tokens),
-                new_atomic_changed_tokens: Some(hunk.new_atomic_changed_tokens),
-                old_semantic_changed_tokens: lengths[0],
-                new_semantic_changed_tokens: lengths[1],
-                semantic_hunks: Some(vec![hunk]),
-                relation_trace: ActualRelationTraceStatus::Assessed {
-                    relation: trace.relation,
-                },
-                resolvable: true,
-            })
+            semantic_hunk_from_edits(occurrence, contexts[0], contexts[1], edits, maps)
         })
         .collect::<Option<Vec<_>>>()?;
+    let old = envelope_text(
+        change
+            .occurrences
+            .iter()
+            .filter_map(|part| part.old_span.as_ref()),
+        maps[0],
+    )?;
+    let new = envelope_text(
+        change
+            .occurrences
+            .iter()
+            .filter_map(|part| part.new_span.as_ref()),
+        maps[1],
+    )?;
+    let atomic_counts = hunks
+        .iter()
+        .try_fold((0usize, 0usize), |(old, new), hunk| {
+            Some((
+                old.checked_add(hunk.old_atomic_changed_tokens)?,
+                new.checked_add(hunk.new_atomic_changed_tokens)?,
+            ))
+        })?;
+    let owned_counts =
+        change
+            .occurrences
+            .iter()
+            .try_fold((0usize, 0usize), |(old, new), part| {
+                let count = |span: &Option<TextSpan>| {
+                    span.as_ref().map_or(Some(0), |span| {
+                        span.comparable_range
+                            .end
+                            .checked_sub(span.comparable_range.start)
+                    })
+                };
+                Some((
+                    old.checked_add(count(&part.old_span)?)?,
+                    new.checked_add(count(&part.new_span)?)?,
+                ))
+            })?;
+    // The event and one independently selected relation establish this grouping.
+    // Disjoint exact masks are hunks of one logical occurrence, not repeated
+    // occurrences inferred from equal text. Public fragmentation stays separate.
     Some(ActualChange {
         kind: change.kind,
         reported_hunk_count: change.occurrences.len(),
-        occurrences,
+        occurrences: vec![ActualChangeOccurrence {
+            old_text: old.0,
+            new_text: new.0,
+            old_relation_context: Some(collapse_whitespace(&texts[0].0)),
+            new_relation_context: Some(collapse_whitespace(&texts[1].0)),
+            old_relation_context_len: Some(texts[0].1),
+            new_relation_context_len: Some(texts[1].1),
+            old_comparable_len: old.1,
+            new_comparable_len: new.1,
+            old_atomic_changed_tokens: Some(atomic_counts.0),
+            new_atomic_changed_tokens: Some(atomic_counts.1),
+            old_semantic_changed_tokens: Some(owned_counts.0),
+            new_semantic_changed_tokens: Some(owned_counts.1),
+            semantic_hunks: Some(hunks),
+            relation_trace,
+            resolvable: true,
+        }],
     })
+}
+
+/// Builds display text only; the exact hunk masks retain changed-token ownership.
+/// All spans already passed the same relation-context check above.
+fn envelope_text<'a>(
+    mut spans: impl Iterator<Item = &'a TextSpan>,
+    map: &HashMap<u64, &BlockText>,
+) -> Option<(Option<String>, Option<usize>)> {
+    let Some(mut envelope) = spans.next().cloned() else {
+        return Some((None, None));
+    };
+    for span in spans {
+        if span.comparable_range.start < envelope.comparable_range.end
+            || span.canonical_range.start < envelope.canonical_range.end
+        {
+            return None;
+        }
+        envelope.comparable_range.end = span.comparable_range.end;
+        envelope.canonical_range.end = span.canonical_range.end;
+    }
+    let (text, length) = resolve_span(map, &envelope)?;
+    Some((Some(collapse_whitespace(&text)), Some(length)))
 }
 
 fn full_context(

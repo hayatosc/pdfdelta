@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[cfg(test)]
 use pdfdelta_core::diff::ChangeOrigin;
@@ -116,12 +116,24 @@ struct SpanProjection {
     comparable_offset: usize,
     scalar_offset: usize,
     previous_coordinate: Option<ScopeCoordinate>,
+    last_source_coordinate: Option<ScopeCoordinate>,
     first_selected: Option<ScopeCoordinate>,
     last_selected: Option<ScopeCoordinate>,
+    last_selected_coordinate: Option<ScopeCoordinate>,
     last_selected_synthetic: bool,
 }
 
 impl SpanProjection {
+    fn record_selected_coordinate(&mut self, coordinate: ScopeCoordinate) -> Result<(), String> {
+        if let Some(previous) = self.last_selected_coordinate
+            && !selected_coordinate_follows(previous, coordinate, self.last_source_coordinate)
+        {
+            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+        }
+        self.last_selected_coordinate = Some(coordinate);
+        Ok(())
+    }
+
     fn project(
         &mut self,
         coordinate: Option<ScopeCoordinate>,
@@ -138,9 +150,13 @@ impl SpanProjection {
         let selected = span.comparable_range.start <= self.comparable_offset
             && self.comparable_offset < span.comparable_range.end;
         self.comparable_offset = budget.checked_add(self.comparable_offset, 1)?;
-        if self.last_selected_synthetic {
+        let closes_synthetic = self.last_selected_synthetic;
+        if closes_synthetic {
             self.last_selected =
                 Some(coordinate.ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?);
+            self.record_selected_coordinate(
+                coordinate.ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?,
+            )?;
             self.last_selected_synthetic = false;
         }
         if selected {
@@ -148,6 +164,9 @@ impl SpanProjection {
                 self.first_selected.get_or_insert(coordinate);
                 self.last_selected = Some(coordinate);
                 self.last_selected_synthetic = false;
+                if !closes_synthetic {
+                    self.record_selected_coordinate(coordinate)?;
+                }
             } else if scalar {
                 // A virtual separator has no source scalar. Both immediate
                 // neighbors must bound its scope; neither becomes a changed token.
@@ -155,10 +174,21 @@ impl SpanProjection {
                     .previous_coordinate
                     .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
                 self.first_selected.get_or_insert(previous);
+                if self
+                    .last_selected_coordinate
+                    .is_some_and(|last| last != previous)
+                {
+                    return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+                }
+                self.last_selected_coordinate = Some(previous);
+                self.last_selected = Some(previous);
                 self.last_selected_synthetic = true;
             }
         }
         self.previous_coordinate = coordinate;
+        if coordinate.is_some() {
+            self.last_source_coordinate = coordinate;
+        }
         if scalar {
             self.scalar_offset = budget.checked_add(self.scalar_offset, 1)?;
         }
@@ -169,6 +199,30 @@ impl SpanProjection {
         }
         budget.charge_work(1, limits)
     }
+}
+
+fn selected_coordinate_follows(
+    previous: ScopeCoordinate,
+    current: ScopeCoordinate,
+    last_source: Option<ScopeCoordinate>,
+) -> bool {
+    (current.block_order == previous.block_order && current.scalar > previous.scalar)
+        || (previous.block_order < current.block_order
+            && current.scalar == 0
+            && last_source == Some(previous))
+}
+
+fn selected_token_follows(
+    previous_block: usize,
+    previous_token: usize,
+    current_block: usize,
+    current_token: usize,
+    last_source: Option<(usize, usize)>,
+) -> bool {
+    (current_block == previous_block && previous_token.checked_add(1) == Some(current_token))
+        || (previous_block < current_block
+            && current_token == 0
+            && last_source == Some((previous_block, previous_token)))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -389,6 +443,148 @@ pub(super) fn resolve_revision_scopes(
     resolve_revision_scopes_with_limits(scopes, old_blocks, new_blocks, DiagnosticLimits::default())
 }
 
+/// Returns the bounded source view used by scoped evaluation.
+///
+/// A PDF content stream can paint one horizontal footer from right to left even
+/// when the source text reads left to right. Only a terminal, single-page band
+/// with complete horizontal glyph geometry is eligible for local reordering.
+/// The comparison's blocks remain untouched; every returned block retains its
+/// original identity and source evidence.
+pub(super) fn evaluation_block_views(
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+) -> [Vec<BlockText>; 2] {
+    [
+        reorder_terminal_bands(old_blocks),
+        reorder_terminal_bands(new_blocks),
+    ]
+}
+
+fn reorder_terminal_bands(blocks: &[BlockText]) -> Vec<BlockText> {
+    let mut by_page = BTreeMap::<u32, Vec<usize>>::new();
+    for (index, block) in blocks.iter().enumerate() {
+        for page in &block.pages {
+            by_page.entry(*page).or_default().push(index);
+        }
+    }
+    let mut reordered = blocks.to_vec();
+    for indices in by_page.into_values() {
+        let Some(mut members) = certified_terminal_band(blocks, &indices) else {
+            continue;
+        };
+        if members.len() < 2 {
+            continue;
+        }
+        let mut target_indices = members.clone();
+        target_indices.sort_unstable();
+        members.sort_unstable_by(|&left, &right| {
+            let left_x = first_position_x(&blocks[left]);
+            let right_x = first_position_x(&blocks[right]);
+            left_x.total_cmp(&right_x).then_with(|| left.cmp(&right))
+        });
+        for (target, source) in target_indices.into_iter().zip(members) {
+            reordered[target] = blocks[source].clone();
+        }
+    }
+    reordered
+}
+
+fn certified_terminal_band(blocks: &[BlockText], indices: &[usize]) -> Option<Vec<usize>> {
+    if indices.iter().any(|&index| {
+        blocks[index].pages.len() != 1
+            || blocks[index].position_signatures.is_none()
+            || blocks[index].font_size_signatures.is_none()
+    }) {
+        return None;
+    }
+    let lowest = indices
+        .iter()
+        .flat_map(|&index| {
+            blocks[index]
+                .position_signatures
+                .as_ref()
+                .expect("page geometry was checked above")
+                .iter()
+                .map(|position| position.baseline().y)
+        })
+        .min_by(f64::total_cmp)?;
+    let smallest_font = indices
+        .iter()
+        .flat_map(|&index| {
+            blocks[index]
+                .font_size_signatures
+                .as_ref()
+                .expect("page geometry was checked above")
+                .iter()
+                .flat_map(|signature| signature.values())
+        })
+        .min_by(f64::total_cmp)?;
+    let band = smallest_font * 0.5;
+    if !band.is_finite() || band <= 0.0 {
+        return None;
+    }
+    let mut members = Vec::new();
+    for &index in indices {
+        let block = &blocks[index];
+        let positions = block
+            .position_signatures
+            .as_ref()
+            .expect("page geometry was checked above");
+        if !positions
+            .iter()
+            .any(|position| position.baseline().y - lowest <= band)
+        {
+            continue;
+        }
+        if block
+            .line_breaks
+            .as_ref()
+            .is_none_or(|breaks| !breaks.is_empty())
+            || positions.is_empty()
+            || positions.iter().any(|position| {
+                let direction = position.direction();
+                direction.x <= 0.0 || direction.y != 0.0 || position.baseline().y - lowest > band
+            })
+            || positions
+                .windows(2)
+                .any(|pair| pair[0].baseline().x > pair[1].baseline().x)
+        {
+            return None;
+        }
+        members.push(index);
+    }
+    members.sort_unstable_by(|&left, &right| {
+        first_position_x(&blocks[left])
+            .total_cmp(&first_position_x(&blocks[right]))
+            .then_with(|| left.cmp(&right))
+    });
+    if members.windows(2).any(|pair| {
+        let left = &blocks[pair[0]];
+        let right = &blocks[pair[1]];
+        !left.role.is_alignment_compatible(right.role)
+            || last_position_x(left) > first_position_x(right)
+    }) {
+        return None;
+    }
+    Some(members)
+}
+
+fn first_position_x(block: &BlockText) -> f64 {
+    block
+        .position_signatures
+        .as_ref()
+        .and_then(|positions| positions.first())
+        .map_or(f64::NAN, |position| position.baseline().x)
+}
+
+fn last_position_x(block: &BlockText) -> f64 {
+    block
+        .position_signatures
+        .as_ref()
+        .and_then(|positions| positions.last())
+        .map_or(f64::NAN, |position| position.baseline().x)
+}
+
 fn span_range_with_limits(
     span: &TextSpan,
     blocks: &[BlockText],
@@ -451,18 +647,12 @@ fn span_range_with_limits(
         return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
     }
     let mut projection = SpanProjection::default();
-    let mut previous_order = None;
     let mut combined_last_whitespace = None;
     for (position, block_id) in span.blocks.iter().enumerate() {
         budget.charge_work(1, limits)?;
         let block_order = *order
             .get(block_id)
             .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
-        if let Some(previous) = previous_order
-            && block_order != budget.checked_add(previous, 1)?
-        {
-            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
-        }
         let mapped = &blocks
             .get(block_order)
             .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?
@@ -520,7 +710,6 @@ fn span_range_with_limits(
         if last_whitespace.is_some() {
             combined_last_whitespace = last_whitespace;
         }
-        previous_order = Some(block_order);
     }
     if span.comparable_range.end > projection.comparable_offset
         || span.canonical_range.end > projection.scalar_offset
@@ -1226,17 +1415,13 @@ fn project_span_intervals(
     let mut intervals = Vec::new();
     let mut comparable_offset = 0_usize;
     let mut scalar_offset = 0_usize;
-    let mut previous_order = None;
+    let mut last_selected_token = None;
+    let mut last_source_token = None;
     let mut combined_last = None::<ComparableToken>;
     for (position, block_id) in span.blocks.iter().enumerate() {
         let block_order = *order
             .get(block_id)
             .ok_or_else(|| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
-        if let Some(previous) = previous_order
-            && block_order != budget.checked_add(previous, 1)?
-        {
-            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
-        }
         let tokens = blocks[block_order]
             .canonical
             .comparable_tokens()
@@ -1274,6 +1459,18 @@ fn project_span_intervals(
                 if !token.is_scalar() {
                     return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
                 }
+                if let Some((previous_block, previous_token)) = last_selected_token
+                    && !selected_token_follows(
+                        previous_block,
+                        previous_token,
+                        block_order,
+                        token_index,
+                        last_source_token,
+                    )
+                {
+                    return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+                }
+                last_selected_token = Some((block_order, token_index));
                 push_token_interval(
                     &mut intervals,
                     TokenInterval {
@@ -1294,11 +1491,11 @@ fn project_span_intervals(
             {
                 return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
             }
+            last_source_token = Some((block_order, token_index));
         }
         if let Some(last) = tokens.last() {
             combined_last = Some(last.clone());
         }
-        previous_order = Some(block_order);
     }
     if span.comparable_range.end > comparable_offset || span.canonical_range.end > scalar_offset {
         return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
@@ -1504,9 +1701,10 @@ mod tests {
         AtomicEdit, ChangeKind, ChangeOccurrence, Confidence, RecoveredAtomicOccurrence, TokenRange,
     };
     use pdfdelta_core::layout::BlockRole;
+    use pdfdelta_core::model::Vec2;
     use pdfdelta_core::normalize::{
-        ComparableToken, MappedText, NormalizationIssue, NormalizationIssueKind, ScalarRange,
-        TextSource,
+        ComparableToken, FontSizeSignature, MappedText, NormalizationIssue, NormalizationIssueKind,
+        PositionSignature, ScalarRange, TextSource,
     };
 
     use super::super::{ExpectedKind, QuoteScope};
@@ -1537,6 +1735,63 @@ mod tests {
             line_breaks: None,
             page_breaks: None,
         }
+    }
+
+    fn positioned_block(id: u64, text: &str, x: f64, y: f64) -> BlockText {
+        let mut block = block(id, text);
+        let count = text.chars().count();
+        block.pages = vec![0];
+        block.font_size_signatures = Some(
+            (0..count)
+                .map(|_| FontSizeSignature::new(&[10.0]).expect("valid font size"))
+                .collect(),
+        );
+        block.position_signatures = Some(
+            (0..count)
+                .map(|offset| {
+                    PositionSignature::new(
+                        Vec2 {
+                            x: x + offset as f64 * 4.0,
+                            y,
+                        },
+                        Vec2 { x: 1.0, y: 0.0 },
+                    )
+                    .expect("valid position")
+                })
+                .collect(),
+        );
+        block.line_breaks = Some(Vec::new());
+        block
+    }
+
+    #[test]
+    fn evaluation_views_reorder_only_certified_terminal_bands() {
+        let old = [
+            positioned_block(1, "right", 20.0, 10.0),
+            positioned_block(2, "left", 0.0, 10.0),
+            positioned_block(3, "body", 0.0, 100.0),
+        ];
+        let [reordered, _] = evaluation_block_views(&old, &[]);
+        assert_eq!(
+            reordered
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+            [BlockId(2), BlockId(1), BlockId(3)]
+        );
+
+        let overlapping = [
+            positioned_block(4, "left", 0.0, 10.0),
+            positioned_block(5, "right", 1.0, 10.0),
+        ];
+        let [unchanged, _] = evaluation_block_views(&overlapping, &[]);
+        assert_eq!(
+            unchanged
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+            [BlockId(4), BlockId(5)]
+        );
     }
 
     fn scope(
@@ -2777,6 +3032,125 @@ mod tests {
                     change_index: 3,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn projects_reordered_context_only_when_selected_coordinates_are_contiguous() {
+        let old = [block(1, "a"), block(2, "b"), block(3, "c")];
+        let new = [block(4, "A"), block(5, "B"), block(6, "C")];
+        let scopes = [ResolvedScope {
+            id: "body".to_owned(),
+            old: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 1,
+                    scalar: 0,
+                },
+                end: ScopeCoordinate {
+                    block_order: 1,
+                    scalar: 0,
+                },
+            },
+            new: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 1,
+                    scalar: 0,
+                },
+                end: ScopeCoordinate {
+                    block_order: 1,
+                    scalar: 0,
+                },
+            },
+        }];
+        let selected_old = group_span(
+            vec![BlockId(1), BlockId(3), BlockId(2)],
+            BlockSeparator::Concatenate,
+            2,
+            3,
+        );
+        let selected_new = group_span(
+            vec![BlockId(4), BlockId(6), BlockId(5)],
+            BlockSeparator::Concatenate,
+            2,
+            3,
+        );
+        let actual = change(Some(selected_old.clone()), Some(selected_new.clone()));
+        assert_eq!(
+            classify_scoped_changes(std::slice::from_ref(&actual), &scopes, &old, &new,)
+                .expect("selected block projects despite unused reordered context"),
+            [ScopedChange {
+                scope_id: "body".to_owned(),
+                change_index: 0,
+            }]
+        );
+
+        let expected = [expected("body", "b", "B")];
+        let evidence = validate_scoped_expected_changes(&expected, &scopes, &old, &new)
+            .expect("expected quote resolves in the selected block");
+        let metrics = evaluate_scoped_token_metrics(
+            std::slice::from_ref(&actual),
+            evidence,
+            &scopes,
+            &old,
+            &new,
+            &[],
+        )
+        .expect("token projection ignores unused reordered context");
+        assert_eq!(
+            (
+                metrics.expected_changed_tokens,
+                metrics.reported_changed_tokens,
+                metrics.true_positive_tokens,
+            ),
+            (2, 2, 2)
+        );
+
+        let zero_width_old = group_span(
+            vec![BlockId(1), BlockId(3), BlockId(2)],
+            BlockSeparator::Concatenate,
+            3,
+            3,
+        );
+        let zero_width_new = group_span(
+            vec![BlockId(4), BlockId(6), BlockId(5)],
+            BlockSeparator::Concatenate,
+            3,
+            3,
+        );
+        assert_eq!(
+            classify_scoped_changes(
+                &[change(Some(zero_width_old), Some(zero_width_new))],
+                &scopes,
+                &old,
+                &new,
+            )
+            .expect("zero-width boundary projects to the selected block"),
+            [ScopedChange {
+                scope_id: "body".to_owned(),
+                change_index: 0,
+            }]
+        );
+
+        let noncontiguous_old = group_span(
+            vec![BlockId(1), BlockId(3), BlockId(2)],
+            BlockSeparator::Concatenate,
+            1,
+            3,
+        );
+        let noncontiguous_new = group_span(
+            vec![BlockId(4), BlockId(6), BlockId(5)],
+            BlockSeparator::Concatenate,
+            1,
+            3,
+        );
+        assert_eq!(
+            classify_scoped_changes(
+                &[change(Some(noncontiguous_old), Some(noncontiguous_new))],
+                &scopes,
+                &old,
+                &new,
+            ),
+            Err(SCOPED_CHANGE_INDETERMINATE.to_owned())
         );
     }
 

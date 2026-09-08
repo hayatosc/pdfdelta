@@ -30,7 +30,7 @@ pub const PROVENANCE_COLUMNS: [&str; 7] = [
 
 /// Version for the provenance and evaluation artifact, independent of the
 /// legacy revision summary schema.
-pub const EVALUATION_SCHEMA_VERSION: u32 = 4;
+pub const EVALUATION_SCHEMA_VERSION: u32 = 5;
 
 /// Whether a document was used to change implementation or tuning choices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -467,6 +467,21 @@ pub struct AssessmentClaimEvaluation {
     pub normalization_hypothesis_unit_count: usize,
 }
 
+/// One expected change's assignment from the official event matcher.
+///
+/// `matched` counts an assignment in the same way as quality's
+/// `matched_changes`; `kind_agrees` keeps kind correctness separate from event
+/// matching. An absent collection means that matching was unavailable for the
+/// pair, while an entry with `matched == false` is an authoritative miss.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExpectedChangeMatchEvaluation {
+    pub expected_id: String,
+    pub matched: bool,
+    pub actual_index: Option<usize>,
+    pub actual_kind: Option<String>,
+    pub kind_agrees: Option<bool>,
+}
+
 /// Assessment policy and bounded work accounting for one comparison.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssessmentEvaluation {
@@ -563,6 +578,8 @@ pub struct EvaluationRecord {
     pub old_token_resolution: Option<TokenResolutionCounts>,
     pub new_token_resolution: Option<TokenResolutionCounts>,
     pub assessment: Option<AssessmentEvaluation>,
+    /// Per-expectation assignments from the same matcher as `quality`.
+    pub expected_matches: Option<Vec<ExpectedChangeMatchEvaluation>>,
     pub quality: QualityEvaluation,
     pub candidate: Option<CandidateEvaluation>,
     pub proven: Option<ProvenEvaluation>,
@@ -1419,6 +1436,33 @@ mod tests {
                 .as_object()
                 .expect("assessment object")
                 .contains_key("claim_diagnostics")
+        );
+    }
+
+    #[test]
+    fn expected_match_results_serialize_with_the_evaluation_record() {
+        let summary = EvaluationSummary::from_records(vec![EvaluationRecord {
+            pair_id: "matched".to_owned(),
+            expected_matches: Some(vec![ExpectedChangeMatchEvaluation {
+                expected_id: "change-1".to_owned(),
+                matched: true,
+                actual_index: Some(3),
+                actual_kind: Some("replacement".to_owned()),
+                kind_agrees: Some(true),
+            }]),
+            ..EvaluationRecord::default()
+        }]);
+
+        let serialized = serde_json::to_value(summary).expect("evaluation summary serializes");
+        assert_eq!(
+            serialized["records"][0]["expected_matches"][0],
+            serde_json::json!({
+                "expected_id": "change-1",
+                "matched": true,
+                "actual_index": 3,
+                "actual_kind": "replacement",
+                "kind_agrees": true,
+            })
         );
     }
 

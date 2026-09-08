@@ -707,6 +707,7 @@ pub(crate) fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::AlternativeLineBreakNormalization => {
             "alternative_line_break_normalization"
         }
+        ComparisonAssumption::PageLocalFooterIdentity => "page_local_footer_identity",
     }
 }
 

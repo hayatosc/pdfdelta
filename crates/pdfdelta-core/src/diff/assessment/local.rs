@@ -189,6 +189,7 @@ impl Assessor<'_, '_> {
                 super::super::append_semantic_hunk(
                     &groups[0],
                     &groups[1],
+                    &proof.edits,
                     hunk,
                     Confidence::High,
                     &mut local_changes,

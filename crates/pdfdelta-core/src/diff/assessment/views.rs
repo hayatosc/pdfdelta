@@ -11,7 +11,7 @@ use super::super::{GroupText, SentenceRecoveryInput, Side, TextSpan};
 
 mod anchors;
 
-/// A source-backed domain closed by independently unique exact anchors.
+/// A source-backed correspondence domain with independently established local order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct LocalDomain {
     pub(super) old_span: TextSpan,

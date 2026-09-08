@@ -149,7 +149,7 @@ fn review_count_detects_a_difference_with_equal_token_multisets() -> Result<()> 
 }
 
 #[test]
-fn groups_fragmented_cover_date_as_one_replacement() -> Result<()> {
+fn date_replacement_keeps_literal_mask_variation_unlocalized() -> Result<()> {
     let prefix = "W3C Working Draft ";
     let old_date = "27 September 2006";
     let new_date = "02 November 2006";
@@ -163,80 +163,86 @@ fn groups_fragmented_cover_date_as_one_replacement() -> Result<()> {
         DiffOptions::default(),
     )?;
 
-    assert_eq!(result.changes.len(), 1);
-    let change = &result.changes[0];
-    assert_eq!(change.kind, ChangeKind::Replacement);
+    assert!(result.changes.is_empty());
+    let assessment = result
+        .assessment
+        .as_ref()
+        .expect("comparison has an assessment");
+    let unit = assessment
+        .review_units
+        .iter()
+        .find(|unit| unit.changed_count.is_some())
+        .expect("ambiguous date replacement retains a count claim");
+    assert_eq!(unit.unresolved_changed_count, unit.changed_count);
     assert_eq!(
-        change.occurrences[0]
-            .old_span
-            .as_ref()
-            .expect("replacement should have an old span")
-            .canonical_range,
-        ScalarRange {
-            start: prefix.chars().count(),
-            end: prefix.chars().count() + "27 September".chars().count(),
-        }
+        unit.mandatory_old
+            .iter()
+            .map(|span| span.comparable_range)
+            .collect::<Vec<_>>(),
+        vec![
+            TokenRange { start: 19, end: 20 },
+            TokenRange { start: 21, end: 22 },
+            TokenRange { start: 23, end: 25 },
+        ]
     );
     assert_eq!(
-        change.occurrences[0]
-            .new_span
-            .as_ref()
-            .expect("replacement should have a new span")
-            .canonical_range,
-        ScalarRange {
-            start: prefix.chars().count(),
-            end: prefix.chars().count() + "02 November".chars().count(),
-        }
+        unit.mandatory_new
+            .iter()
+            .map(|span| span.comparable_range)
+            .collect::<Vec<_>>(),
+        vec![
+            TokenRange { start: 18, end: 19 },
+            TokenRange { start: 21, end: 24 },
+        ]
+    );
+    assert_eq!(result.change_candidates.len(), 4);
+    assert_eq!(
+        result
+            .change_candidates
+            .iter()
+            .map(|candidate| {
+                let occurrence = &candidate.change.occurrences[0];
+                (
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .expect("candidate has an old span")
+                        .comparable_range,
+                    occurrence
+                        .new_span
+                        .as_ref()
+                        .expect("candidate has a new span")
+                        .comparable_range,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                TokenRange { start: 18, end: 18 },
+                TokenRange { start: 18, end: 19 }
+            ),
+            (
+                TokenRange { start: 19, end: 20 },
+                TokenRange { start: 20, end: 20 }
+            ),
+            (
+                TokenRange { start: 21, end: 22 },
+                TokenRange { start: 21, end: 24 }
+            ),
+            (
+                TokenRange { start: 23, end: 26 },
+                TokenRange { start: 25, end: 25 }
+            ),
+        ]
     );
     Ok(())
 }
 
 #[test]
 fn does_not_extend_a_mixed_replacement_at_asymmetric_word_boundaries() -> Result<()> {
-    for (old_text, new_text, old_end, new_end) in
-        [("XaBTAIL", "a!TAIL", 3, 2), ("a!TAIL", "XaBTAIL", 2, 3)]
-    {
-        let result = compare_aligned(
-            &[block(1, old_text)],
-            &[block(101, new_text)],
-            &aligned(vec![matched(&[1], &[101])]),
-            DiffOptions::default(),
-        )?;
-
-        assert_eq!(result.changes.len(), 1, "{old_text:?} -> {new_text:?}");
-        let change = &result.changes[0];
-        assert_eq!(change.kind, ChangeKind::Replacement);
-        assert_eq!(
-            change.occurrences[0]
-                .old_span
-                .as_ref()
-                .expect("replacement should have an old span")
-                .canonical_range,
-            ScalarRange {
-                start: 0,
-                end: old_end,
-            }
-        );
-        assert_eq!(
-            change.occurrences[0]
-                .new_span
-                .as_ref()
-                .expect("replacement should have a new span")
-                .canonical_range,
-            ScalarRange {
-                start: 0,
-                end: new_end,
-            }
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn does_not_extend_mixed_replacements_through_non_ascii_boundaries() -> Result<()> {
-    for (old_text, new_text, old_end, new_end) in [
-        ("Xあ本文は同じ", "あY本文は同じ", 2, 2),
-        ("Xe\u{301}TAIL", "eY\u{301}TAIL", 2, 2),
+    for (old_text, new_text, expected) in [
+        ("XaBTAIL", "a!TAIL", vec![(0..1, 0..0), (2..3, 1..2)]),
+        ("a!TAIL", "XaBTAIL", vec![(0..0, 0..1), (1..2, 2..3)]),
     ] {
         let result = compare_aligned(
             &[block(1, old_text)],
@@ -248,27 +254,69 @@ fn does_not_extend_mixed_replacements_through_non_ascii_boundaries() -> Result<(
         assert_eq!(result.changes.len(), 1, "{old_text:?} -> {new_text:?}");
         let change = &result.changes[0];
         assert_eq!(change.kind, ChangeKind::Replacement);
+        let actual = change
+            .occurrences
+            .iter()
+            .map(|occurrence| {
+                (
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .expect("replacement should have an old span")
+                        .canonical_range,
+                    occurrence
+                        .new_span
+                        .as_ref()
+                        .expect("replacement should have a new span")
+                        .canonical_range,
+                )
+            })
+            .map(|(old, new)| (old.start..old.end, new.start..new.end))
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+    }
+    Ok(())
+}
+
+#[test]
+fn does_not_extend_mixed_replacements_through_non_ascii_boundaries() -> Result<()> {
+    for (old_text, new_text) in [
+        ("Xあ本文は同じ", "あY本文は同じ"),
+        ("Xe\u{301}TAIL", "eY\u{301}TAIL"),
+    ] {
+        let result = compare_aligned(
+            &[block(1, old_text)],
+            &[block(101, new_text)],
+            &aligned(vec![matched(&[1], &[101])]),
+            DiffOptions::default(),
+        )?;
+
+        assert_eq!(result.changes.len(), 1, "{old_text:?} -> {new_text:?}");
+        let change = &result.changes[0];
+        assert_eq!(change.kind, ChangeKind::Replacement);
+        let actual = change
+            .occurrences
+            .iter()
+            .map(|occurrence| {
+                (
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .expect("replacement should have an old span")
+                        .canonical_range,
+                    occurrence
+                        .new_span
+                        .as_ref()
+                        .expect("replacement should have a new span")
+                        .canonical_range,
+                )
+            })
+            .map(|(old, new)| (old.start..old.end, new.start..new.end))
+            .collect::<Vec<_>>();
         assert_eq!(
-            change.occurrences[0]
-                .old_span
-                .as_ref()
-                .expect("replacement should have an old span")
-                .canonical_range,
-            ScalarRange {
-                start: 0,
-                end: old_end,
-            }
-        );
-        assert_eq!(
-            change.occurrences[0]
-                .new_span
-                .as_ref()
-                .expect("replacement should have a new span")
-                .canonical_range,
-            ScalarRange {
-                start: 0,
-                end: new_end,
-            }
+            actual,
+            vec![(0..1, 0..0), (2..2, 1..2)],
+            "{old_text:?} -> {new_text:?}"
         );
     }
     Ok(())
@@ -889,20 +937,34 @@ fn groups_replacements_across_a_single_equal_scalar() -> Result<()> {
 
     assert_eq!(result.changes.len(), 1);
     assert_eq!(
-        result.changes[0].occurrences[0]
-            .old_span
-            .as_ref()
-            .expect("replacement should have an old span")
-            .canonical_range,
-        ScalarRange { start: 2, end: 5 }
-    );
-    assert_eq!(
-        result.changes[0].occurrences[0]
-            .new_span
-            .as_ref()
-            .expect("replacement should have a new span")
-            .canonical_range,
-        ScalarRange { start: 2, end: 5 }
+        result.changes[0]
+            .occurrences
+            .iter()
+            .map(|occurrence| {
+                (
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .expect("replacement should have an old span")
+                        .canonical_range,
+                    occurrence
+                        .new_span
+                        .as_ref()
+                        .expect("replacement should have a new span")
+                        .canonical_range,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                ScalarRange { start: 2, end: 3 },
+                ScalarRange { start: 2, end: 3 }
+            ),
+            (
+                ScalarRange { start: 4, end: 5 },
+                ScalarRange { start: 4, end: 5 }
+            ),
+        ]
     );
     Ok(())
 }
@@ -918,20 +980,34 @@ fn excludes_trailing_equal_tokens_from_a_grouped_replacement() -> Result<()> {
 
     assert_eq!(result.changes.len(), 1);
     assert_eq!(
-        result.changes[0].occurrences[0]
-            .old_span
-            .as_ref()
-            .expect("replacement should have an old span")
-            .canonical_range,
-        ScalarRange { start: 2, end: 5 }
-    );
-    assert_eq!(
-        result.changes[0].occurrences[0]
-            .new_span
-            .as_ref()
-            .expect("replacement should have a new span")
-            .canonical_range,
-        ScalarRange { start: 2, end: 5 }
+        result.changes[0]
+            .occurrences
+            .iter()
+            .map(|occurrence| {
+                (
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .expect("replacement should have an old span")
+                        .canonical_range,
+                    occurrence
+                        .new_span
+                        .as_ref()
+                        .expect("replacement should have a new span")
+                        .canonical_range,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                ScalarRange { start: 2, end: 3 },
+                ScalarRange { start: 2, end: 3 }
+            ),
+            (
+                ScalarRange { start: 4, end: 5 },
+                ScalarRange { start: 4, end: 5 }
+            ),
+        ]
     );
     Ok(())
 }
