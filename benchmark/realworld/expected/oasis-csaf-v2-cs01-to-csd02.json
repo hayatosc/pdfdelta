@@ -1,23 +1,73 @@
 {
   "version": 1,
   "pair": "oasis-csaf-v2-cs01-to-csd02",
-  "reviewed_on": "2026-08-28",
+  "reviewed_on": "2026-09-07",
   "annotation": "partial",
-  "notes": "Representative front-matter review of the official OASIS CSAF 2.0 Committee Specification 01 and Committee Specification Draft 02 PDFs. The subset records publication-stage metadata; it is not an exhaustive annotation of the substantial prose, schema, and example changes in the 107- and 122-page specifications.",
+  "notes": "Representative front-matter review of the official OASIS CSAF 2.0 Committee Specification 01 and Committee Specification Draft 02 PDFs. The subset records publication-stage metadata; it is not an exhaustive annotation of the substantial prose, schema, and example changes in the 107- and 122-page specifications. A bounded complete scope was source-reviewed on 2026-09-07; the remaining expectations and the rest of the PDF remain partial.",
   "changes": [
     {
       "id": "publication-stage",
       "kind": "replacement",
       "old_quote": "Committee Specification 01",
       "new_quote": "Committee Specification Draft 02",
-      "note": "The later work product identifies its new committee stage."
+      "note": "The later work product identifies its new committee stage.",
+      "scope": "cover-stage-date",
+      "old_changed_ranges": [
+        {
+          "start": 25,
+          "end": 26
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 24,
+          "end": 30
+        },
+        {
+          "start": 31,
+          "end": 32
+        }
+      ]
     },
     {
       "id": "publication-date",
       "kind": "replacement",
       "old_quote": "12 November 2021",
       "new_quote": "30 March 2022",
-      "note": "The cover publication date changed with the committee stage."
+      "note": "The cover publication date changed with the committee stage.",
+      "scope": "cover-stage-date",
+      "old_changed_ranges": [
+        {
+          "start": 0,
+          "end": 2
+        },
+        {
+          "start": 3,
+          "end": 10
+        },
+        {
+          "start": 15,
+          "end": 16
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 0,
+          "end": 2
+        },
+        {
+          "start": 3,
+          "end": 5
+        },
+        {
+          "start": 6,
+          "end": 8
+        },
+        {
+          "start": 12,
+          "end": 13
+        }
+      ]
     },
     {
       "id": "cs01-url-moved-to-previous-stage",
@@ -25,6 +75,20 @@
       "old_quote": "https://docs.oasis-open.org/csaf/csaf/v2.0/cs01/csaf-v2.0-cs01.pdf",
       "new_quote": "https://docs.oasis-open.org/csaf/csaf/v2.0/cs01/csaf-v2.0-cs01.pdf",
       "note": "The Committee Specification 01 PDF URL moves from the current-stage field to the previous-stage field."
+    }
+  ],
+  "scopes": [
+    {
+      "id": "cover-stage-date",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "Common Security Advisory Framework Version 2.0 Committee Specification 01 12 November 2021",
+        "end_quote": "Common Security Advisory Framework Version 2.0 Committee Specification 01 12 November 2021"
+      },
+      "new": {
+        "start_quote": "Common Security Advisory Framework Version 2.0 Committee Specification Draft 02 30 March 2022",
+        "end_quote": "Common Security Advisory Framework Version 2.0 Committee Specification Draft 02 30 March 2022"
+      }
     }
   ]
 }

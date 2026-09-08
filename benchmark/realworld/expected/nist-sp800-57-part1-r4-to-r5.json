@@ -1,9 +1,9 @@
 {
   "version": 1,
   "pair": "nist-sp800-57-part1-r4-to-r5",
-  "reviewed_on": "2026-08-31",
+  "reviewed_on": "2026-09-07",
   "annotation": "partial",
-  "notes": "Mixed review annotation: the document-wide change list remains a representative partial review, while the introduction and glossary scopes are fully human-reviewed development scopes. The scopes measure precision for adjacent punctuation and reference edits without treating changes elsewhere in the documents as false positives.",
+  "notes": "Mixed review annotation: the document-wide change list remains a representative partial review, while the introduction and glossary scopes are fully human-reviewed development scopes. The scopes measure precision for adjacent punctuation and reference edits without treating changes elsewhere in the documents as false positives. The glossary correction was checked against rendered source PDF pages, not extraction order.",
   "scopes": [
     {
       "id": "introduction-adjacent-replacements",
@@ -25,8 +25,8 @@
         "end_quote": "For example, a key is associated with the application or process for which it will be used."
       },
       "new": {
-        "start_quote": "Approved that is either 1) specified in a FIPS or NIST Recommendation or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
-        "end_quote": "Association with the application or process for which it will be used."
+        "start_quote": "An algorithm or technique that is either 1) specified in a FIPS or NIST Recommendation or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
+        "end_quote": "A relationship for a particular purpose; for example, a key is associated with the application or process for which it will be used."
       }
     }
   ],
@@ -49,7 +49,12 @@
       "kind": "replacement",
       "old_quote": "The toolkit consists of publications specifying algorithms and guidance for their use, rather than software code.",
       "new_quote": "The toolkit consists of publications specifying algorithms and guidance for their use rather than software code.",
-      "old_changed_ranges": [{ "start": 85, "end": 86 }],
+      "old_changed_ranges": [
+        {
+          "start": 85,
+          "end": 86
+        }
+      ],
       "new_changed_ranges": [],
       "note": "The Rev. 5 footnote remains present and removes the comma before 'rather'."
     },
@@ -66,7 +71,12 @@
       "old_quote": "standards1",
       "new_quote": "standards11",
       "old_changed_ranges": [],
-      "new_changed_ranges": [{ "start": 10, "end": 11 }],
+      "new_changed_ranges": [
+        {
+          "start": 10,
+          "end": 11
+        }
+      ],
       "note": "The toolkit footnote reference changes from 1 to 11."
     },
     {
@@ -75,22 +85,29 @@
       "scope": "introduction-adjacent-replacements",
       "old_quote": "standards, and",
       "new_quote": "standards and",
-      "old_changed_ranges": [{ "start": 9, "end": 10 }],
+      "old_changed_ranges": [
+        {
+          "start": 9,
+          "end": 10
+        }
+      ],
       "new_changed_ranges": [],
       "note": "The revised sentence removes the comma before the coordinated predicate."
     },
     {
-      "id": "approved-definition-rewritten",
+      "id": "approved-definition-comma-removed",
       "kind": "replacement",
       "scope": "glossary-adjacent-replacements",
       "old_quote": "An algorithm or technique that is either 1) specified in a FIPS or NIST Recommendation, or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
-      "new_quote": "Approved that is either 1) specified in a FIPS or NIST Recommendation or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
+      "new_quote": "An algorithm or technique that is either 1) specified in a FIPS or NIST Recommendation or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
       "old_changed_ranges": [
-        { "start": 1, "end": 25 },
-        { "start": 86, "end": 87 }
+        {
+          "start": 86,
+          "end": 87
+        }
       ],
-      "new_changed_ranges": [{ "start": 1, "end": 8 }],
-      "note": "The revised Approved entry replaces the descriptive lead-in with its term label and removes the comma between alternatives."
+      "new_changed_ranges": [],
+      "note": "Visual comparison of the source PDFs confirms only the comma before or is removed; the algorithm-or-technique lead-in is retained."
     },
     {
       "id": "association-definition-punctuation",
@@ -99,12 +116,24 @@
       "old_quote": "purpose. For example,",
       "new_quote": "purpose; for example,",
       "old_changed_ranges": [
-        { "start": 7, "end": 8 },
-        { "start": 9, "end": 10 }
+        {
+          "start": 7,
+          "end": 8
+        },
+        {
+          "start": 9,
+          "end": 10
+        }
       ],
       "new_changed_ranges": [
-        { "start": 7, "end": 8 },
-        { "start": 9, "end": 10 }
+        {
+          "start": 7,
+          "end": 8
+        },
+        {
+          "start": 9,
+          "end": 10
+        }
       ],
       "note": "The revised Association definition joins the example with a semicolon."
     }

@@ -10,6 +10,7 @@ pub(crate) use block::{
 };
 pub(crate) use line::validate_line_options;
 pub use line::{Line, LineId, LineOptions, LineTextDirection, SyntheticSpace, reconstruct_lines};
+pub(crate) use region::UncertainLineReason;
 pub use region::{
     ReadingOrder, Region, RegionGraph, RegionId, RegionOptions, RegionRelation, partition_regions,
     partition_regions_with_vector_lines, validate_region_options,

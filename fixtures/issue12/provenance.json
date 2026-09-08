@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "capture_tool": "crates/pdfdelta-bench/examples/capture_glyph_fixture.rs",
+  "source_manifest": "benchmark/realworld/manifest.tsv",
+  "fips_pair": "nist-fips-186-4-to-5",
+  "fixtures": [
+    {
+      "file": "fips-old.glyphs.json",
+      "sha256": "96fa2999c72faa12db0d4f3b944213cac4bdf7e73a8b41b4ed12b3bde23fd39d",
+      "source_sha256": "081dcccbcd8a1ffe4b5cca7b30dcedb739910e65b39e6182a3cdbae3e5f61689",
+      "source_pages": [
+        9,
+        10,
+        11
+      ],
+      "selection": {
+        "whole_page": 10,
+        "other_pages_min_baseline_y": 700,
+        "purpose": "Retain source header repetition and neighboring layout evidence around the introduction."
+      },
+      "glyphs": 1437,
+      "vector_lines": 0
+    },
+    {
+      "file": "fips-new.glyphs.json",
+      "sha256": "80e99e6f20be81dedad7dc67751ed4a4e66845666aefca60e87f1d0fa8e94fed",
+      "source_sha256": "fbb9c7c2ba442f03c57b63b43c888311903c9d0f29f89b06efdebd9b619140c5",
+      "source_pages": [
+        8,
+        9,
+        10
+      ],
+      "selection": {
+        "whole_page": 9,
+        "other_pages_min_baseline_y": 700,
+        "purpose": "Retain source header repetition and neighboring layout evidence around the introduction."
+      },
+      "glyphs": 2780,
+      "vector_lines": 0
+    }
+  ]
+}

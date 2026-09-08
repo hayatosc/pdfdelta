@@ -1,7 +1,8 @@
 use crate::{
     Error, Result,
     alignment::{
-        Alignment, AlignmentOptions, BlockFeatures, InvertedIndexCandidateGenerator,
+        Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
+        AlignmentSpan, BlockFeatures, InvertedIndexCandidateGenerator,
         align_ordered_with_metrics_and_gap_plan, build_block_features,
         estimate_ngram_token_elements, plan_ordered_gaps, validate_alignment_options,
         validate_ngram_size,
@@ -19,7 +20,7 @@ use crate::{
     },
     layout::{
         BlockOptions, LayoutIssue, LineOptions, TrustedRegionEdge, TrustedRunDescriptor,
-        TrustedRunInterval, reconstruct_blocks_with_issues, reconstruct_lines,
+        TrustedRunInterval, UncertainLineReason, reconstruct_blocks_with_issues, reconstruct_lines,
         validate_block_options, validate_line_options,
     },
     model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, GlyphPathClipStatus, TextRenderMode},
@@ -59,8 +60,9 @@ impl PipelineOptions {
     ///
     /// Layout parameters and matching behavior are unchanged. Only n-gram
     /// token elements, alignment candidate visits, alignment DP cells, diff
-    /// tokens, and diff edit distance are scaled. The edit-distance budget
-    /// saturates at the bounded Myers implementation's 64 MiB trace cap.
+    /// tokens, diff edit distance, and assessment work/range limits are
+    /// scaled. The edit-distance budget saturates at the bounded Myers
+    /// implementation's 64 MiB trace cap.
     ///
     /// # Errors
     ///
@@ -75,6 +77,8 @@ impl PipelineOptions {
         self.diff.max_tokens = scale_limit(self.diff.max_tokens);
         self.diff.max_edit_distance =
             scale_limit(self.diff.max_edit_distance).min(MAX_MYERS_EDIT_DISTANCE);
+        self.diff.max_assessment_work = scale_limit(self.diff.max_assessment_work);
+        self.diff.max_assessment_ranges = scale_limit(self.diff.max_assessment_ranges);
         Ok(self)
     }
 
@@ -112,9 +116,8 @@ pub fn validate_limit_scale(scale: f64) -> Result<f64> {
 pub struct ComparisonOutcome {
     pub comparison: Comparison,
     pub extraction: ExtractionStatus,
-    /// Normalized old-side blocks backing the comparison spans, for
-    /// report rendering; empty when a document-scoped extraction issue
-    /// suppresses the diff.
+    /// Normalized old-side blocks backing the comparison spans, including
+    /// retained evidence left unresolved by document-scoped extraction issues.
     pub old_blocks: Vec<BlockText>,
     /// Normalized new-side blocks backing the comparison spans.
     pub new_blocks: Vec<BlockText>,
@@ -225,6 +228,17 @@ pub struct PipelineMetrics {
     pub lines: Option<usize>,
     pub blocks: Option<usize>,
     pub normalized_blocks: Option<usize>,
+    /// Uncertain lines whose partition has several regions with an unproven
+    /// inter-region order.
+    pub uncertain_lines_unproven_inter_region_order: Option<usize>,
+    /// Uncertain lines outside the proven monotone runs of a single leaf.
+    pub uncertain_lines_render_disorder: Option<usize>,
+    /// Uncertain lines outside the trusted runs of a known region order.
+    pub uncertain_lines_untrusted_in_known_order: Option<usize>,
+    /// Lines ordered by a geometrically inferred region order rather than a
+    /// proven one; not uncertain, but changes derived from them are
+    /// reported at low confidence.
+    pub inferred_reading_order_lines: Option<usize>,
     pub raw_tokens: Option<usize>,
     pub ngram_token_elements: Option<usize>,
     pub features: Option<usize>,
@@ -681,28 +695,50 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
         });
     }
 
-    let (old_tokens, new_tokens) =
-        record_pre_layout_token_counts(&old_document, &new_document, options.diff, diagnostics)?;
+    record_pre_layout_token_counts(&old_document, &new_document, options.diff, diagnostics)?;
     let issues = extraction_issue_records(old_issues, new_issues);
-
-    // Incomplete extraction suppresses the diff to prevent false comparison output.
+    // A document-scoped issue prevents correspondence claims, but extracted
+    // evidence on either side still belongs to the unresolved partition.
+    let old_blocks = prepare(&old_document, options, DocumentSide::Old, diagnostics)?.blocks;
+    let new_blocks = prepare(&new_document, options, DocumentSide::New, diagnostics)?.blocks;
+    let spans = if old_blocks.is_empty() && new_blocks.is_empty() {
+        Vec::new()
+    } else {
+        vec![AlignmentSpan {
+            kind: AlignmentKind::Unresolved,
+            old: old_blocks.iter().map(|block| block.block).collect(),
+            new: new_blocks.iter().map(|block| block.block).collect(),
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: vec![AlignmentEvidence::ExtractionGap],
+            old_separator: None,
+            new_separator: None,
+        }]
+    };
+    let alignment = Alignment {
+        spans,
+        main_anchors: Vec::new(),
+        move_candidates: Vec::new(),
+    };
+    let mut comparison = compare_aligned(&old_blocks, &new_blocks, &alignment, options.diff)?;
+    if !old_complete {
+        comparison.old_coverage.ratio = None;
+    }
+    if !new_complete {
+        comparison.new_coverage.ratio = None;
+    }
     Ok(InstrumentedComparisonOutcome {
         outcome: ComparisonOutcome {
-            comparison: Comparison {
-                changes: Vec::new(),
-                proven_changed_regions: Vec::new(),
-                formatting_changes: Vec::new(),
-                unresolved_regions: Vec::new(),
-                old_coverage: conservative_coverage(old_tokens, old_complete),
-                new_coverage: conservative_coverage(new_tokens, new_complete),
-            },
+            comparison,
             extraction: ExtractionStatus {
                 old_complete,
                 new_complete,
                 issues,
             },
-            old_blocks: Vec::new(),
-            new_blocks: Vec::new(),
+            old_blocks,
+            new_blocks,
             old_glyph_evidence,
             new_glyph_evidence,
         },
@@ -788,6 +824,7 @@ fn compare_validated_glyph_documents_inner(
     let PreparedDocument {
         blocks: old,
         uncertain_block_indices: old_uncertain_block_indices,
+        inferred_order_block_indices: old_inferred_order_block_indices,
         trusted_run_intervals: old_trusted_run_intervals,
         trusted_run_descriptors: old_trusted_run_descriptors,
         trusted_region_edges: old_trusted_region_edges,
@@ -795,6 +832,7 @@ fn compare_validated_glyph_documents_inner(
     let PreparedDocument {
         blocks: new,
         uncertain_block_indices: new_uncertain_block_indices,
+        inferred_order_block_indices: new_inferred_order_block_indices,
         trusted_run_intervals: new_trusted_run_intervals,
         trusted_run_descriptors: new_trusted_run_descriptors,
         trusted_region_edges: new_trusted_region_edges,
@@ -845,6 +883,8 @@ fn compare_validated_glyph_documents_inner(
             &new_extraction_uncertain_block_indices,
             &old_uncertain_block_indices,
             &new_uncertain_block_indices,
+            &old_inferred_order_block_indices,
+            &new_inferred_order_block_indices,
         ),
     )?;
     let indexed_new_features = new_features
@@ -894,6 +934,17 @@ fn compare_validated_glyph_documents_inner(
                     ..visit_metrics
                 },
             );
+            if alignment
+                .spans
+                .iter()
+                .any(|span| span.evidence.contains(&AlignmentEvidence::SearchIncomplete))
+            {
+                diagnostics
+                    .records
+                    .last_mut()
+                    .expect("alignment diagnostic was recorded")
+                    .status = PipelinePhaseStatus::Incomplete;
+            }
             alignment
         }
         Err(error) => {
@@ -1191,14 +1242,6 @@ fn phase_result<T>(
     })
 }
 
-fn conservative_coverage(total_tokens: usize, extraction_complete: bool) -> crate::diff::Coverage {
-    crate::diff::Coverage {
-        resolved_tokens: 0,
-        total_tokens,
-        ratio: extraction_complete.then_some(if total_tokens == 0 { 1.0 } else { 0.0 }),
-    }
-}
-
 fn record_ngram_token_element_budget(
     old: &[BlockText],
     new: &[BlockText],
@@ -1357,6 +1400,29 @@ fn prepare(
     let trusted_run_intervals = reconstruction.trusted_run_intervals;
     let trusted_run_descriptors = reconstruction.trusted_run_descriptors;
     let trusted_region_edges = reconstruction.trusted_region_edges;
+    let inferred_order_line_ids = reconstruction.inferred_order_line_ids;
+    let mut uncertain_inter_region = 0usize;
+    let mut uncertain_render_disorder = 0usize;
+    let mut uncertain_untrusted_known = 0usize;
+    for issue in &reconstruction.issues {
+        let LayoutIssue::UnknownReadingOrder {
+            page: _,
+            line_ids,
+            reason,
+        } = issue;
+        let count = line_ids.len();
+        match reason {
+            UncertainLineReason::UnprovenInterRegionOrder => {
+                uncertain_inter_region += count;
+            }
+            UncertainLineReason::RenderDisorderOutsideTrustedRuns => {
+                uncertain_render_disorder += count;
+            }
+            UncertainLineReason::UntrustedLinesInKnownOrder => {
+                uncertain_untrusted_known += count;
+            }
+        }
+    }
     if let Err(error) =
         validate_trusted_run_interval_count(blocks.len(), trusted_run_intervals.len())
     {
@@ -1374,6 +1440,10 @@ fn prepare(
             painting_glyphs: Some(painting_glyphs),
             lines: Some(lines.len()),
             blocks: Some(blocks.len()),
+            uncertain_lines_unproven_inter_region_order: Some(uncertain_inter_region),
+            uncertain_lines_render_disorder: Some(uncertain_render_disorder),
+            uncertain_lines_untrusted_in_known_order: Some(uncertain_untrusted_known),
+            inferred_reading_order_lines: Some(inferred_order_line_ids.len()),
             ..PipelineMetrics::default()
         },
     );
@@ -1411,7 +1481,11 @@ fn prepare(
         .issues
         .into_iter()
         .flat_map(|issue| match issue {
-            LayoutIssue::UnknownReadingOrder { page: _, line_ids } => line_ids,
+            LayoutIssue::UnknownReadingOrder {
+                page: _,
+                line_ids,
+                reason: _,
+            } => line_ids,
         })
         .collect::<std::collections::HashSet<_>>();
     let uncertain_blocks = blocks
@@ -1429,9 +1503,29 @@ fn prepare(
         .enumerate()
         .filter_map(|(index, block)| uncertain_blocks.contains(&block.block).then_some(index))
         .collect();
+    let inferred_order_blocks = blocks
+        .iter()
+        .filter(|block| {
+            block
+                .lines
+                .iter()
+                .any(|line_id| inferred_order_line_ids.contains(line_id))
+        })
+        .map(|block| block.id)
+        .collect::<std::collections::HashSet<_>>();
+    let inferred_order_block_indices = normalized
+        .iter()
+        .enumerate()
+        .filter_map(|(index, block)| {
+            inferred_order_blocks
+                .contains(&block.block)
+                .then_some(index)
+        })
+        .collect();
     Ok(PreparedDocument {
         blocks: normalized,
         uncertain_block_indices,
+        inferred_order_block_indices,
         trusted_run_intervals,
         trusted_run_descriptors,
         trusted_region_edges,
@@ -1481,6 +1575,10 @@ fn build_features_with_diagnostics(
 struct PreparedDocument {
     blocks: Vec<BlockText>,
     uncertain_block_indices: Vec<usize>,
+    /// Blocks placed by a geometrically inferred region order rather than a
+    /// proven one; not excluded from anchoring, but every change whose span
+    /// intersects one of them must be reported at low confidence.
+    inferred_order_block_indices: Vec<usize>,
     trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
     trusted_run_descriptors: Vec<TrustedRunDescriptor>,
     trusted_region_edges: Vec<TrustedRegionEdge>,
@@ -1522,9 +1620,8 @@ mod tests {
         pdf::ObjectRef,
     };
 
-    #[test]
-    fn prepared_document_retains_trusted_run_descriptors() {
-        let document = Document::new(vec![Glyph {
+    fn single_glyph_document() -> Document<Glyph> {
+        Document::new(vec![Glyph {
             id: GlyphId(1),
             text: DecodedText::Mapped("A".to_owned()),
             raw_code: vec![b'A'],
@@ -1548,7 +1645,12 @@ mod tests {
                 },
                 operator_index: 0,
             },
-        }]);
+        }])
+    }
+
+    #[test]
+    fn prepared_document_retains_trusted_run_descriptors() {
+        let document = single_glyph_document();
         let mut diagnostics = PipelineDiagnostics::new();
 
         let prepared = prepare(
@@ -1571,6 +1673,23 @@ mod tests {
             prepared.trusted_run_intervals[0].map(|run| run.run_id),
             Some(descriptor.id)
         );
+    }
+
+    #[test]
+    fn scaled_limits_include_assessment_budgets() {
+        let options = PipelineOptions {
+            diff: DiffOptions {
+                max_assessment_work: 10,
+                max_assessment_ranges: 20,
+                ..DiffOptions::default()
+            },
+            ..PipelineOptions::default()
+        }
+        .scaled_limits(2.5)
+        .expect("valid limit scale");
+
+        assert_eq!(options.diff.max_assessment_work, 25);
+        assert_eq!(options.diff.max_assessment_ranges, 50);
     }
 
     #[test]

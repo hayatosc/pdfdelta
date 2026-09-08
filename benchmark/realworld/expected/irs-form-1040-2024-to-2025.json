@@ -1,9 +1,9 @@
 {
   "version": 1,
   "pair": "irs-form-1040-2024-to-2025",
-  "reviewed_on": "2026-08-24",
+  "reviewed_on": "2026-09-07",
   "annotation": "partial",
-  "notes": "Stress pair from issue #7: official IRS Form 1040, tax-year 2024 -> 2025. Form-like multi-column layout is beyond the current milestone's single-column scope, so this pair records the ceiling rather than a quality target. The sampled changes below were reviewed against the extracted text of both PDFs and correspond to known 2025 form edits (age cutoffs rolled to January 2, 1961, restructured filing-status checkboxes, new combat-zone deceased-filer checkbox, footer revision stamp).",
+  "notes": "Stress pair from issue #7: official IRS Form 1040, tax-year 2024 -> 2025. Form-like multi-column layout is beyond the current milestone's single-column scope, so this pair records the ceiling rather than a quality target. The sampled changes below were reviewed against the extracted text of both PDFs and correspond to known 2025 form edits (age cutoffs rolled to January 2, 1961, restructured filing-status checkboxes, new combat-zone deceased-filer checkbox, footer revision stamp). A bounded complete scope was source-reviewed on 2026-09-07; other expectations and the rest of the PDF remain partial.",
   "changes": [
     {
       "id": "age-cutoff-1961-primary",
@@ -31,9 +31,41 @@
     },
     {
       "id": "footer-form-year-stamp",
-      "kind": "insertion",
+      "kind": "replacement",
       "new_quote": "Cat. No. 11320B Form 1040 (2025) Created 9/5/25",
-      "note": "Footer now carries the 2025 form identity and revision stamp."
+      "note": "Source-page review shows retained catalog/form text, a year-digit replacement, and an added creation stamp; the previous whole-footer insertion classification was incorrect.",
+      "old_quote": "Cat. No. 11320B Form 1040 (2024)",
+      "scope": "page-one-footer",
+      "old_changed_ranges": [
+        {
+          "start": 30,
+          "end": 31
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 30,
+          "end": 31
+        },
+        {
+          "start": 32,
+          "end": 47
+        }
+      ]
+    }
+  ],
+  "scopes": [
+    {
+      "id": "page-one-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11320B Form 1040 (2024)",
+        "end_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11320B Form 1040 (2024)"
+      },
+      "new": {
+        "start_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11320B Form 1040 (2025) Created 9/5/25",
+        "end_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11320B Form 1040 (2025) Created 9/5/25"
+      }
     }
   ]
 }

@@ -10,7 +10,8 @@ use crate::{
     Error, Result,
     alignment::BlockSeparator,
     diff::{
-        ChangeKind, ChangeTag, ChangedRegionProof, Comparison, Confidence, ProvenChangedRegion,
+        AssessmentReason, ChangeKind, ChangeTag, ChangedRegionProof, Comparison,
+        ComparisonAssumption, Confidence, ProvenChangedRegion, RelationOutcome, SearchCompleteness,
         TextSpan,
     },
     layout::BlockId,
@@ -106,6 +107,8 @@ impl Default for ExtractionStatus {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ReportSummary {
+    /// Number of established semantic content changes.
+    pub established_changes: usize,
     /// Number of reportable semantic content changes (replacements, deletions, insertions, moves).
     pub content_changes: usize,
     /// Number of regions with a proven content difference but no exact semantic relation.
@@ -122,27 +125,61 @@ pub struct ReportSummary {
     pub old_alignment_coverage: Option<f64>,
     pub new_alignment_coverage: Option<f64>,
     pub comparison_coverage: Option<f64>,
+    pub tentative_candidates: usize,
+    pub difference_status: DifferenceStatus,
+    pub comparison_scope: ComparisonScope,
     pub comparison_complete: bool,
 }
 
-#[repr(u8)]
+/// Independent state of the supported text comparison.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExitStatus {
-    NoContentChanges = 0,
-    ContentChanges = 1,
-    ExecutionError = 2,
-    IncompleteComparison = 3,
+pub enum DifferenceStatus {
+    /// A confirmed change or unlocalized proven difference exists.
+    Detected,
+    /// The supported text was compared completely and no difference was found.
+    NoContentChange,
+    /// The result is incomplete or contains only tentative evidence.
+    Indeterminate,
 }
 
-impl ExitStatus {
-    pub const fn code(self) -> u8 {
-        self as u8
+impl DifferenceStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Detected => "detected",
+            Self::NoContentChange => "no_content_change",
+            Self::Indeterminate => "indeterminate",
+        }
+    }
+}
+
+/// Declares which document content the comparison result covers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ComparisonScope {
+    /// Text extracted from supported content streams is compared.
+    pub supported_text: bool,
+    /// Images are outside the comparison scope.
+    pub images_compared: bool,
+}
+
+impl Default for ComparisonScope {
+    fn default() -> Self {
+        Self {
+            supported_text: true,
+            images_compared: false,
+        }
     }
 }
 
 pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Result<ReportSummary> {
     extraction.validate()?;
     validate_comparison(comparison)?;
+    if let Some(assessment) = &comparison.assessment {
+        assessment.validate(comparison)?;
+    } else if !comparison.change_candidates.is_empty() {
+        return Err(Error::InvalidConfiguration(
+            "change candidates require assessment metadata".to_owned(),
+        ));
+    }
     validate_coverage(
         "old",
         comparison.old_coverage.resolved_tokens,
@@ -158,13 +195,28 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
         extraction.new_complete,
     )?;
 
-    let comparison_complete = comparison.proven_changed_regions.is_empty()
+    let assessment_complete = comparison
+        .assessment
+        .as_ref()
+        .is_none_or(|assessment| !assessment.candidates_truncated);
+    let comparison_complete = comparison.change_candidates.is_empty()
+        && comparison.proven_changed_regions.is_empty()
         && comparison.unresolved_regions.is_empty()
         && comparison.old_coverage.resolved_tokens == comparison.old_coverage.total_tokens
         && comparison.new_coverage.resolved_tokens == comparison.new_coverage.total_tokens
         && extraction.old_complete
-        && extraction.new_complete;
+        && extraction.new_complete
+        && assessment_complete;
+    let difference_status =
+        if !comparison.changes.is_empty() || !comparison.proven_changed_regions.is_empty() {
+            DifferenceStatus::Detected
+        } else if comparison_complete {
+            DifferenceStatus::NoContentChange
+        } else {
+            DifferenceStatus::Indeterminate
+        };
     Ok(ReportSummary {
+        established_changes: comparison.changes.len(),
         content_changes: comparison.changes.len(),
         proven_changed_regions: comparison.proven_changed_regions.len(),
         formatting_only_changes: comparison.formatting_changes.len(),
@@ -193,6 +245,9 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
             .ratio
             .zip(comparison.new_coverage.ratio)
             .map(|(old, new)| old.min(new)),
+        tentative_candidates: comparison.change_candidates.len(),
+        difference_status,
+        comparison_scope: ComparisonScope::default(),
         comparison_complete,
     })
 }
@@ -369,21 +424,6 @@ pub(crate) struct UnmappedSpanToken {
     pub glyph_id: u16,
 }
 
-pub fn exit_status(
-    comparison: &Comparison,
-    extraction: &ExtractionStatus,
-    strict: bool,
-) -> Result<ExitStatus> {
-    let summary = summarize(comparison, extraction)?;
-    if strict && !summary.comparison_complete {
-        Ok(ExitStatus::IncompleteComparison)
-    } else if summary.content_changes > 0 || summary.proven_changed_regions > 0 {
-        Ok(ExitStatus::ContentChanges)
-    } else {
-        Ok(ExitStatus::NoContentChanges)
-    }
-}
-
 fn validate_side_status(side: &str, complete: bool, region_count: usize) -> Result<()> {
     if complete && region_count != 0 {
         return Err(Error::InvalidConfiguration(format!(
@@ -422,28 +462,11 @@ fn validate_issue_scopes(
 }
 
 fn validate_comparison(comparison: &Comparison) -> Result<()> {
+    for candidate in &comparison.change_candidates {
+        validate_change_event("candidate", &candidate.change)?;
+    }
     for change in &comparison.changes {
-        if change.occurrences.is_empty() {
-            return Err(Error::InvalidConfiguration(format!(
-                "{:?} changes require at least one occurrence",
-                change.kind
-            )));
-        }
-        if change.occurrences.iter().any(|occurrence| {
-            !crate::diff::valid_change_occurrence_shape(
-                change.kind,
-                occurrence.old_span.as_ref(),
-                occurrence.new_span.as_ref(),
-            )
-        }) {
-            return Err(Error::InvalidConfiguration(format!(
-                "invalid {:?} change span shape",
-                change.kind
-            )));
-        }
-        for occurrence in &change.occurrences {
-            validate_change_occurrence(change.kind, occurrence)?;
-        }
+        validate_change_event("change", change)?;
     }
 
     for region in &comparison.proven_changed_regions {
@@ -469,6 +492,31 @@ fn validate_comparison(comparison: &Comparison) -> Result<()> {
         for span in region.old_span.iter().chain(region.new_span.iter()) {
             validate_text_span("unresolved region", span)?;
         }
+    }
+    Ok(())
+}
+
+fn validate_change_event(context: &str, change: &crate::diff::ChangeEvent) -> Result<()> {
+    if change.occurrences.is_empty() {
+        return Err(Error::InvalidConfiguration(format!(
+            "{:?} {context}s require at least one occurrence",
+            change.kind
+        )));
+    }
+    if change.occurrences.iter().any(|occurrence| {
+        !crate::diff::valid_change_occurrence_shape(
+            change.kind,
+            occurrence.old_span.as_ref(),
+            occurrence.new_span.as_ref(),
+        )
+    }) {
+        return Err(Error::InvalidConfiguration(format!(
+            "invalid {:?} {context} span shape",
+            change.kind
+        )));
+    }
+    for occurrence in &change.occurrences {
+        validate_change_occurrence(change.kind, occurrence)?;
     }
     Ok(())
 }
@@ -624,6 +672,46 @@ pub(crate) fn confidence(value: Confidence) -> &'static str {
         Confidence::High => "high",
         Confidence::Medium => "medium",
         Confidence::Low => "low",
+    }
+}
+
+pub(crate) fn assessment_reason(reason: AssessmentReason) -> &'static str {
+    match reason {
+        AssessmentReason::UnknownReadingOrder => "unknown_reading_order",
+        AssessmentReason::InferredReadingOrder => "inferred_reading_order",
+        AssessmentReason::ExtractionGap => "extraction_gap",
+        AssessmentReason::NormalizationUncertainty => "normalization_uncertainty",
+        AssessmentReason::CompetingCorrespondence => "competing_correspondence",
+        AssessmentReason::AmbiguousEditLocation => "ambiguous_edit_location",
+        AssessmentReason::SearchIncomplete => "search_incomplete",
+        AssessmentReason::DomainNotClosed => "domain_not_closed",
+        AssessmentReason::SourceEvidenceMissing => "source_evidence_missing",
+        AssessmentReason::WorkLimit => "work_limit",
+        AssessmentReason::OutputLimit => "output_limit",
+    }
+}
+
+pub(crate) fn assumption(value: ComparisonAssumption) -> &'static str {
+    match value {
+        ComparisonAssumption::InputReadingOrder => "input_reading_order",
+        ComparisonAssumption::CanonicalNormalization => "canonical_normalization",
+        ComparisonAssumption::UnmappedFontIdentity => "unmapped_font_identity",
+        ComparisonAssumption::ReconstructedSpacing => "reconstructed_spacing",
+        ComparisonAssumption::LocalEvidenceBoundaries => "local_evidence_boundaries",
+    }
+}
+
+pub(crate) fn relation_outcome(value: RelationOutcome) -> &'static str {
+    match value {
+        RelationOutcome::Established => "established",
+        RelationOutcome::Tentative => "tentative",
+    }
+}
+
+pub(crate) fn search_completeness(value: SearchCompleteness) -> &'static str {
+    match value {
+        SearchCompleteness::Complete => "complete",
+        SearchCompleteness::Incomplete => "incomplete",
     }
 }
 

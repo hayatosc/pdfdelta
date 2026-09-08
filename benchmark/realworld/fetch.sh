@@ -58,7 +58,8 @@ fetch_side() {
     echo "PASS ${pair_id}-${side}"
 }
 
-# pair_id old_url old_byte_count old_sha256 new_url new_byte_count new_sha256
+# The seven provenance columns follow the checksum columns and are ignored by
+# this downloader; their presence keeps the fetch column offsets stable.
 while IFS=$'\t' read -r pair_id old_url old_bytes old_sha new_url new_bytes new_sha; do
     if [[ ! "${pair_id}" =~ ^[A-Za-z0-9._-]+$ ]]; then
         echo "FAIL invalid pair_id in manifest: ${pair_id}" >&2

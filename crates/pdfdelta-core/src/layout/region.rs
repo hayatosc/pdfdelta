@@ -38,6 +38,14 @@ pub enum ReadingOrder {
     /// A row-major order proven across parallel regions. Region order alone
     /// cannot represent alternating label/value or old/new rows.
     KnownLines(Vec<LineId>),
+    /// A region traversal whose order geometry (including vertically disjoint
+    /// render runs inside a single region) determines
+    /// uniquely, but that the content stream's render order does not agree
+    /// with. Unlike [`Known`](ReadingOrder::Known), no render-order evidence
+    /// corroborates this order: it is usable for comparison because the
+    /// geometry leaves no other candidate order, but every change derived
+    /// from it must be reported at low confidence.
+    Inferred(Vec<RegionId>),
     #[default]
     Unknown,
 }
@@ -139,8 +147,27 @@ pub fn partition_regions_with_vector_lines(
 pub(super) struct RegionPartition {
     pub graph: RegionGraph,
     pub uncertain_line_ids: Vec<LineId>,
+    pub uncertain_reason: Option<UncertainLineReason>,
     pub trusted_runs: Vec<TrustedLineRun>,
     pub trusted_run_provenance: Vec<TrustedLineRunProvenance>,
+}
+
+/// Why a partition's lines are uncertain, for layout diagnostics.
+///
+/// Each reason mirrors one classification branch: no inference is involved,
+/// and the reason travels with the uncertain lines so reports can attribute
+/// unresolved regions to the exact unproven aspect.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UncertainLineReason {
+    /// Several regions with an unproven inter-region order; the whole
+    /// partition stays uncertain.
+    UnprovenInterRegionOrder,
+    /// One leaf with render disorder; only lines outside the proven
+    /// monotone runs stay uncertain.
+    RenderDisorderOutsideTrustedRuns,
+    /// A known region order containing lines outside the trusted runs;
+    /// only those lines stay uncertain.
+    UntrustedLinesInKnownOrder,
 }
 
 /// A maximal contiguous selected segment within one leaf region.
@@ -162,6 +189,7 @@ pub(crate) struct TrustedLineRunProvenance {
 struct ReadingOrderClassification {
     reading_order: ReadingOrder,
     uncertain_line_ids: Vec<LineId>,
+    uncertain_reason: Option<UncertainLineReason>,
     trusted_runs: Vec<TrustedLineRun>,
     trusted_run_provenance: Vec<TrustedLineRunProvenance>,
 }
@@ -182,6 +210,7 @@ pub(super) fn partition_regions_from_refs(
             reading_order: classification.reading_order,
         },
         uncertain_line_ids: classification.uncertain_line_ids,
+        uncertain_reason: classification.uncertain_reason,
         trusted_runs: classification.trusted_runs,
         trusted_run_provenance: classification.trusted_run_provenance,
     })
@@ -197,6 +226,17 @@ fn classify_reading_order(
         .iter()
         .map(|line| (line.id, *line))
         .collect::<HashMap<_, _>>();
+    if let [region] = regions
+        && let Some(trusted_runs) = vertically_ordered_render_runs(region, &lines_by_id)
+    {
+        return Ok(ReadingOrderClassification {
+            reading_order: ReadingOrder::Inferred(vec![region.id]),
+            uncertain_line_ids: Vec::new(),
+            uncertain_reason: None,
+            trusted_run_provenance: trusted_run_provenance(&trusted_runs, regions, &lines_by_id)?,
+            trusted_runs,
+        });
+    }
     let supported_regions = regions
         .iter()
         .filter_map(|region| {
@@ -231,13 +271,39 @@ fn classify_reading_order(
         &lines_by_id,
         vector_lines,
     );
-    let (reading_order, uncertain_line_ids, trusted_runs) =
-        if matches!(supported_order, ReadingOrder::Unknown) {
-            (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
+    let (reading_order, uncertain_line_ids, uncertain_reason, trusted_runs) =
+        if matches!(supported_order, ReadingOrder::Unknown) && regions.len() != 1 {
+            // An unproven inter-region order invalidates the whole partition order downstream
+            // while preserving proven region-local sub-orders in trusted_runs.
+            (
+                ReadingOrder::Unknown,
+                sorted_line_ids(lines),
+                Some(UncertainLineReason::UnprovenInterRegionOrder),
+                trusted_runs,
+            )
+        } else if matches!(supported_order, ReadingOrder::Unknown) {
+            // Single leaf: no inter-region order exists, so the only unproven
+            // aspect is intra-leaf render disorder. Scope uncertainty to lines
+            // outside the proven monotone runs (typically a footer emitted
+            // before the body) instead of discarding the runs. The complement
+            // is non-empty here: a fully trusted leaf would be monotone and
+            // therefore Known. The fallback below is dead-code insurance.
+            let mut uncertain = sorted_line_ids(lines)
+                .into_iter()
+                .filter(|line_id| !trusted_line_ids.contains(line_id))
+                .collect::<Vec<_>>();
+            if uncertain.is_empty() {
+                uncertain = sorted_line_ids(lines);
+            }
+            (
+                ReadingOrder::Unknown,
+                uncertain,
+                Some(UncertainLineReason::RenderDisorderOutsideTrustedRuns),
+                trusted_runs,
+            )
         } else {
-            let uncertain_line_ids = lines
-                .iter()
-                .map(|line| line.id)
+            let uncertain_line_ids = sorted_line_ids(lines)
+                .into_iter()
                 .filter(|line_id| !trusted_line_ids.contains(line_id))
                 .collect::<Vec<_>>();
             if uncertain_line_ids.is_empty() {
@@ -250,19 +316,36 @@ fn classify_reading_order(
                     ReadingOrder::KnownLines(_) => Vec::new(),
                     _ => trusted_runs,
                 };
-                (supported_order, Vec::new(), trusted_runs)
-            } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
-                // Block reconstruction cannot merge a proven row-major line order
-                // with unsupported lines without inventing their relative position.
-                (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
+                (supported_order, Vec::new(), None, trusted_runs)
             } else {
-                (ReadingOrder::Unknown, uncertain_line_ids, trusted_runs)
+                // When region order is known but contains unsupported lines, scope uncertainty
+                // only to those unsupported lines rather than invalidating proven runs.
+                //
+                // A line-level order (KnownLines) already contains only trusted lines:
+                // parallel_row_order runs on the pre-filtered supported regions, so the
+                // order itself is proven and can be forwarded to block reconstruction
+                // unchanged. A region-level order (Known) cannot be forwarded the same
+                // way: block reconstruction resolves each region id against the raw,
+                // unfiltered partition, so it would replay the untrusted lines in
+                // whatever order XY-Cut happened to assign them instead of the proven
+                // one. Fall back to Unknown for that case rather than inventing an order.
+                let reading_order = match &supported_order {
+                    ReadingOrder::KnownLines(line_ids) if !line_ids.is_empty() => supported_order,
+                    _ => ReadingOrder::Unknown,
+                };
+                (
+                    reading_order,
+                    uncertain_line_ids,
+                    Some(UncertainLineReason::UntrustedLinesInKnownOrder),
+                    trusted_runs,
+                )
             }
         };
     let trusted_run_provenance = trusted_run_provenance(&trusted_runs, regions, &lines_by_id)?;
     Ok(ReadingOrderClassification {
         reading_order,
         uncertain_line_ids,
+        uncertain_reason,
         trusted_runs,
         trusted_run_provenance,
     })
@@ -459,20 +542,141 @@ fn classify_supported_region_order(
         };
     }
     if let [left, right] = regions {
-        if is_supported_two_column_graph(left, right, edges)
+        // Geometry alone (the `LeftOf`/`RightOf` edges) already orders a
+        // two-column pair; render order only confirms or dissents.
+        let geometry_orders_two_columns = is_supported_two_column_graph(left, right, edges)
             && region_lines_are_monotone(left, lines_by_id)
-            && region_lines_are_monotone(right, lines_by_id)
-            && regions_are_rendered_in_order(left, right, lines_by_id)
-        {
+            && region_lines_are_monotone(right, lines_by_id);
+        if geometry_orders_two_columns && regions_are_rendered_in_order(left, right, lines_by_id) {
             return ReadingOrder::Known(vec![left.id, right.id]);
         }
-        return parallel_row_order(left, right, edges, lines_by_id, vector_lines)
-            .map_or(ReadingOrder::Unknown, ReadingOrder::KnownLines);
+        if let Some(order) = parallel_row_order(left, right, edges, lines_by_id, vector_lines) {
+            return ReadingOrder::KnownLines(order);
+        }
+        if geometry_orders_two_columns {
+            // Ordinary side-by-side columns share a horizontal band, so a
+            // row-major reading across them is just as coherent as the
+            // column-major one XY-Cut happened to record. Only a vertically
+            // disjoint pair leaves no such alternative.
+            return if bboxes_are_vertically_disjoint(left.bbox, right.bbox) {
+                ReadingOrder::Inferred(vec![left.id, right.id])
+            } else {
+                ReadingOrder::Unknown
+            };
+        }
+        // Neither a proven two-column pair nor a parallel-row table: fall
+        // through to the same general spatial-order path the N-region case
+        // below uses, rather than giving up here. That path is what
+        // correctly handles a vertically stacked two-region partition (body
+        // over footer): `is_supported_two_column_graph` never admits it
+        // since it requires `LeftOf`/`RightOf`, not `Above`/`Below`, so an
+        // ordinary side-by-side pair (which shares a horizontal band, and
+        // so admits a row-major reading as coherent as the column-major
+        // one) and a vertically disjoint stack (which admits no such
+        // alternative) must not be conflated by returning `Unknown` here
+        // unconditionally.
     }
 
-    banded_two_column_order(regions, edges, lines_by_id)
-        .or_else(|| uniquely_rendered_spatial_order(regions, edges, lines_by_id))
-        .map_or(ReadingOrder::Unknown, ReadingOrder::Known)
+    if let Some(order) = banded_two_column_order(regions, edges, lines_by_id)
+        .or_else(|| uniquely_proven_spatial_order(regions, edges, lines_by_id))
+    {
+        return ReadingOrder::Known(order);
+    }
+    if !regions_are_pairwise_vertically_disjoint(regions) {
+        return ReadingOrder::Unknown;
+    }
+    uniquely_ordered_regions_if_monotone(regions, edges, lines_by_id)
+        .map_or(ReadingOrder::Unknown, ReadingOrder::Inferred)
+}
+
+/// Returns whether every pair of regions has no vertical (y-axis) overlap:
+/// one region's bounding box lies entirely above the other's.
+///
+/// This is the geometric fact that rules out a competing row-major reading.
+/// When two regions can share a horizontal band, a row-major interleaving of
+/// their lines is just as coherent a hypothesis as the column-major order
+/// `unique_spatial_order` happened to record from XY-Cut's `Above`/`LeftOf`
+/// edges, so a render-order dissent no longer proves the region order is
+/// right rather than merely stream order. Only a genuinely disjoint stack of
+/// regions leaves top-to-bottom as the sole reading the geometry admits.
+fn regions_are_pairwise_vertically_disjoint(regions: &[Region]) -> bool {
+    regions.iter().enumerate().all(|(index, region)| {
+        regions[index + 1..]
+            .iter()
+            .all(|other| bboxes_are_vertically_disjoint(region.bbox, other.bbox))
+    })
+}
+
+/// Relative tolerance for [`bboxes_are_vertically_disjoint`], sized from the
+/// shorter region's own height rather than a fixed pixel value: it only
+/// absorbs floating-point rounding at a shared boundary and never admits
+/// real overlap.
+const VERTICAL_DISJOINT_TOLERANCE_RATIO: f64 = 1.0e-9;
+
+fn bboxes_are_vertically_disjoint(left: Rect, right: Rect) -> bool {
+    let shorter_height = (left.max.y - left.min.y).min(right.max.y - right.min.y);
+    let tolerance = (shorter_height * VERTICAL_DISJOINT_TOLERANCE_RATIO).max(f64::EPSILON);
+    let overlap = (left.max.y.min(right.max.y) - left.min.y.max(right.min.y)).max(0.0);
+    overlap <= tolerance
+}
+
+fn vertically_ordered_render_runs(
+    region: &Region,
+    lines: &HashMap<LineId, &Line>,
+) -> Option<Vec<TrustedLineRun>> {
+    if region.line_ids.is_empty()
+        || region
+            .line_ids
+            .iter()
+            .any(|id| !lines.get(id).is_some_and(|line| line_is_supported(line)))
+    {
+        return None;
+    }
+    let chunks = region
+        .line_ids
+        .chunk_by(|left, right| lines[left].render_order.end() < lines[right].render_order.start())
+        .collect::<Vec<_>>();
+    if chunks.len() < 2 {
+        return None;
+    }
+    // Interleaved render intervals do not establish independent runs.
+    let mut render_ranges = chunks
+        .iter()
+        .map(|chunk| {
+            (
+                *lines[&chunk[0]].render_order.start(),
+                *lines[&chunk[chunk.len() - 1]].render_order.end(),
+            )
+        })
+        .collect::<Vec<_>>();
+    render_ranges.sort_unstable();
+    if render_ranges.windows(2).any(|pair| pair[0].1 >= pair[1].0) {
+        return None;
+    }
+    let mut previous_bbox: Option<Rect> = None;
+    let mut runs = Vec::new();
+    for chunk in chunks {
+        let bbox = line_ids_bounding_box(chunk, lines);
+        if previous_bbox.is_some_and(|previous| {
+            previous.max.y <= bbox.max.y || !bboxes_are_vertically_disjoint(previous, bbox)
+        }) {
+            return None;
+        }
+        let segment = Region {
+            id: region.id,
+            page: region.page,
+            bbox,
+            line_ids: chunk.to_vec(),
+        };
+        if !region_lines_are_monotone(&segment, lines) {
+            return None;
+        }
+        runs.push(TrustedLineRun {
+            line_ids: segment.line_ids,
+        });
+        previous_bbox = Some(bbox);
+    }
+    Some(runs)
 }
 
 fn trusted_region_line_ids(region: &Region, lines: &HashMap<LineId, &Line>) -> Vec<LineId> {
@@ -743,10 +947,13 @@ fn banded_two_column_order(
         return None;
     }
 
-    uniquely_rendered_spatial_order(regions, edges, lines)
+    uniquely_proven_spatial_order(regions, edges, lines)
 }
 
-fn uniquely_rendered_spatial_order(
+/// Returns the region order geometry uniquely determines, requiring every
+/// region to be internally monotone first. Does not check whether render
+/// order agrees; [`uniquely_proven_spatial_order`] adds that proof.
+fn uniquely_ordered_regions_if_monotone(
     regions: &[Region],
     edges: &[(RegionId, RegionId, RegionRelation)],
     lines: &HashMap<LineId, &Line>,
@@ -757,10 +964,15 @@ fn uniquely_rendered_spatial_order(
     {
         return None;
     }
-    let order = unique_spatial_order(regions, edges)?;
-    if order != regions.iter().map(|region| region.id).collect::<Vec<_>>() {
-        return None;
-    }
+    unique_spatial_order(regions, edges)
+}
+
+fn uniquely_proven_spatial_order(
+    regions: &[Region],
+    edges: &[(RegionId, RegionId, RegionRelation)],
+    lines: &HashMap<LineId, &Line>,
+) -> Option<Vec<RegionId>> {
+    let order = uniquely_ordered_regions_if_monotone(regions, edges, lines)?;
     let regions_by_id = regions
         .iter()
         .map(|region| (region.id, region))
@@ -870,7 +1082,7 @@ fn region_lines_are_render_monotone(region: &Region, lines: &HashMap<LineId, &Li
 }
 
 fn proven_row_cluster_order(lines: &[&Line]) -> Option<Vec<LineId>> {
-    if lines.is_empty() || lines.iter().any(|line| !line_is_supported(line)) {
+    if lines.is_empty() {
         return None;
     }
     let mut spatial = lines.to_vec();
@@ -885,9 +1097,25 @@ fn proven_row_cluster_order(lines: &[&Line]) -> Option<Vec<LineId>> {
     });
 
     let spatial_order = spatial.iter().map(|line| line.id).collect::<Vec<_>>();
+    let mut order = Vec::with_capacity(lines.len());
+    // Unsupported lines remain at their spatial positions and split the proof.
+    // A rotated sidebar must not veto independent rows, or let them cross it.
+    for run in spatial.chunk_by(|left, right| line_is_supported(left) && line_is_supported(right)) {
+        match proven_supported_row_cluster_order(run) {
+            Some(row_order) => order.extend(row_order),
+            None => order.extend(run.iter().map(|line| line.id)),
+        }
+    }
+    (order != spatial_order).then_some(order)
+}
+
+fn proven_supported_row_cluster_order(spatial: &[&Line]) -> Option<Vec<LineId>> {
+    if spatial.iter().any(|line| !line_is_supported(line)) {
+        return None;
+    }
     let mut rows = Vec::<Vec<&Line>>::new();
     let mut active_rows = Vec::<usize>::new();
-    for line in spatial {
+    for &line in spatial {
         if line.bbox.min.x > line.bbox.max.x || line.bbox.min.y >= line.bbox.max.y {
             return None;
         }
@@ -932,7 +1160,7 @@ fn proven_row_cluster_order(lines: &[&Line]) -> Option<Vec<LineId>> {
         }
     }
 
-    let mut ordered_lines = Vec::with_capacity(lines.len());
+    let mut ordered_lines = Vec::with_capacity(spatial.len());
     for row in &mut rows {
         row.sort_by(|left, right| {
             left.bbox
@@ -950,8 +1178,7 @@ fn proven_row_cluster_order(lines: &[&Line]) -> Option<Vec<LineId>> {
         }
         ordered_lines.extend(row.iter().copied());
     }
-    let order = ordered_lines.iter().map(|line| line.id).collect::<Vec<_>>();
-    (order != spatial_order).then_some(order)
+    Some(ordered_lines.iter().map(|line| line.id).collect())
 }
 
 fn baselines_prove_same_row(left: &Line, right: &Line) -> bool {
@@ -1326,6 +1553,82 @@ mod tests {
         }
     }
 
+    fn rendered_line(id: u64, render: u32, x: f64, y: f64) -> Line {
+        Line {
+            id: LineId(id),
+            page: PageId(0),
+            glyphs: Vec::new(),
+            synthetic_spaces: Vec::new(),
+            bbox: Rect {
+                min: Vec2 { x, y },
+                max: Vec2 {
+                    x: x + 100.0,
+                    y: y + 12.0,
+                },
+            },
+            baseline: Vec2 { x, y },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            text_direction: LineTextDirection::LeftToRight,
+            render_order: render..=render,
+        }
+    }
+
+    #[test]
+    fn multi_region_unknown_reports_inter_region_reason() {
+        // Three regions defeat the column-pair fast path; scrambled render
+        // order across regions defeats the spatial proof.
+        let owned = [
+            rendered_line(1, 4, 50.0, 700.0),
+            rendered_line(2, 3, 50.0, 680.0),
+            rendered_line(3, 1, 250.0, 700.0),
+            rendered_line(4, 2, 250.0, 680.0),
+        ];
+        let refs = owned.iter().collect::<Vec<_>>();
+        let regions = [
+            leaf_region(0, &[1, 2]),
+            leaf_region(1, &[3]),
+            leaf_region(2, &[4]),
+        ];
+        let classification =
+            classify_reading_order(&refs, &[], &regions, &[]).expect("fixture classifies");
+        assert!(matches!(
+            classification.reading_order,
+            ReadingOrder::Unknown
+        ));
+        assert_eq!(
+            classification.uncertain_reason,
+            Some(UncertainLineReason::UnprovenInterRegionOrder)
+        );
+        assert_eq!(classification.uncertain_line_ids.len(), 4);
+    }
+
+    #[test]
+    fn single_leaf_unknown_reports_render_disorder_reason() {
+        // One leaf whose lines overlap so no row order exists: the supported
+        // order is Unknown, the trusted complement is empty, and the fallback
+        // keeps the whole leaf uncertain with the render-disorder reason.
+        let owned = [
+            line(1, 10.0, 10.0, 20.0, 20.0),
+            line(2, 30.0, 8.0, 100.0, 20.1),
+        ];
+        let refs = owned.iter().collect::<Vec<_>>();
+        let regions = [leaf_region(0, &[1, 2])];
+        let classification =
+            classify_reading_order(&refs, &[], &regions, &[]).expect("fixture classifies");
+        assert!(matches!(
+            classification.reading_order,
+            ReadingOrder::Unknown
+        ));
+        assert_eq!(
+            classification.uncertain_reason,
+            Some(UncertainLineReason::RenderDisorderOutsideTrustedRuns)
+        );
+        assert_eq!(
+            classification.uncertain_line_ids,
+            vec![LineId(1), LineId(2)]
+        );
+    }
+
     fn partition(lines: &[Line]) -> RegionPartition {
         let line_refs = lines.iter().collect::<Vec<_>>();
         partition_regions_from_refs(PageId(0), &line_refs, &[], RegionOptions::default())
@@ -1333,13 +1636,23 @@ mod tests {
     }
 
     fn leaf_region(id: u64, line_ids: &[u64]) -> Region {
-        Region {
-            id: RegionId(id),
-            page: PageId(0),
-            bbox: Rect {
+        leaf_region_with_bbox(
+            id,
+            line_ids,
+            Rect {
                 min: Vec2 { x: 0.0, y: 0.0 },
                 max: Vec2 { x: 1.0, y: 1.0 },
             },
+        )
+    }
+
+    /// Like [`leaf_region`], but with an explicit bounding box for tests
+    /// that exercise vertical-overlap geometry directly.
+    fn leaf_region_with_bbox(id: u64, line_ids: &[u64], bbox: Rect) -> Region {
+        Region {
+            id: RegionId(id),
+            page: PageId(0),
+            bbox,
             line_ids: line_ids.iter().copied().map(LineId).collect(),
         }
     }
@@ -1399,6 +1712,11 @@ mod tests {
 
         let partition = partition(&lines);
 
+        // The two columns overlap vertically (both span the same three
+        // rows), so a row-major reading across them is just as coherent as
+        // the column-major one: geometry does not rule it out, so the order
+        // stays `Unknown` rather than `Inferred` despite both columns being
+        // internally monotone.
         assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
         assert_eq!(
             partition.uncertain_line_ids,
@@ -1437,7 +1755,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_known_lines_preserve_region_local_runs() {
+    fn unsupported_lines_in_known_row_order_do_not_invalidate_proven_runs() {
         let mut lines = [
             line(1, 50.0, 700.0, 150.0, 712.0),
             line(2, 250.0, 700.0, 350.0, 712.0),
@@ -1453,11 +1771,15 @@ mod tests {
 
         let partition = partition(&lines);
 
-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        // The proven order is row-major (1,2,3,4,5,6): asserting it here, rather
+        // than only checking which lines survive, is what distinguishes this
+        // proven order from the column-major fallback (1,3,5,2,4,6) that region
+        // slice order would produce if the fix regressed.
         assert_eq!(
-            partition.uncertain_line_ids,
-            (1..=8).map(LineId).collect::<Vec<_>>()
+            partition.graph.reading_order,
+            ReadingOrder::KnownLines((1..=6).map(LineId).collect())
         );
+        assert_eq!(partition.uncertain_line_ids, vec![LineId(7), LineId(8)]);
         assert_eq!(
             partition.trusted_runs,
             vec![
@@ -1656,14 +1978,72 @@ mod tests {
             partition.graph.regions[0].line_ids,
             [LineId(1), LineId(2), LineId(3)]
         );
-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
-        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
+        assert_eq!(
+            partition.graph.reading_order,
+            ReadingOrder::Inferred(vec![RegionId(1)])
+        );
+        assert!(partition.uncertain_line_ids.is_empty());
         assert_eq!(
             partition.trusted_runs,
-            vec![TrustedLineRun {
-                line_ids: vec![LineId(1), LineId(2)],
-            }]
+            vec![
+                TrustedLineRun {
+                    line_ids: vec![LineId(1), LineId(2)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(3)]
+                }
+            ]
         );
+    }
+
+    #[test]
+    fn single_leaf_infers_order_between_vertically_disjoint_render_runs() {
+        let mut lines = vec![
+            line(1, 50.0, 700.0, 250.0, 710.0),
+            line(2, 50.0, 680.0, 250.0, 690.0),
+            line(3, 50.0, 100.0, 250.0, 110.0),
+        ];
+        lines[0].render_order = 2..=2;
+        lines[1].render_order = 3..=3;
+        lines[2].render_order = 1..=1;
+
+        let partition = partition(&lines);
+
+        assert_eq!(partition.graph.regions.len(), 1);
+        assert_eq!(
+            partition.graph.reading_order,
+            ReadingOrder::Inferred(vec![RegionId(1)])
+        );
+        assert!(partition.uncertain_line_ids.is_empty());
+        // Geometry orders the runs; render evidence proves only each run's interior.
+        assert_eq!(
+            partition.trusted_runs,
+            vec![
+                TrustedLineRun {
+                    line_ids: vec![LineId(1), LineId(2)]
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(3)]
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn overlapping_render_runs_in_a_single_leaf_remain_unknown() {
+        let mut lines = vec![
+            line(1, 50.0, 700.0, 250.0, 710.0),
+            line(2, 50.0, 680.0, 250.0, 690.0),
+            line(3, 50.0, 675.0, 250.0, 685.0),
+        ];
+        lines[0].render_order = 2..=2;
+        lines[1].render_order = 3..=3;
+        lines[2].render_order = 1..=1;
+
+        let partition = partition(&lines);
+        assert_eq!(partition.graph.regions.len(), 1);
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
     }
 
     #[test]
@@ -1690,5 +2070,263 @@ mod tests {
 
         assert_eq!(proven_row_cluster_order(&line_refs), None);
         assert_eq!(partition(&lines).graph.reading_order, ReadingOrder::Unknown);
+    }
+
+    #[test]
+    fn rotated_sidebar_does_not_veto_independent_glossary_rows() {
+        let mut lines = [
+            line(0, 0.0, 0.0, 5.0, 40.0),
+            line(2, 30.0, 20.0, 100.0, 30.1),
+            line(1, 10.0, 20.0, 20.0, 30.0),
+            line(3, 30.0, 5.0, 100.0, 15.0),
+        ];
+        lines[0].direction = Vec2 { x: 0.0, y: 1.0 };
+        let line_refs = lines.iter().collect::<Vec<_>>();
+        let partition = partition_regions_from_refs(
+            PageId(0),
+            &line_refs,
+            &[],
+            RegionOptions {
+                min_partition_lines: 10,
+                ..RegionOptions::default()
+            },
+        )
+        .expect("glossary with sidebar should partition");
+
+        assert_eq!(
+            partition.graph.regions[0].line_ids,
+            [LineId(0), LineId(1), LineId(2), LineId(3)]
+        );
+        assert_eq!(partition.uncertain_line_ids, [LineId(0)]);
+        assert_eq!(
+            partition.trusted_runs,
+            [TrustedLineRun {
+                line_ids: vec![LineId(1), LineId(2), LineId(3)],
+            }]
+        );
+    }
+
+    #[test]
+    fn row_correction_cannot_cross_an_unsupported_line() {
+        let mut lines = [
+            line(1, 10.0, 10.0, 20.0, 20.0),
+            line(2, 30.0, 10.0, 100.0, 20.1),
+            line(3, 110.0, 0.0, 115.0, 20.05),
+        ];
+        lines[2].direction = Vec2 { x: 0.0, y: 1.0 };
+        let line_refs = lines.iter().collect::<Vec<_>>();
+
+        assert_eq!(proven_row_cluster_order(&line_refs), None);
+    }
+
+    #[test]
+    fn uniquely_proven_spatial_order_accepts_proven_order_differing_from_input_slice_order() {
+        let lines = [
+            line(1, 50.0, 800.0, 250.0, 810.0),
+            line(2, 50.0, 600.0, 250.0, 610.0),
+            line(3, 50.0, 400.0, 250.0, 410.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+
+        let r1 = leaf_region(1, &[1]);
+        let r2 = leaf_region(2, &[2]);
+        let r3 = leaf_region(3, &[3]);
+
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::Above),
+            (RegionId(2), RegionId(3), RegionRelation::Above),
+        ];
+
+        let regions = [r3, r1, r2];
+
+        assert_eq!(
+            uniquely_proven_spatial_order(&regions, &edges, &lines_by_id),
+            Some(vec![RegionId(1), RegionId(2), RegionId(3)])
+        );
+    }
+
+    /// A region bbox matching one `rendered_line`'s geometry (100x12, the
+    /// fixed size that helper assigns), so vertical-disjointness checks on
+    /// hand-rolled regions agree with the line they contain.
+    fn rendered_line_bbox(x: f64, y: f64) -> Rect {
+        Rect {
+            min: Vec2 { x, y },
+            max: Vec2 {
+                x: x + 100.0,
+                y: y + 12.0,
+            },
+        }
+    }
+
+    #[test]
+    fn geometry_infers_a_vertically_disjoint_two_region_pair_the_render_stream_disagrees_with() {
+        let lines = [
+            rendered_line(1, 2, 50.0, 700.0),
+            rendered_line(2, 1, 250.0, 600.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+        let left = leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 700.0));
+        let right = leaf_region_with_bbox(2, &[2], rendered_line_bbox(250.0, 600.0));
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::LeftOf),
+            (RegionId(2), RegionId(1), RegionRelation::RightOf),
+        ];
+
+        // The regions are internally monotone (one line each), `LeftOf` /
+        // `RightOf` leave only one possible geometric order, and the two
+        // bounding boxes never share a horizontal band (700..712 vs
+        // 600..612): no row-major alternative exists across them, so the
+        // right region rendering before the left one is pure stream order.
+        // That dissent downgrades the order to `Inferred` instead of leaving
+        // it `Unknown`.
+        assert_eq!(
+            classify_supported_region_order(&[left, right], &edges, &lines_by_id, &[]),
+            ReadingOrder::Inferred(vec![RegionId(1), RegionId(2)])
+        );
+    }
+
+    #[test]
+    fn vertically_disjoint_two_region_stack_with_agreeing_render_order_is_known() {
+        let lines = [
+            rendered_line(1, 0, 50.0, 700.0),
+            rendered_line(2, 1, 50.0, 500.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+        let regions = [
+            leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 700.0)),
+            leaf_region_with_bbox(2, &[2], rendered_line_bbox(50.0, 500.0)),
+        ];
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::Above),
+            (RegionId(2), RegionId(1), RegionRelation::Below),
+        ];
+
+        // A two-region partition can be a vertical stack (`Above`/`Below`)
+        // rather than a two-column pair (`LeftOf`/`RightOf`), so
+        // `is_supported_two_column_graph` never admits it and the
+        // two-region branch falls through to the shared spatial-order path
+        // below. Render order already agrees with the unique top-to-bottom
+        // order here, so it is fully proven, not merely inferred.
+        assert_eq!(
+            classify_supported_region_order(&regions, &edges, &lines_by_id, &[]),
+            ReadingOrder::Known(vec![RegionId(1), RegionId(2)])
+        );
+    }
+
+    #[test]
+    fn vertically_disjoint_two_region_stack_with_dissenting_render_order_is_inferred() {
+        let lines = [
+            rendered_line(1, 1, 50.0, 700.0),
+            rendered_line(2, 0, 50.0, 500.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+        let regions = [
+            leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 700.0)),
+            leaf_region_with_bbox(2, &[2], rendered_line_bbox(50.0, 500.0)),
+        ];
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::Above),
+            (RegionId(2), RegionId(1), RegionRelation::Below),
+        ];
+
+        // Same vertical stack, but the bottom region (e.g. a footer)
+        // rendered before the top one. The topological order is still
+        // uniquely [1, 2] and both regions are internally monotone (one
+        // line each), but render order now dissents, so the shared
+        // spatial-order path infers the order instead of proving it.
+        assert_eq!(
+            classify_supported_region_order(&regions, &edges, &lines_by_id, &[]),
+            ReadingOrder::Inferred(vec![RegionId(1), RegionId(2)])
+        );
+    }
+
+    #[test]
+    fn geometry_infers_a_header_body_footer_stack_the_render_stream_disagrees_with() {
+        let lines = [
+            rendered_line(1, 2, 50.0, 800.0),
+            rendered_line(2, 3, 50.0, 600.0),
+            // Rendered first even though it is spatially last, mirroring a
+            // footer emitted before the page body.
+            rendered_line(3, 0, 50.0, 400.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+        let regions = [
+            leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 800.0)),
+            leaf_region_with_bbox(2, &[2], rendered_line_bbox(50.0, 600.0)),
+            leaf_region_with_bbox(3, &[3], rendered_line_bbox(50.0, 400.0)),
+        ];
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::Above),
+            (RegionId(2), RegionId(3), RegionRelation::Above),
+        ];
+
+        // Header, body, and footer are pairwise vertically disjoint bands
+        // (800..812, 600..612, 400..412: no shared horizontal band anywhere),
+        // every region is monotone, and `unique_spatial_order` yields the
+        // single chain 1 -> 2 -> 3. With no row-major alternative possible
+        // across a disjoint stack, only the last adjacent pair dissenting in
+        // render order still infers that chain.
+        assert_eq!(
+            classify_supported_region_order(&regions, &edges, &lines_by_id, &[]),
+            ReadingOrder::Inferred(vec![RegionId(1), RegionId(2), RegionId(3)])
+        );
+    }
+
+    #[test]
+    fn vertically_overlapping_regions_with_dissenting_render_order_remain_unknown() {
+        let lines = [
+            rendered_line(1, 2, 50.0, 700.0),
+            rendered_line(2, 1, 250.0, 700.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+        let left = leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 700.0));
+        let right = leaf_region_with_bbox(2, &[2], rendered_line_bbox(250.0, 700.0));
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::LeftOf),
+            (RegionId(2), RegionId(1), RegionRelation::RightOf),
+        ];
+
+        // Same shape as the disjoint-pair test above, except both regions
+        // now share the same horizontal band (700..712 on both sides): a
+        // row-major reading across them is just as coherent as the
+        // column-major one `LeftOf`/`RightOf` records, so geometry alone
+        // does not decide, and the render-order dissent must not be
+        // promoted to `Inferred`.
+        assert_eq!(
+            classify_supported_region_order(&[left, right], &edges, &lines_by_id, &[]),
+            ReadingOrder::Unknown
+        );
+    }
+
+    #[test]
+    fn concurrent_spatial_roots_remain_unknown_even_when_regions_are_monotone() {
+        let lines = [
+            rendered_line(1, 1, 50.0, 800.0),
+            rendered_line(2, 2, 50.0, 600.0),
+            rendered_line(3, 3, 50.0, 400.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+        let regions = [
+            leaf_region_with_bbox(1, &[1], rendered_line_bbox(50.0, 800.0)),
+            leaf_region_with_bbox(2, &[2], rendered_line_bbox(50.0, 600.0)),
+            leaf_region_with_bbox(3, &[3], rendered_line_bbox(50.0, 400.0)),
+        ];
+        // Region 1 precedes both 2 and 3, but nothing orders 2 relative to 3:
+        // a genuine geometric ambiguity, not merely a render-order dissent.
+        // The three regions are pairwise vertically disjoint (800..812,
+        // 600..612, 400..412), so this isolates the concurrent-roots cause
+        // from the vertical-disjointness gate.
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::Above),
+            (RegionId(1), RegionId(3), RegionRelation::Above),
+        ];
+
+        // Render order happens to be fully monotone (1, 2, 3) here, but that
+        // must not become a tie-break: geometry alone cannot place 2 and 3,
+        // so the order stays `Unknown` rather than `Inferred`.
+        assert_eq!(
+            classify_supported_region_order(&regions, &edges, &lines_by_id, &[]),
+            ReadingOrder::Unknown
+        );
     }
 }

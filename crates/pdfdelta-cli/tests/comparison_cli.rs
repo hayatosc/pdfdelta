@@ -357,8 +357,7 @@ fn color_always_colorizes_piped_output_and_never_disables_it() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
-    // Context paragraphs give the aligner exact anchors; without them a lone
-    // numeric-masked match cannot be confirmed and stays unresolved.
+    // Context paragraphs give the aligner exact anchors.
     write_pdf(
         &old,
         &[
@@ -429,8 +428,7 @@ fn encrypted_comparison_accepts_password_files_without_leaking_secrets() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
-    // Context paragraphs give the aligner exact anchors; without them a lone
-    // numeric-masked match cannot be confirmed and stays unresolved by design.
+    // Context paragraphs give the aligner exact anchors.
     write_encrypted_pdf(
         &old,
         &[
@@ -520,11 +518,11 @@ fn encrypted_comparison_reports_a_wrong_password_as_unsupported_without_leaking_
         path_text(&new_secret),
     ];
 
-    // Default mode reports the unsupported side and keeps exit code 0.
+    // Default mode reports the unsupported side and returns the incomplete status.
     let default_output = compare(&old, &new, &arguments);
     assert_eq!(
         default_output.status.code(),
-        Some(0),
+        Some(3),
         "{}",
         stderr(&default_output)
     );
@@ -1102,7 +1100,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     let default_stderr = stderr(&default_output);
     let default_report = stdout(&default_output);
 
-    assert_eq!(default_output.status.code(), Some(0), "{default_stderr}");
+    assert_eq!(default_output.status.code(), Some(3), "{default_stderr}");
     assert!(default_stderr.contains("extraction issue for old PDF"));
     assert!(default_stderr.contains("kind=unresolved"));
     assert!(default_stderr.contains("Type0 font has no Encoding"));
@@ -1188,7 +1186,7 @@ fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
     let default_output = compare(&old, &new, &[]);
     assert_eq!(
         default_output.status.code(),
-        Some(1),
+        Some(3),
         "{}",
         stderr(&default_output)
     );
@@ -1230,8 +1228,8 @@ fn strict_unresolved_comparison_exits_three() {
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
     let trace_path = directory.join("trace.json");
-    write_pdf(&old, &["The archive contains 10 files"]);
-    write_pdf(&new, &["The archive contains 20 files"]);
+    write_pdf(&old, &["The archive contains echo echo files"]);
+    write_pdf(&new, &["The archive contains echo echo echo files"]);
 
     let output = compare(
         &old,
@@ -1251,6 +1249,27 @@ fn strict_unresolved_comparison_exits_three() {
     assert_eq!(trace["result"]["status"], "incomplete");
     assert_eq!(trace["result"]["exit_code"], 3);
     assert_eq!(phase(&trace, "exact_diff", None)["status"], "completed");
+}
+
+#[test]
+fn strict_unique_numeric_replacement_exits_one() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report_path = directory.join("report.json");
+    write_pdf(&old, &["The archive contains 10 files"]);
+    write_pdf(&new, &["The archive contains 20 files"]);
+
+    let output = compare(&old, &new, &["--strict", "--json", path_text(&report_path)]);
+
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["summary"]["content_changes"], 1);
+    assert_eq!(report["summary"]["unresolved_regions"], 0);
+    assert_eq!(report["changes"][0]["kind"], "replacement");
+    let occurrence = &report["changes"][0]["occurrences"][0];
+    assert_eq!(occurrence["old_span"]["text"], "1");
+    assert_eq!(occurrence["new_span"]["text"], "2");
 }
 
 #[test]

@@ -1157,6 +1157,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }
     }
     fn cross_granularity_test_block(block: u64, text: &str) -> crate::normalize::BlockText {

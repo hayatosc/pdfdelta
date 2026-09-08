@@ -1,16 +1,49 @@
 {
   "version": 1,
   "pair": "ecma-109-ed10-to-ed11",
-  "reviewed_on": "2026-08-28",
+  "reviewed_on": "2026-09-07",
   "annotation": "partial",
-  "notes": "Representative cover- and front-matter review of the official 10th and 11th edition PDFs. Dense equations and tables make this a stress case. The selected changes are intentionally independent of pagination-only movement and bullet-glyph encoding differences.",
+  "notes": "Representative cover- and front-matter review of the official 10th and 11th edition PDFs. Dense equations and tables make this a stress case. The selected changes are intentionally independent of pagination-only movement and bullet-glyph encoding differences. A bounded complete scope was source-reviewed on 2026-09-07; the remaining expectations and the rest of the PDF remain partial.",
   "changes": [
     {
       "id": "edition-date",
       "kind": "replacement",
       "old_quote": "10th Edition / December 2020",
       "new_quote": "11th Edition / June 2025",
-      "note": "The cover identifies the new edition and publication month."
+      "note": "The cover identifies the new edition and publication month.",
+      "scope": "cover-edition",
+      "old_changed_ranges": [
+        {
+          "start": 1,
+          "end": 2
+        },
+        {
+          "start": 15,
+          "end": 16
+        },
+        {
+          "start": 17,
+          "end": 23
+        },
+        {
+          "start": 27,
+          "end": 28
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 1,
+          "end": 2
+        },
+        {
+          "start": 15,
+          "end": 18
+        },
+        {
+          "start": 23,
+          "end": 24
+        }
+      ]
     },
     {
       "id": "copyright-year",
@@ -18,8 +51,18 @@
       "occurrence_count": 28,
       "old_quote": "© Ecma International 2020",
       "new_quote": "© Ecma International 2025",
-      "old_changed_ranges": [{ "start": 24, "end": 25 }],
-      "new_changed_ranges": [{ "start": 24, "end": 25 }],
+      "old_changed_ranges": [
+        {
+          "start": 24,
+          "end": 25
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 24,
+          "end": 25
+        }
+      ],
       "note": "The repeated document footer updates its copyright year. Its leading label is a separate layout unit, so the reviewed source-backed quote starts at the copyright symbol. The old PDF has 29 instances and the new PDF has 28; 28 page-ordered instances form the expected replacement event."
     },
     {
@@ -28,11 +71,36 @@
       "old_quote": "\"COPYRIGHT NOTICE © 2020 Ecma International",
       "new_quote": "COPYRIGHT NOTICE © 2025 Ecma International",
       "old_changed_ranges": [
-        { "start": 0, "end": 1 },
-        { "start": 23, "end": 24 }
+        {
+          "start": 0,
+          "end": 1
+        },
+        {
+          "start": 23,
+          "end": 24
+        }
       ],
-      "new_changed_ranges": [{ "start": 22, "end": 23 }],
+      "new_changed_ranges": [
+        {
+          "start": 22,
+          "end": 23
+        }
+      ],
       "note": "Both editions contain the copyright notice. The 11th edition updates its year and omits a stray leading quote present in the extracted 10th-edition text."
+    }
+  ],
+  "scopes": [
+    {
+      "id": "cover-edition",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "ECMA-109 10th Edition / December 2020 Declared Noise Emission Values of Information Technology and Telecommunications Equipment",
+        "end_quote": "ECMA-109 10th Edition / December 2020 Declared Noise Emission Values of Information Technology and Telecommunications Equipment"
+      },
+      "new": {
+        "start_quote": "ECMA-109 11th Edition / June 2025 Declared Noise Emission Values of Information Technology and Telecommunications Equipment",
+        "end_quote": "ECMA-109 11th Edition / June 2025 Declared Noise Emission Values of Information Technology and Telecommunications Equipment"
+      }
     }
   ]
 }

@@ -2,6 +2,14 @@
 
 This directory contains immutable, dated, machine-readable summaries for the real-world revision benchmark. Each capture records the engine and corpus state at that date; later captures never overwrite historical metrics.
 
+## Source-backed assessment follow-up
+
+The [assessment summary](2026-09-08-assessment.md) records the pre-merge
+measurements, remaining limitations, and reproduction commands for the
+source-backed comparison work. Intermediate captures, logs, and patches are
+available in linked historical commits; they are not retained in this tree.
+Remaining work is tracked in [Issue #20](https://github.com/hayatosc/pdfdelta/issues/20).
+
 ## Latest Capture
 
 - **Capture date**: 2026-09-03

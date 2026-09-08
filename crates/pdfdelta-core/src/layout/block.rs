@@ -16,11 +16,21 @@ use super::{
         directions_are_compatible, interval_gap, interval_overlap_ratio, is_horizontal,
         length_squared, median, normalize, perpendicular, projected_extent, projected_interval,
     },
-    region::{RegionId, RegionRelation},
+    region::{RegionId, RegionRelation, UncertainLineReason},
 };
 
 const WEIGHT_SUM_TOLERANCE: f64 = 1.0e-9;
 const GEOMETRY_TOLERANCE: f64 = 1.0e-9;
+// Ragged-continuation ceiling: a paragraph-final line may start up to 1.5
+// line heights inside its paragraph (hanging-indent continuations such as
+// NIST numbered items at ~1.1 heights). The general indent ceiling stays at
+// 0.5; only the narrow shape below may exceed it. Widen only with benchmark
+// evidence showing wider hanging indents joining consistently on both sides.
+const RAGGED_CONTINUATION_MAX_INDENT_RATIO: f64 = 1.5;
+// A continuation final line is much shorter than its paragraph line. The
+// 0.5 ceiling keeps full-width lines (new paragraphs, block quotes) split
+// while admitting typical ragged tails (observed ~0.2).
+const RAGGED_CONTINUATION_MAX_WIDTH_RATIO: f64 = 0.5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockId(pub u64);
@@ -93,11 +103,20 @@ pub(crate) struct BlockReconstruction {
     pub trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
     pub trusted_run_descriptors: Vec<TrustedRunDescriptor>,
     pub trusted_region_edges: Vec<TrustedRegionEdge>,
+    /// Lines ordered by a geometrically [`Inferred`](super::region::ReadingOrder::Inferred)
+    /// region order rather than a proven one. These lines are ordered, not
+    /// uncertain: they never appear in `issues`, but every change derived
+    /// from them must be reported at low confidence.
+    pub inferred_order_line_ids: HashSet<LineId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LayoutIssue {
-    UnknownReadingOrder { page: PageId, line_ids: Vec<LineId> },
+    UnknownReadingOrder {
+        page: PageId,
+        line_ids: Vec<LineId>,
+        reason: UncertainLineReason,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -268,6 +287,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
     let mut trusted_region_edges = Vec::new();
     let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
+    let mut inferred_order_line_ids = HashSet::new();
     // Region partitioning is a pure per-page function, so pages are computed
     // in parallel and collected in ascending page order; the sequential fold
     // below then consumes the collected partitions unchanged. Results are
@@ -316,18 +336,78 @@ pub(crate) fn reconstruct_blocks_with_issues(
         }
         let graph = partition.graph;
         match &graph.reading_order {
+            super::region::ReadingOrder::Known(region_ids) => {
+                for region_id in region_ids {
+                    let region = graph
+                        .regions
+                        .iter()
+                        .find(|region| region.id == *region_id)
+                        .ok_or_else(|| {
+                            Error::Unresolved(format!(
+                                "reading order references missing region {}",
+                                region_id.0
+                            ))
+                        })?;
+                    append_region_order(
+                        &mut stats_by_line_id,
+                        &mut ordered_stats,
+                        region.line_ids.iter().copied(),
+                    )?;
+                }
+            }
+            super::region::ReadingOrder::Inferred(region_ids) => {
+                for region_id in region_ids {
+                    let region = graph
+                        .regions
+                        .iter()
+                        .find(|region| region.id == *region_id)
+                        .ok_or_else(|| {
+                            Error::Unresolved(format!(
+                                "reading order references missing region {}",
+                                region_id.0
+                            ))
+                        })?;
+                    inferred_order_line_ids.extend(region.line_ids.iter().copied());
+                    append_region_order(
+                        &mut stats_by_line_id,
+                        &mut ordered_stats,
+                        region.line_ids.iter().copied(),
+                    )?;
+                }
+            }
             super::region::ReadingOrder::KnownLines(line_ids) => {
                 append_region_order(
                     &mut stats_by_line_id,
                     &mut ordered_stats,
                     line_ids.iter().copied(),
                 )?;
-            }
-            reading_order => {
-                if matches!(reading_order, super::region::ReadingOrder::Unknown) {
+                // A proven line order may still leave unsupported lines out of
+                // `line_ids`; place them in raw region order so every page line
+                // is emitted. Their position is not proven, but `uncertain_reason`
+                // travels with them so block joining still treats them as barriers.
+                if let Some(reason) = partition.uncertain_reason {
                     issues.push(LayoutIssue::UnknownReadingOrder {
                         page,
                         line_ids: partition.uncertain_line_ids,
+                        reason,
+                    });
+                }
+                for region in &graph.regions {
+                    let remaining = region
+                        .line_ids
+                        .iter()
+                        .copied()
+                        .filter(|line_id| stats_by_line_id.contains_key(line_id))
+                        .collect::<Vec<_>>();
+                    append_region_order(&mut stats_by_line_id, &mut ordered_stats, remaining)?;
+                }
+            }
+            super::region::ReadingOrder::Unknown => {
+                if let Some(reason) = partition.uncertain_reason {
+                    issues.push(LayoutIssue::UnknownReadingOrder {
+                        page,
+                        line_ids: partition.uncertain_line_ids,
+                        reason,
                     });
                 }
                 for region in &graph.regions {
@@ -416,6 +496,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
         trusted_run_intervals,
         trusted_run_descriptors,
         trusted_region_edges,
+        inferred_order_line_ids,
     })
 }
 
@@ -1580,8 +1661,28 @@ fn should_join(
         )));
     }
 
+    // A ragged final line (short, contained within its paragraph's span)
+    // still belongs to the paragraph even when its hanging indent exceeds
+    // the general ceiling: sibling items with zero indent already join, so
+    // rejecting only the hanging ones fragments identical structures. The
+    // shape is deliberately asymmetric: a full line after a short one, or a
+    // short line starting left of the paragraph (outdented labels), still
+    // splits. Non-finite widths fail the comparisons below and fall back to
+    // the general ceiling without new errors.
+    let previous_width = previous.inline_interval.1 - previous.inline_interval.0;
+    let current_width = current.inline_interval.1 - current.inline_interval.0;
+    let ragged_continuation = indent_ratio > options.max_indent_height_ratio
+        && indent_ratio <= RAGGED_CONTINUATION_MAX_INDENT_RATIO
+        && current_width <= previous_width * RAGGED_CONTINUATION_MAX_WIDTH_RATIO
+        && current.inline_interval.0 >= previous.inline_interval.0
+        && current.inline_interval.1 <= previous.inline_interval.1;
+    let effective_max_indent = if ragged_continuation {
+        RAGGED_CONTINUATION_MAX_INDENT_RATIO
+    } else {
+        options.max_indent_height_ratio
+    };
     if vertical_gap_ratio > options.max_vertical_gap_height_ratio
-        || indent_ratio > options.max_indent_height_ratio
+        || indent_ratio > effective_max_indent
         || horizontal_overlap < options.min_horizontal_overlap_ratio
         || font_similarity < options.min_font_similarity
     {
@@ -1589,7 +1690,7 @@ fn should_join(
     }
 
     let vertical_proximity = closeness(vertical_gap_ratio, options.max_vertical_gap_height_ratio);
-    let indent_similarity = closeness(indent_ratio, options.max_indent_height_ratio);
+    let indent_similarity = closeness(indent_ratio, effective_max_indent);
     let score = options.vertical_proximity_weight * vertical_proximity
         + options.horizontal_overlap_weight * horizontal_overlap
         + options.indent_similarity_weight * indent_similarity

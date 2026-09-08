@@ -487,12 +487,15 @@ impl ExpectedSemanticChange {
 pub struct ExpectedManifest {
     changes: Vec<ExpectedSemanticChange>,
     evidence: ExpectedEvidence,
+    candidate_changes: Vec<ExpectedSemanticChange>,
+    proven_regions: Vec<ExpectedSemanticChange>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExpectedEvidence {
     ExactChangeEvents,
     ProvenChangedRegions,
+    CandidateWithProvenChangedRegion,
 }
 
 impl ExpectedManifest {
@@ -506,6 +509,8 @@ impl ExpectedManifest {
         Ok(Self {
             changes,
             evidence: ExpectedEvidence::ExactChangeEvents,
+            candidate_changes: Vec::new(),
+            proven_regions: Vec::new(),
         })
     }
 
@@ -513,6 +518,8 @@ impl ExpectedManifest {
         Self {
             changes: Vec::new(),
             evidence: ExpectedEvidence::ExactChangeEvents,
+            candidate_changes: Vec::new(),
+            proven_regions: Vec::new(),
         }
     }
 
@@ -520,6 +527,8 @@ impl ExpectedManifest {
         Self {
             changes: vec![change],
             evidence: ExpectedEvidence::ExactChangeEvents,
+            candidate_changes: Vec::new(),
+            proven_regions: Vec::new(),
         }
     }
 
@@ -527,6 +536,21 @@ impl ExpectedManifest {
         Self {
             changes: vec![change],
             evidence: ExpectedEvidence::ProvenChangedRegions,
+            candidate_changes: Vec::new(),
+            proven_regions: Vec::new(),
+        }
+    }
+
+    pub fn one_candidate_with_proven_region(
+        exact_change: ExpectedSemanticChange,
+        candidate_change: ExpectedSemanticChange,
+        proven_region: ExpectedSemanticChange,
+    ) -> Self {
+        Self {
+            changes: vec![exact_change],
+            evidence: ExpectedEvidence::CandidateWithProvenChangedRegion,
+            candidate_changes: vec![candidate_change],
+            proven_regions: vec![proven_region],
         }
     }
 
@@ -536,7 +560,8 @@ impl ExpectedManifest {
 
     pub fn exact_changes(&self) -> &[ExpectedSemanticChange] {
         match self.evidence {
-            ExpectedEvidence::ExactChangeEvents => &self.changes,
+            ExpectedEvidence::ExactChangeEvents
+            | ExpectedEvidence::CandidateWithProvenChangedRegion => &self.changes,
             ExpectedEvidence::ProvenChangedRegions => &[],
         }
     }
@@ -545,12 +570,38 @@ impl ExpectedManifest {
         match self.evidence {
             ExpectedEvidence::ExactChangeEvents => &[],
             ExpectedEvidence::ProvenChangedRegions => &self.changes,
+            ExpectedEvidence::CandidateWithProvenChangedRegion => &self.proven_regions,
         }
+    }
+
+    pub fn candidate_changes(&self) -> &[ExpectedSemanticChange] {
+        match self.evidence {
+            ExpectedEvidence::CandidateWithProvenChangedRegion => &self.candidate_changes,
+            ExpectedEvidence::ExactChangeEvents | ExpectedEvidence::ProvenChangedRegions => &[],
+        }
+    }
+
+    pub fn acceptance_exact_changes(&self) -> &[ExpectedSemanticChange] {
+        match self.evidence {
+            ExpectedEvidence::ExactChangeEvents => &self.changes,
+            ExpectedEvidence::ProvenChangedRegions
+            | ExpectedEvidence::CandidateWithProvenChangedRegion => &[],
+        }
+    }
+
+    pub const fn is_candidate_policy(&self) -> bool {
+        matches!(
+            self.evidence,
+            ExpectedEvidence::CandidateWithProvenChangedRegion
+        )
     }
 
     pub fn label(&self) -> String {
         if self.evidence == ExpectedEvidence::ProvenChangedRegions {
             return "proven-changed-region".to_owned();
+        }
+        if self.is_candidate_policy() {
+            return "candidate+proven-changed-region".to_owned();
         }
         match self.changes.as_slice() {
             [] => "none".to_owned(),
@@ -631,6 +682,39 @@ impl MutationPlan {
             ));
         };
         self.expectation = ExpectedManifest::one_proven_region(change.clone());
+        Ok(self)
+    }
+
+    pub fn expect_candidate_with_proven_region(
+        mut self,
+        candidate: ExpectedSemanticChange,
+        proven_region: ExpectedSemanticChange,
+    ) -> Result<Self> {
+        let [exact] = self.expectation.changes.as_slice() else {
+            return Err(BenchError::InvalidInput(
+                "candidate fixtures require exactly one expected change".to_owned(),
+            ));
+        };
+        if self.expectation.evidence != ExpectedEvidence::ExactChangeEvents {
+            return Err(BenchError::InvalidInput(
+                "candidate fixtures require an exact expected change".to_owned(),
+            ));
+        }
+        if candidate.kind() != exact.kind() {
+            return Err(BenchError::InvalidInput(
+                "candidate and exact expected changes must have the same kind".to_owned(),
+            ));
+        }
+        if proven_region.kind() != ChangeKind::Replacement {
+            return Err(BenchError::InvalidInput(
+                "proven candidate regions must use replacement envelopes".to_owned(),
+            ));
+        }
+        self.expectation = ExpectedManifest::one_candidate_with_proven_region(
+            exact.clone(),
+            candidate,
+            proven_region,
+        );
         Ok(self)
     }
 

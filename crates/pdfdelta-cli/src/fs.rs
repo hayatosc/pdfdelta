@@ -1,7 +1,7 @@
 use std::{
     fmt,
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, BufWriter, Read, Write},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -180,10 +180,10 @@ pub fn write_trace_atomically(output_path: &Path, trace: &ExecutionTrace) -> Res
 pub fn write_output_atomically(
     output_path: &Path,
     output_kind: &'static str,
-    write: impl FnOnce(&mut File) -> Result<(), String>,
+    write: impl FnOnce(&mut BufWriter<File>) -> Result<(), String>,
 ) -> Result<(), String> {
-    let (temporary_path, mut temporary_file) =
-        create_temporary_output_for(output_path, output_kind)?;
+    let (temporary_path, temporary_file) = create_temporary_output_for(output_path, output_kind)?;
+    let mut temporary_file = BufWriter::new(temporary_file);
     let prepare_result = (|| {
         write(&mut temporary_file)?;
         temporary_file.flush().map_err(|error| {
@@ -192,7 +192,7 @@ pub fn write_output_atomically(
                 output_path.display()
             )
         })?;
-        temporary_file.sync_all().map_err(|error| {
+        temporary_file.get_ref().sync_all().map_err(|error| {
             format!(
                 "cannot sync temporary {output_kind} for {}: {error}",
                 output_path.display()

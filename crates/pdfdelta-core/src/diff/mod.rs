@@ -1,7 +1,14 @@
+mod assessment;
 mod myers;
 mod presence;
 mod recovery;
 mod sentence;
+
+pub use assessment::{
+    ASSESSMENT_POLICY_VERSION, AssessmentReason, AssessmentWork, ChangeCandidate,
+    ComparisonAssessment, ComparisonAssumption, LocalizedEditScript, RelationAssessment,
+    RelationOutcome, ResolutionRange, ResolutionState, SearchCompleteness,
+};
 
 pub use recovery::container::{
     StructuralContainerMetrics, StructuralContainerSideMetrics, StructuralContainerStopReason,
@@ -207,6 +214,13 @@ pub struct Coverage {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Comparison {
+    /// Tentative edits, kept separate from established content changes.
+    pub change_candidates: Vec<ChangeCandidate>,
+    /// Engine-generated evidence and source ownership, when available.
+    ///
+    /// `None` identifies a caller-asserted programmatic result, not an
+    /// engine-verified correspondence. Reports preserve that distinction.
+    pub assessment: Option<ComparisonAssessment>,
     pub changes: Vec<ChangeEvent>,
     pub proven_changed_regions: Vec<ProvenChangedRegion>,
     pub formatting_changes: Vec<FormattingChange>,
@@ -248,12 +262,38 @@ pub struct RecoveredAtomicDiff {
     /// Emitted semantic hunks and the exact edit subsequence behind each one.
     pub changed_occurrences: Vec<RecoveredAtomicOccurrence>,
     pub edits: Vec<AtomicEdit>,
-    pub old_best_score: u16,
-    pub old_second_score: u16,
-    pub old_best_scope: Option<RecoveryWatchNearScope>,
-    pub new_best_score: u16,
-    pub new_second_score: u16,
-    pub new_best_scope: Option<RecoveryWatchNearScope>,
+    pub relation: RecoveredRelationEvidence,
+}
+
+/// Evidence that justified one retained recovered atomic diff.
+///
+/// Near recovery carries reciprocal search scores. Source-anchored gap
+/// recovery carries the four exact ranges that bracket the inferred gap and
+/// intentionally has no near score fields to populate.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RecoveredRelationEvidence {
+    Near {
+        old_best_score: u16,
+        old_second_score: u16,
+        old_best_scope: Option<RecoveryWatchNearScope>,
+        new_best_score: u16,
+        new_second_score: u16,
+        new_best_scope: Option<RecoveryWatchNearScope>,
+    },
+    AnchoredGap {
+        old_before: RecoveredAnchorRange,
+        old_after: RecoveredAnchorRange,
+        new_before: RecoveredAnchorRange,
+        new_after: RecoveredAnchorRange,
+    },
+}
+
+/// One exact anchor within a single source block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecoveredAnchorRange {
+    pub block: BlockId,
+    pub canonical_range: ScalarRange,
+    pub comparable_range: TokenRange,
 }
 
 /// Internal producer that resolved a content range or emitted a change.
@@ -268,9 +308,14 @@ pub enum ChangeOrigin {
     RunningMatter,
     RangeLocalExact,
     TrustedResidualExact,
+    AnchoredGap,
 }
 
-/// Counts committed output and resolved context for one [`ChangeOrigin`].
+/// Counts discovered edits and provisional context for one [`ChangeOrigin`].
+///
+/// These diagnostics precede shared evidence assessment. The `resolved_context`
+/// counters describe discovery ownership; only [`Comparison::assessment`] and
+/// the final coverage fields describe established source resolution.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ChangeOriginMetric {
     pub event_count: usize,
@@ -280,7 +325,7 @@ pub struct ChangeOriginMetric {
     pub new_resolved_context_tokens: usize,
 }
 
-/// Fixed-size origin attribution for a comparison.
+/// Fixed-size origin attribution for discovered comparison proposals.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ChangeOriginMetrics {
     pub ordered_alignment: ChangeOriginMetric,
@@ -292,6 +337,7 @@ pub struct ChangeOriginMetrics {
     pub running_matter: ChangeOriginMetric,
     pub range_local_exact: ChangeOriginMetric,
     pub trusted_residual_exact: ChangeOriginMetric,
+    pub anchored_gap: ChangeOriginMetric,
 }
 
 impl ChangeOriginMetrics {
@@ -306,6 +352,7 @@ impl ChangeOriginMetrics {
             ChangeOrigin::RunningMatter => &mut self.running_matter,
             ChangeOrigin::RangeLocalExact => &mut self.range_local_exact,
             ChangeOrigin::TrustedResidualExact => &mut self.trusted_residual_exact,
+            ChangeOrigin::AnchoredGap => &mut self.anchored_gap,
         }
     }
 }
@@ -1855,6 +1902,9 @@ pub struct LocalFragmentFlatExactBoundaryShadowMetrics {
 }
 
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
+///
+/// Discovery counts include proposals that the shared assessment may retain
+/// as tentative. They are not accepted-change quality or coverage measures.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RecoveryRemainderCauseMetrics {
     pub selected_but_uncommitted_source_tokens: usize,
@@ -2170,6 +2220,12 @@ pub struct DiffOptions {
     /// Values above the implementation cap are rejected because retained
     /// backtracking trace memory grows quadratically with this value.
     pub max_edit_distance: usize,
+    /// Shared exact-assessment work across all proposed relations and views.
+    /// Exhaustion leaves the affected claims tentative rather than accepting
+    /// the best candidate found before the limit.
+    pub max_assessment_work: usize,
+    /// Maximum retained relation and resolution ranges in the final assessment.
+    pub max_assessment_ranges: usize,
     /// Base changed-token ratio for rejecting implausible non-exact matches.
     /// Low-confidence matches use this value directly. Medium- and
     /// high-confidence matches use progressively relaxed multiples, with
@@ -2188,6 +2244,8 @@ impl Default for DiffOptions {
             // The measured Unicode Standard corpus peaks at 5,001,224 post-layout raw tokens.
             max_tokens: 5_100_000,
             max_edit_distance: 2_048,
+            max_assessment_work: 32_000_000,
+            max_assessment_ranges: 100_000,
             max_weak_match_change_ratio: 0.5,
         }
     }
@@ -2202,6 +2260,11 @@ pub(crate) fn enforce_diff_token_budget(
 }
 
 pub(crate) fn validate_diff_options(options: DiffOptions) -> Result<()> {
+    if options.max_assessment_work == 0 || options.max_assessment_ranges == 0 {
+        return Err(Error::InvalidConfiguration(
+            "diff assessment work and range limits must be greater than zero".to_owned(),
+        ));
+    }
     if options.max_tokens == 0 {
         return Err(Error::InvalidConfiguration(
             "diff max_tokens must be greater than zero".to_owned(),
@@ -2758,6 +2821,19 @@ fn compare_aligned_inner(
         })
         .unwrap_or_default();
 
+    let comparison = assessment::finish(
+        [&old, &new],
+        alignment,
+        recovery,
+        sentence_recovery.plan.as_ref(),
+        assessment::ProposedComparison {
+            changes: changes.clone(),
+            proven_changed_regions,
+            formatting_changes,
+            unresolved_regions,
+        },
+        options,
+    )?;
     let (
         mut sentence_recovery_metrics,
         recovery_watch_diagnostics,
@@ -2781,14 +2857,7 @@ fn compare_aligned_inner(
         sentence_recovery_metrics = None;
     }
     Ok(ComparisonWithSentenceRecoveryMetrics {
-        comparison: Comparison {
-            changes,
-            proven_changed_regions,
-            formatting_changes,
-            unresolved_regions,
-            old_coverage: coverage(resolved_old, old.total_tokens),
-            new_coverage: coverage(resolved_new, new.total_tokens),
-        },
+        comparison,
         sentence_recovery_metrics,
         recovery_watch_diagnostics,
         matched_atomic_diffs,
@@ -2837,6 +2906,7 @@ fn apply_ordered_alignment_origin(
         metrics.change_origins.running_matter,
         metrics.change_origins.range_local_exact,
         metrics.change_origins.trusted_residual_exact,
+        metrics.change_origins.anchored_gap,
     ] {
         recovery.event_count = recovery.event_count.checked_add(metric.event_count)?;
         recovery.old_changed_tokens = recovery
@@ -3031,6 +3101,7 @@ pub(super) fn checked_add_origin_metrics(
         ChangeOrigin::RunningMatter,
         ChangeOrigin::RangeLocalExact,
         ChangeOrigin::TrustedResidualExact,
+        ChangeOrigin::AnchoredGap,
     ] {
         let right = *match origin {
             ChangeOrigin::OrderedAlignment => &right.ordered_alignment,
@@ -3042,6 +3113,7 @@ pub(super) fn checked_add_origin_metrics(
             ChangeOrigin::RunningMatter => &right.running_matter,
             ChangeOrigin::RangeLocalExact => &right.range_local_exact,
             ChangeOrigin::TrustedResidualExact => &right.trusted_residual_exact,
+            ChangeOrigin::AnchoredGap => &right.anchored_gap,
         };
         let left = left.get_mut(origin);
         left.event_count = left.event_count.checked_add(right.event_count)?;
@@ -3111,7 +3183,6 @@ struct RepeatedRecoveryGroup {
 #[derive(PartialEq, Eq, Hash)]
 struct RepeatedRecoveryKey {
     deletion: bool,
-    unit_kind: sentence::RecoveryUnitKind,
     role: sentence::OccurrenceRole,
     tokens: Vec<ComparableToken>,
 }
@@ -3186,7 +3257,6 @@ fn group_repeated_recovered_changes(
                 };
                 let key = RepeatedRecoveryKey {
                     deletion: change.event.kind == ChangeKind::Deletion,
-                    unit_kind: recovered.kind,
                     role: recovered.role,
                     tokens: try_recovered_tokens(side, recovered, output_budget)?,
                 };
@@ -3602,7 +3672,73 @@ fn prepare_recovered_replacement_edits(
     }
     recovery.cross_span_replacement_new_spans.sort_unstable();
     recovery.cross_span_replacement_new_spans.dedup();
+    for replacement in &mut recovery.anchored_replacements {
+        let mut tentative_budget = *output_budget;
+        if prepare_one_anchored_gap(
+            old,
+            new,
+            replacement,
+            max_edit_distance,
+            &mut tentative_budget,
+        )? {
+            *output_budget = tentative_budget;
+        } else if !remove_consumed_ranges(
+            &mut recovery.deletion_consumed,
+            &replacement.old_consumed,
+        ) || !remove_consumed_ranges(
+            &mut recovery.insertion_consumed,
+            &replacement.new_consumed,
+        ) {
+            return None;
+        }
+    }
+    recovery
+        .anchored_replacements
+        .retain(|replacement| replacement.edits.is_some());
     Some(())
+}
+
+fn prepare_one_anchored_gap(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    replacement: &mut sentence::AnchoredGapReplacement,
+    max_edit_distance: usize,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<bool> {
+    if replacement.edits.is_some()
+        || !valid_recovered_sentence(&replacement.old)
+        || !valid_recovered_sentence(&replacement.new)
+    {
+        return None;
+    }
+    let old_tokens = try_recovered_tokens(old, &replacement.old, output_budget)?;
+    let new_tokens = try_recovered_tokens(new, &replacement.new, output_budget)?;
+    let edits = match myers::diff(&old_tokens, &new_tokens, max_edit_distance).ok()? {
+        Some(edits) if !edits.is_empty() => edits,
+        Some(_) | None => return Some(false),
+    };
+    let edit_bytes = edits
+        .capacity()
+        .checked_mul(std::mem::size_of::<AtomicEdit>())?;
+    if !output_budget.charge_many(0, edit_bytes) {
+        return None;
+    }
+    let mut projection_budget = *output_budget;
+    if !recovered_hunks_projectable(
+        old,
+        &replacement.old,
+        &old_tokens,
+        new,
+        &replacement.new,
+        &new_tokens,
+        &edits,
+        sentence::RecoveryHunkPolicy::Atomic,
+        &mut projection_budget,
+    )? {
+        return Some(false);
+    }
+    replacement.edits = Some(edits);
+    Some(true)
 }
 
 fn repeated_replacement_group_is_identical(
@@ -4054,10 +4190,13 @@ fn prepare_sentence_recovery(
     let deletions = sentence::recoveries_for_span(&recovery.deletions, span_index);
     let insertions = sentence::recoveries_for_span(&recovery.insertions, span_index);
     let replacements = sentence::replacements_for_span(&recovery.replacements, span_index);
+    let anchored_replacements =
+        sentence::anchored_replacements_for_span(&recovery.anchored_replacements, span_index);
     let change_capacity = deletions
         .len()
         .checked_add(insertions.len())?
-        .checked_add(replacements.len())?;
+        .checked_add(replacements.len())?
+        .checked_add(anchored_replacements.len())?;
     let deletion_consumed_count = recovered_range_count(&span.old, &recovery.deletion_consumed)?;
     let insertion_consumed_count = recovered_range_count(&span.new, &recovery.insertion_consumed)?;
     let unresolved_capacity = deletion_consumed_count
@@ -4100,9 +4239,64 @@ fn prepare_sentence_recovery(
         output_budget,
         retain_atomic_edits,
     )?;
+    let (anchored_old, anchored_new) = prepare_anchored_gap_replacements(
+        old,
+        new,
+        anchored_replacements,
+        &mut changes,
+        &mut recovered_atomic_diffs,
+        output_budget,
+        retain_atomic_edits,
+    )?;
+    let replacement_old = replacement_old.checked_add(anchored_old)?;
+    let replacement_new = replacement_new.checked_add(anchored_new)?;
+    change_origins.anchored_gap.old_resolved_context_tokens = anchored_old;
+    change_origins.anchored_gap.new_resolved_context_tokens = anchored_new;
     let (deletion, deletion_origins) =
         prepare_recovered_changes(deletions, ChangeKind::Deletion, &mut changes, output_budget)?;
     change_origins = checked_add_origin_metrics(change_origins, deletion_origins)?;
+    // Relocated identical units surface as moves. Each pair is owned by its
+    // old span (emitted once); coverage is unchanged because the tokens are
+    // already resolved through the silent cross-span path above. A pair that
+    // cannot be budgeted or assembled is skipped without affecting primary
+    // recovery. Single-block sentence pairs keep their exact ranges (owned
+    // by block-granularity moves when multi-block); clause runs assemble
+    // multi-block spans with exactly mirrored offsets.
+    for relocated in &recovery.cross_page_moves {
+        if relocated.old.span_index != span_index {
+            continue;
+        }
+        let (Some(old_span), Some(new_span)) = (
+            relocated_move_span(old, &relocated.old_consumed, &recovery.deletion_consumed),
+            relocated_move_span(new, &relocated.new_consumed, &recovery.insertion_consumed),
+        ) else {
+            continue;
+        };
+        let multi_allowed = matches!(relocated.old.origin, ChangeOrigin::LocalFragment);
+        if !multi_allowed && (relocated.old.blocks.len() != 1 || relocated.new.blocks.len() != 1) {
+            continue;
+        }
+        let Some(block_count) = old_span.blocks.len().checked_add(new_span.blocks.len()) else {
+            continue;
+        };
+        let Some(change_bytes) = estimated_change_bytes(block_count) else {
+            continue;
+        };
+        if changes.try_reserve_exact(1).is_err() || !output_budget.charge(change_bytes) {
+            continue;
+        }
+        changes.push(OriginatedChange {
+            event: ChangeEvent::single_occurrence(
+                ChangeKind::Move,
+                Some(old_span),
+                Some(new_span),
+                Confidence::Low,
+                Vec::new(),
+            ),
+            origin: relocated.old.origin,
+            repeated_group: None,
+        });
+    }
     let resolved_old = exact_match_old
         .checked_add(replacement_old)?
         .checked_add(deletion)?;
@@ -4310,6 +4504,7 @@ fn prepare_recovered_replacements(
             &new,
             edits,
             replacement.hunk_policy,
+            Confidence::Medium,
             output_budget,
         )?;
         if retain_atomic_edits {
@@ -4337,12 +4532,14 @@ fn prepare_recovered_replacements(
                 new_context: new.try_span(0, new.tokens.len())?,
                 changed_occurrences,
                 edits: retained_edits,
-                old_best_score: replacement.relation.old_best_score,
-                old_second_score: replacement.relation.old_second_score,
-                old_best_scope: replacement.relation.old_best_scope,
-                new_best_score: replacement.relation.new_best_score,
-                new_second_score: replacement.relation.new_second_score,
-                new_best_scope: replacement.relation.new_best_scope,
+                relation: RecoveredRelationEvidence::Near {
+                    old_best_score: replacement.relation.old_best_score,
+                    old_second_score: replacement.relation.old_second_score,
+                    old_best_scope: replacement.relation.old_best_scope,
+                    new_best_score: replacement.relation.new_best_score,
+                    new_second_score: replacement.relation.new_second_score,
+                    new_best_scope: replacement.relation.new_best_scope,
+                },
             });
         }
         changes.try_reserve_exact(1).ok()?;
@@ -4355,6 +4552,161 @@ fn prepare_recovered_replacements(
         resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
     }
     Some((resolved_old, resolved_new))
+}
+
+fn prepare_anchored_gap_replacements(
+    old_side: &Side<'_>,
+    new_side: &Side<'_>,
+    replacements: &[sentence::AnchoredGapReplacement],
+    changes: &mut Vec<OriginatedChange>,
+    recovered_atomic_diffs: &mut Vec<RecoveredAtomicDiff>,
+    output_budget: &mut RecoveryOutputBudget,
+    retain_atomic_edits: bool,
+) -> Option<(usize, usize)> {
+    let mut resolved_old = 0usize;
+    let mut resolved_new = 0usize;
+    for replacement in replacements {
+        if replacement.old.span_index != replacement.new.span_index {
+            return None;
+        }
+        for (gap, before, after) in [
+            (
+                &replacement.old,
+                &replacement.old_before,
+                &replacement.old_after,
+            ),
+            (
+                &replacement.new,
+                &replacement.new_before,
+                &replacement.new_after,
+            ),
+        ] {
+            if !valid_recovered_sentence(gap)
+                || gap.origin != ChangeOrigin::AnchoredGap
+                || gap.blocks.as_slice() != [BlockId(before.block_id)]
+                || before.block_id != after.block_id
+                || before.comparable.start >= before.comparable.end
+                || after.comparable.start >= after.comparable.end
+                || before.comparable.end != gap.comparable.start
+                || after.comparable.start != gap.comparable.end
+            {
+                return None;
+            }
+        }
+        let edits = replacement
+            .edits
+            .as_deref()
+            .filter(|edits| !edits.is_empty())?;
+        let old = recovered_group_text(old_side, &replacement.old, output_budget)?;
+        let new = recovered_group_text(new_side, &replacement.new, output_budget)?;
+        let (event, changed_occurrences) = recovered_replacement_event(
+            old_side,
+            &replacement.old,
+            &old,
+            new_side,
+            &replacement.new,
+            &new,
+            edits,
+            sentence::RecoveryHunkPolicy::Atomic,
+            Confidence::Low,
+            output_budget,
+        )?;
+        if retain_atomic_edits {
+            let trace_bytes = std::mem::size_of::<RecoveredAtomicDiff>()
+                .checked_add(edits.len().checked_mul(std::mem::size_of::<AtomicEdit>())?)?
+                .checked_add(2usize.checked_mul(std::mem::size_of::<BlockId>())?)?;
+            if !output_budget.charge(trace_bytes) {
+                return None;
+            }
+            let old_before = anchored_source_range(old_side, &replacement.old_before)?;
+            let old_after = anchored_source_range(old_side, &replacement.old_after)?;
+            let new_before = anchored_source_range(new_side, &replacement.new_before)?;
+            let new_after = anchored_source_range(new_side, &replacement.new_after)?;
+            let context = |before: &RecoveredAnchorRange, after: &RecoveredAnchorRange| {
+                Some(TextSpan {
+                    blocks: try_single_block(before.block)?,
+                    separator: None,
+                    canonical_range: ScalarRange {
+                        start: before.canonical_range.start,
+                        end: after.canonical_range.end,
+                    },
+                    comparable_range: TokenRange {
+                        start: before.comparable_range.start,
+                        end: after.comparable_range.end,
+                    },
+                })
+            };
+            let old_context = context(&old_before, &old_after)?;
+            let new_context = context(&new_before, &new_after)?;
+            let old_offset = replacement
+                .old
+                .comparable
+                .start
+                .checked_sub(old_context.comparable_range.start)?;
+            let new_offset = replacement
+                .new
+                .comparable
+                .start
+                .checked_sub(new_context.comparable_range.start)?;
+            let mut retained_edits = Vec::new();
+            retained_edits.try_reserve_exact(edits.len()).ok()?;
+            for edit in edits {
+                retained_edits.push(AtomicEdit {
+                    old: edit.old.start.checked_add(old_offset)?
+                        ..edit.old.end.checked_add(old_offset)?,
+                    new: edit.new.start.checked_add(new_offset)?
+                        ..edit.new.end.checked_add(new_offset)?,
+                });
+            }
+            recovered_atomic_diffs.try_reserve_exact(1).ok()?;
+            recovered_atomic_diffs.push(RecoveredAtomicDiff {
+                origin: ChangeOrigin::AnchoredGap,
+                old_alignment_span_index: replacement.old.span_index,
+                new_alignment_span_index: replacement.new.span_index,
+                old_context,
+                new_context,
+                changed_occurrences,
+                edits: retained_edits,
+                relation: RecoveredRelationEvidence::AnchoredGap {
+                    old_before,
+                    old_after,
+                    new_before,
+                    new_after,
+                },
+            });
+        }
+        changes.try_reserve_exact(1).ok()?;
+        changes.push(OriginatedChange {
+            event,
+            origin: ChangeOrigin::AnchoredGap,
+            repeated_group: None,
+        });
+        resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
+        resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
+    }
+    Some((resolved_old, resolved_new))
+}
+
+fn anchored_source_range(
+    side: &Side<'_>,
+    anchor: &recovery::page_anchor::PageAnchorRange,
+) -> Option<RecoveredAnchorRange> {
+    let block = BlockId(anchor.block_id);
+    let (start, end) = recovered_scalar_boundaries(
+        side,
+        &[block],
+        None,
+        anchor.comparable.start,
+        anchor.comparable.end,
+    )?;
+    Some(RecoveredAnchorRange {
+        block,
+        canonical_range: ScalarRange { start, end },
+        comparable_range: TokenRange {
+            start: anchor.comparable.start,
+            end: anchor.comparable.end,
+        },
+    })
 }
 
 fn replacement_origin_contexts(
@@ -4451,6 +4803,7 @@ fn recovered_replacement_event(
     new: &GroupText,
     edits: &[AtomicEdit],
     hunk_policy: sentence::RecoveryHunkPolicy,
+    confidence: Confidence,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<(ChangeEvent, Vec<RecoveredAtomicOccurrence>)> {
     let mut occurrences = Vec::new();
@@ -4542,7 +4895,7 @@ fn recovered_replacement_event(
         ChangeEvent {
             kind: ChangeKind::Replacement,
             occurrences,
-            confidence: Confidence::Medium,
+            confidence,
             tags,
         },
         changed_occurrences,
@@ -5139,6 +5492,161 @@ fn try_copy_slice<T: Copy>(source: &[T]) -> Option<Vec<T>> {
     copied.try_reserve_exact(source.len()).ok()?;
     copied.extend_from_slice(source);
     Some(copied)
+}
+
+/// Assembles a relocated move span from committed per-block ranges.
+///
+/// `consumed` arrives ordered (stream order) with at most boundary
+/// whitespace between entries. Block offsets accumulate full block lengths
+/// with block-boundary separators mirroring the span model: a space joins
+/// consecutive blocks exactly when the trailing text of one and the leading
+/// text of the next are both non-whitespace (the report projection walks the
+/// same rule, so mismatched offsets would invalidate the measurement).
+/// The leading entry may absorb a bare list marker margin (`"2. "`) so the
+/// reported move covers the annotated quote; the comparable start moves by
+/// the same delta, which is exact because locations only exist for blocks
+/// without unmapped tokens, where scalar and comparable indices advance 1:1.
+/// Pure-whitespace margins never affect quote containment, and absorbing
+/// trailing content could steal the next unit's territory or overshoot the
+/// scope range, so trailing margins are never absorbed. Returns `None` when
+/// any lookup fails or a margin holds real content.
+fn relocated_move_span(
+    side: &Side<'_>,
+    consumed: &[sentence::LocalSentenceRange],
+    committed: &[sentence::LocalSentenceRange],
+) -> Option<TextSpan> {
+    // Shares `sentence::ordered_unique_blocks`'s stronger dedup (checks the
+    // whole vector, not just the last entry) so a block visited non-adjacently
+    // (A, B, A) is never pushed twice, which would otherwise let a later
+    // `scalar_base`/`token_base` insert silently overwrite the earlier base
+    // for that block and corrupt every offset computed from it.
+    let blocks = sentence::ordered_unique_blocks(consumed)?;
+    let separator = if blocks.len() > 1 {
+        Some(BlockSeparator::Space)
+    } else {
+        None
+    };
+    let mut scalar_base = HashMap::new();
+    let mut token_base = HashMap::new();
+    scalar_base.try_reserve(blocks.len()).ok()?;
+    token_base.try_reserve(blocks.len()).ok()?;
+    let mut scalar_offset = 0usize;
+    let mut token_offset = 0usize;
+    let mut combined_trailing_whitespace: Option<bool> = None;
+    for (position, block) in blocks.iter().enumerate() {
+        let &side_index = side.index.get(block)?;
+        let block_text = side
+            .blocks
+            .get(side_index)
+            .map(|block| block.canonical.text.as_str())?;
+        let block_tokens = side.canonical.get(side_index).map(Vec::len)?;
+        if position > 0 && separator == Some(BlockSeparator::Space) {
+            let next_leading_whitespace =
+                block_text.chars().next().is_some_and(char::is_whitespace);
+            if combined_trailing_whitespace != Some(true) && !next_leading_whitespace {
+                scalar_offset = scalar_offset.checked_add(1)?;
+                token_offset = token_offset.checked_add(1)?;
+            }
+        }
+        scalar_base.insert(*block, scalar_offset);
+        token_base.insert(*block, token_offset);
+        let block_scalars = block_text.chars().count();
+        scalar_offset = scalar_offset.checked_add(block_scalars)?;
+        token_offset = token_offset.checked_add(block_tokens)?;
+        if let Some(trailing_whitespace) = block_text.chars().next_back().map(char::is_whitespace) {
+            combined_trailing_whitespace = Some(trailing_whitespace);
+        }
+    }
+    // Merged runs tile contiguously by construction (adjacent pieces share
+    // boundaries, separators included), so the span runs from the first
+    // entry's start to the last entry's end. Any deviation surfaces as an
+    // empty or inverted range below, never as an invented subrange.
+    let (Some(first), Some(last)) = (consumed.first(), consumed.last()) else {
+        return None;
+    };
+    let (Some(&first_base_scalar), Some(&first_base_token)) =
+        (scalar_base.get(&first.block), token_base.get(&first.block))
+    else {
+        return None;
+    };
+    let (Some(&last_base_scalar), Some(&last_base_token)) =
+        (scalar_base.get(&last.block), token_base.get(&last.block))
+    else {
+        return None;
+    };
+    let mut canonical_start = first_base_scalar.checked_add(first.canonical.start)?;
+    let mut comparable_start = first_base_token.checked_add(first.comparable.start)?;
+    if absorb_leading_marker(side, &first.block, first, committed) {
+        canonical_start = first_base_scalar;
+        // The comparable start moves by the same delta: locations only exist
+        // for blocks without unmapped tokens, where scalar and comparable
+        // indices advance 1:1. Saturating keeps a degraded (never panicking)
+        // value if that invariant ever drifts; the scope walk then skips the
+        // measurement instead of misreporting it.
+        comparable_start = first_base_token
+            .checked_add(first.comparable.start.saturating_sub(first.canonical.start))?;
+    }
+    let canonical_end = last_base_scalar.checked_add(last.canonical.end)?;
+    let comparable_end = last_base_token.checked_add(last.comparable.end)?;
+    if canonical_start >= canonical_end || comparable_start >= comparable_end {
+        return None;
+    }
+    Some(TextSpan {
+        blocks,
+        separator,
+        canonical_range: ScalarRange {
+            start: canonical_start,
+            end: canonical_end,
+        },
+        comparable_range: TokenRange {
+            start: comparable_start,
+            end: comparable_end,
+        },
+    })
+}
+
+/// Reports whether a leading label margin may join a relocated span.
+///
+/// The margin (block text before the first committed range) must be free of
+/// any other committed range and hold a bare list marker: whitespace alone
+/// never affects quote containment, while real content belongs to another
+/// unit. Token mapping follows the scalar delta, exact for blocks without
+/// unmapped tokens (the only blocks locations exist for).
+fn absorb_leading_marker(
+    side: &Side<'_>,
+    block: &BlockId,
+    range: &sentence::LocalSentenceRange,
+    committed: &[sentence::LocalSentenceRange],
+) -> bool {
+    if range.canonical.start == 0 {
+        return false;
+    }
+    if committed.iter().any(|committed| {
+        committed.block == *block
+            && committed.canonical.start < range.canonical.start
+            && 0 < committed.canonical.end
+    }) {
+        return false;
+    }
+    let Some(&side_index) = side.index.get(block) else {
+        return false;
+    };
+    let Some(block_text) = side
+        .blocks
+        .get(side_index)
+        .map(|block| block.canonical.text.as_str())
+    else {
+        return false;
+    };
+    let Some(margin_end) = block_text
+        .char_indices()
+        .nth(range.canonical.start)
+        .map(|(byte, _)| byte)
+    else {
+        return false;
+    };
+    let margin = block_text.get(..margin_end).unwrap_or_default();
+    !margin.trim().is_empty() && sentence::is_bare_list_marker(margin.trim())
 }
 
 fn estimated_change_bytes(block_count: usize) -> Option<usize> {
@@ -6646,6 +7154,182 @@ mod tests {
         }
     }
 
+    #[test]
+    fn assessment_keeps_repeated_character_edit_locations_tentative() {
+        let old = [sentence_block(1, "aaa")];
+        let new = [sentence_block(2, "aa")];
+        let alignment = Alignment {
+            spans: vec![matched_span(vec![BlockId(1)], vec![BlockId(2)])],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("valid comparison");
+        assert!(comparison.changes.is_empty());
+        assert_eq!(comparison.change_candidates.len(), 1);
+        assert_eq!(comparison.proven_changed_regions.len(), 1);
+        assert_eq!(comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(comparison.new_coverage.resolved_tokens, 0);
+        let assessment = comparison.assessment.as_ref().expect("engine assessment");
+        let candidate = &comparison.change_candidates[0];
+        assert!(
+            assessment.relations[candidate.relation]
+                .reasons
+                .contains(&AssessmentReason::AmbiguousEditLocation)
+        );
+        assessment
+            .validate(&comparison)
+            .expect("exclusive source accounting");
+    }
+
+    #[test]
+    fn assessment_exposes_ambiguous_whitespace_attachment_in_an_inline_insertion() {
+        let old_text = "A note remains";
+        let new_text = "A note 2026 remains";
+        let tokens = new_text.chars().collect::<Vec<_>>();
+        for inserted in [6..11, 7..12] {
+            let mut restored = tokens.clone();
+            restored.drain(inserted);
+            assert_eq!(restored.into_iter().collect::<String>(), old_text);
+        }
+        let old = [sentence_block(1, old_text)];
+        let new = [sentence_block(2, new_text)];
+        let alignment = Alignment {
+            spans: vec![matched_span(vec![BlockId(1)], vec![BlockId(2)])],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("valid comparison");
+        assert!(comparison.changes.is_empty());
+        assert_eq!(comparison.change_candidates.len(), 1);
+        assert_eq!(
+            comparison.change_candidates[0].change.kind,
+            ChangeKind::Insertion
+        );
+        assert_eq!(comparison.proven_changed_regions.len(), 1);
+        assert_eq!(comparison.old_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn assessment_accepts_a_uniquely_localized_change_with_source_partition() {
+        let old = [sentence_block(1, "abc")];
+        let new = [sentence_block(2, "axc")];
+        let alignment = Alignment {
+            spans: vec![matched_span(vec![BlockId(1)], vec![BlockId(2)])],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("valid comparison");
+        assert_eq!(comparison.changes.len(), 1);
+        assert!(comparison.change_candidates.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        let assessment = comparison.assessment.as_ref().expect("engine assessment");
+        assert_eq!(
+            assessment
+                .old_resolution
+                .iter()
+                .map(|range| range.state)
+                .collect::<Vec<_>>(),
+            [
+                ResolutionState::Equal,
+                ResolutionState::Changed,
+                ResolutionState::Equal
+            ]
+        );
+        assessment
+            .validate(&comparison)
+            .expect("exclusive source accounting");
+    }
+
+    #[test]
+    fn assessment_budget_stop_does_not_assert_equality() {
+        let old = [sentence_block(1, "same")];
+        let new = [sentence_block(2, "same")];
+        let alignment = Alignment {
+            spans: vec![matched_span(vec![BlockId(1)], vec![BlockId(2)])],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_aligned(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions {
+                max_assessment_work: 1,
+                ..DiffOptions::default()
+            },
+        )
+        .expect("a local work stop remains reportable");
+        assert!(comparison.changes.is_empty());
+        assert_eq!(comparison.old_coverage.resolved_tokens, 0);
+        let assessment = comparison.assessment.as_ref().expect("engine assessment");
+        assert!(
+            assessment
+                .relations
+                .iter()
+                .any(|relation| relation.search == SearchCompleteness::Incomplete)
+        );
+        assert!(assessment.work_used <= assessment.work_limit);
+    }
+
+    #[test]
+    fn assessment_output_stop_preserves_a_reportable_unresolved_partition() {
+        let old = [sentence_block(1, "abc")];
+        let new = [sentence_block(2, "axc")];
+        let alignment = Alignment {
+            spans: vec![matched_span(vec![BlockId(1)], vec![BlockId(2)])],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_aligned(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions {
+                max_assessment_ranges: 1,
+                ..DiffOptions::default()
+            },
+        )
+        .expect("minimal source ownership remains representable");
+        assert!(comparison.changes.is_empty());
+        assert_eq!(comparison.unresolved_regions.len(), 1);
+        assert_eq!(comparison.old_coverage.resolved_tokens, 0);
+        let assessment = comparison.assessment.as_ref().expect("engine assessment");
+        assert_eq!(assessment.relations.len(), 1);
+        assert!(assessment.candidates_truncated);
+        assessment
+            .validate(&comparison)
+            .expect("valid partial output");
+    }
+
+    #[test]
+    fn assessment_does_not_treat_high_confidence_as_duplicate_correspondence_proof() {
+        let old = [
+            sentence_block(1, "duplicate"),
+            sentence_block(2, "duplicate"),
+        ];
+        let new = [sentence_block(3, "duplicate")];
+        let alignment = Alignment {
+            spans: vec![
+                AlignmentSpan {
+                    kind: AlignmentKind::Deletion,
+                    ..matched_span(vec![BlockId(1)], Vec::new())
+                },
+                matched_span(vec![BlockId(2)], vec![BlockId(3)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("valid comparison");
+        assert!(comparison.changes.is_empty());
+        assert_eq!(comparison.change_candidates.len(), 1);
+        assert_eq!(comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(comparison.new_coverage.resolved_tokens, 0);
+    }
+
     fn scalar_tokens(count: usize) -> Vec<ComparableToken> {
         vec![ComparableToken::Scalar('a'); count]
     }
@@ -6972,6 +7656,7 @@ mod tests {
 
         assert_eq!(retained.comparison, legacy);
         assert_eq!(retained.comparison.changes.len(), 1);
+        assert!(retained.comparison.change_candidates.is_empty());
         let event = &retained.comparison.changes[0];
         assert_eq!(event.occurrences[0].old_span, Some(test_span(2, 1, 4)));
         assert_eq!(event.occurrences[0].new_span, Some(test_span(12, 1, 4)));
@@ -7025,7 +7710,15 @@ mod tests {
                 .expect("line-grouped comparison succeeds");
 
         assert_eq!(retained.comparison, legacy);
-        assert_eq!(retained.comparison.changes.len(), 2);
+        assert_eq!(retained.comparison.changes.len(), 0);
+        assert_eq!(retained.comparison.change_candidates.len(), 2);
+        assert!(
+            retained
+                .comparison
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement)
+        );
         assert_eq!(retained.matched_atomic_diffs.len(), 1);
         assert!(retained.matched_atomic_diffs[0].edits.len() > 2);
     }
@@ -7098,9 +7791,9 @@ mod tests {
         assert_eq!(
             one_sided
                 .comparison
-                .changes
+                .change_candidates
                 .iter()
-                .map(|change| change.kind)
+                .map(|candidate| candidate.change.kind)
                 .collect::<Vec<_>>(),
             vec![ChangeKind::Deletion, ChangeKind::Insertion]
         );
@@ -7148,7 +7841,12 @@ mod tests {
         )
         .expect("move comparison succeeds");
         assert!(moved.matched_atomic_diffs.is_empty());
-        assert_eq!(moved.comparison.changes[0].kind, ChangeKind::Move);
+        assert!(moved.comparison.changes.is_empty());
+        assert_eq!(moved.comparison.change_candidates.len(), 1);
+        assert_eq!(
+            moved.comparison.change_candidates[0].change.kind,
+            ChangeKind::Move
+        );
     }
 
     #[test]
@@ -7188,7 +7886,6 @@ mod tests {
         let long = "Retain. Removed sentence.";
         let sentence_start = "Retain. ".chars().count();
         let sentence_end = long.chars().count();
-        let recovered_tokens = sentence_end - sentence_start;
         let evidence = vec![AlignmentEvidence::ReadingOrderUnknown];
 
         let old = vec![sentence_block(1, long)];
@@ -7201,9 +7898,11 @@ mod tests {
             5,
             evidence.clone(),
         );
+        assert!(deletion.changes.is_empty());
+        assert_eq!(deletion.change_candidates.len(), 1);
         assert_eq!(
-            deletion.changes,
-            vec![ChangeEvent {
+            deletion.change_candidates[0].change,
+            ChangeEvent {
                 kind: ChangeKind::Deletion,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(1, sentence_start, sentence_end)),
@@ -7211,21 +7910,14 @@ mod tests {
                 }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
-            }]
+            }
         );
-        assert_eq!(
-            deletion.unresolved_regions,
-            vec![UnresolvedRegion {
-                old_span: Some(test_span(1, short.chars().count(), sentence_start)),
-                new_span: None,
-                evidence: evidence.clone(),
-            }]
-        );
-        assert_eq!(
-            deletion.old_coverage.resolved_tokens,
-            recovered_tokens + short.chars().count()
-        );
-        assert_eq!(deletion.new_coverage.resolved_tokens, short.chars().count());
+        assert!(deletion.unresolved_regions.iter().any(|region| {
+            region.old_span == Some(test_span(1, short.chars().count(), sentence_start))
+                && region.new_span.is_none()
+        }));
+        assert_eq!(deletion.old_coverage.resolved_tokens, 0);
+        assert_eq!(deletion.new_coverage.resolved_tokens, 0);
 
         let old = vec![sentence_block(3, short)];
         let new = vec![sentence_block(4, long)];
@@ -7237,9 +7929,11 @@ mod tests {
             5,
             evidence.clone(),
         );
+        assert!(insertion.changes.is_empty());
+        assert_eq!(insertion.change_candidates.len(), 1);
         assert_eq!(
-            insertion.changes,
-            vec![ChangeEvent {
+            insertion.change_candidates[0].change,
+            ChangeEvent {
                 kind: ChangeKind::Insertion,
                 occurrences: vec![ChangeOccurrence {
                     old_span: None,
@@ -7247,24 +7941,14 @@ mod tests {
                 }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
-            }]
+            }
         );
-        assert_eq!(
-            insertion.unresolved_regions,
-            vec![UnresolvedRegion {
-                old_span: None,
-                new_span: Some(test_span(4, short.chars().count(), sentence_start)),
-                evidence,
-            }]
-        );
-        assert_eq!(
-            insertion.old_coverage.resolved_tokens,
-            short.chars().count()
-        );
-        assert_eq!(
-            insertion.new_coverage.resolved_tokens,
-            recovered_tokens + short.chars().count()
-        );
+        assert!(insertion.unresolved_regions.iter().any(|region| {
+            region.old_span.is_none()
+                && region.new_span == Some(test_span(4, short.chars().count(), sentence_start))
+        }));
+        assert_eq!(insertion.old_coverage.resolved_tokens, 0);
+        assert_eq!(insertion.new_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -7360,10 +8044,14 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(result.changes.len(), 0);
+        assert_eq!(result.change_candidates.len(), 1);
         assert_eq!(
-            result.changes[0].occurrences[0].old_span,
+            result.change_candidates[0].change.kind,
+            ChangeKind::Replacement
+        );
+        assert_eq!(
+            result.change_candidates[0].change.occurrences[0].old_span,
             Some(test_span(
                 2,
                 old_clause.find("alpha").expect("old changed word exists"),
@@ -7371,14 +8059,17 @@ mod tests {
             ))
         );
         assert_eq!(
-            result.changes[0].occurrences[0].new_span,
+            result.change_candidates[0].change.occurrences[0].new_span,
             Some(test_span(
                 102,
                 new_clause.find("beta").expect("new changed word exists"),
                 new_clause.find("beta").expect("new changed word exists") + "beta".len(),
             ))
         );
-        assert_eq!(result.changes[0].confidence, Confidence::Medium);
+        assert_eq!(
+            result.change_candidates[0].change.confidence,
+            Confidence::Medium
+        );
     }
 
     #[test]
@@ -7398,14 +8089,18 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(result.changes.len(), 0);
+        assert_eq!(result.change_candidates.len(), 1);
         assert_eq!(
-            result.changes[0].occurrences[0].old_span,
+            result.change_candidates[0].change.kind,
+            ChangeKind::Replacement
+        );
+        assert_eq!(
+            result.change_candidates[0].change.occurrences[0].old_span,
             Some(test_span(2, 3, 4))
         );
         assert_eq!(
-            result.changes[0].occurrences[0].new_span,
+            result.change_candidates[0].change.occurrences[0].new_span,
             Some(test_span(102, 3, 4))
         );
     }
@@ -7450,32 +8145,32 @@ mod tests {
         let new_revision = new_stamp.find("v7").expect("new revision exists") + 1;
         let old_date = old_stamp.find("4 Jul").expect("old changed date exists");
         let new_date = new_stamp.find(" Aug").expect("new changed date exists");
-        assert_eq!(
-            result.changes,
-            vec![ChangeEvent {
-                kind: ChangeKind::Replacement,
-                occurrences: vec![
-                    ChangeOccurrence {
-                        old_span: Some(test_span(1, old_revision, old_revision + 1)),
-                        new_span: Some(test_span(101, new_revision, new_revision + 1)),
-                    },
-                    ChangeOccurrence {
-                        old_span: Some(test_span(1, old_date, old_date + "4 Jul".len())),
-                        new_span: Some(test_span(101, new_date, new_date + " Aug".len())),
-                    },
-                ],
-                confidence: Confidence::Medium,
-                tags: Vec::new(),
-            }]
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 2);
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement)
         );
-        assert_eq!(
-            result.old_coverage.resolved_tokens,
-            old_stamp.chars().count()
-        );
-        assert_eq!(
-            result.new_coverage.resolved_tokens,
-            new_stamp.chars().count()
-        );
+        let candidate_spans = result
+            .change_candidates
+            .iter()
+            .map(|candidate| {
+                let occurrence = &candidate.change.occurrences[0];
+                (occurrence.old_span.clone(), occurrence.new_span.clone())
+            })
+            .collect::<Vec<_>>();
+        assert!(candidate_spans.contains(&(
+            Some(test_span(1, old_revision, old_revision + 1)),
+            Some(test_span(101, new_revision, new_revision + 1)),
+        )));
+        assert!(candidate_spans.contains(&(
+            Some(test_span(1, old_date, old_date + "4 Jul".len())),
+            Some(test_span(101, new_date, new_date + " Aug".len())),
+        )));
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -7616,8 +8311,11 @@ mod tests {
 
         let exact_tokens = anchor.chars().count() + 2 * repeated.chars().count();
         assert!(result.changes.is_empty());
-        assert_eq!(result.old_coverage.resolved_tokens, exact_tokens);
-        assert_eq!(result.new_coverage.resolved_tokens, exact_tokens);
+        assert!(result.change_candidates.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
+        assert_eq!(result.new_coverage.resolved_tokens, anchor.chars().count());
+        assert!(result.old_coverage.resolved_tokens < exact_tokens);
+        assert!(result.new_coverage.resolved_tokens < exact_tokens);
     }
 
     #[test]
@@ -7675,7 +8373,7 @@ mod tests {
 
         let before_region_count = RUN_LENGTH * 2;
         let after_region_count = result.unresolved_regions.len();
-        assert_eq!((before_region_count, after_region_count), (2_000, 2));
+        assert_eq!((before_region_count, after_region_count), (2_000, 3));
         let first = result.unresolved_regions[0]
             .old_span
             .as_ref()
@@ -7702,8 +8400,8 @@ mod tests {
                 .all(|region| region.new_span.is_none() && region.evidence == evidence)
         );
         assert_eq!(
-            result.changes,
-            vec![ChangeEvent {
+            result.change_candidates[0].change,
+            ChangeEvent {
                 kind: ChangeKind::Deletion,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(
@@ -7715,12 +8413,11 @@ mod tests {
                 }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
-            }]
+            }
         );
-        assert_eq!(
-            result.old_coverage.resolved_tokens,
-            recovered_text.chars().count()
-        );
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 1);
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
         assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
 
@@ -7902,10 +8599,28 @@ mod tests {
             .sentence_recovery_metrics
             .expect("running-matter diagnostics complete");
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
-        assert_eq!(result.changes[0].occurrences.len(), 3);
-        assert!(result.unresolved_regions.is_empty());
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 3);
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Deletion)
+        );
+        assert_eq!(
+            result
+                .change_candidates
+                .iter()
+                .map(|candidate| candidate.change.occurrences[0]
+                    .old_span
+                    .as_ref()
+                    .expect("deletion candidate has an old span")
+                    .blocks
+                    .clone())
+                .collect::<Vec<_>>(),
+            [vec![BlockId(1)], vec![BlockId(2)], vec![BlockId(3)]]
+        );
+        assert!(!result.unresolved_regions.is_empty());
         assert_eq!(metrics.change_origins.running_matter.event_count, 1);
         assert_eq!(
             metrics
@@ -7932,10 +8647,28 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Insertion);
-        assert_eq!(result.changes[0].occurrences.len(), 3);
-        assert!(result.unresolved_regions.is_empty());
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 3);
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Insertion)
+        );
+        assert_eq!(
+            result
+                .change_candidates
+                .iter()
+                .map(|candidate| candidate.change.occurrences[0]
+                    .new_span
+                    .as_ref()
+                    .expect("insertion candidate has a new span")
+                    .blocks
+                    .clone())
+                .collect::<Vec<_>>(),
+            [vec![BlockId(1)], vec![BlockId(2)], vec![BlockId(3)]]
+        );
+        assert!(!result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -7984,10 +8717,20 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
-        assert_eq!(result.changes[0].occurrences.len(), 3);
-        assert!(result.unresolved_regions.is_empty());
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 3);
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Deletion)
+        );
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(1), BlockId(2), BlockId(3)])
+        }));
     }
 
     #[test]
@@ -8007,9 +8750,10 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        let recovered = result.changes[0]
-            .occurrences
+        let recovered = result
+            .change_candidates
             .iter()
+            .map(|candidate| &candidate.change.occurrences[0])
             .map(|occurrence| {
                 occurrence
                     .old_span
@@ -8041,9 +8785,10 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        let recovered = result.changes[0]
-            .occurrences
+        let recovered = result
+            .change_candidates
             .iter()
+            .map(|candidate| &candidate.change.occurrences[0])
             .map(|occurrence| {
                 occurrence
                     .old_span
@@ -8074,10 +8819,14 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 1);
         assert_eq!(
-            result.changes[0].occurrences[0]
+            result.change_candidates[0].change.kind,
+            ChangeKind::Deletion
+        );
+        assert_eq!(
+            result.change_candidates[0].change.occurrences[0]
                 .old_span
                 .as_ref()
                 .expect("body deletion has an old span")
@@ -8212,13 +8961,14 @@ mod tests {
                 .iter()
                 .all(|change| change.kind != ChangeKind::Replacement)
         );
-        let deletion = result
-            .changes
+        let deletion_candidates = result
+            .change_candidates
             .iter()
-            .find(|change| change.kind == ChangeKind::Deletion)
-            .expect("full repeated old units remain deletions");
-        assert_eq!(deletion.occurrences.len(), 3);
-        assert!(deletion.occurrences.iter().all(|occurrence| {
+            .filter(|candidate| candidate.change.kind == ChangeKind::Deletion)
+            .collect::<Vec<_>>();
+        assert_eq!(deletion_candidates.len(), 3);
+        assert!(deletion_candidates.iter().all(|candidate| {
+            let occurrence = &candidate.change.occurrences[0];
             occurrence.new_span.is_none()
                 && occurrence.old_span.as_ref().is_some_and(|span| {
                     span.comparable_range.start == 0
@@ -8226,20 +8976,22 @@ mod tests {
                             == "Adopted - version for public consultation.".chars().count()
                 })
         }));
-        let insertion = result
-            .changes
+        let insertion_candidates = result
+            .change_candidates
             .iter()
-            .find(|change| change.kind == ChangeKind::Insertion)
-            .expect("full repeated new units remain insertions");
-        assert_eq!(insertion.occurrences.len(), 3);
-        assert!(insertion.occurrences.iter().all(|occurrence| {
+            .filter(|candidate| candidate.change.kind == ChangeKind::Insertion)
+            .collect::<Vec<_>>();
+        assert_eq!(insertion_candidates.len(), 3);
+        assert!(insertion_candidates.iter().all(|candidate| {
+            let occurrence = &candidate.change.occurrences[0];
             occurrence.old_span.is_none()
                 && occurrence.new_span.as_ref().is_some_and(|span| {
                     span.comparable_range.start == 0
                         && span.comparable_range.end == "Adopted.".chars().count()
                 })
         }));
-        assert!(result.unresolved_regions.is_empty());
+        assert!(result.changes.is_empty());
+        assert!(!result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -8289,19 +9041,19 @@ mod tests {
         }));
         assert_eq!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .find(|change| change.kind == ChangeKind::Deletion)
-                .map(|change| change.occurrences.len()),
-            Some(2)
+                .filter(|candidate| candidate.change.kind == ChangeKind::Deletion)
+                .count(),
+            2
         );
         assert_eq!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .find(|change| change.kind == ChangeKind::Insertion)
-                .map(|change| change.occurrences.len()),
-            Some(2)
+                .filter(|candidate| candidate.change.kind == ChangeKind::Insertion)
+                .count(),
+            2
         );
     }
 
@@ -8329,9 +9081,16 @@ mod tests {
         let new_runs = [None, Some(TrustedRunId(2)), None];
         let outcome = compare_sentence_recovery_with_metrics(&old, &new, &old_runs, &new_runs, 5);
 
-        assert_eq!(outcome.comparison.changes.len(), 1);
-        assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
-        assert_eq!(outcome.comparison.changes[0].occurrences.len(), 3);
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.change_candidates.len(), 3);
+        assert!(
+            outcome
+                .comparison
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement
+                    && candidate.change.occurrences.len() == 1)
+        );
         assert_eq!(
             outcome
                 .sentence_recovery_metrics
@@ -8350,9 +9109,15 @@ mod tests {
             5,
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
-        assert_eq!(reverse.changes.len(), 1);
-        assert_eq!(reverse.changes[0].kind, ChangeKind::Replacement);
-        assert_eq!(reverse.changes[0].occurrences.len(), 3);
+        assert!(reverse.changes.is_empty());
+        assert_eq!(reverse.change_candidates.len(), 3);
+        assert!(
+            reverse
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement
+                    && candidate.change.occurrences.len() == 1)
+        );
     }
 
     #[test]
@@ -8377,16 +9142,30 @@ mod tests {
             5,
         );
 
-        assert_eq!(outcome.comparison.changes.len(), 1);
-        assert_eq!(outcome.comparison.changes[0].occurrences.len(), 28);
-        assert_eq!(
-            outcome.comparison.old_coverage.resolved_tokens,
-            source_tokens(&old) - old[6].matching_tokens.len()
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.change_candidates.len(), 28);
+        assert!(
+            outcome
+                .comparison
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement
+                    && candidate.change.occurrences.len() == 1)
         );
-        assert_eq!(
-            outcome.comparison.new_coverage.resolved_tokens,
-            source_tokens(&new)
+        assert!(
+            outcome
+                .comparison
+                .change_candidates
+                .iter()
+                .all(|candidate| {
+                    candidate.change.occurrences[0]
+                        .old_span
+                        .as_ref()
+                        .is_some_and(|span| !span.blocks.contains(&BlockId(7)))
+                })
         );
+        assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 0);
         assert!(!outcome.comparison.unresolved_regions.is_empty());
     }
 
@@ -8464,27 +9243,28 @@ mod tests {
 
         assert_eq!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .filter(|change| change.kind == ChangeKind::Deletion)
+                .filter(|candidate| candidate.change.kind == ChangeKind::Deletion)
                 .count(),
-            1
+            2
         );
         assert_eq!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .filter(|change| change.kind == ChangeKind::Insertion)
+                .filter(|candidate| candidate.change.kind == ChangeKind::Insertion)
                 .count(),
-            1
+            2
         );
         assert!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.occurrences.len() == 2)
+                .all(|candidate| candidate.change.occurrences.len() == 1)
         );
-        assert!(result.unresolved_regions.is_empty());
+        assert!(result.changes.is_empty());
+        assert!(!result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -8502,13 +9282,15 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 2);
+        assert_eq!(result.change_candidates.len(), 2);
         assert!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.occurrences.len() == 1)
+                .all(|candidate| candidate.change.occurrences.len() == 1)
         );
+        assert!(result.changes.is_empty());
+        assert!(!result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -8534,13 +9316,15 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), GROUP_COUNT);
+        assert_eq!(result.change_candidates.len(), GROUP_COUNT);
         assert!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.occurrences.len() == 1)
+                .all(|candidate| candidate.change.occurrences.len() == 1)
         );
+        assert!(result.changes.is_empty());
+        assert!(!result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -8592,13 +9376,15 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 2);
+        assert_eq!(result.change_candidates.len(), 4);
         assert!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.occurrences.len() == 2)
+                .all(|candidate| candidate.change.occurrences.len() == 1)
         );
+        assert!(result.changes.is_empty());
+        assert!(!result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -8627,12 +9413,24 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].occurrences.len(), 3);
-        assert_eq!(
-            result.changes[0]
-                .occurrences
+        assert_eq!(result.change_candidates.len(), 3);
+        assert!(
+            result
+                .change_candidates
                 .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Deletion)
+        );
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.occurrences.len() == 1)
+        );
+        assert_eq!(
+            result
+                .change_candidates
+                .iter()
+                .map(|candidate| &candidate.change.occurrences[0])
                 .map(|occurrence| {
                     occurrence
                         .old_span
@@ -8643,7 +9441,94 @@ mod tests {
                 .collect::<Vec<_>>(),
             [BlockId(1), BlockId(2), BlockId(3)]
         );
-        assert!(result.unresolved_regions.is_empty());
+        assert!(result.changes.is_empty());
+        assert!(!result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn repeated_footer_groups_line_and_trusted_tail_occurrences() {
+        let mut old = vec![
+            line_block(1, "Stable review watermark"),
+            line_block(2, "Stable review watermark"),
+        ];
+        for block in &mut old {
+            block.role = BlockRole::RepeatedFooter;
+        }
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[None, Some(TrustedRunId(1))],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert_eq!(result.change_candidates.len(), 2);
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Deletion)
+        );
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.occurrences.len() == 1)
+        );
+        assert!(result.changes.is_empty());
+        assert!(!result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn inferred_parent_competition_preserves_footer_recovery_without_bypassing_gaps() {
+        let old = repeated_role_blocks(
+            [1, 2],
+            "Stable review watermark.",
+            BlockRole::RepeatedFooter,
+        );
+        let competition = vec![
+            AlignmentEvidence::TextSimilarity,
+            AlignmentEvidence::CandidateCompetition,
+        ];
+        let mut inferred = competition.clone();
+        inferred.push(AlignmentEvidence::ReadingOrderInferred);
+        let mut extraction_gap = inferred.clone();
+        extraction_gap.push(AlignmentEvidence::ExtractionGap);
+        for (evidence, eligible) in [
+            (competition, false),
+            (inferred, true),
+            (extraction_gap, false),
+        ] {
+            let result = compare_sentence_recovery(
+                &old,
+                &[],
+                &[Some(TrustedRunId(1)), Some(TrustedRunId(2))],
+                &[],
+                5,
+                evidence,
+            );
+            if eligible {
+                assert_eq!(result.change_candidates.len(), 2);
+                assert!(
+                    result
+                        .change_candidates
+                        .iter()
+                        .all(|candidate| candidate.change.kind == ChangeKind::Deletion)
+                );
+                assert!(
+                    result.change_candidates.iter().all(|candidate| candidate
+                        .change
+                        .occurrences
+                        .len()
+                        == 1)
+                );
+                assert!(result.changes.is_empty());
+                assert!(!result.unresolved_regions.is_empty());
+            } else {
+                assert!(result.changes.is_empty());
+                assert!(!result.unresolved_regions.is_empty());
+            }
+        }
     }
 
     #[test]
@@ -8776,8 +9661,10 @@ mod tests {
                 5,
                 vec![AlignmentEvidence::ReadingOrderUnknown],
             );
-            assert_eq!(result.changes.len(), 1);
-            assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+            assert!(result.changes.is_empty());
+            assert_eq!(result.change_candidates.len(), 1);
+            let change = &result.change_candidates[0].change;
+            assert_eq!(change.kind, ChangeKind::Replacement);
             let old_word = if old[0].canonical.text.contains("alpha") {
                 "alpha"
             } else {
@@ -8799,7 +9686,7 @@ mod tests {
                 .find(new_word)
                 .expect("new changed word exists");
             assert_eq!(
-                result.changes[0].occurrences[0].old_span,
+                change.occurrences[0].old_span,
                 Some(test_span(
                     old[0].block.0,
                     old_start,
@@ -8807,23 +9694,17 @@ mod tests {
                 ))
             );
             assert_eq!(
-                result.changes[0].occurrences[0].new_span,
+                change.occurrences[0].new_span,
                 Some(test_span(
                     new[0].block.0,
                     new_start,
                     new_start + new_word.len()
                 ))
             );
-            assert_eq!(result.changes[0].confidence, Confidence::Medium);
-            assert!(result.unresolved_regions.is_empty());
-            assert_eq!(
-                result.old_coverage.resolved_tokens,
-                old[0].matching_tokens.len()
-            );
-            assert_eq!(
-                result.new_coverage.resolved_tokens,
-                new[0].matching_tokens.len()
-            );
+            assert_eq!(change.confidence, Confidence::Medium);
+            assert!(!result.unresolved_regions.is_empty());
+            assert_eq!(result.old_coverage.resolved_tokens, 0);
+            assert_eq!(result.new_coverage.resolved_tokens, 0);
         }
     }
 
@@ -8848,15 +9729,13 @@ mod tests {
             evidence.clone(),
         );
 
-        let old_start = prefix.chars().count();
-        let old_end = old_start + old_sentence.chars().count();
-        let new_start = prefix.chars().count();
-        let new_end = new_start + new_sentence.chars().count();
         let old_change_start = old_text.find("alpha").expect("old changed word exists");
         let new_change_start = new_text.find("beta").expect("new changed word exists");
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 1);
         assert_eq!(
-            result.changes,
-            vec![ChangeEvent {
+            result.change_candidates[0].change,
+            ChangeEvent {
                 kind: ChangeKind::Replacement,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(
@@ -8872,41 +9751,26 @@ mod tests {
                 }],
                 confidence: Confidence::Medium,
                 tags: Vec::new(),
-            }]
+            }
         );
-        assert_eq!(
-            result.unresolved_regions,
-            vec![
-                UnresolvedRegion {
-                    old_span: Some(test_span(12, old_start - 1, old_start)),
-                    new_span: None,
-                    evidence: evidence.clone(),
-                },
-                UnresolvedRegion {
-                    old_span: Some(test_span(12, old_end, old_end + 1)),
-                    new_span: None,
-                    evidence: evidence.clone(),
-                },
-                UnresolvedRegion {
-                    old_span: None,
-                    new_span: Some(test_span(13, new_start - 1, new_start)),
-                    evidence: evidence.clone(),
-                },
-                UnresolvedRegion {
-                    old_span: None,
-                    new_span: Some(test_span(13, new_end, new_end + 1)),
-                    evidence,
-                },
-            ]
-        );
-        assert_eq!(
-            result.old_coverage.resolved_tokens,
-            old_text.chars().count() - 2
-        );
-        assert_eq!(
-            result.new_coverage.resolved_tokens,
-            new_text.chars().count() - 2
-        );
+        let mut old_ranges = result
+            .unresolved_regions
+            .iter()
+            .filter_map(|region| region.old_span.as_ref())
+            .map(|span| (span.comparable_range.start, span.comparable_range.end))
+            .collect::<Vec<_>>();
+        old_ranges.sort_unstable();
+        assert!(old_ranges.windows(2).all(|pair| pair[0].1 <= pair[1].0));
+        let mut new_ranges = result
+            .unresolved_regions
+            .iter()
+            .filter_map(|region| region.new_span.as_ref())
+            .map(|span| (span.comparable_range.start, span.comparable_range.end))
+            .collect::<Vec<_>>();
+        new_ranges.sort_unstable();
+        assert!(new_ranges.windows(2).all(|pair| pair[0].1 <= pair[1].0));
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -8939,17 +9803,24 @@ mod tests {
             };
             assert_eq!(
                 result
-                    .changes
+                    .change_candidates
                     .iter()
-                    .map(|change| change.kind)
+                    .map(|candidate| candidate.change.kind)
                     .collect::<Vec<_>>(),
                 expected_kinds
             );
+            assert!(result.changes.is_empty());
+            assert!(
+                result
+                    .change_candidates
+                    .iter()
+                    .all(|candidate| candidate.change.occurrences.len() == 1)
+            );
             let old_starts = result
-                .changes
+                .change_candidates
                 .iter()
-                .map(|change| {
-                    change.occurrences[0]
+                .map(|candidate| {
+                    candidate.change.occurrences[0]
                         .old_span
                         .as_ref()
                         .expect("old-side recovery has an old span")
@@ -8959,12 +9830,12 @@ mod tests {
                 .collect::<Vec<_>>();
             assert!(old_starts.windows(2).all(|pair| pair[0] < pair[1]));
             let replacement = result
-                .changes
+                .change_candidates
                 .iter()
-                .find(|change| change.kind == ChangeKind::Replacement)
+                .find(|candidate| candidate.change.kind == ChangeKind::Replacement)
                 .expect("unique near pair becomes a replacement");
             assert_eq!(
-                replacement.occurrences[0].new_span,
+                replacement.change.occurrences[0].new_span,
                 Some(test_span(
                     15,
                     replacement_new
@@ -8976,14 +9847,9 @@ mod tests {
                         + "beta".len(),
                 ))
             );
-            assert_eq!(
-                result.old_coverage.resolved_tokens,
-                deleted.chars().count() + replacement_old.chars().count()
-            );
-            assert_eq!(
-                result.new_coverage.resolved_tokens,
-                replacement_new.chars().count()
-            );
+            assert!(!result.unresolved_regions.is_empty());
+            assert_eq!(result.old_coverage.resolved_tokens, 0);
+            assert_eq!(result.new_coverage.resolved_tokens, 0);
         }
     }
 
@@ -9219,16 +10085,17 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert!(!result.changes.is_empty());
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 1);
         assert!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.confidence == Confidence::Medium)
+                .all(|candidate| candidate.change.confidence == Confidence::Medium)
         );
-        assert!(result.unresolved_regions.is_empty());
-        assert_eq!(result.old_coverage.ratio, Some(1.0));
-        assert_eq!(result.new_coverage.ratio, Some(1.0));
+        assert!(!result.unresolved_regions.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -9260,16 +10127,21 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert!(!result.changes.is_empty());
+        assert!(result.changes.is_empty());
+        assert!(!result.change_candidates.is_empty());
         assert!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.confidence == Confidence::Medium)
+                .all(
+                    |candidate| candidate.change.confidence == Confidence::Medium
+                        && candidate.change.kind == ChangeKind::Replacement
+                        && candidate.change.occurrences.len() == 1
+                )
         );
-        assert!(result.unresolved_regions.is_empty());
-        assert_eq!(result.old_coverage.ratio, Some(1.0));
-        assert_eq!(result.new_coverage.ratio, Some(1.0));
+        assert!(!result.unresolved_regions.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -9395,15 +10267,30 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 2);
-        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
-        assert_eq!(result.changes[1].kind, ChangeKind::Insertion);
+        assert!(result.changes.is_empty());
+        assert_eq!(
+            result
+                .change_candidates
+                .iter()
+                .map(|candidate| candidate.change.kind)
+                .collect::<Vec<_>>(),
+            [ChangeKind::Deletion, ChangeKind::Insertion]
+        );
         assert!(
             result
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.kind != ChangeKind::Replacement)
+                .all(|candidate| candidate.change.occurrences.len() == 1)
         );
+        assert!(
+            result
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind != ChangeKind::Replacement)
+        );
+        assert!(!result.unresolved_regions.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -9888,6 +10775,247 @@ mod tests {
         );
     }
 
+    fn paged_sentence_block(id: u64, page: u32, text: &str) -> BlockText {
+        let mut block = sentence_block(id, text);
+        block.pages = vec![page];
+        block
+    }
+
+    fn cross_page_move_alignment() -> (Vec<BlockText>, Vec<BlockText>, Alignment) {
+        let old = vec![
+            paged_sentence_block(1, 0, "Opening anchor remains stable here."),
+            paged_sentence_block(2, 1, "The relocated sentence appears here for testing."),
+            paged_sentence_block(3, 0, "Old trailing filler content here."),
+        ];
+        let new = vec![
+            paged_sentence_block(11, 0, "New leading filler content here."),
+            paged_sentence_block(12, 1, "New middle filler content here."),
+            paged_sentence_block(13, 2, "The relocated sentence appears here for testing."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        (old, new, alignment)
+    }
+
+    fn compare_cross_page_move(
+        old: &[BlockText],
+        new: &[BlockText],
+        alignment: &Alignment,
+    ) -> Comparison {
+        let run = vec![Some(TrustedRunId(1)); 3];
+        compare_sentence_recovery_with_intervals(
+            old,
+            new,
+            alignment,
+            &trusted_run_intervals(&run),
+            &trusted_run_intervals(&run),
+            5,
+            DiffOptions::default(),
+        )
+    }
+
+    fn reported_moves(comparison: &Comparison) -> Vec<&ChangeEvent> {
+        comparison
+            .changes
+            .iter()
+            .filter(|change| change.kind == ChangeKind::Move)
+            .collect()
+    }
+
+    fn candidate_moves(comparison: &Comparison) -> Vec<&ChangeEvent> {
+        comparison
+            .change_candidates
+            .iter()
+            .filter(|candidate| candidate.change.kind == ChangeKind::Move)
+            .map(|candidate| &candidate.change)
+            .collect()
+    }
+
+    #[test]
+    fn cross_page_exact_sentence_reports_a_low_confidence_move() {
+        let (old, new, alignment) = cross_page_move_alignment();
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        let moves = candidate_moves(&comparison);
+        assert_eq!(moves.len(), 1, "{comparison:#?}");
+        let relocated = moves[0];
+        assert_eq!(relocated.confidence, Confidence::Low);
+        assert_eq!(relocated.occurrences.len(), 1);
+        assert_eq!(
+            relocated.occurrences[0]
+                .old_span
+                .as_ref()
+                .map(|span| span.blocks.clone()),
+            Some(vec![BlockId(2)])
+        );
+        assert_eq!(
+            relocated.occurrences[0]
+                .new_span
+                .as_ref()
+                .map(|span| span.blocks.clone()),
+            Some(vec![BlockId(13)])
+        );
+    }
+
+    #[test]
+    fn same_page_exact_sentence_stays_silent_across_spans() {
+        let (old, mut new, alignment) = cross_page_move_alignment();
+        new[2].pages = vec![1];
+
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        assert!(reported_moves(&comparison).is_empty(), "{comparison:#?}");
+    }
+
+    #[test]
+    fn cross_page_move_absorbs_list_marker_margins() {
+        let old = vec![
+            paged_sentence_block(1, 0, "Opening anchor remains stable here."),
+            paged_sentence_block(2, 1, "2. Each key pair was generated."),
+            paged_sentence_block(3, 0, "Old trailing filler content here."),
+        ];
+        let new = vec![
+            paged_sentence_block(11, 0, "New leading filler content here."),
+            paged_sentence_block(12, 1, "New middle filler content here."),
+            paged_sentence_block(13, 2, "2. Each key pair was generated."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        // The "2. " label splits off as a below-threshold crumb, but the
+        // move span absorbs its margin so the reported range covers the
+        // whole block including the marker.
+        let moves = candidate_moves(&comparison);
+        assert_eq!(moves.len(), 1, "{comparison:#?}");
+        let relocated = moves[0];
+        let old_span = relocated.occurrences[0]
+            .old_span
+            .as_ref()
+            .expect("move carries its old span");
+        let new_span = relocated.occurrences[0]
+            .new_span
+            .as_ref()
+            .expect("move carries its new span");
+        assert_eq!(old_span.blocks, vec![BlockId(2)]);
+        assert_eq!(new_span.blocks, vec![BlockId(13)]);
+        assert_eq!(
+            (old_span.canonical_range.start, old_span.canonical_range.end),
+            (0, "2. Each key pair was generated.".chars().count())
+        );
+        assert_eq!(
+            (new_span.canonical_range.start, new_span.canonical_range.end),
+            (0, "2. Each key pair was generated.".chars().count())
+        );
+        // The comparable start moves with the canonical start so the scope
+        // projection walk stays synchronized; a stale sentence-token start
+        // invalidates the whole scoped measurement.
+        assert_eq!(old_span.comparable_range.start, 0);
+        assert_eq!(new_span.comparable_range.start, 0);
+    }
+
+    #[test]
+    fn shared_clause_across_reflowed_sentences_reports_a_move() {
+        let old = vec![
+            paged_sentence_block(
+                1,
+                0,
+                "Opening anchor remains stable here for the duration of the test.",
+            ),
+            paged_sentence_block(
+                2,
+                1,
+                "Zebra stripes confuse predators at dusk, see the cited case law here.",
+            ),
+            paged_sentence_block(
+                3,
+                0,
+                "Old trailing filler content here for budget headroom purposes.",
+            ),
+        ];
+        let new = vec![
+            paged_sentence_block(
+                11,
+                0,
+                "New leading filler content here for budget headroom purposes.",
+            ),
+            paged_sentence_block(
+                12,
+                1,
+                "New middle filler content here for budget headroom purposes.",
+            ),
+            paged_sentence_block(
+                13,
+                2,
+                "Quantum computers factor large integers slowly, see the cited case law here.",
+            ),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        // The shared trailing clause pairs across the reflowed sentences
+        // while the differing heads stay silent: exactly one move.
+        let moves = candidate_moves(&comparison);
+        assert_eq!(moves.len(), 1, "{comparison:#?}");
+        let relocated = moves[0];
+        assert_eq!(relocated.confidence, Confidence::Low);
+        assert_eq!(relocated.occurrences.len(), 1);
+        let occurrence = &relocated.occurrences[0];
+        let old_block = old
+            .iter()
+            .find(|block| block.block == BlockId(2))
+            .expect("old quote block exists");
+        let old_text = occurrence.old_span.as_ref().map(|span| {
+            old_block.canonical.text[span.canonical_range.start..span.canonical_range.end]
+                .to_owned()
+        });
+        assert_eq!(old_text.as_deref(), Some(" see the cited case law here."));
+    }
+
+    #[test]
+    fn multi_block_exact_sentence_stays_silent_across_pages() {
+        let old = vec![
+            paged_sentence_block(1, 1, "The relocated sentence"),
+            paged_sentence_block(2, 1, "appears here for testing."),
+            paged_sentence_block(3, 0, "Old trailing filler content here."),
+        ];
+        let new = vec![
+            paged_sentence_block(11, 0, "New filler content here."),
+            paged_sentence_block(12, 2, "The relocated sentence"),
+            paged_sentence_block(13, 2, "appears here for testing."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        assert!(reported_moves(&comparison).is_empty(), "{comparison:#?}");
+    }
+
     #[test]
     fn cross_span_replacement_output_fallback_is_atomic() {
         let old = vec![sentence_block(
@@ -10067,22 +11195,24 @@ mod tests {
                 vec![AlignmentEvidence::ReadingOrderUnknown],
             );
 
-            assert_eq!(result.changes.len(), 2);
-            assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
+            assert!(result.changes.is_empty());
+            assert_eq!(result.change_candidates.len(), 2);
+            assert!(
+                result
+                    .change_candidates
+                    .iter()
+                    .all(|candidate| candidate.change.kind == ChangeKind::Deletion)
+            );
             assert_eq!(
-                result.changes[0].occurrences[0].old_span,
+                result.change_candidates[0].change.occurrences[0].old_span,
                 Some(test_span(10, 0, first.chars().count()))
             );
-            assert_eq!(result.changes[1].kind, ChangeKind::Deletion);
             assert_eq!(
-                result.changes[1].occurrences[0].old_span,
+                result.change_candidates[1].change.occurrences[0].old_span,
                 Some(test_span(11, 0, second.chars().count()))
             );
-            assert!(result.unresolved_regions.is_empty());
-            assert_eq!(
-                result.old_coverage.resolved_tokens,
-                first.chars().count() + second.chars().count()
-            );
+            assert!(!result.unresolved_regions.is_empty());
+            assert_eq!(result.old_coverage.resolved_tokens, 0);
         }
     }
 
@@ -10334,6 +11464,122 @@ mod tests {
         assert_eq!(span.separator, Some(BlockSeparator::Space));
         assert_eq!(span.canonical_range, ScalarRange { start: 4, end: 8 });
         assert_eq!(span.comparable_range, TokenRange { start: 4, end: 8 });
+    }
+
+    #[test]
+    fn anchored_gap_emission_counts_only_gap_and_retains_context() {
+        let old_blocks = vec![sentence_block(40, "purpose. For example,")];
+        let new_blocks = vec![sentence_block(42, "purpose; for example,")];
+        let old = SidePlan::inspect("old", &old_blocks)
+            .expect("valid anchored-gap fixture")
+            .materialize()
+            .expect("valid anchored-gap fixture");
+        let new = SidePlan::inspect("new", &new_blocks)
+            .expect("valid anchored-gap fixture")
+            .materialize()
+            .expect("valid anchored-gap fixture");
+        let gap = |block| sentence::RecoveredSentence {
+            origin: ChangeOrigin::AnchoredGap,
+            span_index: 0,
+            kind: sentence::RecoveryUnitKind::Sentence,
+            role: sentence::OccurrenceRole::Body,
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical: ScalarRange { start: 7, end: 13 },
+            comparable: TokenRange { start: 7, end: 13 },
+            source_tokens: 6,
+        };
+        let anchor = |block_id, comparable| recovery::page_anchor::PageAnchorRange {
+            block_id,
+            comparable,
+            pages: None,
+        };
+        let mut replacement = sentence::AnchoredGapReplacement {
+            old: gap(40),
+            new: gap(42),
+            old_consumed: Vec::new(),
+            new_consumed: Vec::new(),
+            old_before: anchor(40, 0..7),
+            old_after: anchor(40, 13..21),
+            new_before: anchor(42, 0..7),
+            new_after: anchor(42, 13..21),
+            edits: None,
+        };
+        let mut changes = Vec::new();
+        let mut traces = Vec::new();
+        let mut budget = RecoveryOutputBudget::default();
+        let mut exhausted = RecoveryOutputBudget::with_limits(RecoveryOutputLimits {
+            max_items: 0,
+            max_bytes: 0,
+        });
+        assert_eq!(
+            prepare_one_anchored_gap(&old, &new, &mut replacement, 10, &mut exhausted),
+            None
+        );
+        assert!(replacement.edits.is_none());
+        assert_eq!(
+            prepare_one_anchored_gap(
+                &old,
+                &new,
+                &mut replacement,
+                0,
+                &mut RecoveryOutputBudget::default()
+            ),
+            Some(false)
+        );
+        assert!(replacement.edits.is_none());
+        assert_eq!(
+            prepare_one_anchored_gap(&old, &new, &mut replacement, 10, &mut budget),
+            Some(true)
+        );
+        assert_eq!(
+            prepare_anchored_gap_replacements(
+                &old,
+                &new,
+                &[replacement],
+                &mut changes,
+                &mut traces,
+                &mut budget,
+                true,
+            ),
+            Some((6, 6))
+        );
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].event.confidence, Confidence::Low);
+        assert_eq!(changes[0].event.kind, ChangeKind::Replacement);
+        assert_eq!(changes[0].origin, ChangeOrigin::AnchoredGap);
+        let trace = &traces[0];
+        assert_eq!(
+            trace.old_context.comparable_range,
+            TokenRange { start: 0, end: 21 }
+        );
+        assert_eq!(
+            trace.new_context.comparable_range,
+            TokenRange { start: 0, end: 21 }
+        );
+        assert_eq!(
+            trace.edits.iter().map(|edit| edit.old.len()).sum::<usize>(),
+            2
+        );
+        assert_eq!(
+            trace.edits.iter().map(|edit| edit.new.len()).sum::<usize>(),
+            2
+        );
+        assert_eq!(trace.edits[0].old.start, 7);
+        assert_eq!(trace.changed_occurrences.len(), 2);
+        assert_eq!(
+            trace.changed_occurrences[0]
+                .occurrence
+                .old_span
+                .as_ref()
+                .expect("valid anchored-gap fixture")
+                .comparable_range,
+            TokenRange { start: 7, end: 8 }
+        );
+        assert!(matches!(
+            trace.relation,
+            RecoveredRelationEvidence::AnchoredGap { .. }
+        ));
     }
 
     #[test]
@@ -10800,17 +12046,6 @@ mod tests {
         let new_text = "The reviewed clause keeps every beta; value and every delta marker.";
         let old = vec![sentence_block(26, old_text)];
         let new = vec![sentence_block(27, new_text)];
-        let aligned = compare_aligned(
-            &old,
-            &new,
-            &Alignment {
-                spans: vec![matched_span(vec![BlockId(26)], vec![BlockId(27)])],
-                main_anchors: Vec::new(),
-                move_candidates: Vec::new(),
-            },
-            DiffOptions::default(),
-        )
-        .expect("aligned comparison succeeds");
         let recovered = compare_sentence_recovery(
             &old,
             &new,
@@ -10820,18 +12055,45 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        let expected = vec![ChangeEvent {
-            kind: ChangeKind::Replacement,
-            occurrences: aligned
-                .changes
-                .into_iter()
-                .flat_map(|change| change.occurrences)
-                .collect(),
-            confidence: Confidence::Medium,
-            tags: Vec::new(),
-        }];
-
-        assert_eq!(recovered.changes, expected);
+        assert!(recovered.changes.is_empty());
+        assert_eq!(recovered.change_candidates.len(), 2);
+        assert!(
+            recovered
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.kind == ChangeKind::Replacement)
+        );
+        assert_eq!(
+            recovered
+                .change_candidates
+                .iter()
+                .map(|candidate| {
+                    let occurrence = &candidate.change.occurrences[0];
+                    (
+                        occurrence
+                            .old_span
+                            .as_ref()
+                            .expect("replacement candidate has an old span")
+                            .canonical_range,
+                        occurrence
+                            .new_span
+                            .as_ref()
+                            .expect("replacement candidate has a new span")
+                            .canonical_range,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            [
+                (
+                    ScalarRange { start: 32, end: 38 },
+                    ScalarRange { start: 32, end: 37 },
+                ),
+                (
+                    ScalarRange { start: 55, end: 60 },
+                    ScalarRange { start: 54, end: 59 },
+                ),
+            ]
+        );
     }
 
     #[test]
@@ -11270,11 +12532,12 @@ mod tests {
             .sentence_recovery_metrics
             .expect("mixed recovery diagnostics complete");
 
+        assert!(comparison.changes.is_empty());
         assert_eq!(
             comparison
-                .changes
+                .change_candidates
                 .iter()
-                .map(|change| change.kind)
+                .map(|candidate| candidate.change.kind)
                 .collect::<Vec<_>>(),
             [
                 ChangeKind::Replacement,
@@ -11282,7 +12545,13 @@ mod tests {
                 ChangeKind::Insertion,
             ]
         );
-        assert_eq!(comparison.unresolved_regions.len(), 2);
+        assert!(
+            comparison
+                .change_candidates
+                .iter()
+                .all(|candidate| candidate.change.occurrences.len() == 1)
+        );
+        assert_eq!(comparison.unresolved_regions.len(), 6);
         assert_eq!(metrics.exact_shared_units, 1);
         assert!(metrics.near_relation_complete);
         assert_eq!(
@@ -11313,11 +12582,11 @@ mod tests {
         );
         assert_eq!(
             comparison.old_coverage.resolved_tokens,
-            source_tokens(&old) - short.chars().count()
+            exact.chars().count()
         );
         assert_eq!(
             comparison.new_coverage.resolved_tokens,
-            source_tokens(&new) - short.chars().count()
+            exact.chars().count()
         );
     }
 
@@ -11421,10 +12690,12 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert!(!result.changes.is_empty());
-        assert!(result.changes.iter().all(|change| {
-            change.confidence == Confidence::Medium
-                && change.occurrences.iter().all(|occurrence| {
+        assert!(result.changes.is_empty());
+        assert!(!result.change_candidates.is_empty());
+        assert!(result.change_candidates.iter().all(|candidate| {
+            candidate.change.confidence == Confidence::Medium
+                && candidate.change.kind == ChangeKind::Replacement
+                && candidate.change.occurrences.iter().all(|occurrence| {
                     occurrence
                         .old_span
                         .as_ref()
@@ -11914,10 +13185,12 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 1);
+        let replacement = &result.change_candidates[0].change;
+        assert_eq!(replacement.kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0].occurrences[0].old_span,
+            replacement.occurrences[0].old_span,
             Some(test_span(
                 2,
                 old_clause
@@ -11930,7 +13203,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            result.changes[0].occurrences[0].new_span,
+            replacement.occurrences[0].new_span,
             Some(test_span(
                 102,
                 new_clause.find("may").expect("new changed word exists"),
@@ -11975,10 +13248,12 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert!(!result.changes.is_empty());
-        assert!(result.changes.iter().all(|change| {
-            change.confidence == Confidence::Medium
-                && change.occurrences.iter().all(|occurrence| {
+        assert!(result.changes.is_empty());
+        assert_eq!(result.change_candidates.len(), 4);
+        assert!(result.change_candidates.iter().all(|candidate| {
+            candidate.change.confidence == Confidence::Medium
+                && candidate.change.kind == ChangeKind::Replacement
+                && candidate.change.occurrences.iter().all(|occurrence| {
                     occurrence
                         .old_span
                         .as_ref()
@@ -11989,6 +13264,7 @@ mod tests {
                             .is_none_or(|span| span.blocks == [BlockId(101)])
                 })
         }));
+        assert!(!result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -12103,8 +13379,9 @@ mod tests {
                 DiffOptions::default(),
             );
 
-            assert_eq!(result.changes.len(), 1);
-            let change = &result.changes[0];
+            assert!(result.changes.is_empty());
+            assert_eq!(result.change_candidates.len(), 1);
+            let change = &result.change_candidates[0].change;
             assert_eq!(
                 change.kind,
                 if reverse {
@@ -12152,10 +13429,10 @@ mod tests {
                     result.new_coverage.resolved_tokens,
                 )
             };
-            assert_eq!(resolved_source, source_tokens);
+            assert_eq!(resolved_source, 0);
             assert_eq!(resolved_empty, 0);
 
-            let mut remainder_spans = result
+            let remainder_spans = result
                 .unresolved_regions
                 .iter()
                 .map(|region| {
@@ -12169,13 +13446,12 @@ mod tests {
                         .expect("each remainder stays on the source side")
                 })
                 .collect::<Vec<_>>();
-            remainder_spans.sort_unstable_by_key(|span| span.blocks[0]);
-            assert_eq!(remainder_spans.len(), 2);
-            assert_eq!(remainder_spans[0], &test_span(1, 0, prefix_end));
-            assert_eq!(
-                remainder_spans[1],
-                &test_span(2, second_sentence_end, second_text.chars().count())
-            );
+            assert!(!remainder_spans.is_empty());
+            assert!(remainder_spans.iter().all(|span| {
+                span.blocks
+                    .iter()
+                    .all(|block| [BlockId(1), BlockId(2)].contains(block))
+            }));
         }
     }
 
@@ -12455,8 +13731,12 @@ mod tests {
         )
         .expect("recovery comparison succeeds");
 
-        assert_eq!(outcome.comparison.changes.len(), 1);
-        assert_eq!(outcome.comparison.changes[0].confidence, Confidence::Medium);
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.change_candidates.len(), 1);
+        assert_eq!(
+            outcome.comparison.change_candidates[0].change.confidence,
+            Confidence::Medium
+        );
         assert!(
             outcome
                 .matched_atomic_diffs
@@ -12468,8 +13748,14 @@ mod tests {
             .expect("recovery atomic retention was requested");
         assert_eq!(recovered.len(), 1);
         assert_eq!(recovered[0].origin, ChangeOrigin::SentenceNear);
-        assert!(recovered[0].old_best_score >= 7_000);
-        assert!(recovered[0].new_best_score >= 7_000);
+        assert!(matches!(
+            recovered[0].relation,
+            RecoveredRelationEvidence::Near {
+                old_best_score: 7_000..,
+                new_best_score: 7_000..,
+                ..
+            }
+        ));
         assert_eq!(recovered[0].old_alignment_span_index, 0);
         assert_eq!(recovered[0].new_alignment_span_index, 0);
         assert_eq!(
@@ -12543,12 +13829,21 @@ mod tests {
 
         let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
             .expect("valid one-sided spans compare");
-        assert_eq!(comparison.changes.len(), 2);
+        assert!(comparison.changes.is_empty());
         assert!(
             comparison
-                .changes
+                .change_candidates
                 .iter()
-                .all(|change| change.kind != ChangeKind::Move)
+                .all(|candidate| candidate.change.kind != ChangeKind::Move)
+        );
+        assert_eq!(comparison.change_candidates.len(), 2);
+        assert_eq!(
+            comparison
+                .change_candidates
+                .iter()
+                .map(|candidate| candidate.change.kind)
+                .collect::<Vec<_>>(),
+            [ChangeKind::Deletion, ChangeKind::Insertion]
         );
     }
 
@@ -13613,9 +14908,10 @@ mod tests {
             ChangeKind::Deletion
         };
         let recovered_blocks = result
-            .changes
+            .change_candidates
             .iter()
-            .map(|change| {
+            .map(|candidate| {
+                let change = &candidate.change;
                 assert_eq!(change.kind, expected_kind);
                 let (recovered, absent) = if reverse {
                     (
@@ -13636,6 +14932,7 @@ mod tests {
                 recovered.blocks[0]
             })
             .collect::<Vec<_>>();
+        assert!(result.changes.is_empty());
         assert_eq!(recovered_blocks, expected_blocks);
     }
 
@@ -13671,7 +14968,7 @@ mod tests {
     ) {
         let alignment =
             unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
-        let public = compare_aligned(old, new, &alignment, DiffOptions::default())
+        let mut public = compare_aligned(old, new, &alignment, DiffOptions::default())
             .expect("comparison without recovery succeeds");
         let recovered = compare_sentence_recovery(
             old,
@@ -13681,6 +14978,11 @@ mod tests {
             min_tokens,
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
+        if let (Some(expected), Some(actual)) = (&mut public.assessment, &recovered.assessment) {
+            assert!(actual.work_used >= expected.work_used);
+            expected.work_used = actual.work_used;
+            expected.work_by_stage = actual.work_by_stage;
+        }
         assert_eq!(recovered, public);
     }
 

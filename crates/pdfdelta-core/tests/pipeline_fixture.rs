@@ -4,7 +4,10 @@ use pdfdelta_core::{
     diff::{
         ChangeKind, ChangeTag, Comparison, Confidence, DiffOptions, FormattingReason, TokenRange,
     },
-    layout::{BlockOptions, LineOptions, LineTextDirection, reconstruct_blocks, reconstruct_lines},
+    layout::{
+        BlockId, BlockOptions, LineOptions, LineTextDirection, reconstruct_blocks,
+        reconstruct_lines,
+    },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
         GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
@@ -17,7 +20,7 @@ use pdfdelta_core::{
         compare_extraction_outcomes_with_atomic_edits,
         compare_extraction_outcomes_with_diagnostics, compare_glyph_documents,
     },
-    report::{DocumentSide, ExitStatus, exit_status, summarize},
+    report::{DifferenceStatus, DocumentSide, summarize},
     source::{ExtractionIssue, ExtractionIssueKind, ExtractionOutcome, ExtractionScope},
 };
 
@@ -197,7 +200,7 @@ fn self_compares_tilted_text() -> Result<()> {
 
     let comparison = compare_glyph_documents(&document, &document, PipelineOptions::default())?;
 
-    assert_no_content_changes(&comparison);
+    assert_unknown_reading_order(&comparison);
     Ok(())
 }
 
@@ -356,13 +359,38 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
 
     assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
     assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
-    assert_eq!(comparison.changes[0].confidence, Confidence::Medium);
+    let established = &comparison.changes[0].occurrences[0];
+    assert_eq!(
+        established
+            .old_span
+            .as_ref()
+            .map(|span| span.comparable_range),
+        Some(TokenRange { start: 52, end: 62 })
+    );
+    assert_eq!(
+        established
+            .new_span
+            .as_ref()
+            .map(|span| span.comparable_range),
+        Some(TokenRange { start: 52, end: 59 })
+    );
+    assert_eq!(comparison.change_candidates.len(), 2, "{comparison:#?}");
+    assert!(
+        comparison
+            .change_candidates
+            .iter()
+            .all(|candidate| candidate.change.kind == ChangeKind::Replacement)
+    );
+    assert!(
+        comparison
+            .change_candidates
+            .iter()
+            .all(|candidate| candidate.change.confidence == Confidence::Medium)
+    );
     let ranges = comparison
-        .changes
-        .first()
-        .expect("one recovered relation")
-        .occurrences
+        .change_candidates
         .iter()
+        .flat_map(|candidate| candidate.change.occurrences.iter())
         .map(|occurrence| {
             (
                 occurrence
@@ -380,10 +408,6 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
         ranges,
         [
             (
-                Some(TokenRange { start: 52, end: 62 }),
-                Some(TokenRange { start: 52, end: 59 }),
-            ),
-            (
                 Some(TokenRange { start: 75, end: 75 }),
                 Some(TokenRange { start: 72, end: 76 }),
             ),
@@ -393,9 +417,44 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
             ),
         ]
     );
-    assert!(comparison.unresolved_regions.is_empty());
-    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
-    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.unresolved_regions.len(), 4);
+    assert!(
+        comparison
+            .unresolved_regions
+            .iter()
+            .all(|region| region.evidence
+                == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown])
+    );
+    assert_eq!(
+        comparison
+            .unresolved_regions
+            .iter()
+            .filter_map(|region| region.old_span.as_ref())
+            .map(|span| span.blocks.clone())
+            .collect::<Vec<_>>(),
+        vec![vec![BlockId(0)], vec![BlockId(0)]]
+    );
+    assert_eq!(
+        comparison
+            .unresolved_regions
+            .iter()
+            .filter_map(|region| region.new_span.as_ref())
+            .map(|span| span.blocks.clone())
+            .collect::<Vec<_>>(),
+        vec![vec![BlockId(0)], vec![BlockId(0)]]
+    );
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
     Ok(())
 }
 
@@ -477,20 +536,279 @@ fn supported_sentence_recovers_beside_mixed_orientation_text() -> Result<()> {
     )?;
     let report: serde_json::Value =
         serde_json::from_slice(&report).expect("report should be valid JSON");
-    let changes = report["changes"]
+    assert_eq!(report["changes"], serde_json::json!([]));
+    let candidates = report["change_candidates"]
         .as_array()
-        .expect("changes should be an array");
+        .expect("change candidates should be an array");
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(candidates[0]["kind"], "deletion");
+    assert_eq!(candidates[0]["confidence"], "high");
+    assert_eq!(
+        candidates[0]["occurrences"][0]["old_span"]["text"],
+        "The legacy sentence is removed."
+    );
+    assert_eq!(
+        candidates[0]["occurrences"][0]["old_span"]["comparable_range"],
+        serde_json::json!({"start": 0, "end": 31})
+    );
+    assert_eq!(
+        candidates[0]["occurrences"][0]["new_span"],
+        serde_json::Value::Null
+    );
+    assert_eq!(candidates[1]["kind"], "insertion");
+    assert_eq!(candidates[1]["confidence"], "high");
+    assert_eq!(
+        candidates[1]["occurrences"][0]["old_span"],
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        candidates[1]["occurrences"][0]["new_span"]["text"],
+        "A fresh sentence is inserted."
+    );
+    assert_eq!(
+        candidates[1]["occurrences"][0]["new_span"]["comparable_range"],
+        serde_json::json!({"start": 0, "end": 29})
+    );
+    assert_eq!(
+        report["unresolved_regions"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        report["unresolved_regions"][0]["old_span"]["blocks"],
+        serde_json::json!([0, 1])
+    );
+    assert_eq!(
+        report["unresolved_regions"][0]["new_span"]["blocks"],
+        serde_json::json!([0, 1])
+    );
+    assert_eq!(
+        report["unresolved_regions"][0]["evidence"],
+        serde_json::json!(["reading_order_unknown"])
+    );
+    assert_eq!(report["summary"]["comparison_complete"], false);
+    Ok(())
+}
 
-    assert!(changes.iter().any(|change| {
-        change["kind"] == "deletion"
-            && change["occurrences"][0]["old_span"]["text"] == "The legacy sentence is removed."
+#[test]
+fn inferred_order_local_recovery_preserves_source_evidence() -> Result<()> {
+    let old = document(&[
+        line_at("Left alpha context remains open", 0, 0.0, 300.0),
+        line_at("Right alpha context remains open", 0, 400.0, 300.0),
+        line_at("Left alpha remainder stays open", 0, 0.0, 288.0),
+        line_at("Right alpha remainder stays open", 0, 400.0, 288.0),
+        line("A distant appendix explains orbital mechanics", 1, 100.0),
+        line("and archived calculations use cobalt notation.", 1, 88.0),
+        line(
+            "Released widgets retain a robust catalog code of 10",
+            1,
+            600.0,
+        ),
+        line(
+            "and operators apply durable labels before shipment.",
+            1,
+            588.0,
+        ),
+    ]);
+    let new = document(&[
+        line_at("Left beta context remains open", 0, 0.0, 300.0),
+        line_at("Right beta context remains open", 0, 400.0, 300.0),
+        line_at("Left beta remainder stays open", 0, 0.0, 288.0),
+        line_at("Right beta remainder stays open", 0, 400.0, 288.0),
+        line("A distant appendix explains orbital mechanics", 1, 100.0),
+        line("and archived calculations use cobalt notation.", 1, 88.0),
+        line(
+            "Released widgets retain a robust catalog code of 20",
+            1,
+            600.0,
+        ),
+        line(
+            "and operators apply durable labels before shipment.",
+            1,
+            588.0,
+        ),
+    ]);
+    let old_lines = reconstruct_lines(&old, LineOptions::default())?
+        .into_iter()
+        .filter(|line| line.page == PageId(1))
+        .collect::<Vec<_>>();
+    let graph = pdfdelta_core::layout::partition_regions(
+        PageId(1),
+        &old_lines,
+        pdfdelta_core::layout::RegionOptions::default(),
+    )?;
+    assert!(matches!(
+        graph.reading_order,
+        pdfdelta_core::layout::ReadingOrder::Inferred(_)
+    ));
+    let expected_glyphs = [&old, &new].map(|document| {
+        document.items().iter().find(|glyph| {
+            matches!(&glyph.text, DecodedText::Mapped(text) if text == "1" || text == "2")
+        }).expect("unique changed digit").id
+    });
+    let mut diagnostics = PipelineDiagnostics::new();
+    let traced = compare_extraction_outcomes_with_atomic_edits(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+    assert!(!traced.recovered_atomic_diffs.is_empty());
+    let inferred_blocks = traced
+        .outcome
+        .old_blocks
+        .iter()
+        .filter(|block| block.pages.contains(&1))
+        .map(|block| block.block)
+        .collect::<std::collections::HashSet<_>>();
+    assert!(traced.recovered_atomic_diffs.iter().any(|recovered| {
+        recovered
+            .old_context
+            .blocks
+            .iter()
+            .any(|block| inferred_blocks.contains(block))
     }));
-    assert!(changes.iter().any(|change| {
-        change["kind"] == "insertion"
-            && change["occurrences"][0]["new_span"]["text"] == "A fresh sentence is inserted."
+    let comparison = &traced.outcome.comparison;
+    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+    let recovered = &comparison.changes[0];
+    assert_eq!(recovered.kind, ChangeKind::Replacement);
+    assert_eq!(recovered.confidence, Confidence::High);
+    assert_eq!(recovered.occurrences.len(), 1);
+    let occurrence = &recovered.occurrences[0];
+    for (blocks, glyphs, span, expected) in [
+        (
+            &traced.outcome.old_blocks,
+            &traced.outcome.old_glyph_evidence,
+            occurrence.old_span.as_ref(),
+            expected_glyphs[0],
+        ),
+        (
+            &traced.outcome.new_blocks,
+            &traced.outcome.new_glyph_evidence,
+            occurrence.new_span.as_ref(),
+            expected_glyphs[1],
+        ),
+    ] {
+        let evidence = pdfdelta_core::report::project_span_sources(
+            blocks,
+            glyphs,
+            span.expect("numeric replacement span"),
+        )?;
+        assert!(matches!(
+            evidence.as_slice(),
+            [pdfdelta_core::report::SpanSourceEvidence::Glyph { glyph_id, .. }]
+                if *glyph_id == expected
+        ));
+    }
+    assert!(
+        comparison
+            .assessment
+            .as_ref()
+            .expect("engine assessment")
+            .relations
+            .iter()
+            .any(|relation| relation
+                .reasons
+                .contains(&pdfdelta_core::diff::AssessmentReason::InferredReadingOrder))
+    );
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    Ok(())
+}
+
+#[test]
+fn single_leaf_inferred_order_allows_an_independently_anchored_change() -> Result<()> {
+    let old = document(&[
+        line("A stable footer remains here.", 0, 100.0),
+        line("A stable heading opens the catalog.", 0, 700.0),
+        line("Released widgets retain catalog code 10", 0, 600.0),
+        line("and operators apply labels before shipment.", 0, 588.0),
+    ]);
+    let new = document(&[
+        line("A stable footer remains here.", 0, 100.0),
+        line("A stable heading opens the catalog.", 0, 700.0),
+        line("Released widgets retain catalog code 20", 0, 600.0),
+        line("and operators apply labels before shipment.", 0, 588.0),
+    ]);
+    let lines = reconstruct_lines(&old, LineOptions::default())?;
+    let graph = pdfdelta_core::layout::partition_regions(
+        PageId(0),
+        &lines,
+        pdfdelta_core::layout::RegionOptions::default(),
+    )?;
+    assert_eq!(graph.regions.len(), 1);
+    assert!(matches!(
+        graph.reading_order,
+        pdfdelta_core::layout::ReadingOrder::Inferred(_)
+    ));
+    let mut diagnostics = PipelineDiagnostics::new();
+    let traced = compare_extraction_outcomes_with_atomic_edits(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+    let comparison = &traced.outcome.comparison;
+    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+    assert!(comparison.change_candidates.is_empty());
+    let change = &comparison.changes[0];
+    assert_eq!(change.kind, ChangeKind::Replacement);
+    assert_eq!(change.confidence, Confidence::High);
+    let occurrence = &change.occurrences[0];
+    assert_eq!(
+        occurrence
+            .old_span
+            .as_ref()
+            .map(|span| (span.blocks.clone(), span.comparable_range)),
+        Some((
+            vec![BlockId(0), BlockId(1)],
+            TokenRange { start: 73, end: 74 }
+        ))
+    );
+    assert_eq!(
+        occurrence
+            .new_span
+            .as_ref()
+            .map(|span| (span.blocks.clone(), span.comparable_range)),
+        Some((
+            vec![BlockId(0), BlockId(1)],
+            TokenRange { start: 73, end: 74 }
+        ))
+    );
+    assert_eq!(comparison.unresolved_regions.len(), 4);
+    assert!(comparison.unresolved_regions.iter().all(|region| {
+        [region.old_span.as_ref(), region.new_span.as_ref()]
+            .into_iter()
+            .flatten()
+            .all(|span| {
+                span.blocks == [BlockId(1)]
+                    && (span.comparable_range.end <= 37 || span.comparable_range.start >= 38)
+            })
+            && region
+                .evidence
+                .contains(&pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderInferred)
     }));
-    assert_eq!(report["unresolved_regions"], serde_json::json!([]));
-    assert_eq!(report["summary"]["comparison_complete"], true);
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
     Ok(())
 }
 
@@ -538,7 +856,58 @@ fn partial_render_order_uncertainty_recovers_one_line_beside_a_safe_replacement(
         PipelineOptions::default(),
     )?;
 
-    assert_single_change(&outcome.comparison, ChangeKind::Replacement);
+    let comparison = &outcome.comparison;
+    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(comparison.changes[0].confidence, Confidence::Medium);
+    let occurrence = &comparison.changes[0].occurrences[0];
+    assert_eq!(
+        occurrence
+            .old_span
+            .as_ref()
+            .map(|span| (span.blocks.clone(), span.comparable_range)),
+        Some((vec![BlockId(3)], TokenRange { start: 8, end: 9 }))
+    );
+    assert_eq!(
+        occurrence
+            .new_span
+            .as_ref()
+            .map(|span| (span.blocks.clone(), span.comparable_range)),
+        Some((vec![BlockId(3)], TokenRange { start: 8, end: 9 }))
+    );
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    );
+    assert_eq!(
+        comparison.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .expect("uncertain middle evidence should remain on the old side")
+            .blocks,
+        [BlockId(1)]
+    );
+    assert_eq!(
+        comparison.unresolved_regions[0]
+            .new_span
+            .as_ref()
+            .expect("uncertain middle evidence should remain on the new side")
+            .blocks,
+        [BlockId(1)]
+    );
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
     Ok(())
 }
 
@@ -666,26 +1035,67 @@ fn unsupported_line_keeps_partial_row_major_order_uncertain() -> Result<()> {
         PipelineOptions::default(),
     )?;
 
-    assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
-    assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
-    assert_eq!(outcome.comparison.changes[0].confidence, Confidence::Medium);
-    assert_eq!(outcome.comparison.unresolved_regions.len(), 2);
+    let comparison = &outcome.comparison;
+    assert!(comparison.changes.is_empty(), "{outcome:#?}");
+    assert_eq!(comparison.change_candidates.len(), 1, "{outcome:#?}");
+    let candidate = &comparison.change_candidates[0];
+    assert_eq!(candidate.change.kind, ChangeKind::Replacement);
+    assert_eq!(candidate.change.confidence, Confidence::Medium);
+    let occurrence = &candidate.change.occurrences[0];
+    assert_eq!(
+        occurrence
+            .old_span
+            .as_ref()
+            .map(|span| (span.blocks.clone(), span.comparable_range)),
+        Some((vec![BlockId(4)], TokenRange { start: 8, end: 9 }))
+    );
+    assert_eq!(
+        occurrence
+            .new_span
+            .as_ref()
+            .map(|span| (span.blocks.clone(), span.comparable_range)),
+        Some((vec![BlockId(4)], TokenRange { start: 8, end: 9 }))
+    );
+    assert_eq!(comparison.unresolved_regions.len(), 4);
+    assert!(comparison.unresolved_regions.iter().all(|region| {
+        region.evidence == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    }));
     let unresolved_blocks = outcome
         .comparison
         .unresolved_regions
         .iter()
         .filter_map(|region| region.old_span.as_ref())
-        .flat_map(|span| span.blocks.iter().copied())
+        .map(|span| span.blocks.clone())
         .collect::<Vec<_>>();
+    assert_eq!(
+        unresolved_blocks,
+        vec![vec![BlockId(5), BlockId(6)], vec![BlockId(4)]]
+    );
+    let new_unresolved_blocks = outcome
+        .comparison
+        .unresolved_regions
+        .iter()
+        .filter_map(|region| region.new_span.as_ref())
+        .map(|span| span.blocks.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        new_unresolved_blocks,
+        vec![vec![BlockId(5), BlockId(6)], vec![BlockId(4)]]
+    );
     let unresolved_text = outcome
         .old_blocks
         .iter()
-        .filter(|block| unresolved_blocks.contains(&block.block))
+        .filter(|block| {
+            unresolved_blocks
+                .iter()
+                .any(|blocks| blocks.contains(&block.block))
+        })
         .map(|block| block.canonical.text.as_str())
         .collect::<Vec<_>>()
         .join(" ");
     assert!(unresolved_text.contains("Side A"));
-    assert!(!unresolved_text.contains("Release 10"));
+    assert!(unresolved_text.contains("Side B"));
+    assert!(unresolved_text.contains("Release 10"));
     Ok(())
 }
 
@@ -764,18 +1174,58 @@ fn recovered_unknown_line_does_not_mark_an_independent_cross_page_block() -> Res
         PipelineOptions::default(),
     )?;
 
-    let _cross_page_block = outcome
+    let cross_page_block = outcome
         .old_blocks
         .iter()
         .find(|block| block.pages == [0, 1])
         .expect("fixture cadence should reconstruct one cross-page body block");
     assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
     assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
-    assert!(outcome.comparison.unresolved_regions.is_empty());
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    let region = &outcome.comparison.unresolved_regions[0];
+    assert_eq!(
+        region.evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    );
+    for span in [region.old_span.as_ref(), region.new_span.as_ref()] {
+        assert_eq!(
+            span.map(|span| (&span.blocks, span.comparable_range)),
+            Some((&vec![BlockId(1)], TokenRange { start: 0, end: 20 }))
+        );
+    }
+    let assessment = outcome
+        .comparison
+        .assessment
+        .as_ref()
+        .expect("engine assessment");
+    for partition in [&assessment.old_resolution, &assessment.new_resolution] {
+        let ranges = partition
+            .iter()
+            .filter(|range| range.block == cross_page_block.block)
+            .collect::<Vec<_>>();
+        assert!(!ranges.is_empty());
+        assert!(
+            ranges
+                .iter()
+                .all(|range| range.state == pdfdelta_core::diff::ResolutionState::Equal)
+        );
+    }
     assert!(outcome.extraction.old_complete);
     assert!(outcome.extraction.new_complete);
-    assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
-    assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
+    assert!(
+        outcome
+            .comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        outcome
+            .comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
     Ok(())
 }
 
@@ -1056,7 +1506,7 @@ fn page_scoped_issue_records_incomplete_gate_and_downstream_successes() -> Resul
 }
 
 #[test]
-fn document_scoped_issue_stops_after_pre_layout_budget() -> Result<()> {
+fn document_scoped_issue_normalizes_retained_evidence_without_matching() -> Result<()> {
     let old = ExtractionOutcome::new(
         Document::new(Vec::new()),
         vec![ExtractionIssue::new(
@@ -1075,15 +1525,29 @@ fn document_scoped_issue_stops_after_pre_layout_budget() -> Result<()> {
         &mut diagnostics,
     )?;
 
-    assert_eq!(diagnostics.records().len(), 4);
     assert_eq!(
         diagnostics.records()[1].status,
         PipelinePhaseStatus::Incomplete
     );
-    assert!(diagnostics.records()[2..].iter().all(|record| {
-        record.phase == PipelinePhase::PreLayoutBudget
-            && record.status == PipelinePhaseStatus::Completed
-    }));
+    for phase in [
+        PipelinePhase::PreLayoutBudget,
+        PipelinePhase::LineReconstruction,
+        PipelinePhase::Normalization,
+    ] {
+        assert!(
+            diagnostics
+                .records()
+                .iter()
+                .any(|record| record.phase == phase
+                    && record.status == PipelinePhaseStatus::Completed)
+        );
+    }
+    assert!(
+        !diagnostics
+            .records()
+            .iter()
+            .any(|record| record.phase == PipelinePhase::Alignment)
+    );
     Ok(())
 }
 
@@ -1290,8 +1754,7 @@ fn records_attempted_candidate_visits_when_alignment_limit_fails() -> Result<()>
         .expect("candidate visits should be recorded");
     assert!(charge > 1, "fixture must charge at least two visits");
 
-    // Fail with a budget one below the charge: the attempted cumulative
-    // charge must include the block that exceeded the budget.
+    // A bounded search retains a partial comparison and its attempted charge.
     let options = PipelineOptions {
         alignment: AlignmentOptions {
             max_candidate_visits: charge - 1,
@@ -1300,15 +1763,15 @@ fn records_attempted_candidate_visits_when_alignment_limit_fails() -> Result<()>
         ..PipelineOptions::default()
     };
     let mut diagnostics = PipelineDiagnostics::new();
-    assert!(
-        compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics).is_err()
-    );
+    let outcome =
+        compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics)?;
+    assert!(!outcome.comparison.unresolved_regions.is_empty());
     let failure = diagnostics
         .records()
         .iter()
         .find(|record| record.phase == PipelinePhase::Alignment)
         .expect("alignment failure should be recorded");
-    assert_eq!(failure.status, PipelinePhaseStatus::Failed);
+    assert_eq!(failure.status, PipelinePhaseStatus::Incomplete);
     assert_eq!(failure.metrics.candidate_visits, Some(charge));
     assert_eq!(
         failure.metrics.candidate_visits_required,
@@ -1335,13 +1798,7 @@ fn records_attempted_candidate_visits_when_alignment_limit_fails() -> Result<()>
         "required components must sum to the required total"
     );
     assert_eq!(failure.metrics.max_candidate_visits, Some(charge - 1));
-    let error = failure
-        .error
-        .as_ref()
-        .expect("failure should include an error");
-    assert_eq!(error.kind, PipelineErrorKind::LimitExceeded);
-    assert_eq!(error.resource, Some("alignment candidate visits"));
-    assert_eq!(error.limit, Some(charge - 1));
+    assert!(failure.error.is_none());
     Ok(())
 }
 
@@ -1438,14 +1895,7 @@ fn page_scoped_gap_suppresses_only_its_anchor_window() -> Result<()> {
     let summary = summarize(&outcome.comparison, &outcome.extraction)?;
     assert!(!summary.comparison_complete);
     assert_eq!(summary.unresolved_extraction_issues, 1);
-    assert_eq!(
-        exit_status(&outcome.comparison, &outcome.extraction, false)?,
-        ExitStatus::NoContentChanges
-    );
-    assert_eq!(
-        exit_status(&outcome.comparison, &outcome.extraction, true)?,
-        ExitStatus::IncompleteComparison
-    );
+    assert_eq!(summary.difference_status, DifferenceStatus::Indeterminate);
     Ok(())
 }
 
@@ -1713,10 +2163,10 @@ fn malformed_subtree_count_issue_suppresses_all_diffs() -> Result<()> {
     )?;
 
     assert!(outcome.comparison.changes.is_empty());
-    assert!(outcome.comparison.unresolved_regions.is_empty());
+    assert!(!outcome.comparison.unresolved_regions.is_empty());
     assert!(alignment.is_none());
-    assert!(outcome.old_blocks.is_empty());
-    assert!(outcome.new_blocks.is_empty());
+    assert!(!outcome.old_blocks.is_empty());
+    assert!(!outcome.new_blocks.is_empty());
     assert!(!outcome.old_glyph_evidence.is_empty());
     assert!(!outcome.new_glyph_evidence.is_empty());
     assert_unique_glyph_evidence(&outcome.old_glyph_evidence);
@@ -1912,6 +2362,8 @@ fn limit_scale_changes_only_comparison_resource_budgets() {
         diff: DiffOptions {
             max_tokens: baseline.diff.max_tokens * 4,
             max_edit_distance: (baseline.diff.max_edit_distance * 4).min(4_000),
+            max_assessment_work: baseline.diff.max_assessment_work * 4,
+            max_assessment_ranges: baseline.diff.max_assessment_ranges * 4,
             ..baseline.diff
         },
         ..baseline

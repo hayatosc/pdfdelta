@@ -14,7 +14,7 @@ mod trace;
 
 use crate::{
     args::{Cli, Command, CompareCommand},
-    compare::{compare_documents, report_fatal_error},
+    compare::{ExitStatus, compare_documents, report_fatal_error},
     inspect::inspect_document,
 };
 
@@ -43,7 +43,7 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
                 report_fatal_error(&mut stderr, &error);
-                ExitCode::from(2)
+                ExitCode::from(ExitStatus::ExecutionError.code())
             }
         },
         Some(Command::Completions { shell }) => {
@@ -79,7 +79,7 @@ fn main() -> ExitCode {
             Ok(status) => ExitCode::from(status),
             Err(error) => {
                 report_fatal_error(&mut stderr, &error);
-                ExitCode::from(2)
+                ExitCode::from(ExitStatus::ExecutionError.code())
             }
         },
     }

@@ -1,10 +1,22 @@
 {
   "version": 1,
   "pair": "nist-fips-186-4-to-5",
-  "reviewed_on": "2026-08-24",
+  "reviewed_on": "2026-09-07",
   "annotation": "partial",
-  "notes": "Representative human-reviewed subset of the FIPS 186-4 -> FIPS 186-5 revision. Anchored on changes documented by NIST when superseding 186-4: DSA is removed as a generation algorithm (retained only for verification), EdDSA (Ed25519/Ed448) is added, deterministic ECDSA per RFC 6979 is referenced, and domain-parameter requirement wording was restructured. Quotes are substrings of extracted glyph text, so they survive line wrapping but must match verbatim after whitespace collapsing.",
+  "notes": "Representative human-reviewed subset of the FIPS 186-4 -> FIPS 186-5 revision. Anchored on changes documented by NIST when superseding 186-4: DSA is removed as a generation algorithm (retained only for verification), EdDSA (Ed25519/Ed448) is added, deterministic ECDSA per RFC 6979 is referenced, and domain-parameter requirement wording was restructured. Quotes are substrings of extracted glyph text, so they survive line wrapping but must match verbatim after whitespace collapsing. The unchanged Foreword comments paragraph was source-reviewed on 2026-09-07 to provide unchanged context for false-positive-rate measurement.",
   "scopes": [
+    {
+      "id": "unchanged-foreword-comments",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "Comments concerning FIPS publications are welcomed and should be addressed to the Director, Information Technology Laboratory, National Institute of Standards and Technology, 100 Bureau Drive, Stop 8900, Gaithersburg, MD 20899-8900.",
+        "end_quote": "Comments concerning FIPS publications are welcomed and should be addressed to the Director, Information Technology Laboratory, National Institute of Standards and Technology, 100 Bureau Drive, Stop 8900, Gaithersburg, MD 20899-8900."
+      },
+      "new": {
+        "start_quote": "Comments concerning FIPS publications are welcomed and should be addressed to the Director, Information Technology Laboratory, National Institute of Standards and Technology, 100 Bureau Drive, Stop 8900, Gaithersburg, MD 20899-8900.",
+        "end_quote": "Comments concerning FIPS publications are welcomed and should be addressed to the Director, Information Technology Laboratory, National Institute of Standards and Technology, 100 Bureau Drive, Stop 8900, Gaithersburg, MD 20899-8900."
+      }
+    },
     {
       "id": "domain-parameter-requirement",
       "completeness": "complete",

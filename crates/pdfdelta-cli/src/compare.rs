@@ -11,7 +11,7 @@ use pdfdelta_core::{
         PipelineDiagnostics, PipelineOptions,
         compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics,
     },
-    report::{TextReportOptions, exit_status, render_text, summarize},
+    report::{DifferenceStatus, ReportSummary, TextReportOptions, render_text, summarize},
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssue, ExtractionIssueKind,
         ExtractionLimits, ExtractionOutcome, ExtractionScope,
@@ -30,6 +30,36 @@ use crate::{
     },
     trace::{ExecutionTrace, TraceSide, duration_metric},
 };
+
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ExitStatus {
+    NoContentChanges = 0,
+    ContentChanges = 1,
+    ExecutionError = 2,
+    IncompleteComparison = 3,
+}
+
+impl ExitStatus {
+    pub(crate) const fn code(self) -> u8 {
+        self as u8
+    }
+}
+
+/// Converts a validated core result into the CLI's process status policy.
+/// Fatal execution errors are returned through `Result` and become code 2 in
+/// `main`; an incomplete comparison takes precedence over detected changes.
+fn exit_status(summary: &ReportSummary, _strict: bool) -> ExitStatus {
+    if !summary.comparison_complete {
+        ExitStatus::IncompleteComparison
+    } else {
+        match summary.difference_status {
+            DifferenceStatus::Detected => ExitStatus::ContentChanges,
+            DifferenceStatus::NoContentChange => ExitStatus::NoContentChanges,
+            DifferenceStatus::Indeterminate => ExitStatus::IncompleteComparison,
+        }
+    }
+}
 
 pub fn compare_documents<W: Write>(
     command: CompareCommand<'_>,
@@ -269,14 +299,6 @@ pub fn compare_documents_traced<W: Write>(
             new_input.path.display()
         )
     })?;
-    let status =
-        exit_status(&outcome.comparison, &outcome.extraction, options.strict).map_err(|error| {
-            format!(
-                "cannot determine comparison status for {} and {}: {error}",
-                old_input.path.display(),
-                new_input.path.display()
-            )
-        })?;
     let summary = summarize(&outcome.comparison, &outcome.extraction).map_err(|error| {
         format!(
             "cannot summarize comparison for {} and {}: {error}",
@@ -284,6 +306,7 @@ pub fn compare_documents_traced<W: Write>(
             new_input.path.display()
         )
     })?;
+    let status = exit_status(&summary, options.strict);
 
     if let Some(json_path) = options.json_path
         && let Err(error) = write_json_atomically(

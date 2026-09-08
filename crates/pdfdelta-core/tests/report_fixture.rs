@@ -2,9 +2,12 @@ use pdfdelta_core::{
     Error, Result,
     alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
-        Change, ChangeKind, ChangeOccurrence, ChangeTag, ChangedRegionProof, Comparison,
-        Confidence, Coverage, FormattingChange, FormattingReason, ProvenChangedRegion, TextSpan,
-        TokenRange, UnresolvedRegion,
+        ASSESSMENT_POLICY_VERSION, AssessmentReason, AssessmentWork, Change, ChangeCandidate,
+        ChangeKind, ChangeOccurrence, ChangeTag, ChangedRegionProof, Comparison,
+        ComparisonAssessment, ComparisonAssumption, Confidence, Coverage, FormattingChange,
+        FormattingReason, ProvenChangedRegion, RelationAssessment, RelationOutcome,
+        ResolutionRange, ResolutionState, SearchCompleteness, TextSpan, TokenRange,
+        UnresolvedRegion,
     },
     layout::BlockId,
     model::{
@@ -17,8 +20,8 @@ use pdfdelta_core::{
     },
     pdf::ObjectRef,
     report::{
-        DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, SpanSourceEvidence,
-        SpanSourceProjectionLimits, TextReportOptions, exit_status, project_span_sources,
+        DifferenceStatus, DocumentSide, ExtractionIssueRecord, ExtractionStatus,
+        SpanSourceEvidence, SpanSourceProjectionLimits, TextReportOptions, project_span_sources,
         project_span_sources_with_limits, render_glyph_overlay_svg, render_text, summarize,
         write_glyph_overlay_svg, write_json,
     },
@@ -46,7 +49,8 @@ fn text_report_always_states_completeness_and_coverage() -> Result<()> {
     assert_eq!(
         report,
         "content changes: 0 · proven changed regions: 0 · formatting-only: 0 · uncertain: 0 · \
-         unresolved regions: 0 · coverage 100.0%\n\
+         unresolved regions: 0 · coverage 100.0% · established changes: 0 · tentative candidates: 0 · difference: no_content_change · completeness: complete\n\
+         comparison scope: supported text=yes, images not compared\n\
          \n\
          --- old.pdf\n\
          +++ new.pdf\n"
@@ -66,8 +70,8 @@ fn formatting_only_changes_do_not_change_the_exit_status() -> Result<()> {
     });
 
     assert_eq!(
-        exit_status(&comparison, &ExtractionStatus::complete(), false)?,
-        ExitStatus::NoContentChanges
+        summarize(&comparison, &ExtractionStatus::complete())?.difference_status,
+        DifferenceStatus::NoContentChange
     );
     Ok(())
 }
@@ -118,16 +122,9 @@ fn strict_incompleteness_takes_priority_over_content_changes() -> Result<()> {
         evidence: vec![AlignmentEvidence::NormalizationIssue],
     });
 
-    assert_eq!(
-        exit_status(&comparison, &ExtractionStatus::complete(), false)?,
-        ExitStatus::ContentChanges
-    );
-    assert_eq!(
-        exit_status(&comparison, &ExtractionStatus::complete(), true)?,
-        ExitStatus::IncompleteComparison
-    );
-    assert_eq!(ExitStatus::ExecutionError.code(), 2);
-    assert_eq!(ExitStatus::IncompleteComparison.code(), 3);
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.difference_status, DifferenceStatus::Detected);
+    assert!(!summary.comparison_complete);
     Ok(())
 }
 
@@ -140,15 +137,8 @@ fn proven_content_difference_changes_non_strict_exit_status() -> Result<()> {
         proof: ChangedRegionProof::ExactTokenMultisetMismatch,
         confidence: Confidence::High,
     });
-    assert_eq!(
-        exit_status(&comparison, &ExtractionStatus::complete(), false)?,
-        ExitStatus::ContentChanges
-    );
-    assert_eq!(
-        exit_status(&comparison, &ExtractionStatus::complete(), true)?,
-        ExitStatus::IncompleteComparison
-    );
     let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.difference_status, DifferenceStatus::Detected);
     assert_eq!(summary.content_changes, 0);
     assert!(!summary.comparison_complete);
     Ok(())
@@ -200,6 +190,223 @@ fn reports_proven_content_difference_separately_from_exact_changes() -> Result<(
 }
 
 #[test]
+fn reports_tentative_candidates_with_assessment_evidence_without_counting_coverage() -> Result<()> {
+    let old_blocks = vec![block_with_text(1, "alpha")];
+    let new_blocks = vec![block_with_text(101, "beta")];
+    let old_span = full_span(1, "alpha");
+    let new_span = full_span(101, "beta");
+    let mut comparison = empty_comparison();
+    comparison.change_candidates.push(ChangeCandidate {
+        change: Change::single_occurrence(
+            ChangeKind::Replacement,
+            Some(old_span.clone()),
+            Some(new_span.clone()),
+            Confidence::Medium,
+            Vec::new(),
+        ),
+        relation: 0,
+        alternative_group: 0,
+    });
+    comparison.old_coverage = Coverage {
+        resolved_tokens: 0,
+        total_tokens: 5,
+        ratio: Some(0.0),
+    };
+    comparison.new_coverage = Coverage {
+        resolved_tokens: 0,
+        total_tokens: 4,
+        ratio: Some(0.0),
+    };
+    comparison.assessment = Some(ComparisonAssessment {
+        localized_edits: Vec::new(),
+        policy_version: ASSESSMENT_POLICY_VERSION,
+        relations: vec![RelationAssessment {
+            old_span: Some(old_span),
+            new_span: Some(new_span),
+            parent: None,
+            outcome: RelationOutcome::Tentative,
+            search: SearchCompleteness::Complete,
+            assumptions: vec![ComparisonAssumption::CanonicalNormalization],
+            reasons: vec![AssessmentReason::CompetingCorrespondence],
+        }],
+        old_resolution: vec![ResolutionRange {
+            block: BlockId(1),
+            comparable_range: TokenRange { start: 0, end: 5 },
+            canonical_range: ScalarRange { start: 0, end: 5 },
+            state: ResolutionState::Unresolved,
+        }],
+        new_resolution: vec![ResolutionRange {
+            block: BlockId(101),
+            comparable_range: TokenRange { start: 0, end: 4 },
+            canonical_range: ScalarRange { start: 0, end: 4 },
+            state: ResolutionState::Unresolved,
+        }],
+        work_limit: 10,
+        work_used: 2,
+        work_by_stage: AssessmentWork {
+            anchor_verification: 2,
+            ..AssessmentWork::default()
+        },
+        candidates_truncated: false,
+    });
+
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.tentative_candidates, 1);
+    assert_eq!(summary.difference_status, DifferenceStatus::Indeterminate);
+    assert!(!summary.comparison_complete);
+
+    let text = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+    assert!(text.contains("tentative candidates: 1"), "{text}");
+    assert!(text.contains("TENTATIVE · candidate group 1"), "{text}");
+    assert!(text.contains("competing_correspondence"), "{text}");
+    assert!(text.contains("canonical_normalization"), "{text}");
+
+    let mut output = Vec::new();
+    write_json(
+        &mut output,
+        &old_blocks,
+        &new_blocks,
+        &[],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    assert_eq!(json["schema_version"], 10);
+    assert_eq!(json["difference_status"], "indeterminate");
+    assert_eq!(json["comparison_scope"]["supported_text"], true);
+    assert_eq!(json["comparison_scope"]["images_compared"], false);
+    assert_eq!(json["summary"]["tentative_candidates"], 1);
+    assert_eq!(json["change_candidates"][0]["alternative_group"], 0);
+    assert_eq!(
+        json["change_candidates"][0]["reasons"],
+        serde_json::json!(["competing_correspondence"])
+    );
+    assert_eq!(
+        json["change_candidates"][0]["assumptions"],
+        serde_json::json!(["canonical_normalization"])
+    );
+    assert_eq!(json["assessment"]["work_used"], 2);
+    assert_eq!(
+        json["assessment"]["work_by_stage"]["anchor_verification"],
+        2
+    );
+    assert_eq!(
+        json["assessment"]["old_resolution"][0]["comparable_range"],
+        serde_json::json!({"start": 0, "end": 5})
+    );
+    assert_eq!(
+        json["assessment"]["old_resolution"][0]["state"],
+        "unresolved"
+    );
+    Ok(())
+}
+
+#[test]
+fn historical_tentative_relation_does_not_block_complete_partition() -> Result<()> {
+    let mut comparison = empty_comparison();
+    comparison.old_coverage = Coverage {
+        resolved_tokens: 5,
+        total_tokens: 5,
+        ratio: Some(1.0),
+    };
+    comparison.new_coverage = comparison.old_coverage;
+    comparison.assessment = Some(ComparisonAssessment {
+        localized_edits: Vec::new(),
+        policy_version: ASSESSMENT_POLICY_VERSION,
+        relations: vec![RelationAssessment {
+            old_span: Some(full_span(1, "alpha")),
+            new_span: Some(full_span(101, "alpha")),
+            parent: None,
+            outcome: RelationOutcome::Tentative,
+            search: SearchCompleteness::Incomplete,
+            assumptions: Vec::new(),
+            reasons: vec![AssessmentReason::SearchIncomplete],
+        }],
+        old_resolution: vec![ResolutionRange {
+            block: BlockId(1),
+            comparable_range: TokenRange { start: 0, end: 5 },
+            canonical_range: ScalarRange { start: 0, end: 5 },
+            state: ResolutionState::Equal,
+        }],
+        new_resolution: vec![ResolutionRange {
+            block: BlockId(101),
+            comparable_range: TokenRange { start: 0, end: 5 },
+            canonical_range: ScalarRange { start: 0, end: 5 },
+            state: ResolutionState::Equal,
+        }],
+        work_limit: 10,
+        work_used: 10,
+        work_by_stage: AssessmentWork {
+            anchor_verification: 10,
+            ..AssessmentWork::default()
+        },
+        candidates_truncated: false,
+    });
+
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert!(summary.comparison_complete);
+    assert_eq!(summary.difference_status, DifferenceStatus::NoContentChange);
+    Ok(())
+}
+
+#[test]
+fn rejects_assessment_resolution_without_source_block() -> Result<()> {
+    let old_blocks = vec![block_with_text(1, "alpha")];
+    let new_blocks = vec![block_with_text(101, "alpha")];
+    let mut comparison = empty_comparison();
+    comparison.old_coverage = Coverage {
+        resolved_tokens: 5,
+        total_tokens: 5,
+        ratio: Some(1.0),
+    };
+    comparison.new_coverage = comparison.old_coverage;
+    comparison.assessment = Some(ComparisonAssessment {
+        localized_edits: Vec::new(),
+        policy_version: ASSESSMENT_POLICY_VERSION,
+        relations: Vec::new(),
+        old_resolution: vec![ResolutionRange {
+            block: BlockId(999),
+            comparable_range: TokenRange { start: 0, end: 5 },
+            canonical_range: ScalarRange { start: 0, end: 5 },
+            state: ResolutionState::Equal,
+        }],
+        new_resolution: vec![ResolutionRange {
+            block: BlockId(101),
+            comparable_range: TokenRange { start: 0, end: 5 },
+            canonical_range: ScalarRange { start: 0, end: 5 },
+            state: ResolutionState::Equal,
+        }],
+        work_limit: 1,
+        work_used: 0,
+        work_by_stage: AssessmentWork::default(),
+        candidates_truncated: false,
+    });
+
+    let mut output = Vec::new();
+    assert!(matches!(
+        write_json(
+            &mut output,
+            &old_blocks,
+            &new_blocks,
+            &[],
+            &[],
+            &comparison,
+            &ExtractionStatus::complete(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("no normalized evidence")
+    ));
+    Ok(())
+}
+
+#[test]
 fn rejects_proven_change_with_a_proof_mismatched_span_shape() {
     let mut comparison = empty_comparison();
     comparison.proven_changed_regions.push(ProvenChangedRegion {
@@ -241,14 +448,9 @@ fn strict_mode_rejects_incomplete_alignment_coverage() -> Result<()> {
         ratio: Some(0.5),
     };
 
-    assert_eq!(
-        exit_status(&comparison, &ExtractionStatus::complete(), false)?,
-        ExitStatus::NoContentChanges
-    );
-    assert_eq!(
-        exit_status(&comparison, &ExtractionStatus::complete(), true)?,
-        ExitStatus::IncompleteComparison
-    );
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.difference_status, DifferenceStatus::Indeterminate);
+    assert!(!summary.comparison_complete);
     Ok(())
 }
 
@@ -329,8 +531,8 @@ fn reports_incomplete_extraction_in_text_and_strict_status() -> Result<()> {
         "{report}"
     );
     assert_eq!(
-        exit_status(&comparison, &extraction, true)?,
-        ExitStatus::IncompleteComparison
+        summarize(&comparison, &extraction)?.difference_status,
+        DifferenceStatus::Indeterminate
     );
     Ok(())
 }
@@ -1771,7 +1973,8 @@ fn text_report_renders_replacement_insertion_and_deletion_hunks() -> Result<()> 
     assert_eq!(
         report,
         "content changes: 3 · proven changed regions: 0 · formatting-only: 0 · uncertain: 0 · \
-         unresolved regions: 0 · coverage 100.0%\n\
+         unresolved regions: 0 · coverage 100.0% · established changes: 3 · tentative candidates: 0 · difference: detected · completeness: complete\n\
+         comparison scope: supported text=yes, images not compared\n\
          \n\
          --- old.pdf\n\
          +++ new.pdf\n\
@@ -2157,7 +2360,8 @@ fn text_report_renders_unresolved_regions_explicitly() -> Result<()> {
     assert_eq!(
         report,
         "content changes: 0 · proven changed regions: 0 · formatting-only: 0 · uncertain: 0 · \
-         unresolved regions: 1 · coverage 100.0%\n\
+         unresolved regions: 1 · coverage 100.0% · established changes: 0 · tentative candidates: 0 · difference: indeterminate · completeness: incomplete\n\
+         comparison scope: supported text=yes, images not compared\n\
          \n\
          --- old.pdf\n\
          +++ new.pdf\n\
@@ -2433,7 +2637,8 @@ fn text_report_renders_pure_unmapped_replacement_in_the_changed_segment() -> Res
     assert_eq!(
         report,
         "content changes: 1 · proven changed regions: 0 · formatting-only: 0 · uncertain: 1 · \
-         unresolved regions: 0 · coverage 100.0%\n\
+         unresolved regions: 0 · coverage 100.0% · established changes: 1 · tentative candidates: 0 · difference: detected · completeness: complete\n\
+         comparison scope: supported text=yes, images not compared\n\
          \n\
          --- old.pdf\n\
          +++ new.pdf\n\
@@ -2621,6 +2826,8 @@ fn separator_mismatch_keeps_adjacent_edits_in_separate_hunks() -> Result<()> {
 
 fn empty_comparison() -> Comparison {
     Comparison {
+        change_candidates: Vec::new(),
+        assessment: None,
         changes: Vec::new(),
         proven_changed_regions: Vec::new(),
         formatting_changes: Vec::new(),
@@ -3345,9 +3552,8 @@ fn text_and_json_report_renders_promoted_move_with_formatting_normalization_chan
     assert!(json_text.contains("\"reasons\": [\n        \"normalization\"\n      ]"));
 
     // 4. Exit status
-    let status = exit_status(&comparison, &ExtractionStatus::complete(), false)?;
-    assert_eq!(status, ExitStatus::ContentChanges);
-    assert_eq!(status.code(), 1);
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.difference_status, DifferenceStatus::Detected);
 
     Ok(())
 }
@@ -3558,6 +3764,8 @@ fn reports_render_and_serialize_calibrated_confidence_levels() -> Result<()> {
     let new_tokens: usize = new_blocks.iter().map(|b| b.matching_tokens.len()).sum();
 
     let comparison = Comparison {
+        change_candidates: Vec::new(),
+        assessment: None,
         changes: vec![
             Change {
                 kind: ChangeKind::Replacement,
@@ -3658,6 +3866,8 @@ fn formatting_changes_with_low_confidence_do_not_increment_uncertain_changes() -
 
     // Low confidence formatting-only change (e.g. split/merge with normalization issue)
     let comparison = Comparison {
+        change_candidates: Vec::new(),
+        assessment: None,
         changes: Vec::new(),
         proven_changed_regions: Vec::new(),
         formatting_changes: vec![FormattingChange {

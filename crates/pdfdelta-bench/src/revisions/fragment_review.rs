@@ -5,7 +5,7 @@ use pdfdelta_core::{
     alignment::BlockSeparator,
     diff::{
         AtomicEdit, ChangeOrigin, RecoveredAtomicDiff, RecoveredAtomicOccurrence,
-        RecoveryWatchNearScope, TextSpan,
+        RecoveredRelationEvidence, RecoveryWatchNearScope, TextSpan,
     },
     model::{GlyphEvidence, Rect},
     normalize::{BlockText, ComparableToken},
@@ -271,13 +271,16 @@ fn build_local_fragment_review_bundle_with_limit(
         .map_err(|_| LocalFragmentReviewStopReason::AllocationFailure)?;
     for trace in traces {
         if trace.origin == ChangeOrigin::LocalFragment {
+            require_near_relation(trace)?;
             if local.len() == MAX_TRACES {
                 return Err(LocalFragmentReviewStopReason::TraceLimit);
             }
             local.push(trace);
         }
     }
-    local.sort_unstable_by(|left, right| compare_traces(left, right));
+    local.sort_unstable_by(
+        |left: &&RecoveredAtomicDiff, right: &&RecoveredAtomicDiff| compare_traces(left, right),
+    );
 
     let total_occurrences = local.iter().try_fold(0usize, |total, trace| {
         total
@@ -349,18 +352,54 @@ fn build_local_fragment_review_bundle_with_limit(
     })
 }
 
+#[derive(Clone, Copy)]
+struct NearRelation {
+    old_best_score: u16,
+    old_second_score: u16,
+    old_best_scope: Option<RecoveryWatchNearScope>,
+    new_best_score: u16,
+    new_second_score: u16,
+    new_best_scope: Option<RecoveryWatchNearScope>,
+}
+
+fn require_near_relation(
+    trace: &RecoveredAtomicDiff,
+) -> Result<NearRelation, LocalFragmentReviewStopReason> {
+    match &trace.relation {
+        RecoveredRelationEvidence::Near {
+            old_best_score,
+            old_second_score,
+            old_best_scope,
+            new_best_score,
+            new_second_score,
+            new_best_scope,
+        } => Ok(NearRelation {
+            old_best_score: *old_best_score,
+            old_second_score: *old_second_score,
+            old_best_scope: *old_best_scope,
+            new_best_score: *new_best_score,
+            new_second_score: *new_second_score,
+            new_best_scope: *new_best_scope,
+        }),
+        RecoveredRelationEvidence::AnchoredGap { .. } => {
+            Err(LocalFragmentReviewStopReason::InvalidTrace)
+        }
+    }
+}
+
 fn validate_trace(
     trace: &RecoveredAtomicDiff,
     block_maps: [&HashMap<u64, &BlockText>; 2],
     projectors: [&SpanSourceProjector<'_>; 2],
     budget: &mut ReviewBudget,
 ) -> Result<(), LocalFragmentReviewStopReason> {
+    let relation = require_near_relation(trace)?;
     let old_len = validate_context(&trace.old_context, block_maps[0], budget)?;
     let new_len = validate_context(&trace.new_context, block_maps[1], budget)?;
     validate_edits(&trace.edits, old_len, new_len)?;
     validate_occurrences(trace, old_len, new_len, block_maps, budget)?;
-    validate_relation(trace.old_best_score, trace.old_second_score)?;
-    validate_relation(trace.new_best_score, trace.new_second_score)?;
+    validate_relation(relation.old_best_score, relation.old_second_score)?;
+    validate_relation(relation.new_best_score, relation.new_second_score)?;
     for (span, projector) in [
         (&trace.old_context, projectors[0]),
         (&trace.new_context, projectors[1]),
@@ -378,14 +417,15 @@ fn build_trace_report(
     projectors: [&SpanSourceProjector<'_>; 2],
     budget: &mut ReviewBudget,
 ) -> Result<LocalFragmentReviewTraceReport, LocalFragmentReviewStopReason> {
+    let relation = require_near_relation(trace)?;
     let (old_len, old_context_text) =
         materialize_context(&trace.old_context, block_maps[0], budget)?;
     let (new_len, new_context_text) =
         materialize_context(&trace.new_context, block_maps[1], budget)?;
     validate_edits(&trace.edits, old_len, new_len)?;
     validate_occurrences(trace, old_len, new_len, block_maps, budget)?;
-    validate_relation(trace.old_best_score, trace.old_second_score)?;
-    validate_relation(trace.new_best_score, trace.new_second_score)?;
+    validate_relation(relation.old_best_score, relation.old_second_score)?;
+    validate_relation(relation.new_best_score, relation.new_second_score)?;
     let old_evidence = projectors[0]
         .project(&trace.old_context)
         .map_err(map_projection_error)?;
@@ -418,14 +458,14 @@ fn build_trace_report(
         old_alignment_span: trace.old_alignment_span_index,
         new_alignment_span: trace.new_alignment_span_index,
         old_relation: relation_report(
-            trace.old_best_score,
-            trace.old_second_score,
-            trace.old_best_scope,
+            relation.old_best_score,
+            relation.old_second_score,
+            relation.old_best_scope,
         )?,
         new_relation: relation_report(
-            trace.new_best_score,
-            trace.new_second_score,
-            trace.new_best_scope,
+            relation.new_best_score,
+            relation.new_second_score,
+            relation.new_best_scope,
         )?,
         old_context: span_report(&trace.old_context, budget)?,
         new_context: span_report(&trace.new_context, budget)?,
@@ -971,13 +1011,50 @@ fn compare_traces(left: &RecoveredAtomicDiff, right: &RecoveredAtomicDiff) -> Or
         })
         .then_with(|| compare_spans(&left.new_context, &right.new_context))
         .then_with(|| compare_edits(&left.edits, &right.edits))
-        .then_with(|| left.old_best_score.cmp(&right.old_best_score))
-        .then_with(|| left.old_second_score.cmp(&right.old_second_score))
-        .then_with(|| scope_rank(left.old_best_scope).cmp(&scope_rank(right.old_best_scope)))
-        .then_with(|| left.new_best_score.cmp(&right.new_best_score))
-        .then_with(|| left.new_second_score.cmp(&right.new_second_score))
-        .then_with(|| scope_rank(left.new_best_scope).cmp(&scope_rank(right.new_best_scope)))
+        .then_with(|| compare_relations(&left.relation, &right.relation))
         .then_with(|| compare_occurrences(&left.changed_occurrences, &right.changed_occurrences))
+}
+
+fn compare_relations(
+    left: &RecoveredRelationEvidence,
+    right: &RecoveredRelationEvidence,
+) -> Ordering {
+    match (left, right) {
+        (
+            RecoveredRelationEvidence::Near {
+                old_best_score: left_old_best_score,
+                old_second_score: left_old_second_score,
+                old_best_scope: left_old_best_scope,
+                new_best_score: left_new_best_score,
+                new_second_score: left_new_second_score,
+                new_best_scope: left_new_best_scope,
+            },
+            RecoveredRelationEvidence::Near {
+                old_best_score: right_old_best_score,
+                old_second_score: right_old_second_score,
+                old_best_scope: right_old_best_scope,
+                new_best_score: right_new_best_score,
+                new_second_score: right_new_second_score,
+                new_best_scope: right_new_best_scope,
+            },
+        ) => left_old_best_score
+            .cmp(right_old_best_score)
+            .then_with(|| left_old_second_score.cmp(right_old_second_score))
+            .then_with(|| scope_rank(*left_old_best_scope).cmp(&scope_rank(*right_old_best_scope)))
+            .then_with(|| left_new_best_score.cmp(right_new_best_score))
+            .then_with(|| left_new_second_score.cmp(right_new_second_score))
+            .then_with(|| scope_rank(*left_new_best_scope).cmp(&scope_rank(*right_new_best_scope))),
+        (RecoveredRelationEvidence::Near { .. }, RecoveredRelationEvidence::AnchoredGap { .. }) => {
+            Ordering::Less
+        }
+        (RecoveredRelationEvidence::AnchoredGap { .. }, RecoveredRelationEvidence::Near { .. }) => {
+            Ordering::Greater
+        }
+        (
+            RecoveredRelationEvidence::AnchoredGap { .. },
+            RecoveredRelationEvidence::AnchoredGap { .. },
+        ) => Ordering::Equal,
+    }
 }
 
 fn compare_spans(left: &TextSpan, right: &TextSpan) -> Ordering {
@@ -1163,7 +1240,7 @@ fn charge(
 #[cfg(test)]
 mod tests {
     use pdfdelta_core::{
-        diff::{ChangeOccurrence, TokenRange},
+        diff::{ChangeOccurrence, RecoveredAnchorRange, TokenRange},
         layout::{BlockId, BlockRole},
         model::{GlyphId, GlyphProvenance, PageId, Vec2},
         normalize::{MappedText, ScalarRange, SourceMapEntry, TextSource, TextSourceAtom},
@@ -1289,6 +1366,28 @@ mod tests {
     }
 
     #[test]
+    fn local_fragment_review_rejects_anchored_gap_relation() {
+        let (old_blocks, old_glyphs) = evidence_side(1, "old");
+        let (new_blocks, new_glyphs) = evidence_side(2, "new");
+        let mut trace = trace(1, 2, 1, 2);
+        trace.relation = RecoveredRelationEvidence::AnchoredGap {
+            old_before: anchor_range(1, 0, 1),
+            old_after: anchor_range(1, 2, 3),
+            new_before: anchor_range(2, 0, 1),
+            new_after: anchor_range(2, 2, 3),
+        };
+        let result = build_local_fragment_review_bundle_with_limit(
+            std::slice::from_ref(&trace),
+            &old_blocks,
+            &new_blocks,
+            &old_glyphs,
+            &new_glyphs,
+            1,
+        );
+        assert_eq!(result, Err(LocalFragmentReviewStopReason::InvalidTrace));
+    }
+
+    #[test]
     fn bundle_reports_deterministic_truncation() {
         let (old_blocks, old_glyphs) = evidence_side(1, "old");
         let (new_blocks, new_glyphs) = evidence_side(2, "new");
@@ -1370,12 +1469,14 @@ mod tests {
                 old: 5..5,
                 new: 5..6,
             }],
-            old_best_score: 8_000,
-            old_second_score: 7_000,
-            old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
-            new_best_score: 8_100,
-            new_second_score: 7_000,
-            new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+            relation: RecoveredRelationEvidence::Near {
+                old_best_score: 8_000,
+                old_second_score: 7_000,
+                old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+                new_best_score: 8_100,
+                new_second_score: 7_000,
+                new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+            },
         };
 
         let bundle = build_local_fragment_review_bundle(
@@ -1555,12 +1656,14 @@ mod tests {
                     new: 1..2,
                 },
             ],
-            old_best_score: 8_000,
-            old_second_score: 7_000,
-            old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
-            new_best_score: 8_100,
-            new_second_score: 7_000,
-            new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+            relation: RecoveredRelationEvidence::Near {
+                old_best_score: 8_000,
+                old_second_score: 7_000,
+                old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+                new_best_score: 8_100,
+                new_second_score: 7_000,
+                new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+            },
         }
     }
 
@@ -1570,6 +1673,14 @@ mod tests {
             separator: None,
             canonical_range: ScalarRange { start: 0, end: len },
             comparable_range: TokenRange { start: 0, end: len },
+        }
+    }
+
+    fn anchor_range(block: u64, start: usize, end: usize) -> RecoveredAnchorRange {
+        RecoveredAnchorRange {
+            block: BlockId(block),
+            canonical_range: ScalarRange { start, end },
+            comparable_range: TokenRange { start, end },
         }
     }
 

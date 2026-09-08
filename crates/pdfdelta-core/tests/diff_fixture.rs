@@ -246,7 +246,7 @@ fn does_not_tag_replacements_with_unmapped_tokens() -> Result<()> {
 }
 
 #[test]
-fn promotes_an_exact_move_candidate() -> Result<()> {
+fn retains_an_exact_move_candidate_without_crossing_evidence() -> Result<()> {
     let old = block(1, "Moved unique paragraph");
     let new = block(101, "Moved unique paragraph");
     let mut deletion = one_sided(AlignmentKind::Deletion, &[1], &[]);
@@ -264,21 +264,42 @@ fn promotes_an_exact_move_candidate() -> Result<()> {
 
     let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
 
-    assert_eq!(result.changes.len(), 1);
-    assert_eq!(result.changes[0].kind, ChangeKind::Move);
-    assert!(result.changes[0].occurrences[0].old_span.is_some());
-    assert!(result.changes[0].occurrences[0].new_span.is_some());
+    assert!(result.changes.is_empty());
+    assert_eq!(result.change_candidates.len(), 1);
+    assert_eq!(result.change_candidates[0].change.kind, ChangeKind::Move);
+    assert_eq!(
+        result.change_candidates[0].change.confidence,
+        Confidence::Medium
+    );
+    assert_eq!(result.change_candidates[0].change.occurrences.len(), 1);
+    assert_eq!(
+        result.change_candidates[0].change.occurrences[0]
+            .old_span
+            .as_ref()
+            .expect("move candidate should retain its old span")
+            .blocks,
+        [BlockId(1)]
+    );
+    assert_eq!(
+        result.change_candidates[0].change.occurrences[0]
+            .new_span
+            .as_ref()
+            .expect("move candidate should retain its new span")
+            .blocks,
+        [BlockId(101)]
+    );
     assert!(
         result.formatting_changes.is_empty(),
         "Exact identical raw move must not emit formatting changes"
     );
-    assert_eq!(result.old_coverage.ratio, Some(1.0));
-    assert_eq!(result.new_coverage.ratio, Some(1.0));
+    assert_eq!(result.unresolved_regions.len(), 2);
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
     Ok(())
 }
 
 #[test]
-fn keeps_a_non_exact_move_candidate_as_deletion_and_insertion() -> Result<()> {
+fn retains_a_non_exact_move_as_deletion_and_insertion_candidates() -> Result<()> {
     let old = block(1, "Old paragraph");
     let new = block(101, "New paragraph");
     let mut deletion = one_sided(AlignmentKind::Deletion, &[1], &[]);
@@ -296,14 +317,18 @@ fn keeps_a_non_exact_move_candidate_as_deletion_and_insertion() -> Result<()> {
 
     let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
 
+    assert!(result.changes.is_empty());
     assert_eq!(
         result
-            .changes
+            .change_candidates
             .iter()
-            .map(|change| change.kind)
+            .map(|candidate| candidate.change.kind)
             .collect::<Vec<_>>(),
         [ChangeKind::Deletion, ChangeKind::Insertion]
     );
+    assert_eq!(result.unresolved_regions.len(), 2);
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
     Ok(())
 }
 
@@ -616,7 +641,7 @@ fn reports_canonical_normalization_as_formatting_only() -> Result<()> {
 }
 
 #[test]
-fn reports_aligned_insertions_and_deletions_as_resolved() -> Result<()> {
+fn retains_unbounded_aligned_insertions_and_deletions_as_candidates() -> Result<()> {
     let old = [block(1, "A"), block(2, "removed")];
     let new = [block(101, "A"), block(102, "inserted")];
     let alignment = aligned(vec![
@@ -627,12 +652,19 @@ fn reports_aligned_insertions_and_deletions_as_resolved() -> Result<()> {
 
     let result = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
 
-    assert_eq!(result.changes.len(), 2);
-    assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
-    assert_eq!(result.changes[1].kind, ChangeKind::Insertion);
-    assert_eq!(result.old_coverage.resolved_tokens, 8);
+    assert!(result.changes.is_empty());
+    assert_eq!(
+        result
+            .change_candidates
+            .iter()
+            .map(|candidate| candidate.change.kind)
+            .collect::<Vec<_>>(),
+        [ChangeKind::Deletion, ChangeKind::Insertion]
+    );
+    assert_eq!(result.unresolved_regions.len(), 2);
+    assert_eq!(result.old_coverage.resolved_tokens, 1);
     assert_eq!(result.old_coverage.total_tokens, 8);
-    assert_eq!(result.new_coverage.resolved_tokens, 9);
+    assert_eq!(result.new_coverage.resolved_tokens, 1);
     assert_eq!(result.new_coverage.total_tokens, 9);
     Ok(())
 }
@@ -888,22 +920,15 @@ fn retains_a_weak_match_with_sparse_edits_as_uncertain_changes() -> Result<()> {
 
     let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
 
-    assert!(result.unresolved_regions.is_empty());
-    assert!(!result.changes.is_empty());
-    assert!(
-        result
-            .changes
-            .iter()
-            .all(|change| change.confidence == Confidence::Low)
-    );
-    assert_eq!(
-        result.old_coverage.resolved_tokens,
-        result.old_coverage.total_tokens
-    );
-    assert_eq!(
-        result.new_coverage.resolved_tokens,
-        result.new_coverage.total_tokens
-    );
+    assert!(result.changes.is_empty());
+    assert_eq!(result.change_candidates.len(), 2);
+    assert!(result.change_candidates.iter().all(|candidate| {
+        candidate.change.kind == ChangeKind::Replacement
+            && candidate.change.confidence == Confidence::Low
+    }));
+    assert_eq!(result.unresolved_regions.len(), 1);
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
     Ok(())
 }
 
@@ -1313,14 +1338,22 @@ fn rejects_competing_duplicate_move_candidates_as_deletion_and_insertion() -> Re
         !result.changes.iter().any(|c| c.kind == ChangeKind::Move),
         "Ambiguous competing move candidates must not be promoted to Move"
     );
+    assert!(result.changes.is_empty());
     assert_eq!(
-        result.changes.iter().map(|c| c.kind).collect::<Vec<_>>(),
+        result
+            .change_candidates
+            .iter()
+            .map(|candidate| candidate.change.kind)
+            .collect::<Vec<_>>(),
         [
             ChangeKind::Deletion,
             ChangeKind::Insertion,
             ChangeKind::Insertion
         ]
     );
+    assert_eq!(result.unresolved_regions.len(), 3);
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
     Ok(())
 }
 
@@ -1356,7 +1389,7 @@ fn rejects_repeated_identical_blocks_from_move_promotion() -> Result<()> {
 }
 
 #[test]
-fn promoted_move_with_raw_normalization_difference_preserves_formatting_change() -> Result<()> {
+fn retains_a_move_with_raw_normalization_difference_as_a_candidate() -> Result<()> {
     let old = block_with_raw(
         1,
         "Moved paragraph line one\nline two",
@@ -1378,20 +1411,22 @@ fn promoted_move_with_raw_normalization_difference_preserves_formatting_change()
 
     let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
 
-    assert_eq!(result.changes.len(), 1);
-    assert_eq!(result.changes[0].kind, ChangeKind::Move);
-    assert_eq!(result.formatting_changes.len(), 1);
+    assert!(result.changes.is_empty());
+    assert_eq!(result.change_candidates.len(), 1);
+    assert_eq!(result.change_candidates[0].change.kind, ChangeKind::Move);
     assert_eq!(
-        result.formatting_changes[0].reasons,
-        vec![FormattingReason::Normalization]
+        result.change_candidates[0].change.confidence,
+        Confidence::Medium
     );
-    assert_eq!(result.formatting_changes[0].old_span.blocks, [BlockId(1)]);
-    assert_eq!(result.formatting_changes[0].new_span.blocks, [BlockId(101)]);
+    assert!(result.formatting_changes.is_empty());
+    assert_eq!(result.unresolved_regions.len(), 2);
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
     Ok(())
 }
 
 #[test]
-fn rejects_asymmetric_move_candidate_evidence_as_deletion_and_insertion() -> Result<()> {
+fn retains_asymmetric_move_evidence_as_deletion_and_insertion_candidates() -> Result<()> {
     // Case A: Deletion lacks MoveCandidate evidence
     let old_a = block(1, "Moved paragraph text");
     let new_a = block(101, "Moved paragraph text");
@@ -1412,10 +1447,16 @@ fn rejects_asymmetric_move_candidate_evidence_as_deletion_and_insertion() -> Res
         !result_a.changes.iter().any(|c| c.kind == ChangeKind::Move),
         "Asymmetric move candidate (missing deletion evidence) must not promote to Move"
     );
+    assert!(result_a.changes.is_empty());
     assert_eq!(
-        result_a.changes.iter().map(|c| c.kind).collect::<Vec<_>>(),
+        result_a
+            .change_candidates
+            .iter()
+            .map(|candidate| candidate.change.kind)
+            .collect::<Vec<_>>(),
         [ChangeKind::Deletion, ChangeKind::Insertion]
     );
+    assert_eq!(result_a.unresolved_regions.len(), 2);
 
     // Case B: Insertion lacks MoveCandidate evidence
     let old_b = block(1, "Moved paragraph text");
@@ -1437,10 +1478,16 @@ fn rejects_asymmetric_move_candidate_evidence_as_deletion_and_insertion() -> Res
         !result_b.changes.iter().any(|c| c.kind == ChangeKind::Move),
         "Asymmetric move candidate (missing insertion evidence) must not promote to Move"
     );
+    assert!(result_b.changes.is_empty());
     assert_eq!(
-        result_b.changes.iter().map(|c| c.kind).collect::<Vec<_>>(),
+        result_b
+            .change_candidates
+            .iter()
+            .map(|candidate| candidate.change.kind)
+            .collect::<Vec<_>>(),
         [ChangeKind::Deletion, ChangeKind::Insertion]
     );
+    assert_eq!(result_b.unresolved_regions.len(), 2);
     Ok(())
 }
 
@@ -1510,7 +1557,7 @@ fn exact_diff_matches_stable_unmapped_block_with_zero_changes() -> Result<()> {
 }
 
 #[test]
-fn promotes_an_exact_unmapped_move_candidate() -> Result<()> {
+fn retains_an_exact_unmapped_move_candidate_without_crossing_evidence() -> Result<()> {
     let hash = vec![0x55, 0x66, 0x77];
     let old = multi_unmapped_block(1, hash.clone(), &[10, 20, 30]);
     let new = multi_unmapped_block(101, hash, &[10, 20, 30]);
@@ -1529,13 +1576,34 @@ fn promotes_an_exact_unmapped_move_candidate() -> Result<()> {
 
     let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
 
-    assert_eq!(result.changes.len(), 1);
-    assert_eq!(result.changes[0].kind, ChangeKind::Move);
-    assert!(result.changes[0].occurrences[0].old_span.is_some());
-    assert!(result.changes[0].occurrences[0].new_span.is_some());
+    assert!(result.changes.is_empty());
+    assert_eq!(result.change_candidates.len(), 1);
+    assert_eq!(result.change_candidates[0].change.kind, ChangeKind::Move);
+    assert_eq!(
+        result.change_candidates[0].change.confidence,
+        Confidence::Medium
+    );
+    assert_eq!(result.change_candidates[0].change.occurrences.len(), 1);
+    assert_eq!(
+        result.change_candidates[0].change.occurrences[0]
+            .old_span
+            .as_ref()
+            .expect("move candidate should retain its old span")
+            .comparable_range,
+        TokenRange { start: 0, end: 3 }
+    );
+    assert_eq!(
+        result.change_candidates[0].change.occurrences[0]
+            .new_span
+            .as_ref()
+            .expect("move candidate should retain its new span")
+            .comparable_range,
+        TokenRange { start: 0, end: 3 }
+    );
     assert!(result.formatting_changes.is_empty());
-    assert_eq!(result.old_coverage.ratio, Some(1.0));
-    assert_eq!(result.new_coverage.ratio, Some(1.0));
+    assert_eq!(result.unresolved_regions.len(), 2);
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
     Ok(())
 }
 
@@ -1706,7 +1774,7 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         [FormattingReason::BlockStructure]
     );
 
-    // Verify Changes by kind and confidence
+    // Verify established changes by kind and confidence
     let fuzzy_strong = diff
         .changes
         .iter()
@@ -1734,74 +1802,84 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
     assert_eq!(fuzzy_weak.confidence, Confidence::Low);
 
     let move_clean = diff
-        .changes
+        .change_candidates
         .iter()
-        .find(|c| {
-            c.occurrences[0]
+        .find(|candidate| {
+            candidate.change.occurrences[0]
                 .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(5)])
         })
-        .expect("clean move change must be found");
-    assert_eq!(move_clean.kind, ChangeKind::Move);
-    assert_eq!(move_clean.confidence, Confidence::Medium);
+        .expect("clean move candidate must be found");
+    assert_eq!(move_clean.change.kind, ChangeKind::Move);
+    assert_eq!(move_clean.change.confidence, Confidence::Medium);
 
     let move_issue = diff
-        .changes
+        .change_candidates
         .iter()
-        .find(|c| {
-            c.occurrences[0]
+        .find(|candidate| {
+            candidate.change.occurrences[0]
                 .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(6)])
         })
-        .expect("issue move change must be found");
-    assert_eq!(move_issue.kind, ChangeKind::Move);
-    assert_eq!(move_issue.confidence, Confidence::Low); // Bounded by weakest side
+        .expect("issue move candidate must be found");
+    assert_eq!(move_issue.change.kind, ChangeKind::Move);
+    assert_eq!(move_issue.change.confidence, Confidence::Low); // Bounded by weakest side
 
     let del_clean = diff
-        .changes
+        .change_candidates
         .iter()
-        .find(|c| {
-            c.occurrences[0]
+        .find(|candidate| {
+            candidate.change.occurrences[0]
                 .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(7)])
         })
-        .expect("clean deletion change must be found");
-    assert_eq!(del_clean.kind, ChangeKind::Deletion);
-    assert_eq!(del_clean.confidence, Confidence::Medium);
+        .expect("clean deletion candidate must be found");
+    assert_eq!(del_clean.change.kind, ChangeKind::Deletion);
+    assert_eq!(del_clean.change.confidence, Confidence::Medium);
 
     let ins_clean = diff
-        .changes
+        .change_candidates
         .iter()
-        .find(|c| {
-            c.occurrences[0]
+        .find(|candidate| {
+            candidate.change.occurrences[0]
                 .new_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(108)])
         })
-        .expect("clean insertion change must be found");
-    assert_eq!(ins_clean.kind, ChangeKind::Insertion);
-    assert_eq!(ins_clean.confidence, Confidence::Medium);
+        .expect("clean insertion candidate must be found");
+    assert_eq!(ins_clean.change.kind, ChangeKind::Insertion);
+    assert_eq!(ins_clean.change.confidence, Confidence::Medium);
 
     let del_issue = diff
-        .changes
+        .change_candidates
         .iter()
-        .find(|c| {
-            c.occurrences[0]
+        .find(|candidate| {
+            candidate.change.occurrences[0]
                 .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(8)])
         })
-        .expect("issue deletion change must be found");
-    assert_eq!(del_issue.kind, ChangeKind::Deletion);
-    assert_eq!(del_issue.confidence, Confidence::Low);
+        .expect("issue deletion candidate must be found");
+    assert_eq!(del_issue.change.kind, ChangeKind::Deletion);
+    assert_eq!(del_issue.change.confidence, Confidence::Low);
 
     // Verify UnresolvedRegion
-    assert_eq!(diff.unresolved_regions.len(), 1);
+    assert_eq!(diff.unresolved_regions.len(), 8);
+    let unresolved_issue = diff
+        .unresolved_regions
+        .iter()
+        .find(|region| {
+            region
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(9)])
+        })
+        .expect("issue region must remain unresolved");
     assert_eq!(
-        diff.unresolved_regions[0]
+        unresolved_issue
             .old_span
             .as_ref()
             .expect("old span must be present")
@@ -1809,7 +1887,7 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         [BlockId(9)]
     );
     assert_eq!(
-        diff.unresolved_regions[0]
+        unresolved_issue
             .new_span
             .as_ref()
             .expect("new span must be present")
