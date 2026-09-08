@@ -190,14 +190,18 @@ fn group_variants(features: &[BlockFeatures], ngram_size: usize) -> Vec<GroupVar
     if joins.iter().all(Option::is_some) {
         let first = joins[0].expect("checked boundary");
         let separator = if joins.iter().all(|join| *join == Some(first)) {
-            first
-        } else {
-            BlockSeparator::PerBoundary([
+            Some(first)
+        } else if features.len() == 3 {
+            Some(BlockSeparator::PerBoundary([
                 joins[0] == Some(BlockSeparator::Space),
                 joins[1] == Some(BlockSeparator::Space),
-            ])
+            ]))
+        } else {
+            None
         };
-        return vec![group_variant(features, separator, ngram_size, true)];
+        if let Some(separator) = separator {
+            return vec![group_variant(features, separator, ngram_size, true)];
+        }
     }
     let mut variants = vec![group_variant(
         features,
@@ -305,4 +309,69 @@ fn precomputed_token_similarity(
         return 1.0;
     }
     multiset_dice_similarity(left_counts, right_counts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        alignment::ExactHash,
+        layout::{BlockId, BlockRole},
+    };
+
+    #[test]
+    fn oversized_mixed_groups_remain_ambiguous_without_panicking() {
+        let feature = |id, text: &str| {
+            let tokens = text
+                .chars()
+                .map(ComparableToken::Scalar)
+                .collect::<Vec<_>>();
+            BlockFeatures {
+                block: BlockId(id),
+                role: BlockRole::Body,
+                exact_hash: ExactHash(0),
+                canonical_tokens: tokens.clone(),
+                matching_tokens: tokens,
+                ngram_counts: NGramCounts::new(),
+                ngram_size: 3,
+                page_position: None,
+                numeric_mask_applied: false,
+                has_normalization_issues: false,
+                first_position: None,
+                last_position: None,
+                first_page: Some(id as u32),
+                last_page: Some(id as u32),
+                first_font_size: None,
+                last_font_size: None,
+            }
+        };
+        let parts = ["New", "York", "市", "区", "外"];
+        for count in [4, 5] {
+            let old = [feature(
+                100,
+                &format!("New York{}", parts[2..count].concat()),
+            )];
+            let new = parts[..count]
+                .iter()
+                .enumerate()
+                .map(|(index, text)| feature(index as u64, text))
+                .collect::<Vec<_>>();
+            let score = score_groups(
+                &old,
+                &new,
+                ScoreOptions {
+                    matching_weight: 0.5,
+                    canonical_weight: 0.5,
+                    min_score_margin: 0.08,
+                },
+            );
+            assert!(score.separator_ambiguous);
+            assert!(!score.exact_canonical);
+            assert!(
+                score
+                    .new_separator
+                    .is_some_and(|separator| separator.valid_for(count))
+            );
+        }
+    }
 }
