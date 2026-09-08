@@ -189,7 +189,7 @@ fn reports_proven_content_difference_separately_from_exact_changes() -> Result<(
     )?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
-    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["schema_version"], 10);
     assert_eq!(json["summary"]["content_changes"], 0);
     assert_eq!(json["summary"]["proven_changed_regions"], 1);
     assert_eq!(
@@ -360,7 +360,7 @@ fn reports_page_tree_gap_scope_without_synthesizing_a_page() -> Result<()> {
     write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
-    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["schema_version"], 10);
     assert_eq!(json["extraction"]["issues"][0]["scope"], "page_gap");
     assert_eq!(json["extraction"]["issues"][0]["retained_pages_before"], 2);
     assert!(json["extraction"]["issues"][0].get("page").is_none());
@@ -442,7 +442,7 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["schema_version"], 10);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -506,7 +506,7 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["schema_version"], 10);
     assert_eq!(
         json["formatting_only_changes"][0]["old_span"]["block_separator"],
         "space"
@@ -514,6 +514,53 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     assert_eq!(
         json["formatting_only_changes"][0]["new_span"]["block_separator"],
         "concatenate"
+    );
+    Ok(())
+}
+
+#[test]
+fn mixed_boundary_patterns_survive_text_and_source_projection() -> Result<()> {
+    let blocks = [
+        sourced_block(1, "New", vec![glyph_entry(0, 3, 1)]),
+        sourced_block(2, "York", vec![glyph_entry(0, 4, 2)]),
+        sourced_block(3, "市", vec![glyph_entry(0, 1, 3)]),
+    ];
+    let span = TextSpan {
+        blocks: vec![BlockId(1), BlockId(2), BlockId(3)],
+        separator: Some(BlockSeparator::PerBoundary([true, false])),
+        canonical_range: ScalarRange { start: 0, end: 9 },
+        comparable_range: TokenRange { start: 0, end: 9 },
+    };
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(span),
+        new_span: None,
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+    });
+    let mut output = Vec::new();
+    write_json(
+        &mut output,
+        &blocks,
+        &[],
+        &[glyph_evidence(1), glyph_evidence(2), glyph_evidence(3)],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON");
+    let span = &json["unresolved_regions"][0]["old_span"];
+    assert_eq!(span["text"], "New York市");
+    assert_eq!(
+        span["block_separators"],
+        serde_json::json!(["space", "concatenate"])
+    );
+    let sources = span["sources"].as_array().expect("source evidence");
+    assert_eq!(
+        sources
+            .iter()
+            .filter(|source| source["kind"] == "block_separator_space")
+            .count(),
+        1
     );
     Ok(())
 }
@@ -569,7 +616,7 @@ fn json_report_serializes_unknown_reading_order_evidence() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["schema_version"], 10);
     assert_eq!(
         json["unresolved_regions"][0]["evidence"][0],
         "reading_order_unknown"
@@ -607,7 +654,7 @@ fn json_report_projects_replacement_glyph_provenance() -> Result<()> {
     let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
     let source = &json["changes"][0]["occurrences"][0]["old_span"]["sources"][0];
 
-    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["schema_version"], 10);
     assert_eq!(source["kind"], "glyph");
     assert_eq!(source["glyph_id"], 1);
     assert_eq!(source["page"], 0);
@@ -2274,7 +2321,7 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["schema_version"], 10);
     assert_eq!(json["changes"][0]["kind"], "replacement");
     assert_eq!(json["changes"][0]["confidence"], "low");
     assert_eq!(json["changes"][0]["tags"][0], "ocr_confusion");

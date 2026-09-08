@@ -284,7 +284,7 @@ pub struct Change {
 }
 ```
 
-`TextSpan`はBlock集合、複数Blockを結合した際の`BlockSeparator`、canonical文字範囲、comparable token範囲を保持する。単一Blockではseparatorを持たず、複数Blockでは`Concatenate`または`Space`を必須とする。これにより同じBlock集合でも結合方法によって変わる範囲indexを一意に解釈できる。
+`TextSpan`はBlock集合、複数Blockを結合した際の`BlockSeparator`、canonical文字範囲、comparable token範囲を保持する。A single-block span has no separator. Multi-block spans require `Concatenate`, `Space`, or an explicit per-boundary pattern. The current ordered alignment supports at most three blocks per group; mixed patterns therefore store two boundary decisions.これにより同じBlock集合でも結合方法によって変わる範囲indexを一意に解釈できる。
 
 変更の単位は「対応付いたBlock集合の上のcanonical文字範囲」とする。範囲indexは§8のUnicode scalar indexであり、`MappedText.source_map`を通じてGlyph、page、geometryへ逆写像できる。
 「1 replacement」とは、連続するcanonical文字範囲の置換1件を指す。
@@ -504,7 +504,13 @@ canonicalで吸収するのは、文章としての同一性に影響しない�
 
 **吸収する**：Unicode正規化(NFC)、soft line breakの文脈依存join、連続空白の単一化、行末ハイフネーションの結合、ligature展開。
 
-Line境界は一律に空文字へ置換しない。同一Block内のsoft line breakについて、前後がLatin letter / digitなら原則single space、CJK同士なら原則empty、line-end hyphenationならhyphenとbreakを除去する。明示spaceが既にある場合は重複させない。判定が曖昧な場合はrawを保持してUNRESOLVEDまたは低confidenceのFormatting-onlyとし、単語を黙って連結しない。Paragraph境界はBlock境界でありcanonicalから除去しない。
+Soft line breaks are not uniformly deleted. Latin letter/digit boundaries normally insert one space, while CJK and mixed CJK/alphanumeric boundaries concatenate; explicit whitespace is not duplicated. A source U+00AD discretionary hyphen at a line end may be removed with its break. Ordinary `-` and U+2010 are retained: character shape or word length cannot prove discretionary hyphenation. When a lexical interpretation is uncertain, the hyphen source range remains unresolved. Paragraph boundaries remain recoverable block boundaries.
+
+**Independent interpretation evidence:** The existence of an interpretation that matches the other document is not, by itself, evidence that the interpretation is correct. Matching hypotheses may improve recall, but Exact Diff may consume only independently justified source/layout interpretations. Every inter-block boundary is decided independently using retained whitespace, script rules, and source line positions. Unknown joins remain unresolved even when a candidate variant matches exactly.
+
+Canonical insertion boundaries use the complete contributing raw source set. An exact boundary is distinct from a boundary inside a shared source (such as an expanded ligature) or an ambiguous interval containing deleted evidence. NFC composition must project its trailing boundary after every contributing scalar. Source merging preserves first-occurrence order and switches from bounded linear scans to set-based deduplication for large runs.
+
+Ordered-alignment uncertainty belongs to correspondences, not edit-operation order. In ambiguous intervals, a match is retained only when the best complete path excluding that match has a sufficient score deficit. These replays consume the shared DP cell budget; exhaustion leaves unproven ranges unresolved. Heading candidates retain weak or missing evidence independently of section acceptance; multiline or non-prominent candidates do not weaken the existing proof required for a section or Move.
 
 **吸収しない**：全角/半角の差(NFKC相当の互換分解)。全角半角の統一は識別子、型番、契約番号などで意味のある改訂になり得るため、暗黙に同一視してはいけない。NFKCではなくNFCを採用するのはこのためである。
 

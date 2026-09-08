@@ -176,6 +176,14 @@ impl<'a> SpanSourceProjector<'a> {
     /// Returns an error for missing or inconsistent evidence, malformed
     /// ranges, or a configured resource limit.
     pub fn project(&self, span: &TextSpan) -> Result<Vec<SpanSourceEvidence>> {
+        if span
+            .separator
+            .is_some_and(|separator| !separator.valid_for(span.blocks.len()))
+        {
+            return Err(Error::InvalidConfiguration(
+                "separator pattern does not cover its block group".to_owned(),
+            ));
+        }
         if span.comparable_range.start > span.comparable_range.end
             || span.canonical_range.start > span.canonical_range.end
         {
@@ -199,7 +207,9 @@ impl<'a> SpanSourceProjector<'a> {
             let (first_token, last_token) = block_boundary_tokens(block);
             let inserts_separator = position > 0
                 && separator_inserts_space_tokens(
-                    span.separator.unwrap_or(BlockSeparator::Concatenate),
+                    span.separator
+                        .unwrap_or(BlockSeparator::Concatenate)
+                        .at(position - 1),
                     previous_token,
                     first_token,
                 );
@@ -257,7 +267,9 @@ impl<'a> SpanSourceProjector<'a> {
             append_block_tokens(&mut tokens, block, canonical_offset);
             if position > 0
                 && separator_inserts_space(
-                    span.separator.unwrap_or(BlockSeparator::Concatenate),
+                    span.separator
+                        .unwrap_or(BlockSeparator::Concatenate)
+                        .at(position - 1),
                     block_start_token
                         .checked_sub(1)
                         .and_then(|index| tokens.get(index)),

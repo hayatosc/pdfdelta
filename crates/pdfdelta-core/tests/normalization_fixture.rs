@@ -121,9 +121,9 @@ fn separates_decimal_digits_across_soft_line_breaks_like_ascii_digits() {
 
 #[test]
 fn joins_line_end_hyphenation_and_records_deleted_evidence() {
-    let text = normalize_mapped_lines(&["adminis-", "tration"]);
+    let text = normalize_mapped_lines(&["adminis\u{ad}", "tration"]);
 
-    assert_eq!(text.raw.text, "adminis-\ntration");
+    assert_eq!(text.raw.text, "adminis\u{ad}\ntration");
     assert_eq!(text.canonical.text, "administration");
     let event = text
         .normalization_events
@@ -133,6 +133,116 @@ fn joins_line_end_hyphenation_and_records_deleted_evidence() {
     assert_eq!(event.raw_range, ScalarRange { start: 7, end: 9 });
     assert_eq!(event.canonical_range, ScalarRange { start: 7, end: 7 });
     assert_eq!(event.source.atoms.len(), 2);
+}
+
+#[test]
+fn ordinary_wrapped_hyphens_preserve_semantic_distinctions() {
+    for hyphen in ["-", "\u{2010}"] {
+        let prefix = format!("Please re{hyphen}");
+        let wrapped = normalize_mapped_lines(&[&prefix, "sign the document."]);
+        let lexical = normalize_mapped_lines(&[&format!("Please re{hyphen}sign the document.")]);
+        let unhyphenated = normalize_mapped_lines(&["Please resign the document."]);
+        assert_eq!(wrapped.canonical.text, lexical.canonical.text);
+        assert_ne!(wrapped.canonical.text, unhyphenated.canonical.text);
+        assert_eq!(wrapped.issues.len(), 1);
+        assert_eq!(
+            wrapped.issues[0].raw_range,
+            ScalarRange { start: 9, end: 10 }
+        );
+    }
+}
+
+#[test]
+fn exact_diff_does_not_absorb_an_ambiguous_wrapped_hyphen() {
+    use pdfdelta_core::{
+        alignment::{
+            AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
+        },
+        diff::{DiffOptions, compare_aligned},
+    };
+    let old = [normalize_mapped_lines(&[
+        "Please re-",
+        "sign the document.",
+    ])];
+    for (text, lexical) in [
+        ("Please resign the document.", false),
+        ("Please re-sign the document.", true),
+    ] {
+        let new = [normalize_mapped_lines(&[text])];
+        let old_features = build_block_features(&old, 3).expect("valid fixture");
+        let new_features = build_block_features(&new, 3).expect("valid fixture");
+        let generator = InvertedIndexCandidateGenerator::new(&new_features).expect("valid fixture");
+        let alignment = align_ordered(
+            &old_features,
+            &new_features,
+            &generator,
+            AlignmentOptions::default(),
+        )
+        .expect("valid fixture");
+        let result =
+            compare_aligned(&old, &new, &alignment, DiffOptions::default()).expect("valid fixture");
+        if lexical {
+            assert!(
+                result.changes.is_empty(),
+                "reflow must not invent a lexical change"
+            );
+        } else {
+            assert!(
+                !result.changes.is_empty() || !result.unresolved_regions.is_empty(),
+                "uncertain hyphenation must not prove equality"
+            );
+        }
+    }
+}
+
+#[test]
+fn large_whitespace_run_preserves_first_occurrence_source_order() {
+    let count = 100_000;
+    let text = normalize_mapped_lines(&[&" ".repeat(count)]);
+    assert_eq!(text.canonical.text, " ");
+    let sources = &text.canonical.source_map[0].source.atoms;
+    assert_eq!(sources.len(), count);
+    for (index, atom) in sources.iter().enumerate() {
+        assert_eq!(*atom, TextSourceAtom::Glyph(GlyphId(index as u64 + 1)));
+    }
+}
+
+#[test]
+fn insertion_boundaries_respect_composition_and_expansion_sources() {
+    use pdfdelta_core::normalize::RawBoundary;
+
+    let nfc = normalize_mapped_lines(&["e\u{301}x"]);
+    assert_eq!(
+        nfc.canonical_to_raw_boundary(0),
+        Some(RawBoundary::Exact(0))
+    );
+    assert_eq!(
+        nfc.canonical_to_raw_boundary(1),
+        Some(RawBoundary::Exact(2))
+    );
+    assert_eq!(
+        nfc.canonical_to_raw_range(ScalarRange { start: 1, end: 1 }),
+        ScalarRange { start: 2, end: 2 }
+    );
+    let ligature = normalize_mapped_lines(&["\u{fb01}x"]);
+    assert_eq!(
+        ligature.canonical_to_raw_boundary(0),
+        Some(RawBoundary::Exact(0))
+    );
+    assert_eq!(
+        ligature.canonical_to_raw_boundary(1),
+        Some(RawBoundary::WithinSource(ScalarRange { start: 0, end: 1 }))
+    );
+    assert_eq!(
+        ligature.canonical_to_raw_boundary(2),
+        Some(RawBoundary::Exact(1))
+    );
+    assert_eq!(ligature.canonical_to_raw_boundary(4), None);
+    let deleted = normalize_mapped_lines(&["東", "京"]);
+    assert_eq!(
+        deleted.canonical_to_raw_boundary(1),
+        Some(RawBoundary::Ambiguous(ScalarRange { start: 1, end: 2 }))
+    );
 }
 
 #[test]
@@ -518,9 +628,9 @@ fn lexical_hyphen_with_single_letter_prefix_is_retained() {
 
 #[test]
 fn bidirectional_source_mapping_projects_ranges_and_glyph_ids() {
-    let text = normalize_mapped_lines(&["adminis-", "tration"]);
+    let text = normalize_mapped_lines(&["adminis\u{ad}", "tration"]);
 
-    // Raw: "adminis-\ntration" (16 chars)
+    // Raw: "adminis\u{ad}\ntration" (16 chars)
     // Canonical: "administration" (14 chars)
     assert_eq!(text.canonical.text, "administration");
 

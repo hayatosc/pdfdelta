@@ -925,7 +925,9 @@ fn span_contains_location(
             .map_err(|error| DiagnosticScanError::Invalid(error.to_string()))?;
         budget.charge_scan(tokens.len(), limits)?;
         if position > 0
-            && span.separator == Some(BlockSeparator::Space)
+            && span
+                .separator
+                .is_some_and(|separator| separator.at(position - 1) == BlockSeparator::Space)
             && !previous_last.as_ref().is_some_and(is_space_token)
             && !tokens.first().is_some_and(is_space_token)
         {

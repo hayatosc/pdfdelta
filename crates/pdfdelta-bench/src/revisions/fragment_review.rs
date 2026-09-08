@@ -79,6 +79,7 @@ pub enum LocalFragmentReviewOriginReport {
 pub enum LocalFragmentBlockSeparatorReport {
     Concatenate,
     Space,
+    PerBoundary([bool; 2]),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -532,7 +533,8 @@ fn collect_context_tokens(
         } else {
             append_with_separator(
                 &mut tokens,
-                span.separator == Some(BlockSeparator::Space),
+                span.separator
+                    .is_some_and(|separator| separator.at(index - 1) == BlockSeparator::Space),
                 &next,
             );
         }
@@ -720,7 +722,9 @@ fn context_block_offset(
             .map_err(|_| LocalFragmentReviewStopReason::InvalidTrace)?;
         budget.charge_work(tokens.len())?;
         if index > 0
-            && context.separator == Some(BlockSeparator::Space)
+            && context
+                .separator
+                .is_some_and(|separator| separator.at(index - 1) == BlockSeparator::Space)
             && previous_is_space != Some(true)
             && !tokens.first().is_some_and(is_space_token)
         {
@@ -863,6 +867,9 @@ fn span_report(
         separator: span.separator.map(|separator| match separator {
             BlockSeparator::Concatenate => LocalFragmentBlockSeparatorReport::Concatenate,
             BlockSeparator::Space => LocalFragmentBlockSeparatorReport::Space,
+            BlockSeparator::PerBoundary(spaces) => {
+                LocalFragmentBlockSeparatorReport::PerBoundary(spaces)
+            }
         }),
         canonical_start: span.canonical_range.start,
         canonical_end: span.canonical_range.end,
@@ -1004,6 +1011,9 @@ fn separator_rank(separator: Option<BlockSeparator>) -> u8 {
         None => 0,
         Some(BlockSeparator::Concatenate) => 1,
         Some(BlockSeparator::Space) => 2,
+        Some(BlockSeparator::PerBoundary([first, second])) => {
+            3 + u8::from(first) * 2 + u8::from(second)
+        }
     }
 }
 
