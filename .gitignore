@@ -13,3 +13,7 @@
 
 # Downloaded real-world benchmark documents are never vendored.
 benchmark/realworld/cache/
+
+# Keep evaluation documents and curated summaries; omit execution logs.
+benchmark/realworld/results/**/*.log
+benchmark/realworld/results/**/*.process.json

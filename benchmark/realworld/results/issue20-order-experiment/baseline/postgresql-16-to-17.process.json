@@ -1,7 +1,0 @@
-{
-  "pair": "postgresql-16-to-17",
-  "set": "holdout",
-  "annotation": "none",
-  "status": "not_run",
-  "reason": "prioritized crash-fixed annotated comparison after all 12 original annotated pairs completed"
-}

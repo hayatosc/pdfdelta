@@ -1,5 +1,0 @@
-Loading weights:   0%|          | 0/858 [00:00<?, ?it/s]Loading weights:  25%|██▍       | 212/858 [00:00<00:00, 2096.14it/s]Loading weights:  49%|████▉     | 422/858 [00:00<00:00, 1910.14it/s]Loading weights:  72%|███████▏  | 615/858 [00:00<00:00, 1809.20it/s]Loading weights:  94%|█████████▎| 803/858 [00:00<00:00, 1834.18it/s]Loading weights: 100%|██████████| 858/858 [00:00<00:00, 1874.41it/s]
-page=0 regions=6 seconds=2.837
-page=1 regions=27 seconds=2.736
-page=2 regions=6 seconds=2.618
-page=3 regions=5 seconds=2.554

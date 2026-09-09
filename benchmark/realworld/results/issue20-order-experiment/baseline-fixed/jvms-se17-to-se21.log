@@ -1,2 +1,0 @@
-LIMIT pair=jvms-se17-to-se21 set=dev role=standard provenance=verified compared=false runtime_ms=68409 candidate_visits=63589112/128000000 required_candidate_visits=63589112 required_candidate_components=exact:106996,ngram:63469572,short_fallback:12544 limit_failure="exact uniqueness DP memory exceeded its limit of 67108864" quality_skipped="comparison stopped at a resource limit"
-0/1 revision pairs healthy; 1 stopped at resource limits; 0 failed

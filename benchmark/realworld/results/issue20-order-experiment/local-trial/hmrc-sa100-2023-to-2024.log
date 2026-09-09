@@ -1,2 +1,0 @@
-OK pair=hmrc-sa100-2023-to-2024 set=holdout role=stress provenance=verified extracted=incomplete comparison=incomplete coverage=old=unknown,new=unknown,comp=unknown unresolved=90 runtime_ms=114 candidate_visits=10932/4000000 required_candidate_visits=10932 required_candidate_components=exact:24,ngram:10878,short_fallback:30 quality_skipped="no expected annotations are recorded for this pair"
-1/1 revision pairs healthy; 0 stopped at resource limits; 0 failed
