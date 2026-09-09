@@ -13,7 +13,7 @@ use crate::{
 
 mod content_stream;
 
-pub use content_stream::ContentStreamGlyphExtractor;
+pub use content_stream::{ContentStreamGlyphExtractor, PageCoordinateFrame};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExtractionLimits {

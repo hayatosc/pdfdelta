@@ -6,7 +6,7 @@ pub mod backend;
 pub(crate) mod content;
 pub(crate) mod font;
 
-pub use backend::LopdfParser;
+pub use backend::{LopdfParser, decode_text_string};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParseLimits {

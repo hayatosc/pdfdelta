@@ -917,8 +917,218 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
         None,
     );
 
-    let document = extract(pdf, ExtractionLimits::default())?;
+    use pdfdelta_core::document::{
+        BackendIdentity, BackendKind, Channel, DocumentGraph, EvidenceLimits, EvidenceStore,
+        GraphLimits, NodeContent, NodeKind, PageEvidence, SourceRef, StructureLimits,
+        StructuredValue, extract_structure_evidence,
+    };
+    let page = pdf.get_pages()[&1];
+    let root = pdf.new_object_id();
+    let table = pdf.new_object_id();
+    let row = pdf.new_object_id();
+    let cell = pdf.add_object(
+        dictionary! { "Type" => "StructElem", "S" => "TD", "P" => row, "Pg" => page, "K" => 0 },
+    );
+    pdf.objects.insert(
+        row,
+        Object::Dictionary(
+            dictionary! { "Type" => "StructElem", "S" => "TR", "P" => table, "K" => cell },
+        ),
+    );
+    pdf.objects.insert(
+        table,
+        Object::Dictionary(
+            dictionary! { "Type" => "StructElem", "S" => "Table", "P" => root, "K" => row },
+        ),
+    );
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => table }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("catalog reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog")
+        .as_dict_mut()
+        .expect("catalog dictionary")
+        .set("StructTreeRoot", root);
+
+    let document = extract(pdf.clone(), ExtractionLimits::default())?;
     assert_eq!(mapped_text(document.items()), "Tagged note");
+    let sequence = &document.marked_content()[0];
+    assert_eq!(sequence.mcid, 0);
+    assert_eq!(sequence.form, None);
+    assert_eq!(sequence.glyph_range, 0..11);
+    assert!(sequence.complete);
+    for mcid in [0, 99] {
+        pdf.get_object_mut(cell)
+            .expect("cell")
+            .as_dict_mut()
+            .expect("cell dictionary")
+            .set("K", mcid);
+        let mut bytes = Vec::new();
+        pdf.save_to(&mut bytes).expect("tagged PDF");
+        let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+        let outcome = ContentStreamGlyphExtractor
+            .extract_outcome(parsed.as_ref(), ExtractionLimits::default())?;
+        let mut store = EvidenceStore::from_native(
+            "tagged-fixture".into(),
+            BackendIdentity {
+                kind: BackendKind::NativeParser,
+                name: "fixture".into(),
+                version: "1".into(),
+                profile: "tags".into(),
+                model: None,
+            },
+            vec![PageEvidence {
+                page: pdfdelta_core::model::PageId(0),
+                bounds: None,
+            }],
+            outcome,
+            EvidenceLimits::default(),
+        )?;
+        let tags = extract_structure_evidence(
+            parsed.as_ref(),
+            &store.native,
+            0,
+            0,
+            StructureLimits::default(),
+        )?;
+        assert_eq!(tags.elements.len(), 3);
+        if mcid == 0 {
+            let limited = extract_structure_evidence(
+                parsed.as_ref(),
+                &store.native,
+                0,
+                0,
+                StructureLimits {
+                    max_depth: 0,
+                    ..StructureLimits::default()
+                },
+            )?;
+            assert_eq!(limited.elements.len(), 1);
+            assert!(limited.issues.iter().any(|issue| issue.kind
+                == pdfdelta_core::document::EvidenceFailure::ResourceLimit
+                && issue.reason.contains("structure nesting depth")));
+        }
+        let StructuredValue::StructureElement { glyphs, .. } = &tags.elements[2].value else {
+            panic!("tagged cell");
+        };
+        assert_eq!(glyphs.len(), if mcid == 0 { 11 } else { 0 });
+        store.structured = tags.elements;
+        store.issues.extend(tags.issues);
+        store.inventories.push(tags.inventory);
+        let graph = DocumentGraph::from_evidence(
+            &store,
+            PipelineOptions::default(),
+            EvidenceLimits::default(),
+            GraphLimits::default(),
+        )?;
+        let cell = graph
+            .nodes
+            .iter()
+            .find(|node| node.kind == NodeKind::Cell)
+            .expect("cell view");
+        if mcid == 0 {
+            let NodeContent::Text { view } = &cell.content else {
+                panic!("native cell text");
+            };
+            assert_eq!(view.tokens.len(), 11);
+            assert!(view.origins.iter().all(|origins| {
+                origins
+                    .iter()
+                    .any(|source| matches!(source, SourceRef::Native { .. }))
+                    && origins
+                        .iter()
+                        .any(|source| matches!(source, SourceRef::Structured { .. }))
+            }));
+            assert_eq!(
+                cell.sources
+                    .iter()
+                    .filter(|source| matches!(source, SourceRef::Native { .. }))
+                    .count(),
+                11
+            );
+        } else {
+            assert!(
+                store
+                    .issues
+                    .iter()
+                    .any(|issue| issue.reason.contains("marked content was not extracted"))
+            );
+        }
+        assert_eq!(mapped_text(store.native.items()), "Tagged note");
+        assert!(!store.inventory_complete(None, Channel::Relations));
+    }
+    Ok(())
+}
+
+#[test]
+fn incomplete_marked_content_preserves_native_glyphs() -> Result<()> {
+    for suffix in ["", "1 EMC"] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("/P << /MCID 7 >> BDC BT /F1 10 Tf (Keep) Tj ET {suffix}").into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+            None,
+            None,
+        );
+        let document = extract(pdf, ExtractionLimits::default())?;
+        assert_eq!(mapped_text(document.items()), "Keep");
+        assert_eq!(document.marked_content()[0].glyph_range, 0..4);
+        assert!(!document.marked_content()[0].complete);
+    }
+    Ok(())
+}
+
+#[test]
+fn repeated_form_marked_content_retains_each_invocation() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(dictionary! {
+        "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+        "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } },
+    }, b"/Span << /MCID 0 >> BDC BT /F1 10 Tf (A) Tj ET EMC".to_vec()));
+    let contents = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/P << /MCID 0 >> BDC /X Do /X Do EMC".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        contents.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let document = extract(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(document.items()), "AA");
+    let sequences = document.marked_content();
+    assert_eq!(sequences.len(), 3);
+    assert_eq!(sequences[0].form, None);
+    assert_eq!(sequences[0].glyph_range, 0..2);
+    assert_eq!(
+        sequences[1].form,
+        Some(pdfdelta_core::pdf::ObjectRef {
+            object_number: form.0,
+            generation: form.1
+        })
+    );
+    assert_eq!(sequences[1].glyph_range, 0..1);
+    assert_eq!(sequences[2].form, sequences[1].form);
+    assert_eq!(sequences[2].glyph_range, 1..2);
+    assert!(sequences.iter().all(|sequence| sequence.complete));
     Ok(())
 }
 

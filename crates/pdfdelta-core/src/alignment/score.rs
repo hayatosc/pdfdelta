@@ -1,4 +1,4 @@
-use crate::normalize::{ComparableToken, is_cjk};
+use crate::{model::is_cjk, normalize::ComparableToken};
 
 use super::{BlockFeatures, NGramCounts, features::token_ngram_counts, multiset_dice_similarity};
 

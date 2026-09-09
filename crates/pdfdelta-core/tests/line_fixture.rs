@@ -83,6 +83,93 @@ fn does_not_duplicate_an_explicit_space_glyph() {
 }
 
 #[test]
+fn default_spacing_retains_sub_half_advance_word_gaps_at_multiple_scales() {
+    for scale in [0.5, 1.0, 3.0] {
+        for gap in [1.776, 2.688] {
+            let document = Document::new(
+                [
+                    (1, "a", 0.0),
+                    (2, "b", 6.3),
+                    (3, "c", 12.3 + gap),
+                    (4, "d", 18.6 + gap),
+                ]
+                .into_iter()
+                .map(|(id, text, x)| {
+                    glyph(
+                        id,
+                        text,
+                        0,
+                        x * scale,
+                        0.0,
+                        6.0 * scale,
+                        12.0 * scale,
+                        12.0 * scale,
+                        0.0,
+                    )
+                })
+                .collect(),
+            );
+            let lines = reconstruct_lines(&document, LineOptions::default())
+                .expect("reconstruct scaled word gap without interpreting small kerning as spaces");
+            assert_eq!(lines.len(), 1);
+            assert_eq!(
+                lines[0].synthetic_spaces,
+                [SyntheticSpace {
+                    preceding: GlyphId(2),
+                    following: GlyphId(3)
+                }]
+            );
+        }
+    }
+}
+
+#[test]
+fn default_spacing_preserves_cjk_latin_typographic_gaps() {
+    for scale in [0.5, 1.0, 3.0] {
+        for (left, right, gap) in [
+            ("は", "1", 2.688),
+            ("0", "キ", 2.688),
+            ("日", "本", 2.688),
+            ("は", "1", 5.904),
+            ("0", "キ", 5.904),
+            ("日", "本", 5.904),
+        ] {
+            let document = Document::new(vec![
+                glyph(
+                    1,
+                    left,
+                    0,
+                    0.0,
+                    0.0,
+                    12.0 * scale,
+                    12.0 * scale,
+                    12.0 * scale,
+                    0.0,
+                ),
+                glyph(
+                    2,
+                    right,
+                    0,
+                    (12.0 + gap) * scale,
+                    0.0,
+                    6.0 * scale,
+                    12.0 * scale,
+                    12.0 * scale,
+                    0.0,
+                ),
+            ]);
+            let lines = reconstruct_lines(&document, LineOptions::default())
+                .expect("reconstruct CJK typographic gap");
+            assert_eq!(lines.len(), 1);
+            assert!(
+                lines[0].synthetic_spaces.is_empty(),
+                "{left}{right}, scale {scale}"
+            );
+        }
+    }
+}
+
+#[test]
 fn rejects_non_finite_glyph_geometry() {
     let document = Document::new(vec![glyph(1, "A", 0, 0.0, f64::NAN, 5.0, 10.0, 10.0, 0.0)]);
 

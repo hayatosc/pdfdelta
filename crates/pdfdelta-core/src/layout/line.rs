@@ -6,7 +6,7 @@ use unicode_bidi::{BidiClass, bidi_class};
 
 use crate::{
     Error, Result,
-    model::{DecodedText, Document, Glyph, GlyphId, PageId, Rect, Vec2},
+    model::{DecodedText, Document, Glyph, GlyphId, PageId, Rect, Vec2, is_cjk},
     validate::{validate_non_negative, validate_unit_interval},
 };
 
@@ -57,7 +57,12 @@ pub struct LineOptions {
     pub min_cross_axis_overlap_ratio: f64,
     pub min_direction_similarity: f64,
     pub max_inline_gap_font_size_ratio: f64,
+    /// Minimum inferred word gap relative to font size. Font transitions use
+    /// twice this threshold; CJK boundaries use four times it to allow justified
+    /// typographic spacing in scripts without mandatory word separators.
     pub space_gap_font_size_ratio: f64,
+    /// Minimum inferred word gap relative to average glyph advance, with the
+    /// same boundary adjustment as [`Self::space_gap_font_size_ratio`].
     pub space_gap_advance_ratio: f64,
 }
 
@@ -68,8 +73,10 @@ impl Default for LineOptions {
             min_cross_axis_overlap_ratio: 0.25,
             min_direction_similarity: 0.98,
             max_inline_gap_font_size_ratio: 4.0,
-            space_gap_font_size_ratio: 0.2,
-            space_gap_advance_ratio: 0.5,
+            // Justification can shrink word gaps below half a glyph advance.
+            // Both relative metrics remain above small kerning offsets.
+            space_gap_font_size_ratio: 0.125,
+            space_gap_advance_ratio: 0.25,
         }
     }
 }
@@ -456,6 +463,18 @@ fn reconstruct_spaces(
             let font_size = (preceding.font_size + following.font_size) / 2.0;
             let threshold = (options.space_gap_font_size_ratio * font_size)
                 .max(options.space_gap_advance_ratio * average_advance);
+            // CJK side bearings and font changes can create gaps inside a word.
+            // Keep those boundaries conservative while recovering compressed
+            // word spaces inside a uniform run. Raw glyphs remain unchanged.
+            let cjk_boundary = matches!(&preceding.text, DecodedText::Mapped(text) if text.chars().next_back().is_some_and(is_cjk))
+                || matches!(&following.text, DecodedText::Mapped(text) if text.chars().next().is_some_and(is_cjk));
+            let threshold = if cjk_boundary {
+                threshold * 4.0
+            } else if preceding.font_id != following.font_id || preceding.font_size != following.font_size {
+                threshold * 2.0
+            } else {
+                threshold
+            };
             (gap > threshold).then_some(SyntheticSpace {
                 preceding: preceding.id,
                 following: following.id,

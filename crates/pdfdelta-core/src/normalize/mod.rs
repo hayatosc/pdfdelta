@@ -10,6 +10,7 @@ use crate::{
     layout::{Block, BlockId, BlockRole, Line, LineId},
     model::{
         DecodedText, Document, FontProgramHash, Glyph, GlyphId, GlyphIndex, Vec2, index_glyphs,
+        is_cjk,
     },
 };
 
@@ -160,7 +161,9 @@ pub struct SourceMapEntry {
     pub source: TextSource,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum ComparableToken {
     Scalar(char),
     Unmapped {
@@ -2216,22 +2219,6 @@ fn is_latin_letter_or_digit(scalar: char) -> bool {
 /// soft-line-break join.
 fn is_decimal_digit(scalar: char) -> bool {
     matches!(scalar, '0'..='9' | '\u{ff10}'..='\u{ff19}')
-}
-
-pub(crate) fn is_cjk(scalar: char) -> bool {
-    matches!(
-        scalar,
-        '\u{3000}'..='\u{303f}'
-            | '\u{3040}'..='\u{30ff}'
-            | '\u{31f0}'..='\u{31ff}'
-            | '\u{3400}'..='\u{4dbf}'
-            | '\u{4e00}'..='\u{9fff}'
-            | '\u{ac00}'..='\u{d7af}'
-            | '\u{f900}'..='\u{faff}'
-            | '\u{ff00}'..='\u{ffef}'
-            | '\u{20000}'..='\u{2ffff}'
-            | '\u{30000}'..='\u{3134f}'
-    )
 }
 
 fn is_latin_letter(scalar: char) -> bool {

@@ -1,5 +1,6 @@
 pub mod alignment;
 pub mod diff;
+pub mod document;
 pub mod error;
 pub mod extraction_conformance;
 #[cfg(feature = "fuzzing")]

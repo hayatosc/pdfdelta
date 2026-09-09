@@ -1,0 +1,548 @@
+use pdfdelta_core::{
+    document::{
+        BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
+        DocumentView, DocumentViewComparison, EdgeKind, EvidenceStore, HierarchyLimits,
+        InterpretationStatus, NodeContent, NodeId, SourceRef, StructuredEvidence, StructuredValue,
+        TypedOperation, ViewBasis, compare_document_views, compare_text_group_views,
+    },
+    model::Document,
+    pipeline::PipelineOptions,
+};
+
+fn fixture(parts: &[&str]) -> (EvidenceStore, DocumentGraph) {
+    let store = EvidenceStore {
+        revision: "group-fixture".into(),
+        native: Document::new(Vec::new()),
+        pages: Vec::new(),
+        backends: vec![BackendIdentity {
+            kind: BackendKind::NativeParser,
+            name: "fixture".into(),
+            version: "1".into(),
+            profile: "source-structure".into(),
+            model: None,
+        }],
+        rendered: Vec::new(),
+        inventories: Vec::new(),
+        issues: Vec::new(),
+        structured: parts
+            .iter()
+            .enumerate()
+            .map(|(index, text)| StructuredEvidence {
+                id: index as u64,
+                page: None,
+                bounds: None,
+                object: None,
+                backend: 0,
+                value: StructuredValue::StructureElement {
+                    identifier: None,
+                    glyphs: Vec::new(),
+                    role: "paragraph".into(),
+                    text: Some((*text).into()),
+                    parent: None,
+                    order: Some(index as u32),
+                },
+            })
+            .collect(),
+    };
+    let graph = graph(&store);
+    (store, graph)
+}
+
+fn graph(store: &EvidenceStore) -> DocumentGraph {
+    let limits = DocumentComparisonLimits::default();
+    DocumentGraph::from_evidence(
+        store,
+        PipelineOptions::default(),
+        limits.evidence,
+        limits.graph,
+    )
+    .expect("derive ordered text views")
+}
+
+fn compare(
+    old: &(EvidenceStore, DocumentGraph),
+    new: &(EvidenceStore, DocumentGraph),
+    limits: DocumentComparisonLimits,
+) -> DocumentViewComparison {
+    compare_document_views(
+        DocumentView {
+            evidence: &old.0,
+            graph: &old.1,
+        },
+        DocumentView {
+            evidence: &new.0,
+            graph: &new.1,
+        },
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        limits,
+        HierarchyLimits::default(),
+    )
+    .expect("compare grouped source views")
+}
+
+#[test]
+fn split_and_merge_preserve_text_and_all_member_references() {
+    let whole = fixture(&["α100"]);
+    let mut parts = fixture(&["α", "100"]);
+    parts.0.structured.reverse();
+    parts.1 = graph(&parts.0);
+    for (old, new) in [(&whole, &parts), (&parts, &whole)] {
+        let result = compare(old, new, DocumentComparisonLimits::default());
+        assert!(result.search_resolved());
+        let pairs: Vec<_> = result.comparisons().collect();
+        assert_eq!(pairs.len(), 1);
+        let pair = pairs[0];
+        assert_eq!(pair.old.len(), old.0.structured.len());
+        assert_eq!(pair.new.len(), new.0.structured.len());
+        assert!(pair.compared);
+        assert!(pair.operation.is_none());
+        assert_eq!(
+            pair.interpretation,
+            InterpretationStatus::ConditionalOnCorrespondence
+        );
+        assert_eq!(
+            pair.text_mask
+                .as_ref()
+                .expect("exact text mask")
+                .claims
+                .changed_source_upper,
+            0
+        );
+        let sources: std::collections::BTreeSet<_> = pair
+            .new
+            .iter()
+            .flat_map(|id| {
+                new.1
+                    .nodes
+                    .iter()
+                    .find(|node| node.id == *id)
+                    .expect("retained group member")
+                    .sources
+                    .iter()
+                    .copied()
+            })
+            .collect();
+        assert_eq!(sources.len(), new.0.structured.len());
+    }
+}
+
+#[test]
+fn archived_partition_supports_split_and_merge_without_inventing_order() {
+    use pdfdelta_core::document::{AlternativeViews, GraphEdge, NodeKind};
+    let mut whole = fixture(&["α100"]);
+    let original = whole
+        .1
+        .nodes
+        .iter()
+        .find(|node| node.kind == NodeKind::Paragraph)
+        .expect("original paragraph")
+        .clone();
+    let parent = NodeId(whole.1.nodes.len() as u64);
+    let archive = NodeId(parent.0 + 1);
+    let other = NodeId(parent.0 + 2);
+    for (id, kind, sources) in [
+        (parent, NodeKind::Table, original.sources.clone()),
+        (archive, NodeKind::Unknown, Vec::new()),
+    ] {
+        let mut node = whole.1.nodes[0].clone();
+        node.id = id;
+        node.kind = kind;
+        node.sources = sources;
+        node.basis = ViewBasis::ReconstructedStructure;
+        whole.1.nodes.push(node);
+    }
+    let mut alternate = original.clone();
+    alternate.id = other;
+    alternate.kind = NodeKind::Cell;
+    alternate.basis = ViewBasis::ReconstructedStructure;
+    whole.1.nodes.push(alternate);
+    whole
+        .1
+        .edges
+        .retain(|edge| !(edge.kind == EdgeKind::Contains && edge.to == original.id));
+    for (from, to) in [
+        (NodeId(0), parent),
+        (parent, archive),
+        (archive, original.id),
+        (parent, other),
+    ] {
+        whole.1.edges.push(GraphEdge {
+            from,
+            to,
+            kind: EdgeKind::Contains,
+            sources: Vec::new(),
+            basis: ViewBasis::ReconstructedStructure,
+        });
+    }
+    whole.1.alternatives.push(AlternativeViews {
+        parent,
+        partitions: vec![vec![original.id], vec![other]],
+    });
+    let mut parts = fixture(&["α", "100"]);
+    for (old, new) in [(&whole, &parts), (&parts, &whole)] {
+        let result = compare(old, new, DocumentComparisonLimits::default());
+        assert!(result.comparisons().any(|pair| pair.compared
+            && pair.operation.is_none()
+            && pair.interpretation == InterpretationStatus::Inferred
+            && (pair.old.len() == 2 || pair.new.len() == 2)));
+    }
+    let mut limits = DocumentComparisonLimits::default();
+    limits.matching.max_group_token_checks = 0;
+    let result = compare(&whole, &parts, limits);
+    assert!(!result.search_resolved());
+    assert!(
+        result
+            .comparisons()
+            .all(|pair| pair.old.len() == 1 && pair.new.len() == 1)
+    );
+    parts.1.edges.retain(|edge| edge.kind != EdgeKind::Precedes);
+    let result = compare(&whole, &parts, DocumentComparisonLimits::default());
+    assert!(
+        result
+            .comparisons()
+            .all(|pair| pair.old.len() == 1 && pair.new.len() == 1)
+    );
+}
+
+#[test]
+fn missing_order_and_missing_spaces_cannot_be_invented_by_grouping() {
+    let whole = fixture(&["α100"]);
+    let mut parts = fixture(&["α", "100"]);
+    parts.1.edges.retain(|edge| edge.kind != EdgeKind::Precedes);
+    // A nonexact one-to-one proposal may remain inferred; it cannot establish
+    // a joined literal comparison without the missing source order.
+    assert!(
+        compare(&whole, &parts, DocumentComparisonLimits::default())
+            .comparisons()
+            .all(|pair| pair.interpretation == InterpretationStatus::Inferred
+                && pair.old.len() == 1
+                && pair.new.len() == 1)
+    );
+    let spaced = fixture(&["α 100"]);
+    let parts = fixture(&["α", "100"]);
+    assert!(
+        compare(&spaced, &parts, DocumentComparisonLimits::default())
+            .comparisons()
+            .all(|pair| pair.interpretation == InterpretationStatus::Inferred
+                && pair.old.len() == 1
+                && pair.new.len() == 1)
+    );
+}
+
+#[test]
+fn group_truncation_does_not_turn_a_surviving_candidate_into_a_proof() {
+    let whole = fixture(&["α100"]);
+    let parts = fixture(&["α", "100"]);
+    let mut limits = DocumentComparisonLimits::default();
+    limits.matching.max_group_token_checks = 0;
+    let result = compare(&whole, &parts, limits);
+    assert!(!result.scopes[0].result.candidates.exhaustive);
+    assert_eq!(result.comparisons().count(), 0);
+    assert!(!result.search_resolved());
+}
+
+#[test]
+fn source_aliases_cannot_be_consumed_twice_by_a_group() {
+    let whole = fixture(&["aa"]);
+    let mut parts = fixture(&["a", "a"]);
+    for node in &mut parts.1.nodes {
+        if let NodeContent::Text { view } = &mut node.content {
+            node.sources = vec![SourceRef::Structured { element: 0 }];
+            view.origins = vec![node.sources.clone()];
+        }
+    }
+    let result = compare(&whole, &parts, DocumentComparisonLimits::default());
+    assert_eq!(result.comparisons().count(), 0);
+}
+
+#[test]
+fn model_order_remains_inferred_even_when_group_text_is_exact() {
+    let whole = fixture(&["α100"]);
+    let mut parts = fixture(&["α", "100"]);
+    parts.0.backends.push(BackendIdentity {
+        kind: BackendKind::StructureModel,
+        name: "fixture-order".into(),
+        version: "1".into(),
+        profile: "order-candidate".into(),
+        model: Some("fixture".into()),
+    });
+    for edge in &mut parts.1.edges {
+        if edge.kind == EdgeKind::Precedes {
+            edge.basis = ViewBasis::Model { backend: 1 };
+        }
+    }
+    let result = compare(&whole, &parts, DocumentComparisonLimits::default());
+    let pair = result
+        .comparisons()
+        .next()
+        .expect("ordered group comparison");
+    assert!(pair.compared);
+    assert_eq!(pair.interpretation, InterpretationStatus::Inferred);
+}
+
+#[test]
+fn grouped_local_change_masks_keep_the_original_fragment_origin() {
+    let old = fixture(&["value100"]);
+    let new = fixture(&["value", "200"]);
+    let nodes = |graph: &DocumentGraph| {
+        graph
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.content, NodeContent::Text { .. }))
+            .map(|node| node.id)
+            .collect::<Vec<_>>()
+    };
+    let old_ids = nodes(&old.1);
+    let new_ids = nodes(&new.1);
+    let old_nodes: Vec<_> = old_ids
+        .iter()
+        .map(|id| {
+            old.1
+                .nodes
+                .iter()
+                .find(|node| node.id == *id)
+                .expect("old member")
+        })
+        .collect();
+    let new_nodes: Vec<_> = new_ids
+        .iter()
+        .map(|id| {
+            new.1
+                .nodes
+                .iter()
+                .find(|node| node.id == *id)
+                .expect("new member")
+        })
+        .collect();
+    let result = compare_text_group_views(
+        &old_nodes,
+        &new_nodes,
+        DocumentComparisonLimits::default().local,
+    )
+    .expect("local comparison under a declared group correspondence");
+    assert!(matches!(
+        result.operation,
+        Some(TypedOperation::TextChanged { .. })
+    ));
+    assert_eq!(result.old, old_ids);
+    assert_eq!(result.new, new_ids);
+    let mask = result.text_mask.expect("grouped exact mask");
+    assert_eq!(mask.new.len(), 1);
+    assert_eq!(mask.new[0].position, 5);
+    assert_eq!(
+        mask.new[0].sources,
+        vec![SourceRef::Structured { element: 1 }]
+    );
+}
+
+#[test]
+fn paragraph_grouping_cannot_erase_a_label_relationship() {
+    use pdfdelta_core::document::GraphEdge;
+    let mut old = fixture(&["ab", "footnote"]);
+    let mut new = fixture(&["a", "b", "footnote"]);
+    for (store, graph) in [&mut old, &mut new] {
+        let text_nodes: Vec<_> = graph
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.content, NodeContent::Text { .. }))
+            .map(|node| node.id)
+            .collect();
+        assert_eq!(text_nodes.len(), store.structured.len());
+        graph.edges.push(GraphEdge {
+            from: text_nodes[0],
+            to: *text_nodes.last().expect("footnote"),
+            kind: EdgeKind::LabelFor,
+            sources: Vec::new(),
+            basis: ViewBasis::SourceStructure,
+        });
+    }
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    assert!(
+        result
+            .comparisons()
+            .all(|pair| pair.compared && pair.operation.is_none())
+    );
+    assert!(
+        result
+            .relations()
+            .all(|relation| relation.kind != EdgeKind::LabelFor)
+    );
+    assert!(
+        result
+            .relation_unresolved
+            .iter()
+            .any(|reason| reason.contains("endpoints"))
+    );
+}
+
+#[test]
+fn inferred_text_candidates_do_not_overload_independent_exact_paragraphs() {
+    let document = fixture(&[
+        "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel",
+    ]);
+    let result = compare(&document, &document, DocumentComparisonLimits::default());
+    assert!(result.search_resolved());
+    assert_eq!(result.comparisons().count(), 8);
+    assert!(
+        result
+            .comparisons()
+            .all(|pair| pair.compared && pair.operation.is_none())
+    );
+}
+
+#[test]
+fn nonidentical_paragraphs_reach_exact_masks_as_inferred_correspondences() {
+    let old = fixture(&["The fee is 100 dollars."]);
+    let new = fixture(&["The fee is 200 dollars."]);
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    let pairs: Vec<_> = result.comparisons().collect();
+    assert_eq!(pairs.len(), 1);
+    assert_eq!(pairs[0].interpretation, InterpretationStatus::Inferred);
+    assert!(matches!(
+        pairs[0].operation,
+        Some(TypedOperation::TextChanged { .. })
+    ));
+    let mask = pairs[0].text_mask.as_ref().expect("local exact mask");
+    assert_eq!(mask.old.len(), 1);
+    assert_eq!(mask.new.len(), 1);
+    assert_eq!(mask.old[0].position, 11);
+    assert_eq!(mask.new[0].position, 11);
+}
+
+#[test]
+fn equal_text_similarity_rivals_remain_ambiguous() {
+    let old = fixture(&["Version 100"]);
+    let new = fixture(&["Version 200", "Version 200"]);
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    assert!(result.scopes[0].result.text_search.exhaustive);
+    assert!(result.comparisons().next().is_none());
+    assert!(!result.search_resolved());
+}
+
+#[test]
+fn source_pruning_does_not_treat_overlap_as_transitive_equivalence() {
+    use pdfdelta_core::document::{NodeKind, SourceConflict};
+    let mut old = fixture(&["anchor", "unused view", "The fee is 100 dollars."]);
+    let mut new = fixture(&["anchor", "unused view", "The fee is 200 dollars."]);
+    for (_, graph) in [&mut old, &mut new] {
+        let node = graph
+            .nodes
+            .iter_mut()
+            .find(|node| node.sources == [SourceRef::Structured { element: 1 }])
+            .expect("unused composite view");
+        node.kind = NodeKind::Unknown;
+        node.content = NodeContent::Unknown;
+        for pair in [[0, 1], [1, 2]] {
+            graph.source_conflicts.push(SourceConflict {
+                sources: pair
+                    .map(|element| SourceRef::Structured { element })
+                    .to_vec(),
+                reason: "two disjoint pieces overlap an unused composite".into(),
+            });
+        }
+    }
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    assert_eq!(
+        result
+            .comparisons()
+            .filter(|pair| pair.operation.is_some()
+                && pair.interpretation == InterpretationStatus::Inferred)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn inferred_tie_breaks_keep_source_alignment_inferred() {
+    use pdfdelta_core::document::{FieldValue, SourceConflict};
+    let mut old = fixture(&["anchor", "anchox"]);
+    let mut new = fixture(&["anchor", "anchor"]);
+    for (store, target) in [&mut old, &mut new] {
+        store.backends.push(BackendIdentity {
+            kind: BackendKind::StructureModel,
+            name: "fixture-model".into(),
+            version: "1".into(),
+            profile: "field".into(),
+            model: Some("fixture".into()),
+        });
+        store.structured.push(StructuredEvidence {
+            id: 9,
+            page: None,
+            bounds: None,
+            object: None,
+            backend: 1,
+            value: StructuredValue::FormField {
+                field_type: None,
+                name: "bias".into(),
+                value: FieldValue::Text("stable".into()),
+                widgets: Vec::new(),
+                button_states: Vec::new(),
+            },
+        });
+        *target = graph(store);
+    }
+    new.1.source_conflicts.push(SourceConflict {
+        sources: vec![
+            SourceRef::Structured { element: 0 },
+            SourceRef::Structured { element: 9 },
+        ],
+        reason: "model field competes with one literal reading".into(),
+    });
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    assert!(
+        result.scopes[0]
+            .result
+            .text_search
+            .protected_correspondences
+            .is_empty()
+    );
+    assert!(result.comparisons().next().is_some());
+    assert!(
+        result
+            .comparisons()
+            .all(|pair| pair.interpretation
+                == pdfdelta_core::document::InterpretationStatus::Inferred)
+    );
+}
+
+#[test]
+fn text_budget_exhaustion_retains_proved_anchors_and_independent_field_changes() {
+    use pdfdelta_core::document::FieldValue;
+    let mut old = fixture(&["anchor", "The fee is 100 dollars."]);
+    let mut new = fixture(&["anchor", "The fee is 200 dollars."]);
+    for ((store, target), text) in [(&mut old, "100"), (&mut new, "200")] {
+        store.structured.push(StructuredEvidence {
+            id: 9,
+            page: None,
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::FormField {
+                field_type: None,
+                name: "independent".into(),
+                value: FieldValue::Text(text.into()),
+                widgets: Vec::new(),
+                button_states: Vec::new(),
+            },
+        });
+        *target = graph(store);
+    }
+    let mut limits = DocumentComparisonLimits::default();
+    limits.text.max_token_visits = 0;
+    let result = compare(&old, &new, limits);
+    assert!(!result.scopes[0].result.text_search.exhaustive);
+    assert_eq!(result.comparisons().count(), 2);
+    assert_eq!(
+        result
+            .comparisons()
+            .filter(|pair| pair.operation.is_some())
+            .count(),
+        1
+    );
+    assert!(result.comparisons().all(|pair| pair.compared
+        && pair.interpretation == InterpretationStatus::ConditionalOnCorrespondence));
+    assert!(!result.search_resolved());
+}

@@ -6,9 +6,9 @@ mod sentence;
 
 pub use assessment::{
     ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AssessmentReason, AssessmentWork, ChangeCandidate,
-    ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalizedEditScript,
-    RelationAssessment, RelationOutcome, ResolutionRange, ResolutionState, ReviewUnit,
-    SearchCompleteness,
+    ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalTextClaims, LocalTextSide,
+    LocalizedEditScript, RelationAssessment, RelationOutcome, ResolutionRange, ResolutionState,
+    ReviewUnit, SearchCompleteness, local_text_claims,
 };
 
 pub use recovery::container::{

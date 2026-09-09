@@ -125,6 +125,183 @@ fn semantic_replacements_own_only_atomic_changed_glyphs() -> Result<()> {
 }
 
 #[test]
+fn catalog_footer_correspondence_survives_an_inserted_cover() -> Result<()> {
+    use pdfdelta_core::diff::{ComparisonAssumption, RelationOutcome};
+    let old_footer =
+        "Reviewed catalog instructions remain available. Cat. No. 12A34 Form 5678 (2030)";
+    let new_footer =
+        "Reviewed catalog instructions remain available. Cat. No. 12A34 Form 5678 (2031)";
+    let mut old_lines = vec![
+        line_at("Left body remains open", 0, 0.0, 300.0),
+        line_at("Right body remains open", 0, 300.0, 300.0),
+        line_at("Left body changes later", 0, 0.0, 288.0),
+        line_at("Right body changes later", 0, 300.0, 288.0),
+    ];
+    let mut new_lines = vec![line("An independently added cover", 0, 300.0)];
+    new_lines.extend([
+        line_at("Left body remains open", 1, 0.0, 300.0),
+        line_at("Right body remains open", 1, 300.0, 300.0),
+        line_at("Left body changes later", 1, 0.0, 288.0),
+        line_at("Right body changes later", 1, 300.0, 288.0),
+        line(new_footer, 1, 30.0),
+    ]);
+    old_lines.push(line(old_footer, 0, 30.0));
+    let comparison = compare_glyph_documents(
+        &document(&old_lines),
+        &document(&new_lines),
+        PipelineOptions::default(),
+    )?;
+    assert!(
+        comparison
+            .assessment
+            .as_ref()
+            .expect("source assessment")
+            .relations
+            .iter()
+            .any(|relation| {
+                relation.outcome == RelationOutcome::Established
+                    && relation
+                        .assumptions
+                        .contains(&ComparisonAssumption::CatalogFooterCorrespondence)
+            })
+    );
+    assert!(
+        comparison
+            .changes
+            .iter()
+            .any(|change| change.kind == ChangeKind::Replacement)
+    );
+    Ok(())
+}
+
+#[test]
+fn native_graph_supplies_source_backed_catalog_footer_views() -> Result<()> {
+    use pdfdelta_core::document::{
+        BackendIdentity, BackendKind, CorrespondenceScope, DocumentGraph, EvidenceLimits,
+        EvidenceStore, GraphLimits, MatchingLimits, NodeContent, NodeId, NodeKind, PageEvidence,
+        ProposalBasis, propose_scope_correspondences, solve_correspondence_scope,
+    };
+    let make = |page, split| -> Result<DocumentGraph> {
+        let mut lines = vec![line("Body text remains separate", page, 300.0)];
+        if split {
+            lines.extend([
+                line_at("Form 5678 (2031)", page, 420.0, 30.0),
+                line_at(
+                    "Reviewed catalog instructions remain available.",
+                    page,
+                    0.0,
+                    30.1,
+                ),
+                line_at("Cat. No. 12A34", page, 320.0, 30.2),
+            ]);
+        } else {
+            lines.push(line(
+                "Reviewed catalog instructions remain available. Cat. No. 12A34 Form 5678 (2030)",
+                page,
+                30.0,
+            ));
+        }
+        let store = EvidenceStore::from_native(
+            format!("revision-{page}"),
+            BackendIdentity {
+                kind: BackendKind::NativeParser,
+                name: "fixture".into(),
+                version: "1".into(),
+                profile: "native".into(),
+                model: None,
+            },
+            vec![PageEvidence {
+                page: PageId(page),
+                bounds: None,
+            }],
+            ExtractionOutcome::complete(document(&lines)),
+            EvidenceLimits::default(),
+        )?;
+        DocumentGraph::from_native(
+            &store,
+            PipelineOptions::default(),
+            EvidenceLimits::default(),
+            GraphLimits::default(),
+        )
+    };
+    let old = make(0, false)?;
+    let new = make(1, true)?;
+    for graph in [&old, &new] {
+        let footer = graph
+            .nodes
+            .iter()
+            .find(|node| node.kind == NodeKind::Footer && node.identity.is_some())
+            .expect("keyed footer view");
+        assert!(!footer.sources.is_empty());
+        let NodeContent::Text { view } = &footer.content else {
+            panic!("footer is a text view")
+        };
+        assert!(
+            view.tokens
+                .iter()
+                .filter_map(|token| token.as_scalar())
+                .collect::<String>()
+                .contains("Cat. No. 12A34 Form 5678")
+        );
+        assert!(view.origins.iter().all(|origins| !origins.is_empty()));
+    }
+    let scope = CorrespondenceScope {
+        old: NodeId(0),
+        new: NodeId(0),
+    };
+    let limits = MatchingLimits::default();
+    let proposals = propose_scope_correspondences(&old, &new, scope, limits)?;
+    assert!(proposals.exhaustive);
+    let keyed = proposals
+        .proposals
+        .iter()
+        .position(|proposal| proposal.basis == ProposalBasis::ScopedIdentity)
+        .expect("common footer candidate");
+    let matching = solve_correspondence_scope(&old, &new, scope, &proposals.proposals, limits)?;
+    assert!(
+        matching
+            .components
+            .iter()
+            .any(|component| component.exhaustive && component.mandatory.contains(&keyed))
+    );
+    Ok(())
+}
+
+#[test]
+fn duplicate_footer_keys_on_other_pages_are_common_solver_rivals() -> Result<()> {
+    use pdfdelta_core::diff::ComparisonAssumption;
+    let old_footer =
+        "Reviewed catalog instructions remain available. Cat. No. 12A34 Form 5678 (2030)";
+    let new_footer =
+        "Reviewed catalog instructions remain available. Cat. No. 12A34 Form 5678 (2031)";
+    let old = document(&[
+        line("Ordinary body content", 0, 300.0),
+        line(old_footer, 0, 30.0),
+    ]);
+    let new = document(&[
+        line("Ordinary body content", 0, 300.0),
+        line(new_footer, 0, 30.0),
+        line("Another page retains a rival", 1, 300.0),
+        line(new_footer, 1, 30.0),
+    ]);
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+    assert!(
+        !comparison
+            .assessment
+            .as_ref()
+            .expect("source assessment")
+            .relations
+            .iter()
+            .any(|relation| {
+                relation
+                    .assumptions
+                    .contains(&ComparisonAssumption::CatalogFooterCorrespondence)
+            })
+    );
+    Ok(())
+}
+
+#[test]
 fn page_local_footer_preserves_disjoint_year_and_creation_edits() -> Result<()> {
     use pdfdelta_core::diff::ComparisonAssumption;
 
@@ -165,7 +342,7 @@ fn page_local_footer_preserves_disjoint_year_and_creation_edits() -> Result<()> 
         assert!(
             assessment.relations.iter().any(|relation| relation
                 .assumptions
-                .contains(&ComparisonAssumption::PageLocalFooterIdentity)),
+                .contains(&ComparisonAssumption::CatalogFooterCorrespondence)),
             "{comparison:#?}"
         );
         assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
@@ -235,7 +412,7 @@ fn page_local_footer_rejects_duplicate_keys_and_missing_source() -> Result<()> {
             relation.outcome == RelationOutcome::Established
                 && relation
                     .assumptions
-                    .contains(&ComparisonAssumption::PageLocalFooterIdentity)
+                    .contains(&ComparisonAssumption::CatalogFooterCorrespondence)
         }));
     }
     Ok(())

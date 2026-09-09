@@ -142,10 +142,27 @@ impl From<&Glyph> for GlyphEvidence {
     }
 }
 
+/// A marked-content sequence in page content or one Form XObject invocation.
+/// The half-open range indexes the document's primary glyph items. Repeated
+/// invocations remain separate records; an MCID alone is not a unique identity.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MarkedContent {
+    pub page: PageId,
+    pub form: Option<ObjectRef>,
+    pub mcid: u32,
+    pub glyph_range: std::ops::Range<usize>,
+    /// False for unterminated or nesting-limited sequences. Their glyphs survive.
+    pub complete: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Document<T> {
     items: Vec<T>,
     vector_lines: Vec<VectorLine>,
+    #[serde(default)]
+    marked_content: Vec<MarkedContent>,
+    #[serde(default)]
+    last_non_text_paint: std::collections::BTreeMap<PageId, u32>,
 }
 
 impl<T> Document<T> {
@@ -153,6 +170,8 @@ impl<T> Document<T> {
         Self {
             items,
             vector_lines: Vec::new(),
+            marked_content: Vec::new(),
+            last_non_text_paint: std::collections::BTreeMap::new(),
         }
     }
 
@@ -162,7 +181,36 @@ impl<T> Document<T> {
         Self {
             items,
             vector_lines,
+            marked_content: Vec::new(),
+            last_non_text_paint: std::collections::BTreeMap::new(),
         }
+    }
+
+    /// Attaches reversible source memberships without changing primary items.
+    /// Consumers must validate ranges before dereferencing untrusted metadata.
+    pub fn with_marked_content(mut self, marked_content: Vec<MarkedContent>) -> Self {
+        self.marked_content = marked_content;
+        self
+    }
+
+    pub fn marked_content(&self) -> &[MarkedContent] {
+        &self.marked_content
+    }
+
+    /// Records the next render-order index at each page's last non-text paint.
+    /// Earlier glyphs may be covered; later glyphs have no subsequent recorded
+    /// non-text paint. Native glyphs alone cannot classify text in these images
+    /// or paths. This boundary does not prove recognition or actual visibility.
+    pub fn with_last_non_text_paint(
+        mut self,
+        pages: std::collections::BTreeMap<PageId, u32>,
+    ) -> Self {
+        self.last_non_text_paint = pages;
+        self
+    }
+
+    pub fn last_non_text_paint(&self) -> &std::collections::BTreeMap<PageId, u32> {
+        &self.last_non_text_paint
     }
 
     pub fn items(&self) -> &[T] {
@@ -173,14 +221,14 @@ impl<T> Document<T> {
         &self.vector_lines
     }
 
-    /// Returns only the primary items, discarding vector-line evidence.
+    /// Returns only the primary items, discarding all auxiliary evidence.
     ///
-    /// Use [`Document::into_parts`] when the evidence must survive ownership
-    /// transfer.
+    /// Keep the document when all evidence must survive ownership transfer.
     pub fn into_items(self) -> Vec<T> {
         self.items
     }
 
+    /// Returns primary items and vector lines, discarding other acquisition metadata.
     pub fn into_parts(self) -> (Vec<T>, Vec<VectorLine>) {
         (self.items, self.vector_lines)
     }
@@ -286,4 +334,20 @@ pub(crate) fn index_glyphs(document: &Document<Glyph>) -> Result<GlyphIndex<'_>>
             .map(|(id, _, glyph)| (id, glyph))
             .collect(),
     ))
+}
+
+pub(crate) fn is_cjk(scalar: char) -> bool {
+    matches!(
+        scalar,
+        '\u{3000}'..='\u{303f}'
+            | '\u{3040}'..='\u{30ff}'
+            | '\u{31f0}'..='\u{31ff}'
+            | '\u{3400}'..='\u{4dbf}'
+            | '\u{4e00}'..='\u{9fff}'
+            | '\u{ac00}'..='\u{d7af}'
+            | '\u{f900}'..='\u{faff}'
+            | '\u{ff00}'..='\u{ffef}'
+            | '\u{20000}'..='\u{2ffff}'
+            | '\u{30000}'..='\u{3134f}'
+    )
 }

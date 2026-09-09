@@ -5,6 +5,7 @@
 //! the pair belongs to the same source-backed comparison domain.
 
 mod claims;
+mod document_claims;
 mod exact;
 mod footers;
 mod hypotheses;
@@ -14,6 +15,8 @@ mod review;
 mod semantic;
 mod validation;
 mod views;
+
+pub use document_claims::{LocalTextClaims, LocalTextSide, local_text_claims};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -69,9 +72,10 @@ pub enum ComparisonAssumption {
     LocalEvidenceBoundaries,
     /// Every retained discretionary line-end hyphen interpretation is included.
     AlternativeLineBreakNormalization,
-    /// A terminal source line has a unique catalog/form identifier on the
-    /// corresponding page and identical preceding context on both sides.
-    PageLocalFooterIdentity,
+    /// An exhaustive terminal-line candidate population supplied catalog/form
+    /// keys and source context to the common ownership solver. Page ordinals
+    /// are evidence attributes, not identity keys.
+    CatalogFooterCorrespondence,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -2329,12 +2333,25 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let Some(recovery) = self.recovery else {
             return Ok(());
         };
-        self.footer_domains = footers::discover(
+        let discovery = footers::discover(
             self.sides,
             recovery,
             &mut self.remaining_work,
             self.options.max_assessment_ranges,
         )?;
+        self.footer_domains = discovery.domains;
+        if !discovery.complete {
+            let root = self.root_relation()?;
+            self.records[root].search = SearchCompleteness::Incomplete;
+            let reason = if discovery.work_limited || self.remaining_work == 0 {
+                AssessmentReason::WorkLimit
+            } else {
+                AssessmentReason::SearchIncomplete
+            };
+            if !self.records[root].reasons.contains(&reason) {
+                self.records[root].reasons.push(reason);
+            }
+        }
         for domain in &self.footer_domains {
             if self.local_domains.len() == self.options.max_assessment_ranges {
                 break;
@@ -2701,7 +2718,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 .iter()
                 .any(|domain| &domain.old_span == old && &domain.new_span == new)
         }) {
-            domain_assumptions.push(ComparisonAssumption::PageLocalFooterIdentity);
+            domain_assumptions.push(ComparisonAssumption::CatalogFooterCorrespondence);
         }
         let relation = self.record(RelationAssessment {
             old_span: nonempty_span(&old),

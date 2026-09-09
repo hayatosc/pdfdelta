@@ -7,8 +7,8 @@ use crate::{
     Error, Result,
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
-        GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine,
-        VectorLineId,
+        GlyphPathClipStatus, GlyphProvenance, MarkedContent, PageId, Rect, TextRenderMode, Vec2,
+        VectorLine, VectorLineId,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -33,6 +33,55 @@ use super::{
 pub struct ContentStreamGlyphExtractor;
 
 impl ContentStreamGlyphExtractor {
+    /// Returns each page's bounds in the same cropped, rotated coordinate system
+    /// as native glyphs. Individual geometry failures do not discard other pages.
+    ///
+    /// # Errors
+    /// The outer result reports page-tree or page-count limits. Inner results
+    /// retain each page's contextual backend, unsupported, or unresolved error.
+    pub fn page_bounds(
+        &self,
+        pdf: &dyn ParsedPdf,
+        limits: ExtractionLimits,
+        max_pages: usize,
+    ) -> Result<Vec<Result<Rect>>> {
+        Ok(self
+            .page_frames(pdf, limits, max_pages)?
+            .into_iter()
+            .map(|frame| frame.map(|frame| frame.canonical_bounds()))
+            .collect())
+    }
+
+    /// Returns source-to-canonical page frames using the native extraction
+    /// transform, including inherited crop geometry and page rotation.
+    ///
+    /// # Errors
+    /// Preserves individual page failures and enforces the requested page limit.
+    pub fn page_frames(
+        &self,
+        pdf: &dyn ParsedPdf,
+        limits: ExtractionLimits,
+        max_pages: usize,
+    ) -> Result<Vec<Result<PageCoordinateFrame>>> {
+        let pages = pdf.pages()?;
+        if pages.len() > max_pages {
+            return Err(Error::LimitExceeded {
+                resource: "evidence pages",
+                limit: max_pages,
+            });
+        }
+        let extraction = Extraction::new(pdf, limits);
+        Ok(pages
+            .into_iter()
+            .map(|page| {
+                let snapshot = pdf.page_snapshot(page)?;
+                extraction
+                    .page_geometry(&snapshot.dictionary)
+                    .map(|geometry| PageCoordinateFrame { geometry })
+            })
+            .collect())
+    }
+
     fn extract_outcome_inner(
         &self,
         pdf: &dyn ParsedPdf,
@@ -69,11 +118,13 @@ impl ContentStreamGlyphExtractor {
                 })?;
             let glyph_start = extraction.glyphs.len();
             let vector_line_start = extraction.vector_lines.len();
+            let marked_start = extraction.marked_content.len();
             let issue_start = extraction.issues.len();
             if let Err(error) = extraction.extract_page(page, page_id) {
                 let issue = ExtractionIssue::from_error(ExtractionScope::Page(page_id), error)?;
                 extraction.glyphs.truncate(glyph_start);
                 extraction.vector_lines.truncate(vector_line_start);
+                extraction.marked_content.truncate(marked_start);
                 extraction.issues.truncate(issue_start);
                 extraction.active_forms.clear();
                 issues.push(issue);
@@ -81,7 +132,9 @@ impl ContentStreamGlyphExtractor {
         }
         issues.extend(extraction.issues);
         ExtractionOutcome::new(
-            Document::with_vector_lines(extraction.glyphs, extraction.vector_lines),
+            Document::with_vector_lines(extraction.glyphs, extraction.vector_lines)
+                .with_marked_content(extraction.marked_content)
+                .with_last_non_text_paint(extraction.last_non_text_paint),
             issues,
         )
     }
@@ -117,6 +170,8 @@ struct Extraction<'a> {
     limits: ExtractionLimits,
     glyphs: Vec<Glyph>,
     vector_lines: Vec<VectorLine>,
+    marked_content: Vec<MarkedContent>,
+    last_non_text_paint: std::collections::BTreeMap<PageId, u32>,
     issues: Vec<ExtractionIssue>,
     consumed_glyphs: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
@@ -144,6 +199,45 @@ struct Extraction<'a> {
 struct PageGeometry {
     transform: Matrix,
     crop_bounds: Rect,
+    rotation: u16,
+}
+
+/// A native page transform constructed only from validated PDF page geometry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PageCoordinateFrame {
+    geometry: PageGeometry,
+}
+
+impl PageCoordinateFrame {
+    pub fn canonical_bounds(self) -> Rect {
+        self.geometry.crop_bounds
+    }
+
+    pub fn rotation(self) -> u16 {
+        self.geometry.rotation
+    }
+
+    /// Maps an unrotated PDF-space rectangle into native glyph coordinates.
+    ///
+    /// # Errors
+    /// Rejects non-finite, empty, inverted, or overflowing geometry.
+    pub fn map_box(self, bounds: Rect) -> Result<Rect> {
+        if ![bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]
+            .into_iter()
+            .all(f64::is_finite)
+            || bounds.min.x >= bounds.max.x
+            || bounds.min.y >= bounds.max.y
+        {
+            return Err(Error::Unresolved("invalid rendered page box".into()));
+        }
+        transformed_rect(
+            self.geometry.transform,
+            bounds.min.x,
+            bounds.min.y,
+            bounds.max.x,
+            bounds.max.y,
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -299,6 +393,8 @@ impl<'a> Extraction<'a> {
             limits,
             glyphs: Vec::new(),
             vector_lines: Vec::new(),
+            marked_content: Vec::new(),
+            last_non_text_paint: std::collections::BTreeMap::new(),
             issues: Vec::new(),
             consumed_glyphs: 0,
             font_cache: HashMap::new(),
@@ -359,6 +455,8 @@ impl<'a> Extraction<'a> {
         }
         parser.finish()?;
 
+        self.finish_marked_content(&state);
+
         if state.in_text {
             return Err(Error::Unresolved(format!(
                 "page {} has an unterminated text object",
@@ -378,6 +476,13 @@ impl<'a> Extraction<'a> {
             )));
         }
         Ok(())
+    }
+
+    fn finish_marked_content(&mut self, state: &InterpreterState) {
+        for index in state.marked_stack.iter().flatten() {
+            self.marked_content[*index].glyph_range.end = self.glyphs.len();
+            self.marked_content[*index].complete = false;
+        }
     }
 
     fn page_resources(&mut self, resource: Option<Arc<PdfObject>>) -> Result<Resources> {
@@ -436,6 +541,63 @@ impl<'a> Extraction<'a> {
         form_depth: usize,
     ) -> Result<()> {
         match operation.operator.as_slice() {
+            b"BI" => {
+                self.record_non_text_paint(page);
+            }
+            b"sh" => {
+                one_name(operation)?;
+                self.record_non_text_paint(page);
+            }
+            b"BMC" | b"BDC" => {
+                if state.marked_stack.len() >= self.limits.max_nesting_depth
+                    || state.marked_overflow > 0
+                {
+                    state.marked_overflow = state.marked_overflow.saturating_add(1);
+                    for index in state.marked_stack.iter().flatten() {
+                        self.marked_content[*index].complete = false;
+                    }
+                } else {
+                    let mcid = match operation.operands.as_slice() {
+                        [Operand::Name(_), Operand::Dictionary(properties)]
+                            if operation.operator == b"BDC" =>
+                        {
+                            let mut values = properties.iter().filter(|(key, _)| key == b"MCID");
+                            match (values.next(), values.next()) {
+                                (Some((_, Operand::Number(value))), None)
+                                    if value.is_finite()
+                                        && *value >= 0.0
+                                        && *value <= f64::from(u32::MAX)
+                                        && value.fract() == 0.0 =>
+                                {
+                                    Some(*value as u32)
+                                }
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    let index = mcid.map(|mcid| {
+                        let index = self.marked_content.len();
+                        self.marked_content.push(MarkedContent {
+                            page,
+                            form: state.content_form,
+                            mcid,
+                            glyph_range: self.glyphs.len()..self.glyphs.len(),
+                            complete: true,
+                        });
+                        index
+                    });
+                    state.marked_stack.push(index);
+                }
+            }
+            b"EMC" => {
+                if state.marked_overflow > 0 {
+                    state.marked_overflow -= 1;
+                } else if let Some(Some(index)) = state.marked_stack.pop() {
+                    self.marked_content[index].glyph_range.end = self.glyphs.len();
+                    self.marked_content[index].complete &= operation.operands.is_empty();
+                }
+            }
             b"q" => {
                 no_operands(operation)?;
                 if state.graphics_stack.len() >= self.limits.max_nesting_depth {
@@ -671,6 +833,7 @@ impl<'a> Extraction<'a> {
                 let name = one_name(operation)?;
                 let glyph_start = self.glyphs.len();
                 let vector_line_start = self.vector_lines.len();
+                let marked_start = self.marked_content.len();
                 let issue_start = self.issues.len();
                 let render_order = self.render_order;
                 let result = self.invoke_xobject(
@@ -687,6 +850,10 @@ impl<'a> Extraction<'a> {
                     Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
                         self.glyphs.truncate(glyph_start);
                         self.vector_lines.truncate(vector_line_start);
+                        self.marked_content.truncate(marked_start);
+                        for index in state.marked_stack.iter().flatten() {
+                            self.marked_content[*index].complete = false;
+                        }
                         self.issues.truncate(issue_start);
                         self.render_order = render_order;
                         self.issues.push(ExtractionIssue::from_error(
@@ -737,6 +904,13 @@ impl<'a> Extraction<'a> {
 }
 
 impl Extraction<'_> {
+    fn record_non_text_paint(&mut self, page: PageId) {
+        self.last_non_text_paint
+            .entry(page)
+            .and_modify(|order| *order = (*order).max(self.render_order))
+            .or_insert(self.render_order);
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn finish_path(
         &mut self,
@@ -753,6 +927,10 @@ impl Extraction<'_> {
             state.current_path.close().map_err(|_| {
                 operation_error(operation, "path close operation has no current subpath")
             })?;
+        }
+
+        if operation.operator != b"n" && state.current_path.drawn_subpaths != 0 {
+            self.record_non_text_paint(page);
         }
 
         let clip_update = if state.current_path.clip_pending {
@@ -1394,6 +1572,9 @@ impl Extraction<'_> {
             }
         };
         let xobject = self.cached_xobject(reference)?;
+        if matches!(xobject.kind, CachedXObjectKind::Image) {
+            self.record_non_text_paint(page);
+        }
         let CachedXObjectKind::Form {
             matrix: form_matrix,
             resources: local_resources,
@@ -1418,6 +1599,9 @@ impl Extraction<'_> {
         let result = (|| {
             let form_resources = local_resources.clone().unwrap_or_else(|| resources.clone());
             let mut form_state = state.clone();
+            form_state.marked_stack.clear();
+            form_state.marked_overflow = 0;
+            form_state.content_form = Some(reference);
             form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
             form_state.graphics_stack.clear();
             form_state.current_path.reset();
@@ -1438,6 +1622,7 @@ impl Extraction<'_> {
                 form_depth + 1,
             )?;
             parser.finish()?;
+            self.finish_marked_content(&form_state);
             // Form execution is isolated from its caller, so unmatched saves can be
             // discarded at the boundary without leaking graphics state.
             form_state.graphics_stack.clear();
@@ -2005,6 +2190,7 @@ impl Extraction<'_> {
         };
         Ok(PageGeometry {
             transform,
+            rotation: normalized as u16,
             crop_bounds: Rect {
                 min: Vec2 { x: 0.0, y: 0.0 },
                 max: Vec2 {
@@ -2156,6 +2342,9 @@ impl Default for GraphicsState {
 
 #[derive(Clone)]
 struct InterpreterState {
+    marked_stack: Vec<Option<usize>>,
+    marked_overflow: usize,
+    content_form: Option<ObjectRef>,
     graphics: GraphicsState,
     graphics_stack: Vec<GraphicsState>,
     current_path: CurrentPath,
@@ -2168,6 +2357,9 @@ struct InterpreterState {
 impl Default for InterpreterState {
     fn default() -> Self {
         Self {
+            marked_stack: Vec::new(),
+            marked_overflow: 0,
+            content_form: None,
             graphics: GraphicsState::default(),
             graphics_stack: Vec::new(),
             current_path: CurrentPath::default(),
@@ -2406,13 +2598,8 @@ fn is_ignored_operator(operator: &[u8]) -> bool {
             | b"rg"
             | b"K"
             | b"k"
-            | b"sh"
             | b"MP"
             | b"DP"
-            | b"BMC"
-            | b"BDC"
-            | b"EMC"
-            | b"BI"
     )
 }
 
