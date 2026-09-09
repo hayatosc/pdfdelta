@@ -65,6 +65,22 @@ pub fn compare_documents<W: Write>(
     command: CompareCommand<'_>,
     diagnostics: &mut W,
 ) -> Result<u8, String> {
+    compare_documents_inner(command, None, diagnostics)
+}
+
+pub fn compare_documents_with_evidence<W: Write>(
+    command: CompareCommand<'_>,
+    evidence: &crate::evidence_compare::EvidenceOptions,
+    diagnostics: &mut W,
+) -> Result<u8, String> {
+    compare_documents_inner(command, Some(evidence), diagnostics)
+}
+
+fn compare_documents_inner<W: Write>(
+    command: CompareCommand<'_>,
+    evidence: Option<&crate::evidence_compare::EvidenceOptions>,
+    diagnostics: &mut W,
+) -> Result<u8, String> {
     let old_path = command
         .old_path
         .ok_or_else(|| "cannot compare PDFs: OLD_PDF is required".to_owned())?;
@@ -161,15 +177,27 @@ pub fn compare_documents<W: Write>(
         };
     }
     trace.complete("output_validation", None, []);
-    let comparison = compare_documents_traced(
-        old_input,
-        new_input,
-        pipeline_options,
-        command.options,
-        command.extraction_cache_dir,
-        diagnostics,
-        &mut trace,
-    );
+    let comparison = if let Some(evidence) = evidence {
+        crate::evidence_compare::compare(
+            old_input,
+            new_input,
+            pipeline_options,
+            command.options,
+            command.extraction_cache_dir,
+            evidence,
+            &mut trace,
+        )
+    } else {
+        compare_documents_traced(
+            old_input,
+            new_input,
+            pipeline_options,
+            command.options,
+            command.extraction_cache_dir,
+            diagnostics,
+            &mut trace,
+        )
+    };
     let incomplete = comparison.as_ref().is_ok_and(|(_, incomplete)| *incomplete);
     trace.finish(
         comparison

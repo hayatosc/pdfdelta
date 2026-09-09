@@ -1594,6 +1594,7 @@ fn stdin_supports_reading_old_pdf() {
 
     let old_bytes = fs::read(&old).expect("old PDF bytes should be readable");
     let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("--native-text-only")
         .arg("-")
         .arg(&new)
         .stdin(std::process::Stdio::piped())
@@ -2559,6 +2560,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
 
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("--native-text-only")
         .arg(old)
         .arg(new)
         .args(extra_arguments)
@@ -2566,10 +2568,1164 @@ fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
         .expect("pdfdelta should run")
 }
 
+#[test]
+fn default_contract_retains_image_evidence_without_claiming_complete_coverage() {
+    let directory = TestDirectory::new();
+    let input = directory.join("image.pdf");
+    let report = directory.join("document.json");
+    let mut pdf = Document::with_version("1.5");
+    let pages = pdf.new_object_id();
+    let image = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Image", "Width" => 1, "Height" => 1,
+            "BitsPerComponent" => 8, "ColorSpace" => "DeviceRGB",
+        },
+        vec![255, 0, 0],
+    ));
+    let contents = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"q 72 0 0 72 0 0 cm /I Do Q".to_vec(),
+    ));
+    let page = pdf.add_object(dictionary! {
+        "Type" => "Page", "Parent" => pages,
+        "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(72), Object::from(72)],
+        "Resources" => dictionary! { "XObject" => dictionary! { "I" => image } }, "Contents" => contents,
+    });
+    pdf.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages", "Kids" => vec![Object::Reference(page)], "Count" => 1,
+        }),
+    );
+    let catalog = pdf.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+    pdf.trailer.set("Root", catalog);
+    pdf.save(&input).expect("image-only fixture");
+    for channels in ["text", "text,relations"] {
+        let report = directory.join(&format!("{channels}.json"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["--channels", channels])
+            .arg(&input)
+            .arg(&input)
+            .arg("--json")
+            .arg(&report)
+            .output()
+            .expect("selected-text comparison CLI");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let selected: Value =
+            serde_json::from_slice(&fs::read(&report).expect("selected-text report"))
+                .expect("JSON report");
+        assert_eq!(selected["schema_version"], 2);
+        assert_eq!(selected["comparison_complete"], false);
+        let text = selected["coverage"]
+            .as_array()
+            .expect("coverage")
+            .iter()
+            .find(|coverage| coverage["channel"] == "text")
+            .expect("text coverage");
+        assert_eq!(text["old_inventory_complete"], false);
+        assert_eq!(text["new_inventory_complete"], false);
+    }
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&input)
+        .arg(&input)
+        .arg("--json")
+        .arg(&report)
+        .output()
+        .expect("document comparison CLI");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report: Value =
+        serde_json::from_slice(&fs::read(report).expect("document report")).expect("JSON report");
+    assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["old"]["native_glyphs"], 0);
+    assert_eq!(report["coverage"].as_array().expect("channels").len(), 4);
+    assert_eq!(report["coverage"][1]["old_inventory_complete"], false);
+    assert!(
+        !report["old"]["issues"]
+            .as_array()
+            .expect("issues")
+            .is_empty()
+    );
+    #[cfg(target_os = "linux")]
+    {
+        assert_eq!(report["old"]["rendered_regions"], 1);
+        assert_eq!(report["old"]["issues"][0]["kind"], "unresolved");
+        assert_eq!(report["inferred_changes"], 0);
+
+        let changed = directory.join("changed-image.pdf");
+        let changed_report = directory.join("changed-image.json");
+        pdf.get_object_mut(image)
+            .expect("image object")
+            .as_stream_mut()
+            .expect("image stream")
+            .content = vec![0, 0, 255];
+        pdf.save(&changed).expect("changed image fixture");
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["--channels", "visual"])
+            .arg(&input)
+            .arg(&changed)
+            .arg("--json")
+            .arg(&changed_report)
+            .output()
+            .expect("visual comparison");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let report: Value =
+            serde_json::from_slice(&fs::read(changed_report).expect("visual report"))
+                .expect("JSON report");
+        assert_eq!(report["old"]["native_glyphs"], 0);
+        assert_eq!(report["inferred_changes"], 1, "{report}");
+        assert_eq!(report["typed_changes"], 0);
+        let pair = &report["comparison"]["scopes"][0]["result"]["comparisons"][0];
+        assert_eq!(pair["operation"]["kind"], "page_rendering_changed");
+        assert_eq!(pair["pixel_mask"]["changed_pixels"], 72 * 72);
+        assert!(pair["text_mask"].is_null());
+
+        // Equal dimensions and page counts cannot substitute for source identity.
+        let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["render-page", "0", "1", "72", "72", "4294967295", "0"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("render process");
+        std::io::Write::write_all(
+            &mut child.stdin.take().expect("piped input"),
+            &fs::read(&input).expect("image fixture"),
+        )
+        .expect("render input");
+        let output = child.wait_with_output().expect("render result");
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+    }
+    #[cfg(not(target_os = "linux"))]
+    assert_eq!(report["old"]["rendered_regions"], 0);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn render_process_rejects_oversized_output_before_reading_input() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["render-page", "0", "1", "65535", "65535", "1", "0"])
+        .output()
+        .expect("render process");
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn recognition_process_rejects_oversized_raster_before_loading_models() {
+    use std::io::Write as _;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args([
+            "recognize-region",
+            "/missing/detection",
+            "/missing/recognition",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("recognition process");
+    child
+        .stdin
+        .take()
+        .expect("input pipe")
+        .write_all(b"{\"width\":100000,\"height\":100000,\"native_rects\":[]}\n")
+        .expect("request header");
+    let output = child.wait_with_output().expect("recognition result");
+    assert!(output.status.success());
+    let result: Value = serde_json::from_slice(&output.stdout).expect("failure response");
+    assert_eq!(result["status"], "failed");
+    assert_eq!(result["kind"], "resource_limit");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+#[ignore = "requires local OCR models in PDFDELTA_OCR_DETECTION_MODEL and PDFDELTA_OCR_RECOGNITION_MODEL"]
+fn local_ocr_compares_image_only_text_with_source_provenance() {
+    let detection = std::env::var_os("PDFDELTA_OCR_DETECTION_MODEL").expect("detection model");
+    let recognition =
+        std::env::var_os("PDFDELTA_OCR_RECOGNITION_MODEL").expect("recognition model");
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let mixed_old = directory.join("mixed-100-300.pdf");
+    let mixed_image_changed = directory.join("mixed-200-300.pdf");
+    let mixed_native_changed = directory.join("mixed-100-400.pdf");
+    let mixed_both_changed = directory.join("mixed-200-400.pdf");
+    for (path, amount) in [(&old, "100"), (&new, "200")] {
+        let mut pdf =
+            build_pdf_pages_with_font(&[&["placeholder"]], 12, "Type1", TextEncoding::Literal);
+        let page_id = pdf.get_pages()[&1];
+        let resource_id = pdf
+            .get_object(page_id)
+            .expect("page")
+            .as_dict()
+            .expect("page dictionary")
+            .get(b"Resources")
+            .expect("page resources")
+            .as_reference()
+            .expect("resource reference");
+        let mut mixed_resources = pdf
+            .get_object(resource_id)
+            .expect("resource object")
+            .as_dict()
+            .expect("resource dictionary")
+            .clone();
+        let content = pdf
+            .get_object(page_id)
+            .expect("valid OCR test fixture or report")
+            .as_dict()
+            .expect("valid OCR test fixture or report")
+            .get(b"Contents")
+            .expect("valid OCR test fixture or report")
+            .as_reference()
+            .expect("valid OCR test fixture or report");
+        pdf.get_object_mut(content)
+            .expect("valid OCR test fixture or report")
+            .as_stream_mut()
+            .expect("valid OCR test fixture or report")
+            .content =
+            format!("BT /F1 24 Tf 1 0 0 1 15 150 Tm (TOTAL FEE {amount}) Tj ET").into_bytes();
+        let vector = directory.join(&format!("vector-{amount}.pdf"));
+        pdf.save(&vector).expect("valid OCR test fixture or report");
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args([
+                "render-page",
+                "0",
+                "1",
+                "300",
+                "300",
+                &page_id.0.to_string(),
+                &page_id.1.to_string(),
+            ])
+            .stdin(fs::File::open(vector).expect("valid OCR test fixture or report"))
+            .output()
+            .expect("valid OCR test fixture or report");
+        assert!(output.status.success(), "{}", stderr(&output));
+        assert_eq!(output.stdout.len(), 1 + 300 * 300 * 3);
+        let image = pdf.add_object(Stream::new(
+            dictionary! {
+                "Type" => "XObject", "Subtype" => "Image", "Width" => 300, "Height" => 300,
+                "BitsPerComponent" => 8, "ColorSpace" => "DeviceRGB",
+            },
+            output.stdout[1..].to_vec(),
+        ));
+        pdf.get_object_mut(content)
+            .expect("valid OCR test fixture or report")
+            .as_stream_mut()
+            .expect("valid OCR test fixture or report")
+            .content = b"q 300 0 0 300 0 0 cm /I Do Q".to_vec();
+        pdf.get_object_mut(page_id)
+            .expect("valid OCR test fixture or report")
+            .as_dict_mut()
+            .expect("valid OCR test fixture or report")
+            .set(
+                "Resources",
+                dictionary! { "XObject" => dictionary! { "I" => image } },
+            );
+        pdf.save(path).expect("valid OCR test fixture or report");
+        mixed_resources.set("XObject", dictionary! { "I" => image });
+        pdf.get_object_mut(page_id)
+            .expect("page")
+            .as_dict_mut()
+            .expect("page dictionary")
+            .set("Resources", mixed_resources);
+        for native_amount in ["300", "400"] {
+            pdf.get_object_mut(content).expect("content").as_stream_mut().expect("content stream").content =
+                format!("q 300 0 0 300 0 0 cm /I Do Q\nBT /F1 18 Tf 1 0 0 1 15 240 Tm (PAYMENT DUE {native_amount}) Tj ET").into_bytes();
+            pdf.save(directory.join(&format!("mixed-{amount}-{native_amount}.pdf")))
+                .expect("mixed fixture");
+        }
+        pdf.get_object_mut(content)
+            .expect("content")
+            .as_stream_mut()
+            .expect("content stream")
+            .content =
+            b"BT /F1 24 Tf 1 0 0 1 15 150 Tm (TOTAL FEE 999) Tj ET\nq 300 0 0 300 0 0 cm /I Do Q"
+                .to_vec();
+        pdf.save(directory.join(&format!("overpainted-{amount}.pdf")))
+            .expect("overpainted native fixture");
+    }
+    for (index, (old_input, input, expected, image_amount, mixed)) in [
+        (&old, &old, 0, "100", false),
+        (&old, &new, 1, "200", false),
+        (&mixed_old, &mixed_old, 0, "100", true),
+        (&mixed_old, &mixed_image_changed, 1, "200", true),
+        (&mixed_old, &mixed_native_changed, 1, "100", true),
+        (&mixed_old, &mixed_both_changed, 2, "200", true),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report_path = directory.join(&format!("ocr-{index}.json"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["--channels", "text", "--ocr-detection-model"])
+            .arg(&detection)
+            .arg("--ocr-recognition-model")
+            .arg(&recognition)
+            .arg(old_input)
+            .arg(input)
+            .arg("--json")
+            .arg(&report_path)
+            .output()
+            .expect("valid OCR test fixture or report");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let report: Value = serde_json::from_slice(
+            &fs::read(report_path).expect("valid OCR test fixture or report"),
+        )
+        .expect("valid OCR test fixture or report");
+        assert_eq!(
+            report["old"]["native_glyphs"]
+                .as_u64()
+                .expect("glyph count")
+                > 0,
+            mixed
+        );
+        assert_eq!(report["comparison_complete"], false);
+        assert_eq!(report["typed_changes"], 0);
+        assert_eq!(report["inferred_changes"], expected, "{report}");
+        let changed: Vec<_> = report["comparison"]["scopes"]
+            .as_array()
+            .expect("comparison scopes")
+            .iter()
+            .flat_map(|scope| {
+                scope["result"]["comparisons"]
+                    .as_array()
+                    .expect("local comparisons")
+            })
+            .filter(|pair| !pair["operation"].is_null())
+            .collect();
+        let has_changed_origin = |suffix: &str, origin: &str| {
+            changed.iter().any(|pair| {
+                pair["operation"]["new"]
+                    .as_str()
+                    .is_some_and(|text| text.ends_with(suffix))
+                    && pair["text_mask"]["old"].as_array().is_some_and(|tokens| {
+                        tokens.iter().any(|token| {
+                            token["sources"].as_array().is_some_and(|sources| {
+                                sources.iter().any(|source| source["origin"] == origin)
+                            })
+                        })
+                    })
+            })
+        };
+        if input == &mixed_native_changed || input == &mixed_both_changed {
+            assert!(has_changed_origin("400", "native"), "{report}");
+        }
+        if image_amount == "200" {
+            assert!(has_changed_origin("200", "structured"), "{report}");
+        }
+        let regions = report["old"]["recognized_regions"]
+            .as_array()
+            .expect("valid OCR test fixture or report");
+        assert!(!regions.is_empty(), "{report}");
+        // Recognition can miss letters; the literal amount must remain available.
+        assert!(
+            regions.iter().any(|region| region["value"]["text"]
+                .as_str()
+                .expect("recognized text")
+                .ends_with("100")),
+            "{report}"
+        );
+        assert!(
+            report["new"]["recognized_regions"]
+                .as_array()
+                .expect("new readings")
+                .iter()
+                .any(|region| region["value"]["text"]
+                    .as_str()
+                    .expect("recognized text")
+                    .ends_with(image_amount)),
+            "{report}"
+        );
+        assert_eq!(
+            regions[0]["value"]["region"],
+            report["old"]["rendered_sources"][0]["id"]
+        );
+        assert!(regions[0]["value"]["words"][0]["confidence"].is_null());
+        assert_eq!(report["old"]["rendered_sources"][0]["width"], 300);
+        assert!(
+            report["old"]["backends"]
+                .as_array()
+                .expect("valid OCR test fixture or report")
+                .iter()
+                .any(|backend| backend["name"] == "ocrs"
+                    && backend["model"]
+                        .as_str()
+                        .is_some_and(|model| model.contains("detection-sha256:")
+                            && model.contains("recognition-sha256:")))
+        );
+    }
+    let overpainted_report = directory.join("overpainted.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text", "--ocr-detection-model"])
+        .arg(&detection)
+        .arg("--ocr-recognition-model")
+        .arg(&recognition)
+        .arg(directory.join("overpainted-100.pdf"))
+        .arg(directory.join("overpainted-200.pdf"))
+        .arg("--json")
+        .arg(&overpainted_report)
+        .output()
+        .expect("overpainted text comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report: Value =
+        serde_json::from_slice(&fs::read(overpainted_report).expect("overpainted report"))
+            .expect("JSON");
+    for (side, visible_amount) in [("old", "100"), ("new", "200")] {
+        assert_eq!(report[side]["native_glyphs"], 13);
+        assert!(
+            report[side]["recognized_regions"]
+                .as_array()
+                .expect("recognition")
+                .iter()
+                .any(|region| region["value"]["text"]
+                    .as_str()
+                    .is_some_and(|text| text.ends_with(visible_amount))),
+            "{report}"
+        );
+    }
+    assert_eq!(report["comparison_complete"], false);
+}
+
+#[test]
+fn default_report_displays_inferred_text_changes_and_exact_mask_counts() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-body.pdf");
+    let new = directory.join("new-body.pdf");
+    write_pdf(&old, &["The fee is 100 dollars."]);
+    write_pdf(&new, &["The fee is 200 dollars."]);
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&old)
+        .arg(&new)
+        .output()
+        .expect("document comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        text.contains("Inferred change: Paragraph (page 1)"),
+        "{text}"
+    );
+    assert!(text.contains("  - \"The fee is 100 dollars.\""), "{text}");
+    assert!(text.contains("  + \"The fee is 200 dollars.\""), "{text}");
+    assert!(
+        text.contains("Mandatory changed positions: old 1, new 1"),
+        "{text}"
+    );
+    assert!(text.contains("Unresolved old Visual"), "{text}");
+}
+
+#[test]
+fn native_structure_ids_preserve_cell_identity_when_values_are_swapped() {
+    fn write_table(path: &Path, values: [&str; 2], reversed_drawing: bool, cover: bool) {
+        let mut pdf = Document::with_version("1.7");
+        let pages = pdf.new_object_id();
+        let page = pdf.new_object_id();
+        let root = pdf.new_object_id();
+        let table = pdf.new_object_id();
+        let font = pdf.add_object(
+            dictionary! { "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica" },
+        );
+        let mut rows = Vec::new();
+        let mut cells = Vec::new();
+        let mut identifiers = vec![("totals".to_owned(), table)];
+        for (index, name) in ["sales", "profit"].into_iter().enumerate() {
+            let row = pdf.new_object_id();
+            let cell = pdf.add_object(dictionary! {
+                "Type" => "StructElem", "S" => "TD", "P" => row, "Pg" => page, "K" => index as i64,
+                "ID" => Object::string_literal(format!("{name}-amount")),
+            });
+            pdf.objects.insert(
+                row,
+                Object::Dictionary(dictionary! {
+                    "Type" => "StructElem", "S" => "TR", "P" => table, "K" => cell,
+                    "ID" => Object::string_literal(name),
+                }),
+            );
+            rows.push(Object::Reference(row));
+            cells.push(Object::Reference(cell));
+            identifiers.push((name.to_owned(), row));
+            identifiers.push((format!("{name}-amount"), cell));
+        }
+        pdf.objects.insert(
+            table,
+            Object::Dictionary(dictionary! {
+                "Type" => "StructElem", "S" => "Table", "P" => root, "K" => rows,
+                "ID" => Object::string_literal("totals"),
+            }),
+        );
+        identifiers.sort_by(|a, b| a.0.cmp(&b.0));
+        let names: Vec<_> = identifiers
+            .into_iter()
+            .flat_map(|(id, object)| [Object::string_literal(id), Object::Reference(object)])
+            .collect();
+        pdf.objects.insert(root, Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => table,
+            "IDTree" => dictionary! { "Names" => names },
+            "ParentTree" => dictionary! { "Nums" => vec![Object::Integer(0), Object::Array(cells)] },
+            "ParentTreeNextKey" => 1,
+        }));
+        let order = if reversed_drawing { [1, 0] } else { [0, 1] };
+        let mut content = String::from("BT /F1 10 Tf ");
+        for index in order {
+            content.push_str(&format!(
+                "/Span << /MCID {index} >> BDC 1 0 0 1 20 {} Tm ({}) Tj EMC ",
+                [80, 50][index],
+                values[index]
+            ));
+        }
+        content.push_str("ET");
+        let contents = pdf.add_object(Stream::new(dictionary! {}, content.into_bytes()));
+        pdf.objects.insert(page, Object::Dictionary(dictionary! {
+            "Type" => "Page", "Parent" => pages, "MediaBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+            "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } }, "Contents" => contents,
+            "StructParents" => 0,
+        }));
+        let mut kids = Vec::new();
+        if cover {
+            let blank = pdf.add_object(dictionary! {
+                "Type" => "Page", "Parent" => pages, "MediaBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+            });
+            kids.push(Object::Reference(blank));
+        }
+        kids.push(Object::Reference(page));
+        pdf.objects.insert(
+            pages,
+            Object::Dictionary(
+                dictionary! { "Type" => "Pages", "Count" => kids.len() as i64, "Kids" => kids },
+            ),
+        );
+        let catalog = pdf.add_object(
+            dictionary! { "Type" => "Catalog", "Pages" => pages, "StructTreeRoot" => root, "MarkInfo" => dictionary! { "Marked" => true } },
+        );
+        pdf.trailer.set("Root", catalog);
+        pdf.save(path).expect("tagged table fixture");
+    }
+    let directory = TestDirectory::new();
+    let old = directory.join("old-table.pdf");
+    write_table(&old, ["100", "20"], false, false);
+    for (index, (values, reversed, cover, changes)) in [
+        (["20", "100"], false, false, 2),
+        (["100", "20"], true, false, 0),
+        (["100", "20"], false, true, 0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let new = directory.join(&format!("new-table-{index}.pdf"));
+        let report_path = directory.join(&format!("table-{index}.json"));
+        write_table(&new, values, reversed, cover);
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["--channels", "text,relations"])
+            .arg(&old)
+            .arg(&new)
+            .arg("--json")
+            .arg(&report_path)
+            .output()
+            .expect("tagged table comparison");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let report: Value =
+            serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
+        assert_eq!(report["old"]["structured_elements"], 5);
+        assert_eq!(report["new"]["structured_elements"], 5);
+        assert_eq!(report["typed_changes"], changes, "{report}");
+        assert_eq!(report["inferred_changes"], 0, "{report}");
+        assert_eq!(report["comparison_complete"], false);
+    }
+}
+
+#[test]
+fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-forms.pdf");
+    let new = directory.join("new-forms.pdf");
+    let report = directory.join("forms.json");
+    fn fields(path: &Path, values: &[(&str, &str)]) {
+        write_pdf(
+            path,
+            &["Retained background text is outside the selected form channel"],
+        );
+        let mut pdf = Document::load(path).expect("background text fixture");
+        let fields: Vec<_> = values.iter().map(|(name, value)| Object::Reference(pdf.add_object(dictionary! {
+            "FT" => "Tx", "T" => Object::string_literal(*name), "V" => Object::string_literal(*value),
+        }))).collect();
+        let root = pdf
+            .trailer
+            .get(b"Root")
+            .and_then(Object::as_reference)
+            .expect("catalog reference");
+        pdf.get_object_mut(root)
+            .and_then(Object::as_dict_mut)
+            .expect("catalog")
+            .set("AcroForm", dictionary! { "Fields" => fields });
+        pdf.save(path).expect("stored fields without widgets");
+    }
+    fields(&old, &[("revenue", "100"), ("profit", "20")]);
+    fields(&new, &[("profit", "100"), ("revenue", "20")]);
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&old)
+        .arg(&new)
+        .args(["--channels", "forms", "--json"])
+        .arg(&report)
+        .output()
+        .expect("typed form comparison");
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("Field \"revenue\""), "{text}");
+    assert!(text.contains("Field \"profit\""), "{text}");
+    assert!(text.contains("  - \"100\"\n  + \"20\""), "{text}");
+    assert!(text.contains("  - \"20\"\n  + \"100\""), "{text}");
+    assert!(text.contains("Mandatory changed positions:"), "{text}");
+    let report: Value =
+        serde_json::from_slice(&fs::read(report).expect("report")).expect("typed report");
+    assert_eq!(report["comparison_complete"], true);
+    assert_eq!(report["typed_changes"], 2);
+    assert!(
+        report["old"]["native_glyphs"]
+            .as_u64()
+            .expect("retained glyph count")
+            > 0
+    );
+    assert_eq!(
+        report["comparison"]["scopes"][0]["result"]["candidates"]["examined_pairs"],
+        4
+    );
+    assert_eq!(
+        report["comparison"]["scopes"][0]["result"]["matching"]["channels"]["text"],
+        false
+    );
+    let pairs = report["comparison"]["scopes"][0]["result"]["comparisons"]
+        .as_array()
+        .expect("paired fields");
+    assert_eq!(pairs[0]["operation"]["old"]["value"], "100");
+    assert_eq!(pairs[0]["operation"]["new"]["value"], "20");
+    assert_eq!(pairs[1]["operation"]["old"]["value"], "20");
+    assert_eq!(pairs[1]["operation"]["new"]["value"], "100");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn native_worker_limit_preserves_independent_stored_field_changes() {
+    let directory = TestDirectory::new();
+    let old = directory.join("limited-old.pdf");
+    let new = directory.join("limited-new.pdf");
+    for (path, value) in [(&old, "100"), (&new, "200")] {
+        write_pdf(path, &["native extraction will exceed its array budget"]);
+        let mut pdf = Document::load(path).expect("native fixture");
+        let mut content = vec![b'['];
+        content.extend_from_slice(
+            &b"0 "
+                .repeat(pdfdelta_core::source::ExtractionLimits::default().max_array_elements + 1),
+        );
+        content.extend_from_slice(b"] TJ");
+        let contents = pdf.add_object(Stream::new(dictionary! {}, content));
+        let page = pdf.get_pages()[&1];
+        pdf.get_object_mut(page)
+            .and_then(Object::as_dict_mut)
+            .expect("page")
+            .set("Contents", contents);
+        let field = pdf.add_object(dictionary! { "FT" => "Tx", "T" => Object::string_literal("fee"), "V" => Object::string_literal(value) });
+        let root = pdf
+            .trailer
+            .get(b"Root")
+            .and_then(Object::as_reference)
+            .expect("root");
+        pdf.get_object_mut(root)
+            .and_then(Object::as_dict_mut)
+            .expect("catalog")
+            .set(
+                "AcroForm",
+                dictionary! { "Fields" => vec![Object::Reference(field)] },
+            );
+        pdf.save(path).expect("limited extraction fixture");
+    }
+    let report_path = directory.join("limited.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text,forms"])
+        .arg(&old)
+        .arg(&new)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("worker comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report: Value =
+        serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
+    assert_eq!(report["typed_changes"], 1, "{report}");
+    assert_eq!(report["comparison_complete"], false);
+    for side in ["old", "new"] {
+        assert_eq!(report[side]["pages"], 1);
+        assert_eq!(
+            report[side]["form_fields"]
+                .as_array()
+                .expect("fields")
+                .len(),
+            1
+        );
+        assert!(
+            report[side]["issues"]
+                .as_array()
+                .expect("issues")
+                .iter()
+                .any(|issue| issue["channel"] == "text" && issue["kind"] == "resource_limit"),
+            "{report}"
+        );
+    }
+    let fields = report["coverage"]
+        .as_array()
+        .expect("coverage")
+        .iter()
+        .find(|coverage| coverage["channel"] == "forms")
+        .expect("forms coverage");
+    assert_eq!(fields["complete"], true);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn native_worker_preserves_encrypted_cache_results_without_exposing_passwords() {
+    let directory = TestDirectory::new();
+    let old = directory.join("encrypted-old.pdf");
+    let new = directory.join("encrypted-new.pdf");
+    let password_path = directory.join("password.txt");
+    let password = "fixture-acquisition-password";
+    fs::write(&password_path, password).expect("fixture password");
+    write_encrypted_pdf(&old, &["The shipment quantity is 100 kilograms."], password);
+    write_encrypted_pdf(&new, &["The shipment quantity is 200 kilograms."], password);
+    let cache = directory.join("cache");
+    let mut previous: Option<Value> = None;
+    for index in 0..3 {
+        let report_path = directory.join(&format!("encrypted-{index}.json"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+        command
+            .args(["--channels", "text"])
+            .arg(&old)
+            .arg(&new)
+            .arg("--old-password-file")
+            .arg(&password_path)
+            .arg("--new-password-file")
+            .arg(&password_path)
+            .arg("--json")
+            .arg(&report_path);
+        if index != 0 {
+            command.arg("--extraction-cache-dir").arg(&cache);
+        }
+        let output = command.output().expect("encrypted evidence comparison");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let json = fs::read_to_string(report_path).expect("encrypted report");
+        assert!(!json.contains(password));
+        let report: Value = serde_json::from_str(&json).expect("JSON");
+        assert_eq!(report["old"]["native_glyphs"], 39);
+        assert_eq!(report["inferred_changes"], 1);
+        if let Some(previous) = &previous {
+            assert_eq!(report["comparison"], previous["comparison"]);
+            assert_eq!(report["coverage"], previous["coverage"]);
+        }
+        previous = Some(report);
+    }
+    fs::write(&password_path, "incorrect-fixture-password").expect("wrong fixture password");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text"])
+        .arg(&old)
+        .arg(&new)
+        .arg("--old-password-file")
+        .arg(&password_path)
+        .arg("--new-password-file")
+        .arg(&password_path)
+        .arg("--extraction-cache-dir")
+        .arg(&cache)
+        .output()
+        .expect("wrong-password comparison");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(!stderr(&output).contains("incorrect-fixture-password"));
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn native_worker_rejects_malformed_and_oversized_request_frames() {
+    use std::io::Write as _;
+    for (input, expected) in [
+        (b"{}".to_vec(), 2),
+        (b"{}\n".to_vec(), 2),
+        (vec![b'x'; 256 * 1024 + 1], 3),
+    ] {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .arg("acquire-native")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("native worker");
+        child
+            .stdin
+            .take()
+            .expect("worker input")
+            .write_all(&input)
+            .expect("send worker frame");
+        let output = child.wait_with_output().expect("worker completion");
+        assert_eq!(output.status.code(), Some(expected));
+        assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn button_appearance_state_disagreement_keeps_independent_field_changes() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-button.pdf");
+    let new = directory.join("new-button.pdf");
+    for (path, amount) in [(&old, "100"), (&new, "200")] {
+        let mut pdf = build_pdf_pages_with_font(&[&[]], 12, "Type1", TextEncoding::Literal);
+        let page = pdf.get_pages()[&1];
+        let appearance = pdf.add_object(Stream::new(dictionary! { "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()] }, b"0 0 10 10 re S".to_vec()));
+        let button = pdf.add_object(dictionary! { "FT" => "Btn", "T" => Object::string_literal("choice"),
+            "Subtype" => "Widget", "P" => page, "Rect" => vec![10.into(), 10.into(), 20.into(), 20.into()],
+            "V" => "Yes", "AS" => "Off", "AP" => dictionary! { "N" => dictionary! { "Off" => appearance, "Yes" => appearance } } });
+        let value = pdf.add_object(dictionary! { "FT" => "Tx", "T" => Object::string_literal("fee"), "V" => Object::string_literal(amount) });
+        pdf.get_object_mut(page)
+            .expect("page")
+            .as_dict_mut()
+            .expect("page dictionary")
+            .set("Annots", vec![Object::Reference(button)]);
+        let root = pdf
+            .trailer
+            .get(b"Root")
+            .expect("catalog")
+            .as_reference()
+            .expect("catalog reference");
+        pdf.get_object_mut(root).expect("catalog object").as_dict_mut().expect("catalog dictionary")
+            .set("AcroForm", dictionary! { "Fields" => vec![Object::Reference(button), Object::Reference(value)] });
+        pdf.save(path).expect("button fixture");
+    }
+    let report_path = directory.join("button.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "forms"])
+        .arg(old)
+        .arg(new)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("forms comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report: Value =
+        serde_json::from_slice(&fs::read(report_path).expect("form report")).expect("JSON report");
+    assert_eq!(report["typed_changes"], 1, "{report}");
+    assert_eq!(report["comparison_complete"], false);
+    for side in ["old", "new"] {
+        let field = &report[side]["form_fields"][0];
+        assert_eq!(
+            field["value"]["button_states"][0]["name"],
+            serde_json::json!([79, 102, 102])
+        );
+        assert!(!field["value"]["button_states"][0]["widget"].is_null());
+        let issue = report[side]["issues"]
+            .as_array()
+            .expect("form issues")
+            .iter()
+            .find(|issue| {
+                issue["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("states disagree"))
+            })
+            .expect("appearance disagreement");
+        assert_eq!(issue["sources"][0]["origin"], "structured");
+        assert_eq!(issue["sources"][0]["element"], 0);
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn form_widget_pixels_and_saved_values_compare_independently() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-widget.pdf");
+    let mut inputs = Vec::new();
+    for (index, (value, color, moved, cover, second_x)) in [
+        ("100", "1 0 0", false, false, None),
+        ("100", "0 0 1", false, false, None),
+        ("200", "1 0 0", false, false, None),
+        ("200", "0 0 1", false, false, None),
+        ("100", "1 0 0", true, false, None),
+        ("100", "1 0 0", false, true, None),
+        ("100", "1 0 0", false, false, Some(10)),
+        ("100", "0 0 1", false, false, Some(10)),
+        ("100", "1 0 0", false, false, Some(160)),
+        ("100", "0 0 1", false, false, Some(160)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut pdf = build_pdf_pages_with_font(
+            if cover { &[&[], &[]] } else { &[&[]] },
+            12,
+            "Type1",
+            TextEncoding::Literal,
+        );
+        let page = pdf.get_pages()[&if cover { 2 } else { 1 }];
+        let normal = pdf.add_object(Stream::new(dictionary! { "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 100.into(), 30.into()], "Resources" => dictionary!{} }, format!("{color} rg 0 0 100 30 re f").into_bytes()));
+        let x = if moved { 60 } else { 10 };
+        let field = pdf.add_object(dictionary! { "FT" => "Tx", "Subtype" => "Widget", "T" => Object::string_literal("fee"), "V" => Object::string_literal(value),
+            "Rect" => vec![x.into(), 10.into(), (x + 100).into(), 40.into()], "AP" => dictionary! { "N" => normal } });
+        let mut fields = vec![Object::Reference(field)];
+        if let Some(x) = second_x {
+            let mut other = pdf
+                .get_object(field)
+                .expect("field")
+                .as_dict()
+                .expect("field dictionary")
+                .clone();
+            other.set("T", Object::string_literal("other"));
+            other.set(
+                "Rect",
+                vec![Object::from(x), 10.into(), (x + 100).into(), 40.into()],
+            );
+            fields.push(Object::Reference(pdf.add_object(other)));
+        }
+        // Page membership comes from Annots; the optional P entry is absent.
+        pdf.get_object_mut(page)
+            .expect("page")
+            .as_dict_mut()
+            .expect("page dictionary")
+            .set("Annots", fields.clone());
+        let root = pdf
+            .trailer
+            .get(b"Root")
+            .expect("catalog")
+            .as_reference()
+            .expect("catalog reference");
+        pdf.get_object_mut(root)
+            .expect("catalog object")
+            .as_dict_mut()
+            .expect("catalog dictionary")
+            .set("AcroForm", dictionary! { "Fields" => fields });
+        let path = if index == 0 {
+            old.clone()
+        } else {
+            directory.join(&format!("widget-{index}.pdf"))
+        };
+        pdf.save(&path).expect("widget fixture");
+        inputs.push(path);
+    }
+    for (index, input) in inputs.iter().enumerate() {
+        let baseline = if index >= 8 {
+            &inputs[8]
+        } else if index >= 6 {
+            &inputs[6]
+        } else {
+            &old
+        };
+        for channels in ["forms", "forms,visual"] {
+            let report_path = directory.join(&format!("widget-{index}-{channels}.json"));
+            let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+                .args(["--channels", channels])
+                .arg(baseline)
+                .arg(input)
+                .arg("--json")
+                .arg(&report_path)
+                .output()
+                .expect("widget comparison");
+            assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+            let report: Value =
+                serde_json::from_slice(&fs::read(report_path).expect("widget report"))
+                    .expect("JSON report");
+            assert_eq!(report["comparison_complete"], false);
+            assert_eq!(
+                report["typed_changes"],
+                usize::from(index == 2 || index == 3)
+                    + usize::from(index == 1 || index == 3)
+                    + 2 * usize::from(index == 9),
+                "{report}"
+            );
+            assert_eq!(report["inferred_changes"], 0, "{report}");
+            assert!(
+                !report["old"]["form_fields"][0]["value"]["widgets"][0]["crop"].is_null(),
+                "{report}"
+            );
+            assert_eq!(
+                report["old"]["rendered_regions"],
+                if index >= 6 { 3 } else { 2 }
+            );
+            if index == 7 {
+                assert!(
+                    report["comparison"]["scopes"]
+                        .as_array()
+                        .expect("scopes")
+                        .iter()
+                        .any(|scope| scope["result"]["unresolved"]
+                            .as_array()
+                            .expect("scope issues")
+                            .iter()
+                            .any(|reason| reason
+                                .as_str()
+                                .is_some_and(|reason| reason.contains("competing optima")))),
+                    "{report}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+#[ignore = "requires local OCR models in PDFDELTA_OCR_DETECTION_MODEL and PDFDELTA_OCR_RECOGNITION_MODEL"]
+fn local_ocr_reports_widget_reading_disagreement_without_rewriting_values() {
+    let detection = std::env::var_os("PDFDELTA_OCR_DETECTION_MODEL").expect("detection model");
+    let recognition =
+        std::env::var_os("PDFDELTA_OCR_RECOGNITION_MODEL").expect("recognition model");
+    let directory = TestDirectory::new();
+    let old = directory.join("old-appearance.pdf");
+    let new = directory.join("new-appearance.pdf");
+    for (path, displayed, independent) in [(&old, "100", "300"), (&new, "200", "400")] {
+        let mut pdf = build_pdf_pages_with_font(&[&[]], 12, "Type1", TextEncoding::Literal);
+        let page = pdf.get_pages()[&1];
+        let font = pdf.add_object(
+            dictionary! { "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica" },
+        );
+        let normal = pdf.add_object(Stream::new(dictionary! { "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 100.into(), 40.into()],
+            "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } } }, format!("BT /F1 28 Tf 1 0 0 1 5 8 Tm ({displayed}) Tj ET").into_bytes()));
+        let widget = pdf.add_object(dictionary! { "FT" => "Tx", "Subtype" => "Widget", "T" => Object::string_literal("displayed-fee"), "V" => Object::string_literal("100"),
+            "Rect" => vec![40.into(), 140.into(), 140.into(), 180.into()], "AP" => dictionary! { "N" => normal } });
+        let independent = pdf.add_object(dictionary! { "FT" => "Tx", "T" => Object::string_literal("independent"), "V" => Object::string_literal(independent) });
+        pdf.get_object_mut(page)
+            .expect("page")
+            .as_dict_mut()
+            .expect("page dictionary")
+            .set("Annots", vec![Object::Reference(widget)]);
+        let root = pdf
+            .trailer
+            .get(b"Root")
+            .expect("catalog")
+            .as_reference()
+            .expect("catalog reference");
+        pdf.get_object_mut(root).expect("catalog object").as_dict_mut().expect("catalog dictionary").set("AcroForm", dictionary! { "Fields" => vec![Object::Reference(widget), Object::Reference(independent)] });
+        pdf.save(path).expect("appearance fixture");
+    }
+    for (index, input) in [&old, &new].into_iter().enumerate() {
+        let report_path = directory.join(&format!("appearance-{index}.json"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["--channels", "forms", "--ocr-detection-model"])
+            .arg(&detection)
+            .arg("--ocr-recognition-model")
+            .arg(&recognition)
+            .arg(&old)
+            .arg(input)
+            .arg("--json")
+            .arg(&report_path)
+            .output()
+            .expect("appearance comparison");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let report: Value =
+            serde_json::from_slice(&fs::read(report_path).expect("appearance report"))
+                .expect("JSON report");
+        assert_eq!(report["typed_changes"], index * 2, "{report}");
+        assert_eq!(report["inferred_changes"], 0);
+        for (side, expected) in [
+            ("old", "same_literal_reading"),
+            (
+                "new",
+                if index == 0 {
+                    "same_literal_reading"
+                } else {
+                    "different_literal_reading"
+                },
+            ),
+        ] {
+            let analysis = &report[side]["form_appearance_readings"];
+            assert_eq!(analysis["exhaustive"], true);
+            let observation = &analysis["observations"][0];
+            assert_eq!(observation["status"], expected, "{report}");
+            assert_eq!(observation["interpretation"], "inferred");
+            assert_eq!(
+                report[side]["form_fields"][0]["value"]["value"]["value"],
+                "100"
+            );
+            assert!(
+                !observation["readings"]
+                    .as_array()
+                    .expect("reading references")
+                    .is_empty()
+            );
+        }
+        if index == 1 {
+            assert!(
+                report["new"]["issues"]
+                    .as_array()
+                    .expect("issues")
+                    .iter()
+                    .any(|issue| issue["reason"].as_str().is_some_and(
+                        |reason| reason.contains("OCR reading differs from the saved text")
+                    )),
+                "{report}"
+            );
+        }
+    }
+}
+
+#[test]
+fn external_vertical_text_preserves_evidence_across_page_moves_and_edits() {
+    let fixtures =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/vertical-tectonic");
+    let old = fixtures.join("vertical-old.pdf");
+    let extracted = inspect(&old, &["--glyphs"]);
+    assert!(extracted.status.success(), "{}", stderr(&extracted));
+    assert_eq!(stdout(&extracted).matches("direction=(0,-1)").count(), 10);
+    for (name, glyphs, changed) in [
+        ("vertical-moved", 14, false),
+        ("vertical-changed", 15, true),
+    ] {
+        let directory = TestDirectory::new();
+        let destination = directory.join("report.json");
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .arg(&old)
+            .arg(fixtures.join(format!("{name}.pdf")))
+            .arg("--json")
+            .arg(&destination)
+            .arg("--quiet")
+            .output()
+            .expect("default evidence comparison");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let report = read_json(&destination);
+        assert_eq!(report["comparison_complete"], false);
+        assert_eq!(report["old"]["native_glyphs"], 14);
+        assert_eq!(report["new"]["native_glyphs"], glyphs);
+        let changes: Vec<_> = report["comparison"]["scopes"]
+            .as_array()
+            .expect("scopes")
+            .iter()
+            .flat_map(|scope| {
+                scope["result"]["comparisons"]
+                    .as_array()
+                    .expect("local comparisons")
+            })
+            .filter(|pair| pair["operation"]["kind"] == "text_changed")
+            .collect();
+        assert_eq!(changes.len(), usize::from(changed));
+        if changed {
+            assert_eq!(changes[0]["interpretation"], "inferred");
+            assert_eq!(changes[0]["operation"]["old"], "出荷重量百キログラム");
+            assert_eq!(changes[0]["operation"]["new"], "出荷重量二百キログラム");
+            assert_eq!(changes[0]["text_mask"]["old"], serde_json::json!([]));
+            assert_eq!(
+                changes[0]["text_mask"]["new"],
+                serde_json::json!([
+                    { "position": 4, "sources": [{ "origin": "native", "glyph": 8 }] }
+                ])
+            );
+        } else {
+            let coverage = report["coverage"]
+                .as_array()
+                .expect("channels")
+                .iter()
+                .find(|coverage| coverage["channel"] == "text")
+                .expect("text coverage");
+            assert_eq!(coverage["old_compared_sources"], 14);
+            assert_eq!(coverage["new_compared_sources"], 14);
+        }
+    }
+}
+
 /// Run a comparison with the given directory as the working directory so
 /// relative output-path spellings can be exercised.
 fn compare_in(directory: &Path, old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("--native-text-only")
         .arg(old)
         .arg(new)
         .args(extra_arguments)
@@ -2589,6 +3745,86 @@ fn inspect(document: &Path, extra_arguments: &[&str]) -> Output {
 
 fn write_pdf(path: &Path, lines: &[&str]) {
     write_pdf_pages(path, &[lines], 30);
+}
+
+#[test]
+fn selected_text_does_not_prove_absence_of_outlined_text() {
+    let directory = TestDirectory::new();
+    let input = directory.join("outlined.pdf");
+    write_pdf(&input, &["temporary native content"]);
+    let mut pdf = Document::load(&input).expect("load fixture");
+    let page = pdf.get_pages()[&1];
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"20 20 m 30 25 l 30 70 l 20 70 l 40 70 l S".to_vec(),
+    ));
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("Contents", content);
+    pdf.save(&input).expect("save outlined fixture");
+    let report_path = directory.join("outlined.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text"])
+        .arg(&input)
+        .arg(&input)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("selected-text comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report: Value =
+        serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
+    assert_eq!(report["old"]["native_glyphs"], 0);
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
+
+    let old = directory.join("mixed-old.pdf");
+    let new = directory.join("mixed-new.pdf");
+    for (path, text) in [
+        (&old, "The shipment quantity is 100 kilograms."),
+        (&new, "The shipment quantity is 200 kilograms."),
+    ] {
+        write_pdf(path, &[text]);
+        let mut pdf = Document::load(path).expect("load native fixture");
+        let page = pdf.get_pages()[&1];
+        let painted = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"20 20 m 30 25 l 30 70 l S".to_vec(),
+        ));
+        let dictionary = pdf
+            .get_object_mut(page)
+            .expect("page")
+            .as_dict_mut()
+            .expect("page dictionary");
+        let native = dictionary
+            .get(b"Contents")
+            .expect("native contents")
+            .clone();
+        dictionary.set("Contents", vec![native, Object::Reference(painted)]);
+        pdf.save(path).expect("save mixed fixture");
+    }
+    let report_path = directory.join("mixed.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text"])
+        .arg(&old)
+        .arg(&new)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("mixed comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report: Value =
+        serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
+    assert_eq!(report["old"]["native_glyphs"], 39);
+    assert_eq!(report["new"]["native_glyphs"], 39);
+    assert_eq!(
+        report["typed_changes"].as_u64().expect("typed count")
+            + report["inferred_changes"].as_u64().expect("inferred count"),
+        1
+    );
+    assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
 }
 
 fn write_type0_pdf(path: &Path, lines: &[&str]) {

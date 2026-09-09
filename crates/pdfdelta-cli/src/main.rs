@@ -7,10 +7,16 @@ use clap::{CommandFactory, Parser};
 
 mod args;
 mod compare;
+mod evidence_compare;
+mod evidence_text;
 mod extraction_cache;
 mod fs;
 mod inspect;
+mod native_worker;
+mod ocr;
+mod render;
 mod trace;
+mod widgets;
 
 use crate::{
     args::{Cli, Command, CompareCommand},
@@ -23,6 +29,33 @@ fn main() -> ExitCode {
     let mut stderr = stderr.lock();
     let cli = Cli::parse();
     match cli.command {
+        Some(Command::AcquireNative) => match native_worker::worker() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(code) => ExitCode::from(code),
+        },
+        Some(Command::RecognizeRegion {
+            detection_model,
+            recognition_model,
+        }) => {
+            match ocr::worker(&ocr::Models {
+                detection: detection_model,
+                recognition: recognition_model,
+            }) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(code) => ExitCode::from(code),
+            }
+        }
+        Some(Command::RenderPage {
+            page,
+            pages,
+            width,
+            height,
+            object_number,
+            generation,
+        }) => match render::worker(page, pages, width, height, object_number, generation) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(code) => ExitCode::from(code),
+        },
         Some(Command::Inspect {
             document,
             backend_info,
@@ -55,8 +88,8 @@ fn main() -> ExitCode {
             let _ = stdout.flush();
             ExitCode::SUCCESS
         }
-        None => match compare_documents(
-            CompareCommand {
+        None => {
+            let command = CompareCommand {
                 old_path: cli.old.as_deref(),
                 new_path: cli.new.as_deref(),
                 trace_path: cli.trace_json.as_deref(),
@@ -73,14 +106,31 @@ fn main() -> ExitCode {
                     quiet: cli.quiet,
                     color: cli.color,
                 },
-            },
-            &mut stderr,
-        ) {
-            Ok(status) => ExitCode::from(status),
-            Err(error) => {
-                report_fatal_error(&mut stderr, &error);
-                ExitCode::from(ExitStatus::ExecutionError.code())
+            };
+            let result = if cli.native_text_only {
+                compare_documents(command, &mut stderr)
+            } else {
+                compare::compare_documents_with_evidence(
+                    command,
+                    &evidence_compare::EvidenceOptions {
+                        channels: cli.channels.iter().copied().map(Into::into).collect(),
+                        ocr_models: cli.ocr_detection_model.zip(cli.ocr_recognition_model).map(
+                            |(detection, recognition)| ocr::Models {
+                                detection,
+                                recognition,
+                            },
+                        ),
+                    },
+                    &mut stderr,
+                )
+            };
+            match result {
+                Ok(status) => ExitCode::from(status),
+                Err(error) => {
+                    report_fatal_error(&mut stderr, &error);
+                    ExitCode::from(ExitStatus::ExecutionError.code())
+                }
             }
-        },
+        }
     }
 }

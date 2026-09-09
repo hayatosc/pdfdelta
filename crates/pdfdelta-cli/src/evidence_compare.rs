@@ -1,0 +1,371 @@
+use std::{collections::BTreeSet, io::Write as _, path::Path};
+
+use pdfdelta_core::{
+    document::{
+        BackendIdentity, Channel, ChannelCoverage, ComparisonContract, CorrespondenceScope,
+        DocumentComparisonLimits, DocumentGraph, DocumentView, DocumentViewComparison,
+        EvidenceFailure, EvidenceIssue, EvidenceLimits, EvidenceStore, HierarchyLimits,
+        InterpretationStatus, MatchingChannels, MatchingLimits, NodeId, TableRefinements,
+        compare_document_views, document_coverage, refine_table_views,
+    },
+    model::PageId,
+    pdf::ParseLimits,
+    pipeline::PipelineOptions,
+};
+use serde::Serialize;
+
+use crate::{
+    args::{ComparisonInput, ComparisonOptions},
+    fs::{
+        read_limited_typed, read_password_file, write_output_atomically,
+        write_text_report_atomically,
+    },
+    trace::ExecutionTrace,
+};
+
+pub struct EvidenceOptions {
+    pub channels: BTreeSet<Channel>,
+    pub ocr_models: Option<crate::ocr::Models>,
+}
+
+#[derive(Serialize)]
+struct EvidenceSummary<'a> {
+    revision: &'a str,
+    pages: usize,
+    native_glyphs: usize,
+    rendered_regions: usize,
+    structured_elements: usize,
+    recognized_regions: Vec<&'a pdfdelta_core::document::StructuredEvidence>,
+    form_fields: Vec<&'a pdfdelta_core::document::StructuredEvidence>,
+    form_appearance_readings: &'a pdfdelta_core::document::FormAppearanceAnalysis,
+    rendered_sources: Vec<RenderedSource<'a>>,
+    backends: &'a [BackendIdentity],
+    issues: &'a [EvidenceIssue],
+}
+
+#[derive(Serialize)]
+struct RenderedSource<'a> {
+    id: u64,
+    page: PageId,
+    polygon: &'a [pdfdelta_core::model::Vec2],
+    backend: usize,
+    width: u32,
+    height: u32,
+}
+
+impl<'a> EvidenceSummary<'a> {
+    fn new(
+        store: &'a EvidenceStore,
+        form_appearance_readings: &'a pdfdelta_core::document::FormAppearanceAnalysis,
+    ) -> Self {
+        Self {
+            form_appearance_readings,
+            revision: &store.revision,
+            pages: store.pages.len(),
+            native_glyphs: store.native.items().len(),
+            rendered_regions: store.rendered.len(),
+            structured_elements: store.structured.len(),
+            form_fields: store
+                .structured
+                .iter()
+                .filter(|element| {
+                    matches!(
+                        element.value,
+                        pdfdelta_core::document::StructuredValue::FormField { .. }
+                    )
+                })
+                .collect(),
+            recognized_regions: store
+                .structured
+                .iter()
+                .filter(|element| {
+                    matches!(
+                        element.value,
+                        pdfdelta_core::document::StructuredValue::RecognizedText { .. }
+                    )
+                })
+                .collect(),
+            rendered_sources: store
+                .rendered
+                .iter()
+                .map(|region| RenderedSource {
+                    id: region.id,
+                    page: region.page,
+                    polygon: &region.polygon,
+                    backend: region.backend,
+                    width: region.raster.width,
+                    height: region.raster.height,
+                })
+                .collect(),
+            backends: &store.backends,
+            issues: &store.issues,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct DocumentReport<'a> {
+    schema_version: u32,
+    /// Includes extraction and child rendering; excludes report serialization and I/O.
+    comparison_wall_time_ms: u64,
+    contract: ComparisonContract,
+    comparison_complete: bool,
+    typed_changes: usize,
+    inferred_changes: usize,
+    coverage: Vec<ChannelCoverage>,
+    old: EvidenceSummary<'a>,
+    new: EvidenceSummary<'a>,
+    table_refinements: TableRefinements,
+    comparison: DocumentViewComparison,
+}
+
+pub fn compare(
+    old_input: ComparisonInput<'_>,
+    new_input: ComparisonInput<'_>,
+    pipeline: PipelineOptions,
+    output: ComparisonOptions<'_>,
+    cache_dir: Option<&Path>,
+    options: &EvidenceOptions,
+    trace: &mut ExecutionTrace,
+) -> Result<(u8, bool), String> {
+    let started = std::time::Instant::now();
+    let mut old = collect(old_input, cache_dir, options)?;
+    let mut new = collect(new_input, cache_dir, options)?;
+    let old_appearance = crate::widgets::assess_readings(&mut old)?;
+    let new_appearance = crate::widgets::assess_readings(&mut new)?;
+    let limits = DocumentComparisonLimits {
+        matching: MatchingLimits {
+            channels: MatchingChannels::from(&options.channels),
+            ..MatchingLimits::default()
+        },
+        ..DocumentComparisonLimits::default()
+    };
+    let mut old_graph = DocumentGraph::from_evidence(&old, pipeline, limits.evidence, limits.graph)
+        .map_err(|error| error.to_string())?;
+    let mut new_graph = DocumentGraph::from_evidence(&new, pipeline, limits.evidence, limits.graph)
+        .map_err(|error| error.to_string())?;
+    let table_refinements = if limits.matching.channels.text {
+        refine_table_views(&mut old_graph, &mut new_graph, &old, &new, pipeline, limits)
+            .map_err(|error| error.to_string())?
+    } else {
+        TableRefinements {
+            old: Vec::new(),
+            new: Vec::new(),
+            exhaustive: true,
+        }
+    };
+    trace.complete(
+        "document_graph",
+        None,
+        [
+            ("old_nodes", old_graph.nodes.len()),
+            ("new_nodes", new_graph.nodes.len()),
+        ],
+    );
+    let mut comparison = compare_document_views(
+        DocumentView {
+            evidence: &old,
+            graph: &old_graph,
+        },
+        DocumentView {
+            evidence: &new,
+            graph: &new_graph,
+        },
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        limits,
+        HierarchyLimits::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    if !table_refinements.exhaustive {
+        comparison
+            .relation_unresolved
+            .push("counterpart table refinement search is incomplete".into());
+    }
+    let selected_nodes = pdfdelta_core::document::selected_nodes(
+        &old_graph,
+        MatchingChannels {
+            relations: false,
+            presentation: false,
+            ..MatchingChannels::from(&options.channels)
+        },
+    );
+    for scope in &mut comparison.scopes {
+        scope
+            .result
+            .comparisons
+            .retain(|pair| pair.old.iter().all(|node| selected_nodes.contains(node)));
+    }
+    let coverage = document_coverage(
+        DocumentView {
+            evidence: &old,
+            graph: &old_graph,
+        },
+        DocumentView {
+            evidence: &new,
+            graph: &new_graph,
+        },
+        &comparison,
+        &options.channels,
+    );
+    let complete = coverage.iter().all(|channel| channel.complete) && comparison.search_resolved();
+    let changes = comparison
+        .comparisons()
+        .filter(|pair| {
+            pair.operation.is_some()
+                && pair.interpretation == InterpretationStatus::ConditionalOnCorrespondence
+        })
+        .count()
+        + comparison
+            .relations()
+            .filter(|relation| {
+                relation.changed()
+                    && relation.interpretation == InterpretationStatus::ConditionalOnCorrespondence
+            })
+            .count();
+    let inferred_changes = comparison
+        .comparisons()
+        .filter(|pair| {
+            pair.operation.is_some() && pair.interpretation == InterpretationStatus::Inferred
+        })
+        .count()
+        + comparison
+            .relations()
+            .filter(|relation| {
+                relation.changed() && relation.interpretation == InterpretationStatus::Inferred
+            })
+            .count();
+    let report = DocumentReport {
+        schema_version: 2,
+        comparison_wall_time_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        contract: ComparisonContract {
+            version: 1,
+            channels: options.channels.clone(),
+        },
+        comparison_complete: complete,
+        typed_changes: changes,
+        inferred_changes,
+        coverage,
+        old: EvidenceSummary::new(&old, &old_appearance),
+        new: EvidenceSummary::new(&new, &new_appearance),
+        table_refinements,
+        comparison,
+    };
+    if let Some(path) = output.json_path {
+        write_output_atomically(path, "document JSON report", |writer| {
+            serde_json::to_writer_pretty(writer, &report)
+                .map_err(|error| format!("cannot write document report: {error}"))
+        })?;
+    }
+    let mut text = format!(
+        "Document comparison: {}\nTyped changes: {changes}\nInferred changes: {inferred_changes}\n",
+        if complete { "complete" } else { "incomplete" }
+    );
+    for coverage in &report.coverage {
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            text,
+            "{:?}: old {}/{}, new {}/{} source references compared; {}",
+            coverage.channel,
+            coverage.old_compared_sources,
+            coverage.old_discovered_sources,
+            coverage.new_compared_sources,
+            coverage.new_discovered_sources,
+            if coverage.complete {
+                "complete"
+            } else {
+                "unresolved"
+            }
+        );
+    }
+    crate::evidence_text::append_details(
+        &mut text,
+        &report.comparison,
+        &old_graph,
+        &new_graph,
+        &old.issues,
+        &new.issues,
+    );
+    if let Some(path) = output.output_path {
+        write_text_report_atomically(path, &text)?;
+    } else if !output.quiet {
+        std::io::stdout()
+            .lock()
+            .write_all(text.as_bytes())
+            .map_err(|error| error.to_string())?;
+    }
+    trace.complete(
+        "document_comparison",
+        None,
+        [
+            ("typed_changes", changes),
+            ("inferred_changes", inferred_changes),
+            ("selected_channels", report.coverage.len()),
+        ],
+    );
+    Ok((
+        if !complete {
+            3
+        } else if changes > 0 {
+            1
+        } else {
+            0
+        },
+        !complete,
+    ))
+}
+
+fn collect(
+    input: ComparisonInput<'_>,
+    cache_dir: Option<&Path>,
+    options: &EvidenceOptions,
+) -> Result<EvidenceStore, String> {
+    if options.ocr_models.is_some()
+        && !options.channels.contains(&Channel::Text)
+        && !options.channels.contains(&Channel::Forms)
+    {
+        return Err("OCR requires the text or forms comparison channel".into());
+    }
+    let parse_limits = ParseLimits::default();
+    let limits = EvidenceLimits::default();
+    let bytes = read_limited_typed(input.path, parse_limits.max_input_bytes)
+        .map_err(|error| error.to_string())?;
+    let password = input.password_file.map(read_password_file).transpose()?;
+    let (mut store, page_refs) = crate::native_worker::collect(
+        &bytes,
+        password.as_deref(),
+        input.font_identities,
+        cache_dir,
+        &options.channels,
+    )?;
+    if options.channels.contains(&Channel::Text)
+        || options.channels.contains(&Channel::Visual)
+        || options.channels.contains(&Channel::Presentation)
+        || options.ocr_models.is_some()
+        || store.structured.iter().any(|field| matches!(&field.value, pdfdelta_core::document::StructuredValue::FormField { widgets, .. } if !widgets.is_empty()))
+    {
+        crate::render::collect(&mut store, &bytes, &page_refs, password.is_some());
+    }
+    if let Some(models) = &options.ocr_models {
+        crate::ocr::collect(&mut store, models);
+    }
+    crate::widgets::collect(&mut store);
+    for channel in [Channel::Presentation] {
+        if options.channels.contains(&channel) {
+            for page in &store.pages {
+                store.issues.push(EvidenceIssue {
+                    page: Some(page.page),
+                    channel,
+                    sources: Vec::new(),
+                    kind: EvidenceFailure::Unsupported,
+                    reason: "presentation interpretation is not implemented; retained page pixels do not establish presentation coverage"
+                        .into(),
+                });
+            }
+        }
+    }
+    store.validate(limits).map_err(|error| error.to_string())?;
+    Ok(store)
+}

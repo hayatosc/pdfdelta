@@ -14,11 +14,18 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 clap_complete.workspace = true
+hayro = "=0.7.1"
+ocrs = { version = "=0.13.0", default-features = false, features = ["rten"] }
+rten = { version = "=0.26.0", default-features = false, features = ["rten_format"] }
+rten-imageproc = "=0.26.0"
 pdfdelta-core = { path = "../pdfdelta-core" }
 rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["process"] }
 
 [dev-dependencies]
 lopdf.workspace = true

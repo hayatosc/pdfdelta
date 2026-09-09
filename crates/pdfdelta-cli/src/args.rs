@@ -10,10 +10,10 @@ use pdfdelta_core::pipeline::validate_limit_scale as validate_pipeline_limit_sca
 #[command(
     name = "pdfdelta",
     version,
-    about = "Compare meaningful text changes between two PDF documents",
-    long_about = "pdfdelta compares two PDF documents and detects meaningful semantic text changes\n\
-                  while ignoring benign layout differences like line wraps, pagination shifts,\n\
-                  font size adjustments, and generation software differences.",
+    about = "Compare PDF content and relationships with explicit evidence coverage",
+    long_about = "pdfdelta compares selected PDF evidence channels and retains unresolved regions.\n\
+                  The default contract includes text, visual content, forms, and relationships.\n\
+                  Use --native-text-only for the explicit native-glyph adapter.",
     args_conflicts_with_subcommands = true
 )]
 pub struct Cli {
@@ -27,6 +27,27 @@ pub struct Cli {
     /// Path to the newer/modified PDF document (use '-' for standard input).
     #[arg(value_name = "NEW_PDF")]
     pub new: Option<PathBuf>,
+
+    /// Content channels to compare through the shared evidence pipeline.
+    #[arg(
+        long,
+        value_enum,
+        value_delimiter = ',',
+        default_value = "text,visual,forms,relations"
+    )]
+    pub channels: Vec<ComparisonChannel>,
+
+    /// Compare only extracted native glyphs using the legacy report contract.
+    #[arg(long, conflicts_with_all = ["channels", "ocr_detection_model", "ocr_recognition_model"])]
+    pub native_text_only: bool,
+
+    /// Local RTen text-detection model; enables image-backed OCR for the text channel.
+    #[arg(long, requires_all = ["ocr_recognition_model", "new"])]
+    pub ocr_detection_model: Option<PathBuf>,
+
+    /// Local RTen text-recognition model using the default Latin alphabet.
+    #[arg(long, requires_all = ["ocr_detection_model", "new"])]
+    pub ocr_recognition_model: Option<PathBuf>,
 
     /// Write a machine-readable JSON comparison report to a file.
     #[arg(short = 'j', long, value_name = "PATH", requires = "new")]
@@ -98,8 +119,48 @@ pub struct Cli {
     pub extraction_cache_dir: Option<PathBuf>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum ComparisonChannel {
+    Text,
+    Visual,
+    Forms,
+    Relations,
+    Presentation,
+}
+
+impl From<ComparisonChannel> for pdfdelta_core::document::Channel {
+    fn from(channel: ComparisonChannel) -> Self {
+        match channel {
+            ComparisonChannel::Text => Self::Text,
+            ComparisonChannel::Visual => Self::Visual,
+            ComparisonChannel::Forms => Self::Forms,
+            ComparisonChannel::Relations => Self::Relations,
+            ComparisonChannel::Presentation => Self::Presentation,
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Internal bounded native acquisition process; consumes framed PDF bytes.
+    #[command(hide = true)]
+    AcquireNative,
+    /// Internal bounded recognition process; consumes framed RGB evidence.
+    #[command(hide = true)]
+    RecognizeRegion {
+        detection_model: PathBuf,
+        recognition_model: PathBuf,
+    },
+    /// Internal bounded rendering process; consumes PDF bytes on standard input.
+    #[command(hide = true)]
+    RenderPage {
+        page: usize,
+        pages: usize,
+        width: u16,
+        height: u16,
+        object_number: u32,
+        generation: u16,
+    },
     /// Inspect evidence extracted from one PDF.
     Inspect {
         /// Path to the PDF document to inspect (use '-' for standard input).

@@ -15,11 +15,11 @@ use crate::fs::read_limited_typed;
 
 /// Bump when anything that changes extraction results is added to the cache
 /// key or the cached payload shape.
-const CACHE_FORMAT_VERSION: u32 = 1;
+const CACHE_FORMAT_VERSION: u32 = 5;
 
-/// Cached payloads are compact glyph evidence, never larger than the PDF they
-/// came from; entries above this bound are treated as corrupt rather than
-/// parsed, and the bound is enforced during the read itself so a planted
+/// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
+/// are treated as corrupt rather than parsed, and the bound is enforced during
+/// the read itself so a planted
 /// oversized entry cannot exhaust memory.
 const MAX_CACHE_PAYLOAD_BYTES: usize = 256 * 1024 * 1024;
 
@@ -192,10 +192,24 @@ fn write_entry_exclusive(
 /// Write wrapper that fails the serialization once the payload would exceed
 /// the ceiling, so oversized entries abort before consuming the full disk or
 /// memory cost.
-struct CeilingWriter<W> {
+pub(crate) struct CeilingWriter<W> {
     inner: W,
     remaining: usize,
     oversized: bool,
+}
+
+impl<W> CeilingWriter<W> {
+    pub(crate) fn new(inner: W, remaining: usize) -> Self {
+        Self {
+            inner,
+            remaining,
+            oversized: false,
+        }
+    }
+
+    pub(crate) fn oversized(&self) -> bool {
+        self.oversized
+    }
 }
 
 impl<W: io::Write> io::Write for CeilingWriter<W> {
@@ -204,11 +218,12 @@ impl<W: io::Write> io::Write for CeilingWriter<W> {
             self.oversized = true;
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                "cache payload exceeds the size ceiling",
+                "serialized payload exceeds the size ceiling",
             ));
         }
-        self.remaining -= buf.len();
-        self.inner.write(buf)
+        let written = self.inner.write(buf)?;
+        self.remaining -= written;
+        Ok(written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -316,6 +331,28 @@ fn unique_temp_dir(tag: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn serialization_ceiling_charges_bytes_written_by_partial_writers() {
+        struct Partial(Vec<u8>);
+        impl io::Write for Partial {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                let count = bytes.len().min(2);
+                self.0.extend_from_slice(&bytes[..count]);
+                Ok(count)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let value = "a string exceeding one write";
+        let expected = serde_json::to_vec(value).expect("fixture JSON");
+        let mut inner = Partial(Vec::new());
+        let mut writer = CeilingWriter::new(&mut inner, expected.len());
+        serde_json::to_writer(&mut writer, value).expect("partial writes fit the ceiling");
+        assert!(!writer.oversized());
+        assert_eq!(inner.0, expected);
+    }
     use crate::fs::parse_external_font_identities;
     use pdfdelta_core::model::{DecodedText, Glyph, GlyphId, PageId, Rect, TextRenderMode, Vec2};
 
@@ -348,7 +385,10 @@ mod tests {
     }
 
     fn fixture_outcome() -> ExtractionOutcome {
-        ExtractionOutcome::complete(Document::new(vec![glyph(1)]))
+        ExtractionOutcome::complete(
+            Document::new(vec![glyph(1)])
+                .with_last_non_text_paint(std::collections::BTreeMap::from([(PageId(0), 0)])),
+        )
     }
 
     fn fixture_limits() -> (ParseLimits, ExtractionLimits) {

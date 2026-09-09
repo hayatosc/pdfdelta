@@ -1,0 +1,32 @@
+{
+  "old_sha256": "036db9c5463405babc019517345b94f6cf512c71382b86f9fc2839310c3989a3",
+  "new_sha256": "0ff12ad3a30a38ab36dd932e2f3ba99ea0e546419f95fa81b289ce6851b6e3cf",
+  "provenance": {
+    "document_series_id": "vertical-shipping-ja",
+    "derivation_group": "vertical-shipping-v1",
+    "producer_family": "tectonic -> tectonic",
+    "producer_version": "Tectonic 0.16.9",
+    "annotation_scope": "partial",
+    "first_evaluated": "2026-09-09",
+    "tuning_use": "used_for_fix"
+  },
+  "content_mutation": "none",
+  "representation_mutation": "vertical_page_move",
+  "expectations": {
+    "schema_version": 1,
+    "channels": [
+      "text",
+      "visual",
+      "forms",
+      "relations"
+    ],
+    "dimensions": [
+      {
+        "dimension": "change_unit",
+        "alternatives": [
+          []
+        ]
+      }
+    ]
+  }
+}

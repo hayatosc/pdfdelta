@@ -1,0 +1,43 @@
+{
+  "old_sha256": "036db9c5463405babc019517345b94f6cf512c71382b86f9fc2839310c3989a3",
+  "new_sha256": "33545f15114907ba5b973a51bd9f496fad36ba930821c60a5f07047dfa65f392",
+  "provenance": {
+    "document_series_id": "vertical-shipping-ja",
+    "derivation_group": "vertical-shipping-v1",
+    "producer_family": "tectonic -> tectonic",
+    "producer_version": "Tectonic 0.16.9",
+    "annotation_scope": "partial",
+    "first_evaluated": "2026-09-09",
+    "tuning_use": "used_for_fix"
+  },
+  "content_mutation": "number",
+  "representation_mutation": "vertical",
+  "expectations": {
+    "schema_version": 1,
+    "channels": [
+      "text",
+      "visual",
+      "forms",
+      "relations"
+    ],
+    "dimensions": [
+      {
+        "dimension": "change_unit",
+        "alternatives": [
+          [
+            {
+              "kind": "change_unit",
+              "old": null,
+              "new": null,
+              "operation": {
+                "kind": "text_changed",
+                "old": "出荷重量百キログラム",
+                "new": "出荷重量二百キログラム"
+              }
+            }
+          ]
+        ]
+      }
+    ]
+  }
+}
