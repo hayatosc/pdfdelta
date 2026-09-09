@@ -2,7 +2,138 @@
 
 This directory contains immutable, dated, machine-readable summaries for the real-world revision benchmark. Each capture records the engine and corpus state at that date; later captures never overwrite historical metrics.
 
+Evaluation documents, result data, annotations, and provenance are retained.
+Raw execution logs, process records, downloaded caches, and Python experiment
+runners were removed during cleanup. Historical commands referring to those
+runners describe the original experiment and are no longer executable from
+this checkout; they remain available in Git history.
+
+## Migration completion audit: local workers and frozen regression
+
+The [frozen regression capture](2026-09-09-migration-frozen-regression.json)
+records the current release native adapter, preserving all 29 pairs and their
+original expectations. Its manifest SHA-256 is
+`2af7292a01836545d2a1ea2571659d6143c133c2c9a226d47ba8ff10f61b6598`;
+the immutable `pdfbench` executable SHA-256 is
+`d97fd492afd3d2b352c4233764de04a6ca3b55bec4ba9b048a8c91d80397b31a`.
+Each pair ran with a 4 GiB virtual-memory cap and a 1,200-second deadline,
+with two concurrent processes. The runner used `pdfbench revisions --manifest
+benchmark/realworld/manifest.tsv --cache-dir <verified-cache> --pair <pair-id>
+--summary-json-output <summary.json> --evaluation-json-output <evaluation.json>`.
+
+Of 29 pairs, 25 reach comparison and none is complete. The 39 frozen expectations
+remain evaluable and two match: the NIST association-definition punctuation and
+IRS footer form-year stamp. Seven engine results report resource limits (one
+cannot compare); GCC and Unicode fail allocation under the process memory cap.
+The NASA newer revision remains unavailable, without a replacement input.
+The capture preserves unavailable evaluations as null, separately from zero
+recall or incomplete coverage. The 11 evaluated token scopes contain 709 expected
+changed tokens; 31 are recovered, with zero reported false-positive tokens.
+These scoped metrics do not measure unannotated regions. Summed process elapsed
+time is 1,996.34 seconds and peak observed RSS is 3,092,408 KiB. Concurrent builds
+also ran during this capture, so it is not an isolated performance benchmark.
+This is the frozen native-text regression contract, not a multi-channel result.
+
+The final-state local OCR integration command was:
+
+```sh
+PDFDELTA_OCR_DETECTION_MODEL=<detection.rten> \
+PDFDELTA_OCR_RECOGNITION_MODEL=<recognition.rten> \
+cargo test --release -p pdfdelta-cli --test comparison_cli local_ocr_ -- --ignored
+```
+
+Both tests pass. Detection model SHA-256 is
+`f15cfb56bd02c4bf478a20343986504a1f01e1665c2b3a0ad66340f054b1b5ca`
+(2,510,284 bytes); recognition model SHA-256 is
+`e484866d4cce403175bd8d00b128feb08ab42e208de30e42cd9889d8f1735a6e`
+(9,716,568 bytes). The controls cover image/native changes independently and
+stored-value/recognized-display disagreement without rewriting either value.
+Recognition accuracy beyond these controls remains unproven.
+
+New worker lifecycle tests cover deadline termination with a blocked input writer
+and rejection of oversized output, followed by a healthy independent request.
+Additional symbolic relation tests cover label, caption, reference, appearance,
+and declared-order reassignment, including direction-specific absence proofs.
+They establish engine contracts, not automatic PDF relation recognition.
+Workspace tests, all-target Clippy with warnings denied, and formatting pass.
+
+The audit reproduced a selected-text contract gap: `--channels text` without OCR
+selected the legacy pipeline, where an image-only input reported a complete
+zero-token comparison. The follow-up now routes every channel selection through
+the common collector and retains rendered evidence for text selection. Native
+extraction records image invocations, including nested forms and inline images.
+Their native text inventories stay incomplete; unused image resources do not
+create markers. Cache format 3 retains the markers and invalidates older entries.
+The explicit native adapter uses `--native-text-only`, incompatible with channel
+selection or OCR models.
+
+Real CLI controls for `text` and `text,relations` now return version 2, exit 3,
+and incomplete text inventories for the identical image-only input. Five evidence
+fixtures pass, including nested/inline image and unused-resource controls.
+Both model-dependent OCR integration tests also pass after this change, preserving
+independent native/image changes and literal form/display disagreement. Workspace
+tests, all-target Clippy, and formatting pass. The frozen regression capture above
+predates these acquisition markers and records its own immutable binary identity;
+it is not presented as a replay of the later executable. Full interpretation of
+non-glyph painted content is not established by these image controls, and the
+overall migration is not yet declared complete.
+
+### Non-text paint and outlined-text coverage
+
+A further real CLI control demonstrated that outlined text drawn with path
+operators could still return exit 0 with a complete, empty text inventory. The
+acquisition marker now covers non-text paint: image invocations, inline images,
+filled/stroked paths, and shading, including nested forms. Unpainted paths,
+clipping alone, and unused image resources do not imply painted content.
+The core validates marker page references and retains all original glyph/vector
+evidence. Cache format 4 prevents older image-only markers from establishing
+complete coverage for paths. The marker establishes an interpretation gap; it
+does not recognize text, prove actual visibility, or erase native correspondences.
+
+The outlined-text CLI control now returns incomplete text coverage. A second
+control combines path drawing with `100` → `200` in native text: all 39 glyphs on
+each side survive, and the quantity change remains one operation. Acquisition
+fixtures cover strokes, fills, curves, shading invocation, nested/inline images,
+empty/unpainted paths, clipping, and unused resources. Workspace tests, all-target
+Clippy, and formatting pass. Both opt-in release OCR integration tests also pass
+after the expanded paint markers, using the same model identities recorded above.
+
+The [external table replay](2026-09-09-paint-acquisition.json) preserves the
+previous 384 pairs and source-defined annotations. The executable SHA-256 is
+`c969101ee440b51cbc4e14aa3e31172719d19f6cfa0be55359d49611abe81797`;
+the unchanged evaluation executable is
+`7c2ea6bfafc002408d677a81d0c4b202dd36ed1acd5770d0c279aa8977c34265`.
+Each 192-pair group (ruled and borderless) recovers all 256 expected inferred
+change units with zero false positives and false negatives. All comparisons
+remain incomplete and exit 3; all evaluations exit 1. The summary includes
+separate conditional/inferred scores and per-channel source coverage rather than
+treating inferred recall as proof of complete comparison. The summed pair times
+are 60.12 and 39.84 seconds, with peak RSS 33,436 and 33,744 KiB respectively;
+concurrent build activity prevents an isolated performance comparison. These
+change-unit annotations do not independently establish correspondence or mask
+accuracy, and the inputs are previously used development controls.
+
 ## Source-backed assessment follow-up
+
+The [native-worker table replay](2026-09-10-native-workers.json) records the
+subsequent process-isolation change with executable
+`eab0b545f244f5586af68717aeca24b8c51c92b4cb5b011bdbfd35d1e335cec0` and
+the unchanged evaluator/manifest used by the paint-acquisition replay. Both
+192-pair groups retain 256/256 inferred matches, zero false positives, and zero
+misses; all 384 comparisons remain incomplete (exit 3, evaluation exit 1).
+Summed pair times are 79.62/49.28 seconds and peak RSS is 34,080/34,056 KiB.
+Concurrent compilation prevents an isolated performance comparison. The binary
+capture predates the shared partial-write accounting correction; the latter has
+its own regression test and passing workspace gates.
+
+Native worker controls exercise array-budget failure beside a retained field
+change, encrypted cache equivalence, wrong-password rejection, malformed request
+framing, and input/page/role validation. Both local OCR tests pass with the same
+recorded model identities. An added overpaint control retains 13 native glyphs
+per side while preserving independently recognized visible `100` and `200`.
+The native paint marker now records render order and cache format 5 preserves it:
+glyphs before later paint cannot suppress OCR by geometry alone. This does not
+claim visibility or recognition correctness beyond those controls.
 
 The [assessment summary](2026-09-08-assessment.md) records the pre-merge
 measurements, remaining limitations, and reproduction commands for the
@@ -10,7 +141,596 @@ source-backed comparison work. Intermediate captures, logs, and patches are
 available in linked historical commits; they are not retained in this tree.
 Remaining work is tracked in [Issue #20](https://github.com/hayatosc/pdfdelta/issues/20).
 
-## Latest Capture
+## Graph evaluation on external PDFs: 2026-09-09
+
+The new `pdfbench evaluate-document` command scored the existing Japanese Typst
+0.15.1 line-wrap and page-break fixtures through the default four-channel CLI.
+These previously used fixtures are development controls, not fresh holdouts.
+Their source documents independently establish unchanged text; annotations bind
+the input PDF hashes and expect no established typed changes or changed text
+positions. Other dimensions remain unannotated.
+
+| Fixture | Compared text sources, old/new | Typed false positives | Text-position false positives | Comparison time | Document complete |
+| --- | ---: | ---: | ---: | ---: | --- |
+| [Japanese line wrap](../../../fixtures/external/case1-japanese-typst/) | 158/158 | 0 | 0 | 266 ms | No |
+| [Japanese page break](../../../fixtures/external/case2-japanese-typst/) | 100/100 | 0 | 0 | 290 ms | No |
+
+Both reports retain one inferred page-rendering change. Visual and relationship
+inventories remain incomplete; neither the empty change annotation nor complete
+text coverage can establish document completion. CLI exit codes were 3 and
+evaluation exit codes were 1 for both pairs. Recall is undefined for these
+zero-change controls; positive content/relationship mutations and additional
+producer families are still needed for generalization evidence.
+
+Times are single measurements from the working-tree debug build, including
+extraction and child rendering but excluding report serialization and output.
+The `pdfdelta` executable SHA-256 was
+`bd9715af400fd8687a4a464c14517e210d9979743f55b98c698d50ac2d373da2`.
+Raw reports and annotations were written outside the repository. This evaluation
+uses the new version 1 graph annotation contract and does not modify the frozen
+text regression expectations below.
+
+The same evaluator also scored two positive controls. Before running either
+comparison, annotations used the complete changed paragraph from each `.typ`
+source (`Release 10` → `Release 20`, and `第10版` → `第20版`), with node
+correspondence left unannotated. Paragraph values matched exactly in both reports,
+but their correspondences remained inferred:
+
+| Fixture | Conditional recovery | Inferred recovery | Inferred content false positives | Comparison time | Document complete |
+| --- | ---: | ---: | ---: | ---: | --- |
+| [English number replacement](../../../fixtures/external/case3-typst/) | 0/1 | 1/1 | 0 | 257 ms | No |
+| [Japanese number replacement](../../../fixtures/external/japanese-typst/) | 0/1 | 1/1 | 0 | 205 ms | No |
+
+Conditional and inferred scores use the same expectations independently; they
+must not be summed or interpreted as proof of correspondence. Uncompared text
+sources remained 58 on each side for English and 21 on each side for Japanese.
+Page-rendering differences are retained in the reports and measured separately
+from content change units. Positive-control timings used a later debug executable
+with SHA-256 `f4a81dcd24c7df8b7af99c2819b2ba4a71c0809d9054e2ac1a09ced403295429`.
+Those four controls use one producer family. The additional experiment below
+tests a controlled prose cross-product across two producers.
+
+### Controlled prose matrix and spacing recovery
+
+`pdfbench generate-document-matrix` generated 64 PDFs from English and Japanese
+shipping instructions using [Typst 0.15.1](https://github.com/typst/typst/releases/tag/v0.15.1)
+and [Tectonic 0.16.9](https://github.com/tectonic-typesetting/tectonic/releases/tag/tectonic@0.16.9).
+The 128 pairs cross four producer directions, two languages, four content
+mutations (unchanged, number, negation, unit), and four presentation settings
+(normal, narrow, page break, serif). Each direction has 8 unchanged controls
+and 24 expected paragraph changes. Expectations were generated from source
+paragraphs before comparison and were not rewritten after failures.
+
+Tectonic positions some word spaces without encoding a space glyph. Its narrow
+justified English lines compressed those gaps to about 0.148 em; normal gaps
+were about 0.224 em. The native line reconstruction threshold missed them.
+The revised relative threshold recovers these gaps and applies a larger
+threshold at CJK and font-transition boundaries, where typographic spacing
+also occurs. Raw glyphs remain intact; inferred separators retain neighboring
+source references and are not counted as changed source characters.
+
+| Producer direction | Before: inferred recovery | Before: content FP | After: inferred recovery | After: content FP |
+| --- | ---: | ---: | ---: | ---: |
+| Typst → Typst | 24/24 | 0 | 24/24 | 0 |
+| Tectonic → Tectonic | 12/24 | 12 | 24/24 | 0 |
+| Typst → Tectonic | 12/24 | 64 | 24/24 | 0 |
+| Tectonic → Typst | 12/24 | 64 | 24/24 | 0 |
+| Total | 60/96 | 140 | 96/96 | 0 |
+
+All 32 unchanged controls have zero inferred content changes after the fix.
+Conditional recovery remains 0/96, and document completion remains 0/128.
+These are inferred correspondences, not established mappings. Rendered-page
+differences remain separate from paragraph content changes. Visual and relation
+inventories remain incomplete. This measures only exact paragraph change units;
+it does not establish character-mask accuracy, display-range accuracy, or
+generalization to tables, scans, vertical writing, or mixed documents.
+The inputs were used to tune spacing and are development data, not holdouts.
+
+Both runs used the same inputs and annotations, the default four-channel CLI,
+a debug build, two concurrent pair processes, a 60-second timeout per comparison,
+and a 4 GiB virtual-memory limit per pair shell. Summed pair process times were
+22.00 seconds before and 24.44 seconds after; maximum GNU `time` process RSS
+was 32,120 KiB before and 32,144 KiB after. These single-run RSS observations
+are not aggregate concurrent-worker peak memory. Compilation and evaluation
+costs are excluded. All comparisons exited 3 and evaluations exited 1 because
+the documents remained incomplete.
+
+Reproduce input generation using the command and cache/font prerequisites in
+the root README, then run each manifest pair through `pdfdelta` and score its
+annotation through `pdfbench evaluate-document`. The local manifest SHA-256 was
+`c84a216f32afe7798f7f33bbe0d0245eabd7d7b9fba05136c6ead423aef7a145`;
+it includes absolute output paths, so relocating generation changes that hash.
+The post-fix `pdfdelta` executable SHA-256 was
+`022c9f146f0b367d76c07df537abe2e47b8d4313053d2988603b37ab0debf914`,
+and `pdfbench` was
+`6ae19bec3ba9009d4c7aac0c8c7f75209d4b35335c9fca7a0b649bdf34183632`.
+The downloaded Linux x86-64 producer archives had SHA-256:
+
+| Archive | SHA-256 |
+| --- | --- |
+| Typst musl tar.xz | `a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c` |
+| Tectonic tar.gz | `60b13a0826ae7ad9ce34b4a2df06bff2cfcfa6dda8a915477c0cbb84e1a4a902` |
+
+Noto Sans CJK Regular and Noto Serif CJK Regular font collections had SHA-256
+`b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a`
+and `93069d8e9e45d515cc421c971a79e6a5777704b348e36a9ef86578bf58adef77`.
+Generated PDFs, caches, and raw execution logs stayed outside the repository.
+Workspace tests passed (2,218 tests, 2 ignored), as did formatting and Clippy.
+The frozen regression capture below predates this spacing change and must not
+be interpreted as a measurement of the revised defaults.
+
+### Controlled table matrix: unresolved row association
+
+The same two producers generated another 64 English/Japanese PDFs and 128
+pairs using `generate-document-matrix --kind table`. Each table has two fixed
+row labels and two quantity cells. Content mutations replace a number, replace
+a unit, or swap the two quantities while preserving their multiset. Presentation
+mutations are the same normal/narrow/page-break/serif settings as the prose run.
+The page break precedes the whole table; pagination through its rows is untested.
+The 32 unchanged pairs expect no content operations; the other 96 pairs expect
+128 cell changes, because each swap changes two cells. Expectations came from
+the authored cell values before any comparison was run.
+
+| Producer direction | Inferred recovery | Inferred content FP | Conditional recovery |
+| --- | ---: | ---: | ---: |
+| Typst → Typst | 12/32 | 8 | 0/32 |
+| Tectonic → Tectonic | 12/32 | 8 | 0/32 |
+| Typst → Tectonic | 12/32 | 8 | 0/32 |
+| Tectonic → Typst | 12/32 | 8 | 0/32 |
+| Total | 48/128 | 32 | 0/128 |
+
+All normal, page-break, and serif number/unit changes were recovered as inferred
+cell-text changes. No swapped cell changes were recovered. Narrow-page pairs
+produced all 32 false positives, including 8 on unchanged controls. Inspection
+showed Japanese label/value text merged across cell boundaries. In an English
+Typst swap, native paragraph views were paired with the equal quantity in the
+other row (`old 7 → new 9`, `old 9 → new 7`) and emitted no content operation.
+The PDF's table, row, and cell tags were retained, but were not connected into
+an accepted table-axis correspondence. These failures require structure-aware
+views and matching; the prose spacing fix does not solve them.
+
+This annotation measures cell-value operation recovery, not correct row
+correspondence: node groups and relationship dimensions remain unannotated.
+It must not be used to claim row-association accuracy even for recovered values.
+All 128 comparisons remained incomplete (CLI exit 3, evaluation exit 1).
+Using the same debug executable and process bounds as the prose run, summed
+pair elapsed time was 26.33 seconds and maximum individual-process RSS was
+32,512 KiB. This is not aggregate peak memory, and generation/evaluation costs
+are excluded.
+
+The table manifest SHA-256 was
+`3f004ba2e11b46cdee01b199654f95f2270c10624567c329d53058ff9072727f`.
+The `pdfdelta` executable was unchanged from the post-spacing prose run;
+`pdfbench` SHA-256 was
+`d7dbb561f31f9c4d35d847b8b4106f7511a93170ba5cacfe555d64149ab7c87d`.
+Producer archives and fonts were the same as above. An initial offline TeX
+attempt lacked standard table font metrics; the local cache was populated and
+all 64 documents were then generated offline in a new directory. Raw files and
+logs remained outside the repository. These inspected fixtures are development
+data, not unseen holdouts.
+
+### Reversible ruled-grid follow-up
+
+The table inputs above demonstrated the need for a common cell view, independent
+of either producer's tag dialect. The native adapter now proposes a complete
+rectangular grid from retained straight-path evidence, reconstructs text inside
+each cell, and derives inferred row/column keys from the first column/row. It
+retains the original block partition with exactly the same glyph sources and
+uses the existing shared correspondence solver for the table, axes, and cells.
+The original partition remains available, although automatic joint search over
+both partitions is still unfinished. Missing borders, duplicate labels, crossing
+glyphs, and optional-view limits preserve the original layout.
+
+The first grid run recovered 122/128 expected table changes with 6 content false
+positives. All six failures were narrow Japanese Tectonic number/swap/unit
+pairs. Native evidence showed an unencoded gap of about 0.492 em between a number
+and its Japanese unit: justification had stretched typographic spacing. The
+common CJK gap threshold was adjusted without deleting explicit spaces or
+changing raw glyphs. Font-transition and ordinary Latin thresholds were retained.
+
+The final rerun used exactly the original PDFs and source-derived annotations:
+
+| Matrix | Pairs | Inferred recovery | Inferred content FP | Conditional recovery | Document complete |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Prose | 128 | 96/96 | 0 | 0/96 | 0/128 |
+| Table | 128 | 128/128 | 0 | 0/128 | 0/128 |
+
+Each of the four table producer directions recovered 32/32 expected changes.
+All 64 unchanged controls across the two matrices had zero inferred content
+changes. These remain development results, not holdout evidence. Table source
+structure and correspondence are inferred; cell-value scoring still leaves node
+correspondence and relationship dimensions unannotated. The separate programmatic
+test checks that swapped values follow row-label keys at three geometric scales,
+that original partitions preserve their sources, and that missing/ambiguous
+borders or optional-view budget exhaustion retain native text.
+
+All final comparisons exited 3 and evaluations exited 1. Incomplete visual and
+relationship inventories remain visible. Summed pair elapsed times were 24.03
+seconds for prose and 27.89 seconds for tables; maximum individual-process RSS
+was 32,008 KiB and 32,600 KiB respectively. Process bounds and measurement
+limitations are unchanged from the earlier runs.
+
+The final `pdfdelta` SHA-256 was
+`957419bbac0e1f7e0b03eb078f6d5864181852595f2db35e12e28733dd021def`;
+`pdfbench` was
+`1551b804fd447c6b9589aea0d694a1b5df988457fa7676244ca3ccc2ebac1bc2`.
+Manifest, producer, and font hashes are unchanged. Workspace tests passed
+(2,222 tests, 2 ignored), as did formatting and workspace/all-target Clippy.
+The frozen text regression below predates the CJK adjustment; its metrics are
+not a measurement of this final executable.
+
+### Structural context follow-up
+
+The shared candidate supplier now uses retained child and neighboring identities
+to propose inferred container correspondences. Accepted column correspondences
+constrain cell candidates within matched rows. A programmatic header rename
+combined with swapped quantities produces three inferred value changes. Removing
+the column-order evidence leaves quantity cells unpaired, and exhausting the
+optional structural search preserves an independent native paragraph comparison.
+All six ruled-table tests pass; workspace tests and all-target Clippy pass.
+
+The unchanged 256 external-producer pairs were rerun with CLI SHA-256
+`75f7695ab7d4ef68d0e6790a422980315ef0cd611c89ccef405b5b72d26d7e81`
+and benchmark SHA-256
+`a92d75c6cb8da1c559cda8ac6ce513ea371203d79aef1a85a57d3affd2931d00`.
+Tables retain 128/128 inferred change-unit matches and prose retains 96/96,
+both with zero annotated false positives or false negatives. Conditional matches
+and complete comparisons remain zero. Every comparison exits 3; every evaluation
+exits 1. Summed pair times are 25.37 seconds for tables and 22.48 for prose;
+maximum individual-process RSS is 33,032 KiB and 32,492 KiB respectively.
+These existing PDF cases do not exercise renamed headers; that producer-level
+extension and joint alternative-partition search remain outstanding.
+
+### Renamed-header producer controls
+
+A separate matrix extends table generation with a renamed quantity header and
+the same rename combined with swapped quantities. All six authored cell values
+are retained in the manifest, so header and quantity expectations are generated
+before comparison. Existing matrices and annotations remain unchanged. The new
+matrix contains 96 PDFs and 192 pairs across English/Japanese, both Typst/Tectonic
+producer directions, and the four existing presentation settings.
+
+| Content mutation | Pairs | Inferred true positives | False positives | False negatives |
+|---|---:|---:|---:|---:|
+| Unchanged | 32 | 0 | 0 | 0 |
+| Number | 32 | 32 | 0 | 0 |
+| Unit | 32 | 32 | 0 | 0 |
+| Swapped values | 32 | 64 | 0 | 0 |
+| Renamed header | 32 | 32 | 0 | 0 |
+| Renamed header and swapped values | 32 | 96 | 0 | 0 |
+
+All 256 expected change units are recovered as inferred operations. Complete
+comparisons remain zero; every comparison exits 3 and every evaluation exits 1.
+The source annotation still does not score row correspondence independently, so
+these results establish operation recovery under representation changes, not
+complete relationship accuracy. Joint alternative-partition search remains
+unfinished. Summed pair elapsed time is 38.71 seconds and maximum individual
+process RSS is 33,036 KiB, under the same measurement limitations as above.
+
+Manifest SHA-256:
+`6c3952a0795104a424d1e2d1097ab1beec74e4fb97d12b37d266d69c9a6207e2`.
+Comparison CLI SHA-256:
+`5358932e5ef2087dcb99cfbea15ef3d84aae55ff7ae0654ff34600a8a3db1c45`.
+Benchmark SHA-256:
+`f441d0fdbfc7ce791e15d7f6347e92ef169c8784bd90e4fbf2117dfb6f36ff11`.
+Formatting, all-target workspace Clippy, and benchmark crate tests pass.
+
+### Alternative-partition consistency
+
+The common scope solver now tracks which partitions admit each proposal and
+connects proposals that depend on the same alternative group. Source-disjoint
+members from incompatible partitions cannot be selected together. The search
+also rejects a triple whose pairwise partition intersections are nonempty but
+whose joint intersection is empty. Compatible members remain selectable;
+component exhaustion leaves independent correspondences available. These
+contracts have direct regression tests, including a failing pre-change case.
+This enforces consistency for supplied alternatives; automatic joint discovery
+and cross-scope partition refinement remain incomplete.
+
+The unchanged 192-pair renamed-header matrix still recovers all 256 inferred
+change units with zero annotated false positives or false negatives. Every
+comparison/evaluation exits 3/1 and complete comparisons remain zero. Summed
+pair time is 39.01 seconds; maximum individual-process RSS is 33,280 KiB.
+CLI SHA-256 is
+`9e886faf65411cd2defe0589a8c1cf234351aca449330ca408e003e2cc037bbd`;
+benchmark SHA-256 is
+`1317e6e131a362154c94e902e23c0c0d963266980fd9c1e6d9b24e5903d57353`.
+Formatting, all-target workspace Clippy, and workspace tests pass.
+
+### Archived partitions enter joint candidate search
+
+Declared original-block archives now contribute optional literal and similarity
+candidates alongside their reconstructed table container. Only an untyped
+container whose children exactly equal a declared partition is transparent.
+The source candidate pass remains separate, so optional archive exhaustion does
+not suppress independently established source correspondences. Automatic
+split/merge enumeration inside archives and cross-scope refinement remain open.
+
+The versioned V3 objective ranks source identities, source literal matches,
+inferred structure, inferred literal matches, and other inference in that order.
+This preserves row membership when raw unchanged quantities compete with typed
+cell changes. The solver separately verifies source-only mandatory matches; a
+source proposal selected through an inferred tie breaker also remains inferred.
+The existing inference-pruning test was updated for this declared objective:
+it still forbids source-only protection, and now requires every returned local
+result to retain inference rather than requiring no result under the old scores.
+
+The first actual-PDF archive run recovered only 32/256 table changes: six archived
+blocks produced 36 candidate pairs, exceeding the 24-proposal component cap.
+The failed capture is retained. No annotation or input was changed. Bounded
+highest-priority searches now remove only rivals incompatible with mandatory
+prefix correspondences; residual searches retain forced partition constraints.
+Prefix and residual searches share the original state budget. Tests compare
+the reduced search with full enumeration and verify that prefix exhaustion
+cannot establish a correspondence.
+
+The unchanged 192 table pairs then recovered 256/256 inferred change units, and
+the unchanged 128 prose pairs recovered 96/96, each with zero annotated false
+positives or false negatives. Every comparison/evaluation exits 3/1; complete
+comparisons remain zero. Summed pair times are 40.10 seconds for tables and 22.33
+for prose, with maximum individual-process RSS of 33,444 and 32,616 KiB.
+CLI SHA-256:
+`a2448db894d77ee8d0c8481746d75d262126a8ee5c253542d222cd967ba59107`.
+Benchmark SHA-256:
+`56ae54573b457dac8bc424820701a8e2adddf89a1deb177d7dbb0ab156be9652`.
+Formatting, all-target workspace Clippy, and all workspace tests pass.
+
+A separate Typst control removes only table strokes from the English unchanged
+source. Its zero-content-change annotation was frozen before comparison. The
+final result compares all six original table blocks as inferred no-ops and
+reports the page-rendering change separately. Before prefix reduction, those
+six blocks had no local comparison. Text coverage remains 97/140 source units
+on each side because the current coverage count credits conditional comparisons,
+not the six inferred block comparisons; this is not full document coverage.
+The control's old PDF SHA-256 is
+`bd28988f8a9e07e00bc8f45baf795995f1208ef9dcc67f248141e6899f4311c0`;
+its new PDF SHA-256 is
+`9a9d7767c7b05384f0a32ed5e3f04c48ea280a11673201085b938bbf013e6936`.
+
+### Archived split/merge candidates and a mixed-block failure
+
+Optional archive search now reuses the retained-order exact group enumerator
+for 1:N and N:1 candidates. It excludes protected source regions, deduplicates
+existing proposals, withdraws the optional batch on exhaustion, and checks leaf
+partition compatibility with the same constraint used by the common solver.
+A programmatic archive test covers both directions, missing order, and exhausted
+group-token budgets. Formatting, all-target Clippy, and workspace tests pass.
+
+The unchanged 192 table pairs retain 256/256 inferred change-unit matches; the
+unchanged 128 prose pairs retain 96/96. Both have zero annotated false positives
+and false negatives. Every comparison/evaluation exits 3/1 and complete
+comparisons remain zero. Summed pair times are 38.42 seconds for tables and
+22.85 for prose; maximum individual-process RSS is 33,248 and 32,268 KiB.
+CLI SHA-256:
+`9d9eb02679e08e5552788412aac3ddb5586fdece58cd5829fb89ee8cb2f6b738`.
+Benchmark SHA-256:
+`3c10293639d6dbe3db44cbfd4e4768ff974bba2dc6ec4be1b0a6c0ebb31df134`.
+
+A new Japanese Typst control changes normal width to narrow width and removes
+table strokes, without changing content. Its zero-change annotation was created
+before comparison. This control fails with **two inferred false positives**:
+quantity-only old blocks align with new blocks containing a row label and a
+truncated quantity. The final quantity character occupies a separate block.
+Exact concatenation along existing block order cannot repair a block that mixes
+label and value regions. This is evidence for counterpart-guided repartitioning,
+not a passing line-wrap control; neither the input nor its expectation was
+rewritten. Conditional text coverage is 31/56 on each side, and the document
+remains incomplete. Old PDF SHA-256:
+`f8c2c9ed7e44be46626571a1b816803b828f17f1e5f1e13290fa7bb26d45b6c4`.
+New PDF SHA-256:
+`6384dedc21f27055ba146c1e1bf139ebecca806ec65b51cb4262d53156030c67`.
+
+### Counterpart-guided repair of mixed native blocks
+
+The shared table-view installer now accepts a counterpart-derived grid as well
+as a retained vector grid. The counterpart supplies only axis labels; target
+native glyph positions supply the separators. Values and edit distance are not
+used to choose the partition. Reconstructed labels must match, original native
+block coverage must be complete and disjoint, and original blocks remain an
+alternative for the common solver. Native PDF tags retain overlapping views;
+their references do not invalidate a replacement of the layout partition.
+Both template sets are captured before either input is refined. The report
+retains source dependencies and search-exhaustion status.
+
+Replaying the unchanged Japanese borderless/narrow control above reduces its
+inferred false positives from two to zero. All six reconstructed cell pairs are
+compared with zero literal edits under inferred correspondence. Conditional
+text coverage remains 31/56 per input: inferred cells are deliberately not
+counted as source-established coverage. A separately generated borderless/narrow
+PDF swaps the same two quantities and produces exactly the expected two inferred
+changes, with zero annotated false positives or negatives. Its SHA-256 is
+`9aaf06be9ffae72956628dfb97a8769934192f0126f69e8661f6db34633b8ce7`.
+The swap expectation reuses the existing source-defined table mutation; the
+unchanged control's original annotation and hashes are preserved. Neither
+control establishes complete text, visual, or relationship comparison.
+
+The fixed 192 table pairs retain 256/256 inferred change-unit matches, and the
+fixed 128 prose pairs retain 96/96. Both retain zero annotated false positives
+and false negatives. Complete comparisons remain 0/320; comparison/evaluation
+exit codes remain 3/1. Summed pair times are 52.17 seconds for tables and 34.09
+seconds for prose; maximum individual-process RSS is 33,664 and 32,688 KiB.
+These runs overlapped, so wall-time differences are not a performance conclusion.
+Ten table fixture tests pass, including retained source tags, swapped values,
+duplicate labels, crossing glyphs, and existing budget/partition controls.
+A subsequent storage-limit regression distinguishes an unsupported partition
+from an unfinished reconstruction; both preserve original blocks. Storage
+exhaustion cannot set `table_refinements.exhaustive` to true. The matrix binary
+hashes below precede this reporting-only limit correction.
+Formatting, workspace all-target Clippy, and workspace tests pass.
+CLI SHA-256:
+`0d720bf4d09d48e57f713bc195ce74d28a423ed6c4f865a6efaad83199825b88`.
+Benchmark SHA-256:
+`0f893145b3b0a51b5e250ff3f7ead155fc1bd88f847d583b41b44b460cd1de62`.
+
+### Crossed borderless-table matrix
+
+The Rust matrix generator now crosses every table presentation with border
+presence. It emits 192 PDFs and 384 annotated pairs: English/Japanese,
+Typst/Tectonic in both directions, normal/narrow/page-break/serif layouts, and
+unchanged/number/swap/unit/header/header-plus-swap content. Expectations still
+come from authored cell values before comparison. All 96 pre-existing PDF hashes
+match the previous matrix; frozen inputs and annotations were not replaced.
+New layouts have a `borderless_` prefix. The development manifest SHA-256 is
+`1a2e69649b259c7567c0f07697881bb76c775a3f79748edaf23894f6da12f44a`.
+
+The first run of the added 192 borderless pairs recovered 168/256 inferred
+change units, with zero annotated false positives and 88 false negatives.
+A changed column label prevented counterpart-guided partitioning even when row
+labels and the native header region remained available. Reading one residual
+native header view literally, while rejecting competing views, raised recovery
+to 240/256. Cell values and text similarity are not used to choose that header.
+The remaining 16 misses were in Tectonic page-break variants: a body row label
+started one representable coordinate step left of the first header, outside the
+proposed grid. Taking the left extent from all row labels removed that erroneous
+rejection without introducing a pixel tolerance or changing any glyph.
+
+The final run used immutable executable copies. The original 192 pairs retain
+256/256 inferred change-unit matches, and the added 192 pairs now also recover
+256/256, both with zero annotated false positives and negatives. The summed
+pair times are 40.12 and 38.12 seconds, with maximum individual-process RSS of
+33,664 and 33,612 KiB. Every comparison/evaluation exits 3/1. Complete comparisons
+remain 0/384: inferred matches do not establish complete text, visual, or
+relationship coverage, and the annotation still does not independently score
+row identity or source masks. An earlier intermediate run lost one evaluator
+launch while Cargo replaced its executable; that interrupted run is not the
+final measurement.
+
+Final matrix CLI SHA-256:
+`98b6db5fa7315147498e57ca0d6954c829dfc77594acb93e809109887e3d62ab`.
+Final matrix benchmark SHA-256:
+`7c2ea6bfafc002408d677a81d0c4b202dd36ed1acd5770d0c279aa8977c34265`.
+A subsequent provenance-only correction includes the counterpart axis edges'
+vector references alongside native label evidence. The eleven table tests cover
+that dependency, changed headers with swapped values, competing residual header
+views, representable-coordinate differences, and existing budget/partition
+controls. Matrix scores above were recorded before this metadata correction.
+The final provenance check on an English cross-producer header-plus-swap,
+page-break, borderless pair retains 43 native and seven vector references in
+the counterpart dependency, 28 native target anchors, and all three expected
+inferred text changes with zero annotated false positives/negatives. Formatting,
+workspace all-target Clippy, and workspace tests pass after that correction.
+
+### External vertical-text evidence
+
+The vendored [Tectonic vertical controls](../../../fixtures/external/vertical-tectonic/)
+add a real-PDF directional check beyond the existing extraction-unit fixture.
+Ten downward native glyph advances coexist with a four-glyph horizontal heading.
+The moved/page-break input preserves all 14 native sources per side and produces
+zero text change units. The quantity edit produces the source-defined change
+`出荷重量百キログラム` to `出荷重量二百キログラム` as one inferred operation,
+with zero annotated false positives/negatives. Its exact local mask contains
+only new glyph 8 at scalar position 4; there is no old-side deletion. The wider
+review value does not make its unchanged characters part of that mask.
+
+The hash-bound annotations precede comparison and remain in the fixture
+directory alongside all three small PDFs and their sources. Both comparisons
+exit 3 and both evaluations exit 1: visual/relationship interpretation remains
+incomplete, and the changed input's source-established text coverage is only
+4/4 (14/15 discovered). The movement control has 14/14 compared text sources.
+The CLI regression checks these outcomes without invoking an external producer.
+This does not establish general vertical-column ordering, ruby, or complete
+semantic interpretation. The current implementation ledger retains those limits
+and the remaining final-state checks rather than declaring completion.
+
+### Intermediate spacing regression capture
+
+A second frozen-manifest run completed with benchmark SHA-256
+`b81a598bff49af3cd26fff405fdcd7a4edd762de81b1ba11a5e5b86bf24046f1`.
+This executable predates both the final CJK spacing adjustment and the structural
+context changes above. It measures the retained text pipeline, not current-head
+evidence-graph behavior. Inputs and expectations were not rewritten.
+
+All 29 processes terminated, but only 24 produced evaluation records: 10 `ok`,
+6 `unsupported`, 6 `limit`, 1 `fatal`, and 1 `unresolved`. NIST SP 800-57,
+OASIS CSAF, and OASIS MQTT each reached the outer 1,200-second timeout. GCC and
+Unicode aborted on memory allocation under the 4 GiB virtual-memory cap.
+The shell ledger records their status as 134; GNU time's `%x` field reports 0
+for those signal terminations and must not be interpreted as success.
+
+Available records match only IRS `footer-form-year-stamp`: 1 of the 28
+expectations included in those records. The remaining frozen expectations have
+no result from this run; missing results are not zero-valued measurements.
+No available pair is completely compared. Evaluated annotation scopes contain
+25 reported changed tokens, all 25 true positives, against 677 expected changed
+tokens; zero scoped false positives does not imply document-wide precision.
+Summed process time, including failed attempts, is 7,780.44 seconds and maximum
+individual-process RSS is 3,089,320 KiB. Concurrent builds and experiments were
+not isolated, so these figures do not establish a timing regression's cause or
+aggregate peak memory. The earlier completed capture below remains unchanged.
+
+## Frozen text regression rerun: 2026-09-09
+
+The working tree based on `2544583b2f1db2b0d27955393c40dd5448f996fa`
+was evaluated through the retained Rust `pdfbench revisions` text pipeline.
+This is regression evidence for that pipeline, not an evaluation of the new
+evidence-graph, rendering, OCR, or form comparison paths.
+Historical captures below remain unchanged.
+
+| Measure | Result |
+|---|---:|
+| Manifest pairs attempted | 29 |
+| PDF inputs verified against the frozen hashes | 57 / 58 |
+| Pairs reaching engine evaluation | 26 |
+| Official expected-event matches | 2 / 39 |
+| False-positive changed tokens inside evaluated complete scopes | 0 |
+| Accepted events in available engine results | 2,433 |
+| Fully compared pairs | 0 / 29 |
+| Engine outcomes | 12 ok, 7 limit, 6 unsupported, 1 unresolved |
+| Input unavailable | 1 |
+| Process allocation failures under the outer memory limit | 2 |
+| Sum of pair process elapsed times, including failed attempts | 2,001.82 s |
+| Longest pair process | 567.58 s |
+| Maximum observed process RSS | 3,024,372 KiB |
+
+All 39 measurable annotated expectations were evaluated. The two matches remain
+NIST SP 800-57 `association-definition-punctuation` and IRS Form 1040
+`footer-form-year-stamp`. The additional reviewed BIS opening-sentence item
+remains outside the frozen measurable denominator under its existing annotation
+contract. No expectation, scope, PDF hash, or limit hint was changed.
+The zero false-positive count applies only to evaluated complete annotation
+scopes; it is not document-wide precision. The 2,433-event total excludes the
+three unavailable engine results and must not be read as a complete corpus total.
+
+The NASA handbook's new PDF could not be recovered with its frozen SHA-256:
+the original download returned HTTP 404, the legacy archive returned HTML,
+and an official NASA PDF mirror had a different hash. Its missing comparison
+metrics are unavailable, not zero. GCC and Unicode aborted on allocation failure
+under a 4 GiB virtual-address-space limit, returning shell status 134 without
+engine summaries. These failures are separate from the seven engine-reported
+resource limits. No pair reached the outer 1,200-second timeout.
+
+The EDPB access draft was recovered from its original URL using a browser user
+agent. The two BIS files were recovered from the publisher's relocated
+[operational-risk PDF](https://www.bis.org/publications/202103-guidelines-revisions-principles-sound-management-operational-risk.pdf)
+and [core-principles PDF](https://www.bis.org/publications/202404-standards-core-principles-effective-banking-supervision.pdf).
+All three recovered files matched the original manifest hashes exactly.
+
+Execution used two concurrent processes, each with `ulimit -v 4194304`, disabled
+core dumps, and `timeout --signal=TERM --kill-after=5 1200`. Each invocation used
+the manifest's own limit hint, with no `--limit-scale` override:
+
+```bash
+pdfbench revisions --manifest benchmark/realworld/manifest.tsv \
+  --cache-dir /tmp/pdfdelta-frozen-corpus --pair PAIR_ID \
+  --summary-json-output /tmp/PAIR_ID.summary.json \
+  --evaluation-json-output /tmp/PAIR_ID.evaluation.json
+```
+
+The frozen executable SHA-256 was
+`c70b9235c62cb43bc42756ab4c0a9d1ecc24e1dc5221f64905e8f8139d53e86a`;
+the manifest SHA-256 was
+`2af7292a01836545d2a1ea2571659d6143c133c2c9a226d47ba8ff10f61b6598`.
+This executable came from an uncommitted working tree; checking out the base
+commit alone does not reproduce it. Per-pair outputs and transfer diagnostics
+were kept outside the repository at `/tmp/pdfdelta-frozen-run.ODagCa`.
+GNU time's `%x` recorded zero for the two signal-terminated processes, so their
+failure classification uses the shell status and allocation diagnostics.
+Two initial wrapper completion lines were lost after the wrapper was edited
+during execution; their completed engine outputs and process measurements were
+retained. All 29 process measurements were collected, and the frozen executable
+was not changed during evaluation.
+
+## Latest Historical Full Capture
 
 - **Capture date**: 2026-09-03
 - **Generator / engine commit**: [`047786f`](https://github.com/hayatosc/pdfdelta/commit/047786f)

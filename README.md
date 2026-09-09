@@ -1,6 +1,6 @@
 # pdfdelta
 
-`pdfdelta` is an early-stage Rust CLI for comparing two born-digital PDF files and reporting meaningful text changes instead of differences in PDF encoding or page layout.
+`pdfdelta` is an early-stage Rust CLI for comparing PDF content and relationships while retaining the original evidence and unresolved regions.
 
 ## Why pdfdelta?
 
@@ -12,9 +12,124 @@ That noise is especially costly when reviewing contracts, policies, reports, and
 
 ## Status
 
-The project now has a limited end-to-end initial version. It can compare supported born-digital PDFs, but the extraction coverage is intentionally narrow and the limitations below matter for real documents.
+The default command now selects text, visual, form, and relationship channels and writes version 2 JSON reports. A missing or unexamined channel keeps the comparison incomplete, including image-only PDFs with no native text. On Linux, the CLI retains page rasters using the Rust hayro renderer and compares them through the common graph and solver. Optional local OCR uses explicitly supplied models. Saved AcroForm text, choice, and button values are extracted through the neutral PDF facade and compared by field name; malformed values remain unresolved with their available raw evidence. General stored-value/display agreement and XFA remain unresolved.
 
-The current implementation provides:
+Button fields retain declared widget appearance-state names and widget object references alongside their saved values in the JSON `form_fields` evidence. Without an export-option mapping, a saved selection that disagrees with the declared active widget states produces a field-local unresolved issue; independent fields still compare. Radio groups may contain inactive `Off` widgets. Missing, invalid, or over-budget states remain unknown. This checks PDF declarations, not rendered appearance: export-option interpretation and state-selected appearance rendering remain pending. The [W3C form-field example](https://www.w3.org/WAI/WCAG22/Techniques/pdf/PDF12) illustrates the separate field-value and widget-appearance declarations.
+
+Widgets with direct normal appearance streams now retain canonical page rectangles, stream/object references, and source-checked crops of composited page pixels. The forms channel compares both stored values and linked widget crops through the common solver. JSON distinguishes `value_changed` from `rendered_region_changed` and records each crop's source page raster and pixel rectangle. A unique field name supplies the correspondence premise; the crop does not prove what text is visible or that the saved value is displayed correctly. Missing/contradictory page membership, unsupported widget flags, state-selected appearances, and duplicate widget identities remain unresolved. Multiple widgets are retained independently.
+
+Actual-PDF controls vary saved values and widget colors independently, move widgets, and insert a cover page. Value and pixel changes remain separate operations; movement and the cover-only change produce zero operations. Disjoint changed widgets produce two region changes. Overlapping widget crops compete for the same pixels and remain ambiguous rather than producing duplicate changes; crops also conflict with their full-page rendering. Raster byte budgets include the retained crops, whose geometry and pixels are checked against the source raster.
+
+Optional OCR now compares a single contained reading with the saved literal value of a native text field. JSON `form_appearance_readings` records the inferred observation, source field, widget, reading IDs, and raster references. A different prediction produces an unresolved issue without replacing either the saved value or recognized text. Multiple lines, boundary crossings, shared widget readings, and non-text field types remain unresolved; no spaces or line breaks are invented to force agreement. Work limits identify unexamined source rasters while preserving independent observations. Even a matching prediction does not establish complete or accurate recognition. Models may be supplied with `--channels forms`; body-text changes then remain outside the selected comparison.
+
+The opt-in `local_ocr_reports_widget_reading_disagreement_without_rewriting_values` integration test renders a text-field appearance through the real CLI and runs the local models. It detects the literal reading `200` against a retained saved value of `100`, keeps the corresponding pixel change separate, and preserves an independent field-value change. Run it with the two model environment variables using `cargo test --release -p pdfdelta-cli --test comparison_cli local_ocr_ -- --ignored`, which also runs the image-only/mixed-page controls.
+
+The common solver can descend through matched graph containers with bounded depth and scope counts. Reports retain each child scope's parent correspondence, propagate inferred parent interpretations, and prevent competing containers from consuming the same descendant evidence. Exact text can also match one ordered view to several views, or vice versa, without changing tokens or inventing separators. Local results retain every old/new member and original token source. General structure and split/merge discovery, structure-model integration, and full document coverage remain incomplete.
+
+The relation engine compares explicitly supplied reference edges, but native PDF link extraction and automatic link/footnote target interpretation are not implemented. Structured annotation evidence preserves its target; the built-in graph provider currently compares only annotation text. Comparing that text does not establish coverage of its reference relationship.
+
+Complete rectangular ruled grids now supply an inferred table view. The builder
+reconstructs each cell independently, including its internal line wraps, and
+proposes column identities from the first row and row identities from the first
+column. The common solver compares values within those row/column identities,
+so equal quantities in different rows cannot establish cell correspondence.
+Changed header identities can receive inferred correspondence candidates from
+shared child identities or retained neighboring identities. Accepted column
+correspondences constrain cell candidates inside matched rows; cell values do
+not supply those axis correspondences. Missing context leaves affected cells
+unpaired. Exhausted structural searches remain unresolved while independent
+source-backed text correspondences can proceed.
+Native glyphs, border references, and the original block partition remain
+available; the graph validates equal source coverage for the two partitions.
+The shared solver considers archived original blocks alongside table candidates,
+so native text remains comparable when only one side admits a table view.
+The archive must exactly contain a declared partition; other unknown containers
+retain their scope boundaries. Archived literal and similarity candidates enter
+the optional search, preserving independent source comparisons on exhaustion.
+Partition-dependent correspondences remain inferred. Within inference, typed
+identities and structural context precede literal matches, which precede text
+similarity; the report records this versioned correspondence objective.
+The solver records source-only mandatory correspondences separately. If an
+inferred premise resolves an otherwise ambiguous source correspondence, the
+selected correspondence and its dependent local result remain inferred.
+For oversized components, bounded searches of the highest remaining objective
+class can force correspondences and remove incompatible lower-priority rivals.
+The residual search keeps those ownership and partition constraints within the
+same state budget; unfinished prefixes do not justify pruning.
+Declared archives also supply exact 1:N/N:1 candidates along retained order
+edges. Groups preserve their source references, cannot mix incompatible
+partitions, and cannot invent separators or missing order. General prose-boundary discovery and arbitrary cross-scope partition
+refinement remain incomplete.
+When suppliers expose alternative views within a correspondence scope, the
+common solver requires selected members of each group to admit one shared
+partition. Disjoint source
+ownership alone does not permit mixing incompatible partitions. Shared views
+can belong to several partitions; the solver checks the whole selection and
+localizes an exhausted partition search to its dependent component.
+
+Before comparison, uniquely located row/column labels from a counterpart table
+can now propose a native glyph partition when borders are absent. Both sides'
+templates are captured before refinement; cell values and edit cost never select
+or score the partition. Target geometry supplies the separators, and reconstructed
+axis labels must agree exactly. The shared grid installer checks complete native
+block coverage and retains source tags as separate overlapping views. Original
+blocks remain alternative partitions for the common solver. JSON
+`table_refinements` records the counterpart table, its source dependencies,
+target anchor glyphs, and bounded-search exhaustion. This currently requires a
+table on one page per input, unchanged unique row labels, a shared top-left
+header, horizontal text, and non-crossing cell geometry. One changed column
+label may be read literally from a single residual native header view; competing
+views keep the original partition. Changed row labels and multiple missing
+column labels are not reconstructed. The left extent includes all row labels,
+so representational rounding in a body label cannot place it outside the grid.
+
+These grid interpretations and their dependent operations are marked inferred.
+Missing borders without supported counterpart axes, crossing glyphs, empty cells,
+duplicate labels, unsupported text directions, and optional-view budget exhaustion retain the original layout.
+Grid work is bounded by the graph budgets and 1,024 cells per candidate. This
+does not establish arbitrary table semantics, merged-cell interpretation, or
+complete relationship coverage; a first-row/first-column header interpretation
+can still be wrong even when the grid geometry is clear.
+
+The implementation uses Rust and makes no external analysis API calls. Rendering runs in a child of the same executable, with a 2 GiB address-space limit, five-second page deadline, thirty-second document deadline, eight-million-pixel page limit, and 256 MiB retained RGB budget per input. Pages render at 72 dpi against white; backend identity and rendering profile are retained. Native and rendered page object identities, page counts, and dimensions must agree. Other platforms and password-assisted rendering currently remain unsupported. Renderer warnings, incomplete annotation support, and unknown content-region interpretation keep visual coverage incomplete even when pixels are available. Pixel changes are inferred page-rendering differences, not recognized text or established content changes.
+
+Local recognition uses `ocrs` 0.13 and RTen 0.26 in a bounded child of the same executable. Supply both models explicitly:
+
+```sh
+pdfdelta old.pdf new.pdf --channels text \
+  --ocr-detection-model /path/to/text-detection.rten \
+  --ocr-recognition-model /path/to/text-recognition.rten --json result.json
+```
+
+The application does not download models. The upstream [model download script](https://github.com/robertknight/ocrs/blob/main/ocrs/examples/download-models.sh) identifies the detection and recognition weights; Robert Knight's [model repository](https://huggingface.co/robertknight/ocrs) declares their CC-BY-SA-4.0 license. These models recognize Latin text; Japanese, handwriting, table structure, and complete text coverage remain unsupported. Each request has a 15-second deadline, a 2 GiB address-space limit, an eight-million-pixel input limit, and a 4,096-word limit; each input document has a 60-second recognition deadline. Failures remain explicit evidence issues.
+
+Recognition retains literal predictions, word pixel coordinates, rendered-source geometry, and SHA-256 model identities in JSON. Confidence is `null` because this backend supplies no word confidence. Words fully covered by mapped native glyphs drawn after the last recorded non-text paint, with supported crop/clip and render modes, are excluded before recognition; remaining overlapping interpretations compete through the common solver. Native glyphs are never rewritten. Recognized changes remain inferred and do not establish complete coverage. `--channels text` uses the version 2 evidence report with or without OCR models.
+
+An opt-in integration test renders text into an image-only PDF and invokes the local models through the real CLI. The tested model pair detects `100` → `200` as one inferred change and reports zero changes for the identical-image control. Mixed-page controls vary native and image text independently: either change produces one operation, both produce two, and an identical page produces zero. Character masks retain native origins for native text and structured recognition origins for image text. The model also misreads letters in the fixture heading, so these results establish plumbing and amount-change behavior, not general recognition accuracy. Run the test with `PDFDELTA_OCR_DETECTION_MODEL` and `PDFDELTA_OCR_RECOGNITION_MODEL` set: `cargo test --release -p pdfdelta-cli --test comparison_cli local_ocr_compares_image_only_text_with_source_provenance -- --ignored`.
+
+Unkeyed paragraphs and other ordered text roles can now propose nonidentical one-to-one correspondences using literal trigram similarity. These correspondences remain inferred even when their local character masks are exact. The source-only optimum protects mandatory source matches before inferred candidates are enumerated; existing inferred tie-breaks cannot freeze a source alignment. Text-search truncation retains independent field changes and protected literal anchors. General nonexact split/merge discovery remains pending.
+
+Cells without an explicit item key now use scoped row/column identities as correspondence candidates. Both flat tables and cells nested under rows are supported when axis keys and memberships are supplied. Missing, duplicate, or competing axis evidence leaves the affected scope unresolved; equal cell values and concatenated cell text cannot substitute for membership. Model-derived axes keep cell changes inferred through the common solver. This does not yet extract table keys or memberships from arbitrary PDFs.
+
+Typed graph relationships now compare across the endpoint correspondences retained from all visited scopes. Row/column membership, labels, captions, references, and source-structured containment/order retain their edge evidence and correspondence dependencies. An absent edge requires complete relationship inventories and observed graph structure; ambiguous endpoints and work limits remain unresolved. Native layout containment/order does not itself count as a semantic relationship change. Native table extraction and general row/column insertion/deletion are still pending.
+
+The CLI imports bounded native structure trees, with roles, parent membership, declared order, and byte-exact structure IDs. Inline marked-content IDs and explicit marked-content references connect tagged paragraphs and cells to the original glyphs, including Form XObject invocation scope. These are alternative views over existing evidence, so the common solver prevents duplicate consumption by layout and tag views. Tagged tables with stable structure IDs preserve cell identity across value swaps, reordered drawing commands, and an inserted cover page. Missing, repeated, or incomplete marked content leaves unresolved structure without deleting native text. Named property lists, custom role maps, table-axis interpretation, and object-reference bindings remain unimplemented; tag discovery does not establish complete relationship coverage.
+
+The native graph and retained text adapter share a one-sided catalog/form footer provider. It proposes source-backed terminal-line views, including geometry-supported joins of split blocks; page numbers are metadata rather than identity keys. Footer candidates enter the common solver alongside other providers. This bounded document-family rule does not establish general footer recognition.
+
+Rendered regions with the same rendering profile and sample grid can propose visual correspondences regardless of page number. Their similarity scores select candidates only: resulting pixel changes are reported separately as `inferred_changes`, do not identify changed characters, and do not establish complete visual coverage. The versioned solver objective prioritizes source-backed scoped identities, then literal content, then inferred supplier scores. Literal fragments cannot displace a competing keyed item merely by matching more unchanged pieces. Repeated images may remain ambiguous. If visual candidate search stops at its resource limit, independent field comparisons can still proceed.
+
+The default human-readable report includes changed values/text, field or region labels, page numbers, inferred correspondence labels, mask counts, and unresolved reasons. Long values and report entry counts are bounded with explicit truncation markers; control characters are escaped for terminal output. Full values, masks, and dependency records remain in JSON.
+
+The established native-glyph pipeline remains available with `--native-text-only`, including its version 11 JSON reports and frozen regression cases. This explicit adapter cannot be combined with channel selection or OCR models. The existing detailed text-pipeline descriptions and acceptance results below refer to that native-only contract. They do not establish completeness for image text, forms, or relationships.
+
+Every `--channels` selection uses the common evidence pipeline. Text selection retains rendered evidence even without OCR models. Image invocations, inline images, painted paths, and shading operations leave their pages' text inventories incomplete until a provider can establish coverage beyond native glyphs. This includes nested forms and text drawn as outlines. Unused image resources, unpainted paths, and clipping alone do not create paint markers. The marker also retains the render-order boundary of the last non-text paint: earlier glyph boxes cannot exclude OCR because later paint may cover them. The marker preserves native glyphs and their provenance; it does not claim to recognize image text or prove visibility under clipping. Extraction caches use format version 5 so previously cached documents without acquisition markers cannot establish coverage accidentally.
+
+Channel selection applies before candidate search. A forms-only comparison retains native evidence without spending correspondence budgets on unrelated body text. Relation and presentation requests retain content views as supporting context; every solver result records its channel selection.
+
+On Linux, the selected-channel pipeline acquires native evidence in bounded child processes. Page metadata and stored fields are acquired separately from glyphs and tags, so a content-extraction failure can leave field comparisons and rendering usable. Each native worker has a 2 GiB address-space limit, a 30-second CPU limit, a 35-second parent deadline, a 256 KiB request header limit, and a 128 MiB response limit; PDF input retains the parser's 256 MiB limit. Passwords travel through private stdin and are not included in responses. The parent validates input hashes, page identity, acquisition roles, evidence, and aggregate limits before comparison. Missing process restrictions remain an explicit unsupported acquisition.
+
+The retained text pipeline provides:
 
 - a Rust 2024 workspace with separate core, CLI, and benchmark crates;
 - a backend-neutral PDF parser boundary with a `lopdf` adapter for classic xref tables, xref streams, object streams, incremental revisions, inherited page resources, borrowed-password decryption, partial page-tree recovery, and bounded stream decoding;
@@ -167,6 +282,122 @@ checking its PDF dialect through the same expectation logic.
 paragraphs in a one- or multi-section document. It lays out that section's
 paragraphs as two column-major columns while keeping the title, every heading,
 and every other section full-width.
+
+### Graph generalization evaluation
+
+`pdfdelta_bench::generalization` provides an independent version 1 annotation
+contract for local correspondences, typed change units, text display ranges, exact text positions,
+exact raster masks, and changed relationships. Each dimension accepts multiple
+complete expected outcomes and reports a separate one-to-one multiset score for
+each alternative. Duplicate reports count as false positives; missing reports
+count as false negatives. Inferred reports receive a separate score against the
+same alternatives; these scores must not be added to the conditional scores.
+Unannotated dimensions have no score, and an
+empty denominator has no precision or recall value.
+
+The programmatic fixture matrix crosses unchanged values, swapped numbers,
+negation/unit changes, and Japanese values with unchanged/reversed graph storage
+order through `compare_document_views`:
+
+```bash
+cargo test -p pdfdelta-bench --test generalization_fixture
+```
+
+This is graph-level validation, not evidence of PDF producer, layout, scan, or
+rendering generalization. Node IDs in these annotations refer to the supplied
+graph fixtures. Raster masks are scored as exact region facts, not pixel IoU.
+For `change_unit` annotations, `old` and `new` may be `null` to leave node
+correspondence unannotated; an empty array still asserts absence. The operation
+and its values must match exactly. Scoped and unscoped expectations share a
+one-to-one maximum matching, so a general expectation cannot consume the only
+report that satisfies a scoped one. Composited page-rendering changes are excluded
+from content change units and remain observable in the pixel-region dimension.
+Source coverage uses the same core calculation as the CLI: each selected channel
+reports discovered, compared, and uncompared source references plus inventory
+completeness on both sides. Missing discovery remains unknown even when every
+discovered source was compared. Document completion requires complete channel
+coverage and resolved search; these counts do not measure pixel area or establish
+semantic correctness. Aggregate peak-memory accounting and
+broader controlled multi-producer matrices remain unfinished. The existing real-world
+text regression annotations stay separate.
+
+The `display_range` dimension scores half-open Unicode scalar ranges in each
+displayed local text value, independently of `text_position` source-token masks.
+Its facts name `old`/`new` node groups, `old_side`, `start`, and `end`. The current
+report displays the entire changed paragraph or text-valued field, so its range
+is `0..value.chars().count()`; it does not yet choose shorter review excerpts or
+page polygons. Null text is unknown and produces no display-range fact. A full
+date can therefore be correct for display while only its last character is
+reported changed. Inferred display ranges are scored separately. These offsets
+are not raw PDF byte offsets or glyph indices.
+
+The [external vertical-text controls](fixtures/external/vertical-tectonic/)
+exercise Tectonic-produced Japanese through the default CLI. A page/position
+change preserves all 14 native text sources, while a quantity change reports one
+inferred text operation and an exact mask for the inserted glyph. The PDFs,
+TeX sources, and hash-bound change-unit annotations are retained; tests do not
+need an installed producer. This is a single vertical column with a horizontal
+heading, not evidence for ruby or multiple vertical columns. Visual and
+relationship coverage remain incomplete.
+
+`pdfbench generate-document-matrix` creates 64 English/Japanese prose PDFs and
+128 comparison pairs using independently installed Typst and Tectonic binaries.
+It crosses unchanged text, number replacement, negation, and unit replacement
+with normal/narrow pages, an explicit page break, and sans/serif fonts, including
+both directions between producer families. Expected paragraph changes come from
+the generated source, before comparison. The manifest includes source paths, PDF
+hashes, producer versions, mutation axes, and per-pair annotations.
+
+Add `--kind table` to generate 192 PDFs and 384 pairs for a two-column
+table. Each presentation/producer combination is generated with and without
+borders; the borderless settings use `borderless_` layout names and preserve
+the authored cell values. The row labels stay
+fixed while number replacement, unit replacement, column-header replacement,
+and swaps change the content. The swap preserves the value multiset and expects
+two cell changes; combining it with a header replacement expects three.
+Expectations score
+exact cell-value operations; node correspondence and row membership remain
+unannotated, so these scores alone cannot establish correct row association.
+The page-break setting moves the whole target paragraph/table to a new page;
+it does not exercise a table split across pages.
+
+```bash
+cargo run -p pdfdelta-bench -- generate-document-matrix \
+  --typst /path/to/typst --tectonic /path/to/tectonic \
+  --tectonic-cache /path/to/prepared-tectonic-cache \
+  --font-path /path/to/noto-cjk-fonts \
+  --first-evaluated 2026-09-09 --output /tmp/pdfdelta-prose-matrix
+```
+
+The destination must not exist. Provide Noto Sans CJK JP and Noto Serif CJK JP
+fonts; Typst reads only the supplied font directory, while Tectonic also needs
+those font families visible through the host font configuration. Prepare the
+Tectonic cache with the `geometry`, `fontspec`, and `xeCJK` packages before running
+(table generation also needs the standard `tabular` font metrics):
+generation uses `--only-cached --untrusted` and does not fetch missing packages.
+Compilation has a 30-second deadline per document and output PDFs are capped at
+64 MiB. Run `pdfdelta` for each manifest pair, then score its report against that
+pair's annotation with `evaluate-document`. The generator does not run comparisons.
+These are development fixtures, including prose inputs used to tune spacing,
+not unseen holdouts. Vertical writing, scans, and mixed documents still need
+separate controlled matrices. Results and their limits are recorded in the
+[benchmark notes](benchmark/realworld/results/README.md).
+
+`pdfbench evaluate-document --annotation annotation.json --report document.json`
+scores a multi-channel CLI report using the same evaluator. The annotation binds
+`old_sha256` and `new_sha256`, records `BenchmarkProvenance`, names independent
+`content_mutation` and `representation_mutation` axes, and supplies `expectations`
+in the graph annotation contract above. Channels must match exactly. Malformed
+coverage counts, contradictory inventory claims, and input-hash mismatches are
+rejected. Report input is bounded to 64 MiB and annotations to 4 MiB.
+
+The output retains backend identities and the CLI's measured
+`comparison_wall_time_ms` (extraction, child rendering, and comparison; excludes
+report output). Older reports without timing retain `null`. Peak memory and
+worker CPU costs are not yet measured here. Exit code 0 requires complete coverage
+and an exact accepted alternative in every annotated dimension, with no inferred
+reports in those dimensions; 1 indicates incomplete or mismatching evaluation,
+and 2 rejects invalid input. Unannotated dimensions do not establish accuracy.
 
 ## External extraction conformance
 
@@ -374,9 +605,9 @@ reasons, plus structural-run counters, but not those reviewed metrics.
 atomically (each serializing in memory and publishing via same-directory temporary
 files without overwriting existing destinations). If the second publication fails,
 exit code 2 is returned and the first published artifact remains in place without
-pairwise rollback across distinct paths. Dated compact evaluation summaries are
-recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-09-02-0c06365.json`](benchmark/realworld/results/2026-09-02-0c06365.json)).
+pairwise rollback across distinct paths. Evaluation reports and curated summaries
+are retained in the [benchmark results index](benchmark/realworld/results/README.md).
+Store raw execution logs and temporary benchmark captures outside the repository.
 
 ## License
 
@@ -429,10 +660,6 @@ Reports separate established `changes`, tentative `change_candidates`, unlocaliz
 
 JSON schema 11 also exposes non-owning `assessment.review_units`. Each unit names an established comparison relation and the `literal_minimal` alignment policy. Completed queries report changed-source-token bounds, bounds for the final unresolved remainder, and source spans that are changed in every optimal alignment. Counts exclude synthetic block separators. A positive lower bound establishes a content difference even when no complete change event can be localized; it does not increase resolved coverage or benchmark recall. Missing bounds mean the query did not complete, never zero changes. Optional claim work uses the remaining shared assessment budget after existing localization and emission.
 
-The real-world benchmark also diagnoses valid expected masks that cannot occur under the literal-minimal objective, without changing their acceptance criteria. The [claim evaluation](benchmark/realworld/results/2026-09-09-claims/README.md) preserves the original corpus and annotations and adds an untouched PDF pair. [Supplied-role experiments](benchmark/realworld/results/structure-claim-probe/README.md) report source-mask and event-grouping results separately; the tested stamp and function-list policies do not justify automatic structure discovery or production role matching.
-
-The subsequent [exact-mask evaluation](benchmark/realworld/results/2026-09-09-exact-masks/README.md) connects disjoint atomic ranges to event ownership: unchanged spaces and punctuation inside display context remain equal. A bounded page-local catalog/form route can recover independently established footer changes while surrounding body order remains unresolved. The shared literal proof kernel uses exact-distance banding and fused count queries while preserving all optimal paths, work limits, and normalization hypotheses. The evaluation keeps official per-ID results separate from non-owning claims and records the annotated JLS holdout's incomplete extraction and resource-limit outcome.
-
 `--limit-scale FACTOR` raises the comparison pipeline budgets for n-gram token elements, alignment candidate visits, alignment DP cells, diff tokens, shared assessment work, and assessment output ranges. It also raises the diff edit-distance budget up to the bounded Myers implementation's 64 MiB trace-allocation cap. The factor must be finite and at least `1`; parser and extraction limits remain unchanged.
 
 `--extraction-cache-dir DIR` reuses cached glyph extraction results stored under `DIR`, keyed by the file contents and every extraction-determining input (parser and extraction limits, password, and asserted font identities). A missing, corrupt, oversized, or outdated entry falls back to a fresh extraction, so comparison results are identical with or without the cache. Entries are revalidated only for resource ceilings and issue-scope invariants; glyph content, geometry, and ids are not re-verified and entries are not authenticated, so the cache directory is a trust boundary and must not be shared with untrusted writers.
@@ -443,7 +670,7 @@ The subsequent [exact-mask evaluation](benchmark/realworld/results/2026-09-09-ex
 
 - Ordinary line-end hyphens (`-` and U+2010) are retained; uncertain discretionary use stays unresolved. Only source-backed U+00AD line-end hyphenation is removed deterministically. For source-verified ambiguous line-end hyphens, review claims retain both keep/remove interpretations and report only facts shared by every old/new combination; their original source tokens and hypothesis count are included in the report. Unfinished or unsupported hypothesis exploration establishes no additional claim. Block joins likewise require independent boundary evidence, so ambiguous fragments may remain unresolved even when one interpretation would match exactly.
 
-- `pdfdelta` does not run OCR and does not compare image contents or handwriting. Image-only pages can pass extraction because Image XObjects are explicitly skipped; that does not mean text visible inside the image was compared. Existing OCR text layers are retained as glyph evidence, but invisible text remains outside visible-content comparison. Empty-user-password decryption is automatic; other known passwords can be read from side-specific files and are never accepted directly as argument values or retained in reports and traces.
+- The retained text-only pipeline does not run OCR or compare image contents or handwriting. Image-only pages can pass extraction because Image XObjects are explicitly skipped; that does not mean text visible inside the image was compared. Existing OCR text layers are retained as glyph evidence, but invisible text remains outside visible-content comparison. Empty-user-password decryption is automatic; other known passwords can be read from side-specific files and are never accepted directly as argument values or retained in reports and traces.
 - Extraction currently targets mainly single-column text using supported Type 1/Type1C/MMType1 or TrueType simple fonts, an axis-aligned Type 3 subset with declared metrics and bounded CharProcs, plus Type 0 fonts with one CIDFontType0/CIDFontType2 descendant and bounded metrics. Identity-H and an Identity-V subset using only default DW2 metrics use fixed two-byte codes; bounded custom Type 0 CMaps are accepted only for full-domain one- or two-byte identity mappings. ToUnicode is optional only when a stable embedded-font, canonical Standard 14 identity, or explicit caller-provided external CID font identity can preserve unmapped glyphs. External identities are trust assertions, not font discovery. Type 3 CharProc drawing operators and MMType1 variation axes are not interpreted, and MMType1 therefore cannot provide stable identity for unmapped glyphs. Rotated, sheared, translated, or horizontally reversed Type 3 FontMatrix values, unsupported fonts inside Type 3 resource graphs, general custom CMaps, per-CID W2 vertical metrics, general vertical-writing reading order, complex tables, AcroForm, and complete annotation handling are not implemented. A simple left-to-right horizontal region is treated as known only when glyph paint order independently confirms top-to-bottom lines. An ordinary two-column region, including one surrounded by full-width bands, is treated as known only when its spatial order is unique and paint order keeps the complete left column contiguous before the complete right column. Row-major label/value or parallel pairs are treated as known only when paint order alternates left then right without overlap and either at least three strongly aligned rows have spacious separation or a straight vertical divider plus horizontal row separators prove a dense two-column grid. Three or more regions are accepted only when the spatial region graph has a unique order and paint order keeps each complete region contiguous in that same order. Ambiguous multi-region layouts, row-interleaved columns without strong parallel-row evidence, right-to-left text, non-horizontal text, and mixed or unknown text direction preserve every line and glyph. When the remaining region order is independently proven, only blocks containing locally unsupported lines are reported as unresolved reading order; otherwise the page-local comparison window remains unresolved. Extraction itself remains complete, and changes in independently anchored windows continue to be compared.
 - Every extracted glyph records whether its geometry is inside, partially outside, or fully outside the normalized page CropBox and any supported explicit path clip. Fully outside glyphs remain available as raw inspection/SVG evidence but are excluded from visible-content comparison; partially intersecting glyphs remain comparable. A single axis-aligned rectangle expressed by `re` or by one closed or implicitly closed straight-line subpath is interpreted as a clip, including intersections of supported rectangles. Straight stroked segments are retained as bounded layout evidence; curved or compound clipping paths, transparency, fill/stroke color, and occlusion by later paint operations are not interpreted, so overpainted historical text can still appear in comparison input.
 - Paragraph moves are reported as dedicated `Move` changes when an out-of-order anchor is unique and its canonical text matches exactly. Fuzzy or structurally changed move proposals remain candidates or unresolved unless separate source-backed evidence establishes their content changes.
@@ -454,31 +681,14 @@ The subsequent [exact-mask evaluation](benchmark/realworld/results/2026-09-09-ex
 - Finer extraction-gap boundaries and recovery of changes inside an unresolved extraction anchor window remain future work.
 - Atomic `--json` publication requires a filesystem with same-filesystem hard-link support. Other filesystems return exit code `2` without publishing the report.
 - Formatting-only reporting is best-effort and does not claim pixel-level rendering identity.
-- Engine-generated replacements receive `CharacterWidth` only when an explicit fullwidth/halfwidth fold exactly explains the changed hunk. `OcrConfusion` remains available only to programmatic callers because OCR is not implemented.
+- Engine-generated replacements receive `CharacterWidth` only when an explicit fullwidth/halfwidth fold exactly explains the changed hunk. `OcrConfusion` remains available only to programmatic callers; the evidence pipeline retains recognition candidates without classifying differences as OCR mistakes.
 - JSON change, formatting, and unresolved spans include glyph geometry plus content-stream object and operator provenance. Text reports do not list per-span provenance, and SVG output remains a whole-document glyph overlay rather than a per-change diff overlay.
-- The automated PDF mutation benchmark is deterministic and in-memory: it uses printable ASCII with Type 1 Helvetica and two PDF construction paths (23 cases × 2 project renderers = 46 records), including repetition, long prose reflow, numbered requirements, pagination churn, footnote-like paragraphs, section-labeled paragraph movement, and column-major two-column reflow. The separate file-backed canonical YAML path renders one bounded document and can feed paragraph-local line wrapping, page breaking, text replacement, text insertion, text deletion, number replacement, section-local paragraph insertion, non-empty-section paragraph deletion, same-section or cross-section paragraph movement, four global rendering changes, and a selected-section paragraph-only column change through the library evaluator while retaining its title and section headings. The CLI exposes those same fourteen mutation commands. One canonical number-replacement expectation is also evaluated against a vendored Typst pair through `evaluate-rendered-yaml`, without invoking Typst in CI; this path does not generate Typst source from YAML or cover the full mutation matrix. A parser-independent Glyph-to-Line matrix separately covers single-column English, mixed font sizes, superscripts, reconstructed English spaces, and decoded horizontal Japanese/Latin text. A companion Line-to-Block matrix covers paragraph grouping, heading separation, relative spacing, conservative or cadence-supported page boundaries, and row-major label/value ordering for strongly evidenced parallel rows. Primitive extraction has a neutral snapshot comparator for decoded text, glyph count and order, page, geometry, baseline, and direction, backed by hand-written rotated and positioned-text oracles. Low-level PDF fixtures separately verify CropBox and rectangular path-clip classification, straight-line provenance, conservative ruled-grid ordering, and one exact cell replacement. A bounded CLI accepts versioned snapshots with producer and input identity, and a curated `pdf_oxide` 0.3.77 snapshot verifies all 158 mapped horizontal glyphs in one Japanese Typst fixture against an independent custom parser. Opt-in mismatch SVG output overlays expected and actual geometry without overwriting existing evidence. The cross-parser corpus remains intentionally narrow. These are complemented by vendored external Typst raw-PDF revision pairs for SPEC §2.2 Case 3 (`Release 10` -> `Release 20`) in [`fixtures/external/case3-typst/`](fixtures/external/case3-typst/), SPEC §2.1 Japanese horizontal born-digital text replacement in [`fixtures/external/japanese-typst/`](fixtures/external/japanese-typst/), SPEC §2.2 Case 1 Japanese line-wrap invariance in [`fixtures/external/case1-japanese-typst/`](fixtures/external/case1-japanese-typst/), SPEC §2.2 Case 2 Japanese page break invariance in [`fixtures/external/case2-japanese-typst/`](fixtures/external/case2-japanese-typst/), and SPEC §2.2 Case 4 / Case 5 Japanese paragraph insertion and deletion in [`fixtures/external/case4-case5-japanese-typst/`](fixtures/external/case4-case5-japanese-typst/). Non-vendored public smoke corpora are recorded in [`benchmark/manifests/real-world-pipeline.tsv`](benchmark/manifests/real-world-pipeline.tsv) and [`benchmark/manifests/real-world-pipeline-round2.tsv`](benchmark/manifests/real-world-pipeline-round2.tsv), but downloading and running them is not automated. With documented explicit inputs, the second manifest records 37 strict self-comparison successes and one default-mode partial success that remains strict-incomplete. Additional external renderer dialects (LaTeX, HTML/Chromium) and broader Japanese raw-PDF corpus fixtures (such as vertical writing or non-Identity-H encodings) remain future evidence validation work.
+- The automated PDF mutation benchmark is deterministic and in-memory: it uses printable ASCII with Type 1 Helvetica and two PDF construction paths (23 cases × 2 project renderers = 46 records), including repetition, long prose reflow, numbered requirements, pagination churn, footnote-like paragraphs, section-labeled paragraph movement, and column-major two-column reflow. The separate file-backed canonical YAML path renders one bounded document and can feed paragraph-local line wrapping, page breaking, text replacement, text insertion, text deletion, number replacement, section-local paragraph insertion, non-empty-section paragraph deletion, same-section or cross-section paragraph movement, four global rendering changes, and a selected-section paragraph-only column change through the library evaluator while retaining its title and section headings. The CLI exposes those same fourteen mutation commands. One canonical number-replacement expectation is also evaluated against a vendored Typst pair through `evaluate-rendered-yaml`, without invoking Typst in CI; this path does not generate Typst source from YAML or cover the full mutation matrix. A parser-independent Glyph-to-Line matrix separately covers single-column English, mixed font sizes, superscripts, reconstructed English spaces, and decoded horizontal Japanese/Latin text. A companion Line-to-Block matrix covers paragraph grouping, heading separation, relative spacing, conservative or cadence-supported page boundaries, and row-major label/value ordering for strongly evidenced parallel rows. Primitive extraction has a neutral snapshot comparator for decoded text, glyph count and order, page, geometry, baseline, and direction, backed by hand-written rotated and positioned-text oracles. Low-level PDF fixtures separately verify CropBox and rectangular path-clip classification, straight-line provenance, conservative ruled-grid ordering, and one exact cell replacement. A bounded CLI accepts versioned snapshots with producer and input identity, and a curated `pdf_oxide` 0.3.77 snapshot verifies all 158 mapped horizontal glyphs in one Japanese Typst fixture against an independent custom parser. Opt-in mismatch SVG output overlays expected and actual geometry without overwriting existing evidence. The cross-parser corpus remains intentionally narrow. These are complemented by vendored external Typst raw-PDF revision pairs for SPEC §2.2 Case 3 (`Release 10` -> `Release 20`) in [`fixtures/external/case3-typst/`](fixtures/external/case3-typst/), SPEC §2.1 Japanese horizontal born-digital text replacement in [`fixtures/external/japanese-typst/`](fixtures/external/japanese-typst/), SPEC §2.2 Case 1 Japanese line-wrap invariance in [`fixtures/external/case1-japanese-typst/`](fixtures/external/case1-japanese-typst/), SPEC §2.2 Case 2 Japanese page break invariance in [`fixtures/external/case2-japanese-typst/`](fixtures/external/case2-japanese-typst/), and SPEC §2.2 Case 4 / Case 5 Japanese paragraph insertion and deletion in [`fixtures/external/case4-case5-japanese-typst/`](fixtures/external/case4-case5-japanese-typst/). Non-vendored public smoke corpora are recorded in [`benchmark/manifests/real-world-pipeline.tsv`](benchmark/manifests/real-world-pipeline.tsv) and [`benchmark/manifests/real-world-pipeline-round2.tsv`](benchmark/manifests/real-world-pipeline-round2.tsv), but downloading and running them is not automated. With documented explicit inputs, the second manifest records 37 strict self-comparison successes and one default-mode partial success that remains strict-incomplete. Additional external renderer dialects (LaTeX, HTML/Chromium) and broader Japanese raw-PDF corpus fixtures (such as multiple vertical columns, ruby, or additional non-Identity-H encodings) remain future evidence validation work.
 - The real-world revision track ([`benchmark/realworld/`](benchmark/realworld/)) records 29 genuine public pairs: 19 development and 10 holdout pairs spanning standards, regulatory publications, API and user guides, Latin/CJK prose, code, tables, forms, screenshots, generated reference manuals, multiscript examples, and image-heavy layouts. Eighteen pairs are standard targets near the intended scope and eleven are explicit stress cases; eight pairs have partial human-reviewed expected changes, two of those partial sets contain three complete scopes, and four additional pairs have scoped-complete review regions with event and changed-token precision.
-  The dated [`2026-08-26`](benchmark/realworld/results/2026-08-26.json) artifact remains the immutable `limit_scale_hint` baseline for the original five-pair corpus. The [`2026-08-28`](benchmark/realworld/results/2026-08-28.json) capture records the expanded twelve-pair corpus at engine commit `a7b56a7`, while [`2026-08-29`](benchmark/realworld/results/2026-08-29.json) records all 29 current pairs at engine commit `ffd7600`. Same-day follow-ups record [`987020f`](benchmark/realworld/results/2026-08-29-987020f.json) uncertain-span exact and reciprocal replacement recovery, [`ca6447c`](benchmark/realworld/results/2026-08-29-ca6447c.json) monotonic exact-unit recovery inside anchored trusted runs, [`0cef530`](benchmark/realworld/results/2026-08-29-0cef530.json) short-unit recovery, weighted multiset candidate scoring, and page-local short candidates, [`c2de839`](benchmark/realworld/results/2026-08-29-c2de839.json) atomic line recovery for punctuation-free uncertain regions, [`80def43`](benchmark/realworld/results/2026-08-29-80def43.json) bounded semantic line grouping for short matched regions, [`3074d95`](benchmark/realworld/results/2026-08-29-3074d95.json) short structural-label anchors for adjacent value moves, [`de4ed4c`](benchmark/realworld/results/2026-08-29-de4ed4c.json) mixed-run word replacement grouping, [`1ed7340`](benchmark/realworld/results/2026-08-29-1ed7340.json) fail-closed fragment-completion vetoes for general uncertain-span replacements, [`556686c`](benchmark/realworld/results/2026-08-29-556686c.json) the behavior-preserving multi-occurrence change-model migration, [`27f096e`](benchmark/realworld/results/2026-08-29-27f096e.json) scoped-complete event and changed-token precision for three fully reviewed regions, [`f5406f3`](benchmark/realworld/results/2026-08-29-f5406f3.json) role-local running-matter alignment, [`4e6ae73`](benchmark/realworld/results/2026-08-29-4e6ae73.json) the safe near-search baseline, [`5145723`](benchmark/realworld/results/2026-08-29-5145723.json) behavior-neutral structural trusted-run diagnostics, [`1463932`](benchmark/realworld/results/2026-08-29-1463932.json) bounded exact-unit signature diagnostics for trusted runs, [`1a0675f`](benchmark/realworld/results/2026-08-29-1a0675f.json) bounded expected-change recovery watches, and [`24a2300`](benchmark/realworld/results/2026-08-29-24a2300.json) diagnostic-only adjacent-unit segment watches. The [`5ffa3e0`](benchmark/realworld/results/2026-08-30-5ffa3e0.json) capture records bounded exact segment-relation diagnostics without enabling segment moves, [`b1e54e3`](benchmark/realworld/results/2026-08-30-b1e54e3.json) adds bounded one-sided insertion/deletion occurrence evidence, [`2ddbb6b`](benchmark/realworld/results/2026-08-30-2ddbb6b.json) adds behavior-neutral Clause/ListItem watch diagnostics, and [`ebcb49e`](benchmark/realworld/results/2026-08-30-ebcb49e.json) validates exact occurrence counts and groups repeated running-matter changes into multi-occurrence events. Separate files keep parser, alignment, annotation, and algorithm effects auditable instead of rewriting historical metrics.
-
-  The [`64a58b7`](benchmark/realworld/results/2026-08-30-64a58b7.json) capture adds topology-local, multiplicity-aware Line trigram candidate indexing with explicit posting-work diagnostics. The [`496d128`](benchmark/realworld/results/2026-08-30-496d128.json) capture attributes that bounded near-search work to Sentence and Line units. The [`ba424d8`](benchmark/realworld/results/2026-08-30-ba424d8.json) capture further attributes it to four search phases. The [`a7a483c`](benchmark/realworld/results/2026-08-30-a7a483c.json) capture separates known-same-span candidates, ambiguous-span candidates, and shared query preparation without changing comparison behavior. The [`a5202c8`](benchmark/realworld/results/2026-08-30-a5202c8.json) capture replays a known-span-only Sentence search in shadow mode and shows that removing ambiguous counterparts changes relation and reciprocal-pair decisions, so the filter remains diagnostic-only. The [`d045e2c`](benchmark/realworld/results/2026-08-30-d045e2c.json) capture preserves every output and quality field while stopping word-multiset scoring when its remaining upper bound cannot improve the exact relation score. The [`d6cd66d`](benchmark/realworld/results/2026-08-30-d6cd66d.json) capture classifies cross-span Sentence work by paired-anchor topology and shows that retaining only the same paired interval changes unique and reciprocal relation decisions. The [`f0ffe19`](benchmark/realworld/results/2026-08-30-f0ffe19.json) capture begins measuring exact relation-floor early-stop opportunities in completed searches. The [`12fb039`](benchmark/realworld/results/2026-08-30-12fb039.json) capture retains completed probe observations from budget-stopped cross-span searches and shows that the exact skip would save only 0.155% of cross-span similarity comparisons, so it is not enabled. The [`ab26b3c`](benchmark/realworld/results/2026-08-30-ab26b3c.json) capture records the atomic production Sentence edge filter and its full-build legacy fallbacks. The [`edb34a2`](benchmark/realworld/results/2026-08-30-edb34a2.json) capture independently replays exact edge-signature candidates without changing any prior report field; the replay prunes 93.998% of observed pairs, while six large searches still stop in the broader candidate-posting traversal, so the signature gate remains diagnostic-only.
-
-  The [`7ffc831`](benchmark/realworld/results/2026-08-31-7ffc831.json) schema-v33 capture stores Sentence edge signatures as compact unique-key ranges plus occurrence arrays. All 18 available direct replays complete, common completed-path logical bytes fall by 66.24% from schema v32, and comparison and reviewed-quality fields remain unchanged. Production activation remains deferred because the comparable candidate union is 12.04%, the exact retained lower bound is already 10.89%, and the LibreOffice reference oracle still stops at its pair-visit limit; the old sub-10% gate must be replaced by an exact-lower-bound criterion before behavior changes.
-
-  The [`e254b48`](benchmark/realworld/results/2026-08-31-e254b48.json) schema-v34 capture independently applies exact Sentence edge classification before reference near-relation work. Seven of eight reference oracles preserve plan and retained-pair fingerprint parity. LibreOffice reduces downstream near-pair work to 7,993 but stops fail-closed after 32,000,000 edge comparisons with 1,831 broad candidates unclassified. Every comparison, quality, candidate-recall, direct-replay, and other diagnostic field remains identical to schema v33 when the reference-oracle object is excluded; production activation remains deferred without raising budgets.
-
-  The [`447927d`](benchmark/realworld/results/2026-08-31-447927d.json) schema-v34 capture packs exact FIRST/LAST provenance into the existing one-word legacy candidate postings and reuses it during independent reference classification. All eight reference oracles complete with identical plans and retained-pair count, set, and order fingerprints. LibreOffice classifies all 18,853,226 broad pairs with 24,943,792 edge comparisons under the unchanged 32,000,000 cap. Removing the reference-oracle object produces exact `e254b48` parity for every other field; production activation remains deferred pending the candidate-overhead and full-build fallback gates.
-
-  The [`08cc0c6`](benchmark/realworld/results/2026-08-31-08cc0c6.json) schema-v35 capture activates exact edge-signature traversal in production. All 18 available Direct builds are accepted and complete, all six former legacy fallbacks are eliminated, and the 12 previously complete paths preserve their comparison and quality fields. On the six newly completed paths, Direct generates 1,633,897 candidates instead of the completed reference oracles' 31,842,858 broad candidates, a 94.87% reduction, with zero broad Sentence posting visits. Its apparent SP 800-57 recall regression led to a review of the expected deletion.
-
-  The [`85c799d`](benchmark/realworld/results/2026-08-31-85c799d.json) schema-v36 capture adds bounded one-sided veto provenance without changing any comparison field or complete-scope metric. The review confirmed that the SP 800-57 toolkit footnote exists in both revisions and removes only the comma before `rather`; the annotation is now a replacement. Its counterpart remains unresolved because the watched whole-Sentence units are in different spans, score only 2,347 against each other, and each side has tied 10,000-point competing relations. The next diagnostic therefore targets quote-local fragment or clause boundaries without changing thresholds or margins.
-
-  The [`10e921f`](benchmark/realworld/results/2026-08-31-10e921f.json) schema-v37 capture adds bounded quote-local exact diagnostics without changing any schema-v36 comparison, quality, candidate, or existing diagnostic field. Quote-local diagnostics complete without a stop in all eight recovery-watch reports, producing ten available pairs. The unresolved SP 800-57 toolkit counterpart scores 10,000 locally and reduces to one exact comma deletion, while its parent Sentence relation remains non-reciprocal. This supports an annotation-independent local-fragment candidate shadow, not immediate recovery or looser thresholds.
-
-  The [`c4cc1cd`](benchmark/realworld/results/2026-08-31-c4cc1cd.json) schema-v38 capture adds that annotation-independent local-fragment shadow without changing any schema-v37 comparison, quality, candidate, or existing diagnostic field. It is present on 18 recovery builds; two complete with no eligible parent, while all 16 non-empty builds stop atomically under actual-input-proportional traversal limits (six at index postings and ten at similarity comparisons). No partial relation set is published. Under the current budgets, the all-boundaries expansion is not a production candidate; the next planned shadow narrows parent Sentence pairs before fragment enumeration.
-
-  The [`cda68bf`](benchmark/realworld/results/2026-08-31-cda68bf.json) schema-v39 capture replaces global fragment postings with fixed-minimum-depth parent and word-boundary signatures without changing any schema-v38 comparison, quality, candidate, or existing diagnostic field. Across the same 18 builds, postings fall from 16,574,884 to 349,740, queries fall from 5,480 fragment-level queries to 30 parent-level queries, and posting visits fall from 693,791 to 89,926. The two empty builds complete; the 16 non-empty builds still stop atomically because 12,842 admitted parent pairs expand to 9,874,942 same-orientation fragment pairs. The next shadow must enumerate boundary-signature fragment pairs inside each admitted parent instead of taking their Cartesian product.
-
-  The [`40f8e19`](benchmark/realworld/results/2026-08-31-40f8e19.json) schema-v40 capture adds that parent-scoped, same-side boundary-signature index without changing any schema-v39 comparison, quality, candidate, or diagnostic field outside `local_fragment_shadow`. It processes 87,646 admitted parent pairs and submits 2,840,908 fragment pairs to exact edge recheck, 71.23% fewer than schema v39's bounded Cartesian work despite reaching 6.82 times as many parent pairs. The two empty builds complete; all 16 non-empty builds now stop atomically at the similarity-comparison limit after 42,939,833 comparisons. The next shadow must attribute exact-edge and word-score comparison work before another pruning primitive is selected.
+  Historical captures and evaluation findings are listed in the
+  [benchmark results index](benchmark/realworld/results/README.md), including the
+  [claim evaluation](benchmark/realworld/results/2026-09-09-claims/README.md) and
+  [exact-mask evaluation](benchmark/realworld/results/2026-09-09-exact-masks/README.md).
 
 ## Contributing
 

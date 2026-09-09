@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "contract": "external_table_change_units",
+  "manifest_sha256": "1a2e69649b259c7567c0f07697881bb76c775a3f79748edaf23894f6da12f44a",
+  "pdfdelta_sha256": "eab0b545f244f5586af68717aeca24b8c51c92b4cb5b011bdbfd35d1e335cec0",
+  "pdfbench_sha256": "7c2ea6bfafc002408d677a81d0c4b202dd36ed1acd5770d0c279aa8977c34265",
+  "annotation_scope": "partial",
+  "tuning_use": "used_for_fix",
+  "groups": [
+    {
+      "representation": "ruled",
+      "pairs": 192,
+      "complete_pairs": 0,
+      "elapsed_seconds_sum": 79.62,
+      "max_rss_kib": 34080,
+      "coverage": [
+        {
+          "channel": "text",
+          "pairs": 192,
+          "old_inventory_complete": 0,
+          "new_inventory_complete": 0,
+          "old_discovered_sources": 18192,
+          "new_discovered_sources": 18128,
+          "old_compared_sources": 11856,
+          "new_compared_sources": 11856,
+          "old_uncompared_sources": 6336,
+          "new_uncompared_sources": 6272,
+          "complete": 0
+        },
+        {
+          "channel": "visual",
+          "pairs": 192,
+          "old_inventory_complete": 0,
+          "new_inventory_complete": 0,
+          "old_discovered_sources": 192,
+          "new_discovered_sources": 240,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_uncompared_sources": 192,
+          "new_uncompared_sources": 240,
+          "complete": 0
+        },
+        {
+          "channel": "forms",
+          "pairs": 192,
+          "old_inventory_complete": 192,
+          "new_inventory_complete": 192,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 0,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": 192
+        },
+        {
+          "channel": "relations",
+          "pairs": 192,
+          "old_inventory_complete": 0,
+          "new_inventory_complete": 0,
+          "old_discovered_sources": 1536,
+          "new_discovered_sources": 1536,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_uncompared_sources": 1536,
+          "new_uncompared_sources": 1536,
+          "complete": 0
+        }
+      ],
+      "conditional_change_units": {
+        "true_positive": 0,
+        "false_positive": 0,
+        "false_negative": 256
+      },
+      "inferred_change_units": {
+        "true_positive": 256,
+        "false_positive": 0,
+        "false_negative": 0
+      }
+    },
+    {
+      "representation": "borderless",
+      "pairs": 192,
+      "complete_pairs": 0,
+      "elapsed_seconds_sum": 49.28,
+      "max_rss_kib": 34056,
+      "coverage": [
+        {
+          "channel": "text",
+          "pairs": 192,
+          "old_inventory_complete": 0,
+          "new_inventory_complete": 192,
+          "old_discovered_sources": 18192,
+          "new_discovered_sources": 18128,
+          "old_compared_sources": 11856,
+          "new_compared_sources": 11856,
+          "old_uncompared_sources": 6336,
+          "new_uncompared_sources": 6272,
+          "complete": 0
+        },
+        {
+          "channel": "visual",
+          "pairs": 192,
+          "old_inventory_complete": 0,
+          "new_inventory_complete": 0,
+          "old_discovered_sources": 192,
+          "new_discovered_sources": 240,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_uncompared_sources": 192,
+          "new_uncompared_sources": 240,
+          "complete": 0
+        },
+        {
+          "channel": "forms",
+          "pairs": 192,
+          "old_inventory_complete": 192,
+          "new_inventory_complete": 192,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 0,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": 192
+        },
+        {
+          "channel": "relations",
+          "pairs": 192,
+          "old_inventory_complete": 0,
+          "new_inventory_complete": 0,
+          "old_discovered_sources": 1536,
+          "new_discovered_sources": 1536,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_uncompared_sources": 1536,
+          "new_uncompared_sources": 1536,
+          "complete": 0
+        }
+      ],
+      "conditional_change_units": {
+        "true_positive": 0,
+        "false_positive": 0,
+        "false_negative": 256
+      },
+      "inferred_change_units": {
+        "true_positive": 256,
+        "false_positive": 0,
+        "false_negative": 0
+      }
+    }
+  ]
+}

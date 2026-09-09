@@ -1,0 +1,2189 @@
+{
+  "schema_version": 1,
+  "contract": "frozen_native_text_regression",
+  "manifest_sha256": "2af7292a01836545d2a1ea2571659d6143c133c2c9a226d47ba8ff10f61b6598",
+  "pdfbench_sha256": "d97fd492afd3d2b352c4233764de04a6ca3b55bec4ba9b048a8c91d80397b31a",
+  "execution_limits": {
+    "address_space_bytes": 4294967296,
+    "timeout_seconds": 1200,
+    "parallel_pairs": 2
+  },
+  "records": [
+    {
+      "pair_id": "nist-fips-186-4-to-5",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 91.94,
+        "max_rss_kib": 888292
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.2095854210841448,
+        "coverage_new": 0.26600310370113517,
+        "unresolved_old_token_share": 0.7904145789158552,
+        "unresolved_new_token_share": 0.7339968962988648,
+        "accepted_changes": 306,
+        "unresolved_regions": 4378,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 222129,
+          "same": 46274,
+          "changed": 281,
+          "unresolved": 175574
+        },
+        "new_token_resolution": {
+          "total": 175919,
+          "same": 46259,
+          "changed": 536,
+          "unresolved": 129124
+        },
+        "expected_matches": [
+          {
+            "expected_id": "dsa-specification-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "edsa-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "dsa-legacy-verification-note",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "deterministic-ecdsa-rfc6979",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "security-level-glossary-note-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "domain-parameter-requirement-moved",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "per-message-secret-number-scope-generalized",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 7,
+          "reported_changes": 306,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": null,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.8571428571428571,
+          "generator_candidate_recall_at_k": 1.0,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 255,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 55,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 55
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 2,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 206,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "nist-sp800-57-part1-r4-to-r5",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 561.32,
+        "max_rss_kib": 1431760
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.336041101289852,
+        "coverage_new": 0.30028004047507517,
+        "unresolved_old_token_share": 0.663958898710148,
+        "unresolved_new_token_share": 0.6997219873343026,
+        "accepted_changes": 882,
+        "unresolved_regions": 8717,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 441446,
+          "same": 146729,
+          "changed": 1615,
+          "unresolved": 293102
+        },
+        "new_token_resolution": {
+          "total": 493143,
+          "same": 146728,
+          "changed": 1353,
+          "unresolved": 345062
+        },
+        "expected_matches": [
+          {
+            "expected_id": "footer-rev-branding-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "keying-material-definition-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "toolkit-footnote-comma-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "cryptanalysis-review-window-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "toolkit-footnote-renumbered",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "standards-reference-comma-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "approved-definition-comma-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "association-definition-punctuation",
+            "matched": true,
+            "actual_index": 754,
+            "actual_kind": "replacement",
+            "kind_agrees": true
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 8,
+          "reported_changes": 882,
+          "matched_changes": 1,
+          "kind_correct": 1,
+          "precision": null,
+          "recall": 0.125,
+          "document_recall": null,
+          "kind_accuracy": 1.0,
+          "candidate_recall": 0.125,
+          "generator_candidate_recall_at_k": 1.0,
+          "reported_hunks_per_matched_change": 1037.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 628,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 300,
+          "expected_regions": 8,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 300
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 2,
+          "precision": 0.3333333333333333,
+          "recall": 0.25,
+          "f1": 0.28571428571428575
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 7,
+          "reported_changed_tokens": 6,
+          "true_positive_tokens": 6,
+          "precision": 1.0,
+          "recall": 0.8571428571428571,
+          "f1": 0.923076923076923,
+          "span_iou": 0.8571428571428571,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.625,
+          "exact_localization_recall": 0.6,
+          "semantic_relation_recall": 0.125,
+          "move_recall": null
+        }
+      }
+    },
+    {
+      "pair_id": "irs-form-1040-2024-to-2025",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.33,
+        "max_rss_kib": 35196
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.29623747862203764,
+        "coverage_new": 0.24467657693852954,
+        "unresolved_old_token_share": 0.7037625213779624,
+        "unresolved_new_token_share": 0.7553234230614705,
+        "accepted_changes": 4,
+        "unresolved_regions": 168,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 8186,
+          "same": 2421,
+          "changed": 4,
+          "unresolved": 5761
+        },
+        "new_token_resolution": {
+          "total": 9956,
+          "same": 2417,
+          "changed": 19,
+          "unresolved": 7520
+        },
+        "expected_matches": [
+          {
+            "expected_id": "age-cutoff-1961-primary",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "age-cutoff-1961-spouse",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "mfs-checkbox-restructured",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "combat-zone-deceased-checkbox-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "footer-form-year-stamp",
+            "matched": true,
+            "actual_index": 3,
+            "actual_kind": "replacement",
+            "kind_agrees": true
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 5,
+          "reported_changes": 4,
+          "matched_changes": 1,
+          "kind_correct": 1,
+          "precision": null,
+          "recall": 0.2,
+          "document_recall": null,
+          "kind_accuracy": 1.0,
+          "candidate_recall": 0.0,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": 5.0,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 3,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 2,
+          "expected_regions": 5,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 2
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 17,
+          "reported_changed_tokens": 17,
+          "true_positive_tokens": 17,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.6,
+          "exact_localization_recall": 1.0,
+          "semantic_relation_recall": 0.2,
+          "move_recall": null
+        }
+      }
+    },
+    {
+      "pair_id": "nist-sp800-171-r2-to-r3",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 50.3,
+        "max_rss_kib": 1111428
+      },
+      "status": "limit",
+      "resource_limit_failure": "comparison assessment search reached a resource limit",
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.010043236867543036,
+        "coverage_new": 0.011197092957658803,
+        "unresolved_old_token_share": 0.989956763132457,
+        "unresolved_new_token_share": 0.9888029070423412,
+        "accepted_changes": 0,
+        "unresolved_regions": 7855,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 286561,
+          "same": 2878,
+          "changed": 0,
+          "unresolved": 283683
+        },
+        "new_token_resolution": {
+          "total": 257031,
+          "same": 2878,
+          "changed": 0,
+          "unresolved": 254153
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 7,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 7
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "edpb-right-of-access-v1-to-final",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 181.2,
+        "max_rss_kib": 701776
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.5267383652354815,
+        "coverage_new": 0.5154575675504307,
+        "unresolved_old_token_share": 0.4732616347645185,
+        "unresolved_new_token_share": 0.4845424324495693,
+        "accepted_changes": 329,
+        "unresolved_regions": 3051,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 215346,
+          "same": 112934,
+          "changed": 497,
+          "unresolved": 101915
+        },
+        "new_token_resolution": {
+          "total": 220798,
+          "same": 112934,
+          "changed": 878,
+          "unresolved": 106986
+        },
+        "expected_matches": [
+          {
+            "expected_id": "consultation-watermark-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "completeness-of-copy-clarified",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "exception-effect-qualified",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "rijkeboer-citation-reflow",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 4,
+          "reported_changes": 329,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": null,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.25,
+          "generator_candidate_recall_at_k": 1.0,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 236,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 137,
+          "expected_regions": 4,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 137
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 10,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.3333333333333333,
+          "exact_localization_recall": 0.0,
+          "semantic_relation_recall": 0.0,
+          "move_recall": 0.0
+        }
+      }
+    },
+    {
+      "pair_id": "arxiv-attention-v6-to-v7",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 9.66,
+        "max_rss_kib": 107748
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.6196024851125261,
+        "coverage_new": 0.6196184583655582,
+        "unresolved_old_token_share": 0.3803975148874739,
+        "unresolved_new_token_share": 0.3803815416344419,
+        "accepted_changes": 0,
+        "unresolved_regions": 82,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 38791,
+          "same": 24035,
+          "changed": 0,
+          "unresolved": 14756
+        },
+        "new_token_resolution": {
+          "total": 38790,
+          "same": 24035,
+          "changed": 0,
+          "unresolved": 14755
+        },
+        "expected_matches": [
+          {
+            "expected_id": "arxiv-version-date-stamp",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 1,
+          "reported_changes": 0,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": 1.0,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.0,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": 0.0,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": 1,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 11,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.0,
+          "exact_localization_recall": 0.0,
+          "semantic_relation_recall": 0.0,
+          "move_recall": null
+        }
+      }
+    },
+    {
+      "pair_id": "w3c-ws-policy-attach-20060927-to-20061102",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 18.56,
+        "max_rss_kib": 203200
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.5577667297533968,
+        "coverage_new": 0.4089333567858954,
+        "unresolved_old_token_share": 0.44227564193101887,
+        "unresolved_new_token_share": 0.591128723525334,
+        "accepted_changes": 125,
+        "unresolved_regions": 748,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 70802,
+          "same": 39317,
+          "changed": 174,
+          "unresolved": 31311
+        },
+        "new_token_resolution": {
+          "total": 96649,
+          "same": 39318,
+          "changed": 205,
+          "unresolved": 57126
+        },
+        "expected_matches": [
+          {
+            "expected_id": "publication-date",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "current-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "former-current-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "previous-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 4,
+          "reported_changes": 2,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": 0.0,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.0,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": 1.25,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": 4,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 239,
+          "reported_changed_tokens": 8,
+          "true_positive_tokens": 8,
+          "precision": 1.0,
+          "recall": 0.03347280334728033,
+          "f1": 0.06477732793522266,
+          "span_iou": 0.03347280334728033,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.6666666666666666,
+          "exact_localization_recall": 0.0,
+          "semantic_relation_recall": 0.0,
+          "move_recall": 0.0
+        }
+      }
+    },
+    {
+      "pair_id": "ecma-109-ed10-to-ed11",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 11.76,
+        "max_rss_kib": 327476
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.6182906789450564,
+        "coverage_new": 0.6179687626972648,
+        "unresolved_old_token_share": 0.38170932105494365,
+        "unresolved_new_token_share": 0.3820312373027353,
+        "accepted_changes": 33,
+        "unresolved_regions": 868,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 61463,
+          "same": 37966,
+          "changed": 36,
+          "unresolved": 23461
+        },
+        "new_token_resolution": {
+          "total": 61529,
+          "same": 37967,
+          "changed": 56,
+          "unresolved": 23506
+        },
+        "expected_matches": [
+          {
+            "expected_id": "edition-date",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "copyright-year",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "copyright-notice-updated",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "reported_changes": 33,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": null,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.0,
+          "generator_candidate_recall_at_k": 1.0,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 24,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 6,
+          "expected_regions": 3,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 6
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 14,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.0,
+          "exact_localization_recall": 0.0,
+          "semantic_relation_recall": 0.0,
+          "move_recall": null
+        }
+      }
+    },
+    {
+      "pair_id": "oasis-csaf-v2-cs01-to-csd02",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 464.05,
+        "max_rss_kib": 646972
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.6820842824128818,
+        "coverage_new": 0.583925844372625,
+        "unresolved_old_token_share": 0.3179281645320156,
+        "unresolved_new_token_share": 0.41608481017153814,
+        "accepted_changes": 195,
+        "unresolved_regions": 2003,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 241023,
+          "same": 163833,
+          "changed": 565,
+          "unresolved": 76625
+        },
+        "new_token_resolution": {
+          "total": 281570,
+          "same": 163832,
+          "changed": 584,
+          "unresolved": 117154
+        },
+        "expected_matches": [
+          {
+            "expected_id": "publication-stage",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "publication-date",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "cs01-url-moved-to-previous-stage",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "reported_changes": 195,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": null,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.3333333333333333,
+          "generator_candidate_recall_at_k": 1.0,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 77,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 23,
+          "expected_regions": 3,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 23
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 25,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.0,
+          "exact_localization_recall": 0.0,
+          "semantic_relation_recall": 0.0,
+          "move_recall": 0.0
+        }
+      }
+    },
+    {
+      "pair_id": "irs-w4-korean-2024-to-2025",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.39,
+        "max_rss_kib": 77160
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.16571139581928523,
+        "coverage_new": 0.15906148867313916,
+        "unresolved_old_token_share": 0.8342886041807148,
+        "unresolved_new_token_share": 0.8409385113268608,
+        "accepted_changes": 2,
+        "unresolved_regions": 15,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 11864,
+          "same": 1964,
+          "changed": 2,
+          "unresolved": 9898
+        },
+        "new_token_resolution": {
+          "total": 12360,
+          "same": 1964,
+          "changed": 2,
+          "unresolved": 10394
+        },
+        "expected_matches": [
+          {
+            "expected_id": "form-year-footer",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 1,
+          "reported_changes": 2,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": null,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.0,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 2,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 2,
+          "expected_regions": 1,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 2
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 2,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.0,
+          "exact_localization_recall": 0.0,
+          "semantic_relation_recall": 0.0,
+          "move_recall": null
+        }
+      }
+    },
+    {
+      "pair_id": "hmrc-sa100-2023-to-2024",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.15,
+        "max_rss_kib": 48860
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": false,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": 0.7100440318933714,
+        "unresolved_new_token_share": 0.6987512363996043,
+        "accepted_changes": 1,
+        "unresolved_regions": 90,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 16806,
+          "same": 4872,
+          "changed": 1,
+          "unresolved": 11933
+        },
+        "new_token_resolution": {
+          "total": 16176,
+          "same": 4872,
+          "changed": 1,
+          "unresolved": 11303
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 2,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 2
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "edpb-dark-patterns-v1-to-v2",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 45.85,
+        "max_rss_kib": 617748
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.3024037403740374,
+        "coverage_new": 0.2663335969599352,
+        "unresolved_old_token_share": 0.6975962596259626,
+        "unresolved_new_token_share": 0.7336664030400648,
+        "accepted_changes": 170,
+        "unresolved_regions": 2424,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 181800,
+          "same": 54819,
+          "changed": 158,
+          "unresolved": 126823
+        },
+        "new_token_resolution": {
+          "total": 207364,
+          "same": 54938,
+          "changed": 290,
+          "unresolved": 152136
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 140,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 140
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "bis-operational-risk-2011-to-2021",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 16.19,
+        "max_rss_kib": 361764
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.11063074689466043,
+        "coverage_new": 0.09863684225504425,
+        "unresolved_old_token_share": 0.8893692531053395,
+        "unresolved_new_token_share": 0.9013631577449558,
+        "accepted_changes": 61,
+        "unresolved_regions": 1351,
+        "quality_skipped_reason": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+        "old_token_resolution": {
+          "total": 61990,
+          "same": 6727,
+          "changed": 131,
+          "unresolved": 55132
+        },
+        "new_token_resolution": {
+          "total": 70278,
+          "same": 6727,
+          "changed": 205,
+          "unresolved": 63346
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 95,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 95
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "oasis-odf-packages-v1-2-to-v1-3",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.45,
+        "max_rss_kib": 175336
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": false,
+        "coverage_old": 0.0,
+        "coverage_new": null,
+        "unresolved_old_token_share": 1.0,
+        "unresolved_new_token_share": 1.0000256137699628,
+        "accepted_changes": 0,
+        "unresolved_regions": 27,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 72172,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 72172
+        },
+        "new_token_resolution": {
+          "total": 78083,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 78083
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "qgis-pyqgis-en-328-to-334",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 10.13,
+        "max_rss_kib": 684328
+      },
+      "status": "limit",
+      "resource_limit_failure": "alignment search recorded incomplete work; comparison assessment search reached a resource limit",
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.5338587866422135,
+        "coverage_new": 0.5327240957771932,
+        "unresolved_old_token_share": 0.46614121335778647,
+        "unresolved_new_token_share": 0.4672759042228069,
+        "accepted_changes": 31,
+        "unresolved_regions": 1949,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 300439,
+          "same": 160320,
+          "changed": 72,
+          "unresolved": 140047
+        },
+        "new_token_resolution": {
+          "total": 301032,
+          "same": 160320,
+          "changed": 47,
+          "unresolved": 140665
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 66,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 66
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "jvms-se17-to-se21",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 29.9,
+        "max_rss_kib": 1528288
+      },
+      "status": "limit",
+      "resource_limit_failure": "exact uniqueness DP memory exceeded its limit of 67108864",
+      "evaluation": {
+        "compared": false,
+        "comparison_complete": null,
+        "extraction_complete": null,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": null,
+        "unresolved_new_token_share": null,
+        "accepted_changes": 0,
+        "unresolved_regions": 0,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "old_token_resolution": null,
+        "new_token_resolution": null,
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": null,
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "bis-core-principles-2012-to-2024",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 47.4,
+        "max_rss_kib": 1166788
+      },
+      "status": "limit",
+      "resource_limit_failure": "comparison assessment search reached a resource limit",
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.029539102760860084,
+        "coverage_new": 0.029249353235422305,
+        "unresolved_old_token_share": 0.9704608972391399,
+        "unresolved_new_token_share": 0.9707506467645777,
+        "accepted_changes": 8,
+        "unresolved_regions": 5203,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 247604,
+          "same": 7305,
+          "changed": 9,
+          "unresolved": 240290
+        },
+        "new_token_resolution": {
+          "total": 250091,
+          "same": 7305,
+          "changed": 10,
+          "unresolved": 242776
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "oasis-mqtt-311-to-50",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 290.73,
+        "max_rss_kib": 1796684
+      },
+      "status": "limit",
+      "resource_limit_failure": "comparison assessment search reached a resource limit",
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.0,
+        "coverage_new": 0.0,
+        "unresolved_old_token_share": 1.0,
+        "unresolved_new_token_share": 1.0,
+        "accepted_changes": 0,
+        "unresolved_regions": 8237,
+        "quality_skipped_reason": "comparison stopped at a resource limit",
+        "old_token_resolution": {
+          "total": 190567,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 190567
+        },
+        "new_token_resolution": {
+          "total": 369675,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 369675
+        },
+        "expected_matches": [],
+        "quality": {
+          "annotation": "scoped_complete",
+          "expected_changes": 0,
+          "reported_changes": 0,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": 1.0,
+          "recall": 1.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 0,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": 0,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 0,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": null,
+          "exact_localization_recall": null,
+          "semantic_relation_recall": null,
+          "move_recall": null
+        }
+      }
+    },
+    {
+      "pair_id": "nist-csf-v1-1-to-v2-0",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 17.6,
+        "max_rss_kib": 400680
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.00490602763330036,
+        "coverage_new": 0.00898488373794577,
+        "unresolved_old_token_share": 0.9950939723666996,
+        "unresolved_new_token_share": 0.9910151162620542,
+        "accepted_changes": 6,
+        "unresolved_regions": 2708,
+        "quality_skipped_reason": null,
+        "old_token_resolution": {
+          "total": 125356,
+          "same": 590,
+          "changed": 25,
+          "unresolved": 124741
+        },
+        "new_token_resolution": {
+          "total": 68337,
+          "same": 590,
+          "changed": 24,
+          "unresolved": 67723
+        },
+        "expected_matches": [
+          {
+            "expected_id": "all-sector-scope-emphasized",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "core-expanded-from-five-to-six-functions",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          {
+            "expected_id": "governance-and-supply-chain-emphasis-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          }
+        ],
+        "quality": {
+          "annotation": "partial",
+          "expected_changes": 3,
+          "reported_changes": 6,
+          "matched_changes": 0,
+          "kind_correct": null,
+          "precision": null,
+          "recall": 0.0,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": 0.0,
+          "generator_candidate_recall_at_k": 0.5,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": 1,
+          "unresolvable_reported_spans": 0
+        },
+        "proven": {
+          "reported_regions": 12,
+          "expected_regions": 3,
+          "matched_regions": 0,
+          "precision": null,
+          "recall": 0.0,
+          "unlocalized_regions": 12
+        },
+        "scoped_event": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "scoped_tokens": {
+          "expected_changed_tokens": 178,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "reviewed_recall": {
+          "content_presence_recall": 0.0,
+          "exact_localization_recall": 0.0,
+          "semantic_relation_recall": 0.0,
+          "move_recall": null
+        }
+      }
+    },
+    {
+      "pair_id": "kicad-getting-started-7-to-8",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.44,
+        "max_rss_kib": 104732
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": false,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": 1.0,
+        "unresolved_new_token_share": 1.0,
+        "accepted_changes": 0,
+        "unresolved_regions": 184,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 42183,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 42183
+        },
+        "new_token_resolution": {
+          "total": 41507,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 41507
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "qgis-pyqgis-ja-328-to-334",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.16,
+        "max_rss_kib": 23452
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": false,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": null,
+        "unresolved_new_token_share": 1.0,
+        "accepted_changes": 0,
+        "unresolved_regions": 1,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 0,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 0
+        },
+        "new_token_resolution": {
+          "total": 31,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 31
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "qgis-doc-guidelines-es-328-to-334",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 1.42,
+        "max_rss_kib": 215028
+      },
+      "status": "limit",
+      "resource_limit_failure": "alignment search recorded incomplete work; comparison assessment search reached a resource limit",
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.0,
+        "coverage_new": 0.0,
+        "unresolved_old_token_share": 1.0000222565962986,
+        "unresolved_new_token_share": 1.0,
+        "accepted_changes": 0,
+        "unresolved_regions": 1436,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 89861,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 89861
+        },
+        "new_token_resolution": {
+          "total": 90184,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 90184
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "oecd-corporate-governance-2015-to-2023",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.99,
+        "max_rss_kib": 349796
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": false,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": 1.0,
+        "unresolved_new_token_share": 1.0,
+        "accepted_changes": 0,
+        "unresolved_regions": 1,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 135411,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 135411
+        },
+        "new_token_resolution": {
+          "total": 185871,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 185871
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "libreoffice-getting-started-74-to-75",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 49.57,
+        "max_rss_kib": 2045624
+      },
+      "status": "limit",
+      "resource_limit_failure": "alignment search recorded incomplete work; comparison assessment search reached a resource limit",
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": true,
+        "coverage_old": 0.0,
+        "coverage_new": 0.0,
+        "unresolved_old_token_share": 1.000027864402529,
+        "unresolved_new_token_share": 1.0000372019331876,
+        "accepted_changes": 0,
+        "unresolved_regions": 5597,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 861314,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 861314
+        },
+        "new_token_resolution": {
+          "total": 913931,
+          "same": 0,
+          "changed": 0,
+          "unresolved": 913931
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 0,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 0
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "gcc-13-3-to-13-4",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 28.34,
+        "max_rss_kib": 3092408
+      },
+      "status": "process_failure",
+      "resource_limit_failure": "process allocation failure under 4 GiB address-space cap",
+      "evaluation": null
+    },
+    {
+      "pair_id": "khronos-data-format-1-3-to-1-4",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 43.46,
+        "max_rss_kib": 1445312
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": false,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": 0.6116846605949724,
+        "unresolved_new_token_share": 0.6912490445537567,
+        "accepted_changes": 104,
+        "unresolved_regions": 2079,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 596868,
+          "same": 231588,
+          "changed": 206,
+          "unresolved": 365074
+        },
+        "new_token_resolution": {
+          "total": 750958,
+          "same": 231588,
+          "changed": 303,
+          "unresolved": 519067
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 50,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 50
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "postgresql-16-to-17",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 2.3,
+        "max_rss_kib": 228128
+      },
+      "status": "ok",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": true,
+        "comparison_complete": false,
+        "extraction_complete": false,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": 0.43478260869565216,
+        "unresolved_new_token_share": 0.43478260869565216,
+        "accepted_changes": 0,
+        "unresolved_regions": 1,
+        "quality_skipped_reason": "no expected annotations are recorded for this pair",
+        "old_token_resolution": {
+          "total": 69,
+          "same": 39,
+          "changed": 0,
+          "unresolved": 30
+        },
+        "new_token_resolution": {
+          "total": 69,
+          "same": 39,
+          "changed": 0,
+          "unresolved": 30
+        },
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": {
+          "reported_regions": 1,
+          "expected_regions": null,
+          "matched_regions": null,
+          "precision": null,
+          "recall": null,
+          "unlocalized_regions": 1
+        },
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "nasa-systems-engineering-handbook-rev1-to-rev2",
+      "process": {
+        "exit_code": 1,
+        "elapsed_seconds": 0.04,
+        "max_rss_kib": 14080
+      },
+      "status": "failed",
+      "resource_limit_failure": null,
+      "evaluation": {
+        "compared": false,
+        "comparison_complete": null,
+        "extraction_complete": null,
+        "coverage_old": null,
+        "coverage_new": null,
+        "unresolved_old_token_share": null,
+        "unresolved_new_token_share": null,
+        "accepted_changes": 0,
+        "unresolved_regions": 0,
+        "quality_skipped_reason": null,
+        "old_token_resolution": null,
+        "new_token_resolution": null,
+        "expected_matches": null,
+        "quality": {
+          "annotation": null,
+          "expected_changes": null,
+          "reported_changes": null,
+          "matched_changes": null,
+          "kind_correct": null,
+          "precision": null,
+          "recall": null,
+          "document_recall": null,
+          "kind_accuracy": null,
+          "candidate_recall": null,
+          "generator_candidate_recall_at_k": null,
+          "reported_hunks_per_matched_change": null,
+          "review_hunks_per_expected_change": null,
+          "unmatched_tiny_changes": null,
+          "unresolvable_reported_spans": null
+        },
+        "proven": null,
+        "scoped_event": null,
+        "scoped_tokens": null,
+        "reviewed_recall": null
+      }
+    },
+    {
+      "pair_id": "unicode-standard-15-to-16",
+      "process": {
+        "exit_code": 0,
+        "elapsed_seconds": 21.71,
+        "max_rss_kib": 2375324
+      },
+      "status": "process_failure",
+      "resource_limit_failure": "process allocation failure under 4 GiB address-space cap",
+      "evaluation": null
+    }
+  ]
+}
