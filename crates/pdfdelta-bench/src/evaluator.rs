@@ -693,7 +693,7 @@ fn proven_region_matches(
         && presence_side_span_matches(expected.new_spans(), actual.new_span.as_ref(), new_index)
 }
 
-fn maximum_cardinality_matching(edges: &[Vec<usize>], right_count: usize) -> usize {
+pub(crate) fn maximum_cardinality_matching(edges: &[Vec<usize>], right_count: usize) -> usize {
     let mut left_match: Vec<Option<usize>> = vec![None; edges.len()];
     let mut right_match: Vec<Option<usize>> = vec![None; right_count];
     let mut matched = 0;

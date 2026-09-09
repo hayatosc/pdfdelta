@@ -47,6 +47,33 @@ struct Cli {
 enum Command {
     /// Run all built-in acceptance cases across both PDF renderers.
     Verify,
+    /// Score a multi-channel CLI report against a hash-bound graph annotation.
+    EvaluateDocument {
+        /// Versioned annotation with input hashes and pair provenance.
+        #[arg(long)]
+        annotation: PathBuf,
+        /// JSON produced by the multi-channel pdfdelta compare command.
+        #[arg(long)]
+        report: PathBuf,
+    },
+    /// Generate an English/Japanese prose or table matrix with local producers.
+    GenerateDocumentMatrix {
+        #[arg(long, value_enum, default_value = "prose")]
+        kind: pdfdelta_bench::generalization_matrix::MatrixKind,
+        #[arg(long)]
+        typst: PathBuf,
+        #[arg(long)]
+        tectonic: PathBuf,
+        #[arg(long)]
+        tectonic_cache: PathBuf,
+        #[arg(long)]
+        font_path: PathBuf,
+        #[arg(long)]
+        first_evaluated: String,
+        /// New directory for sources, PDFs, logs, and hash-bound annotations.
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Render one structured canonical YAML document to a new PDF file.
     Render {
         /// Canonical YAML document to render.
@@ -455,6 +482,38 @@ fn main() -> ExitCode {
     let mut stdout = stdout.lock();
     let result = match cli.command {
         None | Some(Command::Verify) => verify(&mut stdout),
+        Some(Command::EvaluateDocument { annotation, report }) => {
+            evaluate_document(&mut stdout, &annotation, &report)
+        }
+        Some(Command::GenerateDocumentMatrix {
+            kind,
+            typst,
+            tectonic,
+            tectonic_cache,
+            font_path,
+            first_evaluated,
+            output,
+        }) => pdfdelta_bench::generalization_matrix::generate_matrix(
+            kind,
+            &output,
+            &typst,
+            &tectonic,
+            &tectonic_cache,
+            &font_path,
+            &first_evaluated,
+        )
+        .map_err(|error| error.to_string())
+        .and_then(|matrix| {
+            writeln!(
+                stdout,
+                "Generated {} PDFs and {} annotated pairs in {}",
+                matrix.documents.len(),
+                matrix.pairs.len(),
+                output.display()
+            )
+            .map_err(|error| error.to_string())?;
+            Ok(0)
+        }),
         Some(Command::Render {
             input,
             renderer,
@@ -540,6 +599,35 @@ fn main() -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+fn evaluate_document<W: Write>(
+    writer: &mut W,
+    annotation: &Path,
+    report: &Path,
+) -> Result<u8, String> {
+    use pdfdelta_bench::generalization_report::{
+        MAX_DOCUMENT_ANNOTATION_BYTES, MAX_DOCUMENT_REPORT_BYTES, evaluate_document_report,
+    };
+    let annotation = read_bounded_file(
+        annotation,
+        MAX_DOCUMENT_ANNOTATION_BYTES,
+        "document annotation",
+    )?;
+    let report = read_bounded_file(report, MAX_DOCUMENT_REPORT_BYTES, "document report")?;
+    let result =
+        evaluate_document_report(&annotation, &report).map_err(|error| error.to_string())?;
+    let passed = result.score.comparison_complete
+        && !result.score.dimensions.is_empty()
+        && result.score.dimensions.iter().all(|dimension| {
+            dimension.inferred_reports == 0
+                && dimension.alternatives.iter().any(|alternative| {
+                    alternative.false_positive == 0 && alternative.false_negative == 0
+                })
+        });
+    serde_json::to_writer_pretty(&mut *writer, &result).map_err(|error| error.to_string())?;
+    writeln!(writer).map_err(|error| error.to_string())?;
+    Ok(u8::from(!passed))
 }
 
 fn read_canonical_yaml_file(path: &Path) -> Result<String, String> {
