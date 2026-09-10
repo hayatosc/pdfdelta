@@ -114,4 +114,5 @@ run = [
   "cargo +nightly fuzz run canonical_yaml -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run glyph_extraction -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run layout_pipeline -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run graph_pipeline -- -max_total_time=30 -max_len=65536",
 ]

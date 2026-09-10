@@ -61,6 +61,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "graph_pipeline"
+path = "fuzz_targets/graph_pipeline.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]
 resolver = "3"

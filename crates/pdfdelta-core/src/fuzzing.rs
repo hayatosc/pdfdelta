@@ -1,5 +1,10 @@
 //! Fuzzing-only entry points for internal parsers.
 
+use crate::document::{
+    BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
+    DocumentView, EvidenceLimits, EvidenceStore, GraphLimits, HierarchyLimits, NodeId,
+    PageEvidence,
+};
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
     DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
@@ -20,7 +25,7 @@ use crate::source::{
     ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
 };
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 const MAX_INPUT_BYTES: usize = 64 * 1024;
@@ -690,6 +695,95 @@ pub fn fuzz_layout_pipeline(input: &[u8]) {
     }
 }
 
+/// Exercises the shared evidence graph and solver over an arbitrary synthetic
+/// [`Document<Glyph>`].
+///
+/// Inputs larger than 64 KiB are ignored. The same store and graph are compared
+/// on both sides, so a successful comparison must not report any typed
+/// operation. Evidence, graph, and comparison errors are accepted outcomes.
+///
+/// # Panics
+///
+/// Panics if an identity comparison of the constructed document reports a
+/// typed operation through the shared solver.
+#[doc(hidden)]
+pub fn fuzz_graph_pipeline(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES || input.is_empty() {
+        return;
+    }
+    let document = synthetic_glyph_document(input);
+    let _ = exercise_default_graph_pipeline(&document);
+}
+
+/// Exercises the multichannel evidence graph and shared solver over an
+/// arbitrary native document and reports whether the comparison completed.
+///
+/// The comparison uses the same store and graph for both sides, so a
+/// successful comparison must not report any typed operation. Evidence,
+/// graph, or comparison errors are accepted outcomes.
+fn exercise_default_graph_pipeline(document: &Document<Glyph>) -> bool {
+    let mut page_ids: BTreeMap<PageId, ()> = document
+        .items()
+        .iter()
+        .map(|glyph| (glyph.page, ()))
+        .collect();
+    page_ids.entry(PageId(0)).or_default();
+    let pages = page_ids
+        .into_keys()
+        .map(|page| PageEvidence { page, bounds: None })
+        .collect();
+    let limits = EvidenceLimits::default();
+    let backend = BackendIdentity {
+        kind: BackendKind::NativeParser,
+        name: "pdfdelta-fuzz".into(),
+        version: "0".into(),
+        profile: "layout-pipeline-v1".into(),
+        model: None,
+    };
+    let Ok(store) = EvidenceStore::from_native(
+        "pdfdelta-fuzz".into(),
+        backend,
+        pages,
+        ExtractionOutcome::complete(document.clone()),
+        limits,
+    ) else {
+        return false;
+    };
+    let Ok(graph) = DocumentGraph::from_evidence(
+        &store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return false;
+    };
+    let Ok(comparison) = crate::document::compare_document_views(
+        DocumentView {
+            evidence: &store,
+            graph: &graph,
+        },
+        DocumentView {
+            evidence: &store,
+            graph: &graph,
+        },
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        DocumentComparisonLimits::default(),
+        HierarchyLimits::default(),
+    ) else {
+        return false;
+    };
+    assert!(
+        comparison
+            .comparisons()
+            .all(|pair| pair.operation.is_none()),
+        "identity graph comparison reported a typed operation"
+    );
+    true
+}
+
 fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
     let glyph_count = usize::from(input[0]) % MAX_LAYOUT_GLYPHS + 1;
     let bytes = &input[1..];
@@ -1198,6 +1292,7 @@ mod tests {
     fn synthetic_layout_seeds_reach_the_pipeline_without_changes() {
         let mut reconstruction_reached = 0;
         let mut comparison_reached = 0;
+        let mut graph_comparison_reached = 0;
         let mut svg_reached = 0;
         let mut vector_lines_seen = 0;
         for seed in 0u8..=64 {
@@ -1219,6 +1314,9 @@ mod tests {
             if compare_glyph_documents(&document, &document, PipelineOptions::default()).is_ok() {
                 comparison_reached += 1;
             }
+            if exercise_default_graph_pipeline(&document) {
+                graph_comparison_reached += 1;
+            }
             if crate::report::render_glyph_overlay_svg(&document).is_ok() {
                 svg_reached += 1;
             }
@@ -1230,6 +1328,10 @@ mod tests {
         assert!(
             comparison_reached >= 32,
             "only {comparison_reached} of 65 seeds reached the comparison pipeline"
+        );
+        assert!(
+            graph_comparison_reached >= 32,
+            "only {graph_comparison_reached} of 65 seeds reached the shared graph solver"
         );
         assert!(
             svg_reached >= 32,
