@@ -1,10 +1,31 @@
 use pdfdelta_core::{
+    Error,
     diff::{LocalTextSide, local_text_claims},
     normalize::ComparableToken,
 };
 
 fn tokens(text: &str) -> Vec<ComparableToken> {
     text.chars().map(ComparableToken::Scalar).collect()
+}
+
+#[test]
+fn source_mask_length_must_match_tokens() {
+    let text = tokens("ab");
+    let error = local_text_claims(
+        LocalTextSide {
+            tokens: &text,
+            source: &[true; 1],
+            optional: &[false; 2],
+        },
+        LocalTextSide {
+            tokens: &text,
+            source: &[true; 2],
+            optional: &[false; 2],
+        },
+        &mut 10_000,
+    )
+    .expect_err("a short source mask must be rejected instead of silently truncated");
+    assert!(matches!(error, Error::InvalidConfiguration(_)));
 }
 
 #[test]

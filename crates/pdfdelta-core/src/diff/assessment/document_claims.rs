@@ -44,6 +44,11 @@ pub fn local_text_claims(
             "local normalization mask length differs from tokens".into(),
         ));
     }
+    if old.source.len() != old.tokens.len() || new.source.len() != new.tokens.len() {
+        return Err(crate::Error::InvalidConfiguration(
+            "local source mask length differs from tokens".into(),
+        ));
+    }
     let result = if old
         .optional
         .iter()
