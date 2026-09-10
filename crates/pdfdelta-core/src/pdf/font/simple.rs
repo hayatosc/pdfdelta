@@ -521,7 +521,7 @@ impl Base14 {
             ),
             Self::Symbol | Self::ZapfDingbats => return None,
             Self::Courier | Self::CourierBold | Self::CourierOblique | Self::CourierBoldOblique => {
-                unreachable!()
+                return None;
             }
         };
         encoded_scalar_width(FallbackEncoding::Standard, standard, scalar)
@@ -690,7 +690,7 @@ fn validate_type3(
         })
         .collect::<Result<Vec<_>>>()?;
     let [a, b, c, d, e, f] = matrix.as_slice() else {
-        unreachable!();
+        return unresolved("Type 3 FontMatrix does not contain six numbers");
     };
     let determinant = a.mul_add(*d, -(b * c));
     if !determinant.is_finite() {

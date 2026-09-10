@@ -2817,12 +2817,10 @@ fn glyph_crop_status(glyph: Rect, crop: Rect) -> GlyphCropStatus {
 }
 
 fn glyph_path_clip_status(glyph: Rect, clip_region: ClipRegion) -> GlyphPathClipStatus {
-    let ClipRegion::Rectangle(clip) = clip_region else {
-        return match clip_region {
-            ClipRegion::Unbounded => GlyphPathClipStatus::Unclipped,
-            ClipRegion::Empty => GlyphPathClipStatus::Outside,
-            ClipRegion::Rectangle(_) => unreachable!(),
-        };
+    let clip = match clip_region {
+        ClipRegion::Rectangle(clip) => clip,
+        ClipRegion::Unbounded => return GlyphPathClipStatus::Unclipped,
+        ClipRegion::Empty => return GlyphPathClipStatus::Outside,
     };
     if glyph.max.x <= clip.min.x
         || glyph.min.x >= clip.max.x
