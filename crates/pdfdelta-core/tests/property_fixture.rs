@@ -17,13 +17,14 @@ use pdfdelta_core::{
         reconstruct_lines,
     },
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
-        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphEvidence, GlyphId,
+        GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     normalize::{BlockText, normalize_blocks},
     pdf::ObjectRef,
-    pipeline::{PipelineOptions, compare_glyph_documents},
-    report::{ExtractionStatus, summarize},
+    pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents},
+    report::{ExtractionStatus, project_span_sources, summarize},
+    source::ExtractionOutcome,
 };
 
 /// Word alphabet mixing repeated words, numeric runs for masking, line-break
@@ -161,6 +162,64 @@ proptest! {
                 [pdfdelta_core::diff::FormattingReason::Position],
                 "uniform translation reported non-position formatting reasons"
             );
+        }
+    }
+
+    #[test]
+    fn established_changes_are_source_backed(
+        old_words in arb_block_words(),
+        new_words in arb_block_words(),
+    ) {
+        let old_fixture = fixture_from(1, old_words);
+        let new_fixture = fixture_from(10_000, new_words);
+        let old_evidence = old_fixture
+            .document
+            .items()
+            .iter()
+            .map(GlyphEvidence::from)
+            .collect::<Vec<_>>();
+        let new_evidence = new_fixture
+            .document
+            .items()
+            .iter()
+            .map(GlyphEvidence::from)
+            .collect::<Vec<_>>();
+        let outcome = compare_extraction_outcomes(
+            ExtractionOutcome::complete(old_fixture.document.clone()),
+            ExtractionOutcome::complete(new_fixture.document.clone()),
+            PipelineOptions::default(),
+        )
+        .expect("arbitrary documents should compare");
+
+        for change in &outcome.comparison.changes {
+            for occurrence in &change.occurrences {
+                for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let Some(span) = span else {
+                        continue;
+                    };
+                    // Zero-width spans are valid empty replacement sides and
+                    // intentionally project nothing. Any wider span that claims
+                    // change must name source evidence; synthetic separators do
+                    // not and must never be established as content.
+                    if span.comparable_range.start == span.comparable_range.end {
+                        continue;
+                    }
+                    let (blocks, evidence) = if side == 0 {
+                        (&outcome.old_blocks, &old_evidence)
+                    } else {
+                        (&outcome.new_blocks, &new_evidence)
+                    };
+                    let sources = project_span_sources(blocks, evidence, span)
+                        .expect("established span must project");
+                    prop_assert!(
+                        !sources.is_empty(),
+                        "source-less established change: {change:?}"
+                    );
+                }
+            }
         }
     }
 
