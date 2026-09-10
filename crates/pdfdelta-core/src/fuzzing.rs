@@ -2,10 +2,10 @@
 
 use crate::diff::Confidence;
 use crate::document::{
-    BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
-    DocumentView, EvidenceLimits, EvidenceStore, FieldValue, FormWidget, GraphLimits,
-    HierarchyLimits, NodeId, PageEvidence, Raster, RecognizedWord, RenderedEvidence,
-    StructuredEvidence, StructuredValue,
+    BackendIdentity, BackendKind, ButtonAppearanceState, CorrespondenceScope,
+    DocumentComparisonLimits, DocumentGraph, DocumentView, EvidenceLimits, EvidenceStore,
+    FieldValue, FormWidget, GraphLimits, HierarchyLimits, NodeId, PageEvidence, Raster,
+    RecognizedWord, RenderedEvidence, StructuredEvidence, StructuredValue,
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
@@ -907,6 +907,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
     }
     for index in 0..usize::from(seed % 2) {
         let id = store.structured.len() as u64;
+        let button = index == 1;
         store.structured.push(StructuredEvidence {
             id,
             page: Some(PageId(0)),
@@ -915,8 +916,16 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
             backend: 0,
             value: StructuredValue::FormField {
                 name: format!("field{index}"),
-                field_type: Some(b"Tx".to_vec()),
-                value: FieldValue::Text(format!("value{index}")),
+                field_type: Some(if button {
+                    b"Btn".to_vec()
+                } else {
+                    b"Tx".to_vec()
+                }),
+                value: if button {
+                    FieldValue::Selected(true)
+                } else {
+                    FieldValue::Text(format!("value{index}"))
+                },
                 widgets: vec![FormWidget {
                     object: None,
                     page: Some(PageId(0)),
@@ -931,7 +940,29 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
                     crop: None,
                     unresolved: None,
                 }],
-                button_states: Vec::new(),
+                button_states: if button {
+                    vec![ButtonAppearanceState {
+                        widget: None,
+                        name: Some(b"Yes".to_vec()),
+                    }]
+                } else {
+                    Vec::new()
+                },
+            },
+        });
+    }
+    if seed.is_multiple_of(3) {
+        let id = store.structured.len() as u64;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::Annotation {
+                category: "Link".into(),
+                text: Some("reference".into()),
+                target: Some("https://example.invalid".into()),
             },
         });
     }
