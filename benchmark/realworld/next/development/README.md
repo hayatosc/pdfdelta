@@ -23,3 +23,52 @@ source annotation rather than treated as the first bytes published that year.
 
 Preserve unsupported extraction and unresolved annotations in later denominators.
 These records are development data and must never be relabeled as blind.
+
+## Source inspection and first reference
+
+`glyphs-inspection.json` records 48 attempted source inspections: 47 captured
+outputs and one failed extraction. The ECB 2023 input exceeds the existing 65,536
+CID-width-entry limit; its counts are null, not zero evidence. Among captured
+outputs, 16 report extraction issues and 11 contain unmapped glyphs (overlapping
+populations). Only 27/48 inputs have neither reported condition. This is an
+inspection observation, not proof of complete visible content. All 48 object
+inspections captured page metadata. Process maximum RSS is not live heap telemetry.
+
+The first fixed reference is the controller/processor guideline's paragraph 12,
+with adjacent unchanged paragraphs 11 and 13. Its seven literal selectors resolve
+uniquely, with uncompressed text, scalar/UTF-8 offsets and complete glyph atom
+lists retained in `annotations/`. Compact `source_rows` retain each position's
+full atom list; scalar values are recovered from the literal quote. The expected
+content addition was inspected in both source text and rendered page 9 before any
+comparison. The visible old text lacks many real space glyphs; the new revision
+contains them. The annotation therefore does not equate paint-order strings with
+rendered prose or certify an exact minimal-edit mask. It fixes one scope-content
+target, not exhaustive whole-document gold or a strict-position denominator.
+
+Reproduce raw source captures in new directories (GNU time and timeout required):
+
+```sh
+PYTHON_UV=0 python benchmark/realworld/next/development/inspect-sources.py \
+  target/release/pdfdelta benchmark/realworld/cache/next-dev /tmp/dev-glyphs
+PYTHON_UV=0 python benchmark/realworld/next/development/inspect-sources.py \
+  target/release/pdfdelta benchmark/realworld/cache/next-dev /tmp/dev-objects --view objects
+target/debug/pdfbench validate-literal-selectors \
+  --annotation benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json \
+  --old benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-old.pdf \
+  --new benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-new.pdf
+```
+
+The inspection runner enforces the existing parser/extractor limits, a 180-second
+process deadline and a 256 MiB raw-output ceiling. Failures and truncated captures
+remain attempted observations. Raw glyph logs total about 2 GiB and stay outside
+version control. The records bind their bytes and the actual executable hash.
+Initial source captures used the pre-P3 executable; extraction was unchanged by
+P3. Render checks used the existing worker's default white-background RGB profile;
+warning flags, dimensions, page objects and pixel-response hashes are in the
+reference record. This small visual check does not establish complete rendering
+feature coverage or satisfy the separate observer experiment.
+
+`initial-controller-results/` records the first comparison after this reference
+was fixed. Other pairs still need source references; no other pair in this set
+has been compared at this checkpoint. Concrete vertical/ruby/scan/overpaint traits
+and the remaining evaluation denominators are not established by family labels.

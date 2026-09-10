@@ -1,0 +1,58 @@
+[
+  {
+    "channel": "text",
+    "old_inventory_complete": false,
+    "new_inventory_complete": false,
+    "old_discovered_sources": 135788,
+    "new_discovered_sources": 176992,
+    "old_compared_sources": 1468,
+    "new_compared_sources": 1497,
+    "old_presence_sources": 0,
+    "new_presence_sources": 0,
+    "old_uncompared_sources": 134320,
+    "new_uncompared_sources": 175495,
+    "complete": false
+  },
+  {
+    "channel": "visual",
+    "old_inventory_complete": false,
+    "new_inventory_complete": false,
+    "old_discovered_sources": 48,
+    "new_discovered_sources": 51,
+    "old_compared_sources": 0,
+    "new_compared_sources": 0,
+    "old_presence_sources": 0,
+    "new_presence_sources": 0,
+    "old_uncompared_sources": 48,
+    "new_uncompared_sources": 51,
+    "complete": false
+  },
+  {
+    "channel": "forms",
+    "old_inventory_complete": true,
+    "new_inventory_complete": true,
+    "old_discovered_sources": 0,
+    "new_discovered_sources": 0,
+    "old_compared_sources": 0,
+    "new_compared_sources": 0,
+    "old_presence_sources": 0,
+    "new_presence_sources": 0,
+    "old_uncompared_sources": 0,
+    "new_uncompared_sources": 0,
+    "complete": true
+  },
+  {
+    "channel": "relations",
+    "old_inventory_complete": false,
+    "new_inventory_complete": false,
+    "old_discovered_sources": 0,
+    "new_discovered_sources": 1089,
+    "old_compared_sources": 0,
+    "new_compared_sources": 0,
+    "old_presence_sources": 0,
+    "new_presence_sources": 0,
+    "old_uncompared_sources": 0,
+    "new_uncompared_sources": 1089,
+    "complete": false
+  }
+]

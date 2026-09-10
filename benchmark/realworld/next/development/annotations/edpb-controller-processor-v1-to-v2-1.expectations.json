@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "pair": "edpb-controller-processor-v1-to-v2-1",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf",
+  "resolution_sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f",
+  "resolver_binary_sha256": "4ae694577c9df59ef0d6e1fb8bdeb2d4b365abc5020778d197467b5309f33598",
+  "sampling": "One explicitly inspected body-content change with unchanged neighboring paragraph controls. This is a partial reference, not an exhaustive document gold. Unannotated predictions require separate adjudication and cannot be labeled false positives from non-membership.",
+  "comparison_convention": "Compare paragraph 12 within General Observations, bounded by paragraphs 11 and 13 in each revision. Numbered prose and surrounding unchanged content establish the review target; no hidden author edit history is asserted.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "old_new_regions": {
+      "old": {
+        "page": 8,
+        "bbox": [
+          42.599998,
+          647.915505,
+          524.4083599162,
+          720.527052
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "paragraph-12-old"
+      },
+      "new": {
+        "page": 8,
+        "bbox": [
+          42.45300000000006,
+          633.171,
+          526.9040000000005,
+          720.4460000000001
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "paragraph-12-new"
+      }
+    },
+    "new_content_witness": "paragraph-12-added-sentence",
+    "changed_scope_denominator": 1,
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null,
+    "reason": "Content addition is visibly established; this annotation does not independently certify the unique minimal-edit position mask under every allowed normalization."
+  },
+  "controls": [
+    "paragraph-11-boundary-old",
+    "paragraph-11-boundary-new",
+    "paragraph-13-control-old",
+    "paragraph-13-control-new"
+  ],
+  "control_convention": "Neighboring prose content is unchanged when reading its rendered word boundaries. Paint-order literal spaces differ, so raw strings are deliberately not equality gold.",
+  "presentation": {
+    "single_column_body": true,
+    "page_number": 9,
+    "old_new_line_wrap_differs": true,
+    "cross_page_split_in_this_scope": false,
+    "ruby_or_vertical_in_this_scope": false
+  },
+  "visual_checks": [
+    {
+      "side": "old",
+      "page": 8,
+      "renderer_binary_sha256": "25edd4da49a42d7c1ee0c7835b064d05f4dfdacad3dce26cc65ae95678d0e2ad",
+      "profile": "existing render-page worker; 596x842 RGB; white background; default display state",
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "318d9d35bb04819b7fed4e4751f94967b0431a4b4e56fe54fbb9af89978d7f08",
+      "page_object": [
+        40,
+        0
+      ],
+      "pages": 48
+    },
+    {
+      "side": "new",
+      "page": 8,
+      "renderer_binary_sha256": "25edd4da49a42d7c1ee0c7835b064d05f4dfdacad3dce26cc65ae95678d0e2ad",
+      "profile": "existing render-page worker; 596x842 RGB; white background; default display state",
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "9a15e382081c5b97972f24488256143a2c4d3dc5dcf6692b68576d9fc6b7cc66",
+      "page_object": [
+        19,
+        0
+      ],
+      "pages": 51
+    }
+  ]
+}

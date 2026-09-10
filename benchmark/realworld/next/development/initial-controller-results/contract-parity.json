@@ -1,0 +1,12 @@
+[
+  {
+    "route": "text",
+    "legacy_contract_equal": true,
+    "sha256": "cb36af83f04553b7c905f9cce26ddda26f6432eca4d4c5f75a3c55fc806c6e55"
+  },
+  {
+    "route": "all",
+    "legacy_contract_equal": true,
+    "sha256": "cd472bcb1adabb2beefb341c2c3991ed6489cc817efd94cb9950dd2b9955f10d"
+  }
+]
