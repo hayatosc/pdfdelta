@@ -3,7 +3,7 @@
 use crate::document::{
     BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
     DocumentView, EvidenceLimits, EvidenceStore, GraphLimits, HierarchyLimits, NodeId,
-    PageEvidence,
+    PageEvidence, Raster, RenderedEvidence,
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
@@ -712,16 +712,18 @@ pub fn fuzz_graph_pipeline(input: &[u8]) {
         return;
     }
     let document = synthetic_glyph_document(input);
-    let _ = exercise_default_graph_pipeline(&document);
+    let _ = exercise_default_graph_pipeline(&document, input[0]);
 }
 
 /// Exercises the multichannel evidence graph and shared solver over an
 /// arbitrary native document and reports whether the comparison completed.
 ///
-/// The comparison uses the same store and graph for both sides, so a
-/// successful comparison must not report any typed operation. Evidence,
-/// graph, or comparison errors are accepted outcomes.
-fn exercise_default_graph_pipeline(document: &Document<Glyph>) -> bool {
+/// The store also retains up to three synthetic renderer regions so visual
+/// candidate search runs under the same identity comparison. The comparison
+/// uses the same store and graph for both sides, so a successful comparison
+/// must not report any typed operation. Evidence, graph, or comparison errors
+/// are accepted outcomes.
+fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool {
     let mut page_ids: BTreeMap<PageId, ()> = document
         .items()
         .iter()
@@ -740,7 +742,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>) -> bool {
         profile: "layout-pipeline-v1".into(),
         model: None,
     };
-    let Ok(store) = EvidenceStore::from_native(
+    let Ok(mut store) = EvidenceStore::from_native(
         "pdfdelta-fuzz".into(),
         backend,
         pages,
@@ -749,6 +751,38 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>) -> bool {
     ) else {
         return false;
     };
+    store.backends.push(BackendIdentity {
+        kind: BackendKind::Renderer,
+        name: "pdfdelta-fuzz-renderer".into(),
+        version: "0".into(),
+        profile: "layout-pipeline-v1".into(),
+        model: None,
+    });
+    for index in 0..usize::from(seed % 3) + 1 {
+        let width = 2 + u32::from(seed) % 3;
+        let height = 2 + (u32::from(seed) >> 2) % 3;
+        let mut rgb = Vec::with_capacity((width * height * 3) as usize);
+        for sample in 0..width * height {
+            let value = seed
+                .wrapping_add((index as u8) << 4)
+                .wrapping_add(sample as u8);
+            rgb.extend_from_slice(&[value, value.wrapping_mul(3), value.wrapping_add(70)]);
+        }
+        let id = store.rendered.len() as u64;
+        store.rendered.push(RenderedEvidence {
+            id,
+            page: PageId(0),
+            backend: 1,
+            raster: Raster { width, height, rgb },
+            composited_page: true,
+            polygon: vec![
+                Vec2 { x: 0.0, y: 0.0 },
+                Vec2 { x: 10.0, y: 0.0 },
+                Vec2 { x: 10.0, y: 10.0 },
+                Vec2 { x: 0.0, y: 10.0 },
+            ],
+        });
+    }
     let Ok(graph) = DocumentGraph::from_evidence(
         &store,
         PipelineOptions::default(),
@@ -1314,7 +1348,7 @@ mod tests {
             if compare_glyph_documents(&document, &document, PipelineOptions::default()).is_ok() {
                 comparison_reached += 1;
             }
-            if exercise_default_graph_pipeline(&document) {
+            if exercise_default_graph_pipeline(&document, seed) {
                 graph_comparison_reached += 1;
             }
             if crate::report::render_glyph_overlay_svg(&document).is_ok() {
