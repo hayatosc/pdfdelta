@@ -316,7 +316,7 @@ pub fn cache_key(
 fn unique_temp_suffix() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    ((std::process::id() as u64) << 32) | (COUNTER.fetch_add(1, Ordering::SeqCst) & 0xffff_ffff)
+    (u64::from(std::process::id()) << 32) | (COUNTER.fetch_add(1, Ordering::SeqCst) & 0xffff_ffff)
 }
 
 #[cfg(test)]

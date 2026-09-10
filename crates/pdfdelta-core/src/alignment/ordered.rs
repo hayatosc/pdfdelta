@@ -1151,14 +1151,11 @@ fn collect_candidates(
             // exceeds the budget so the recorded metric explains the
             // failure; on overflow the charge accumulated so far is
             // retained.
-            match visit_metrics.candidate_visits.checked_add(visits) {
-                Some(total) => {
-                    visit_metrics.candidate_visits = total;
-                }
-                None => {
-                    visit_metrics.candidate_visits = usize::MAX;
-                    incomplete_from = Some(index);
-                }
+            if let Some(total) = visit_metrics.candidate_visits.checked_add(visits) {
+                visit_metrics.candidate_visits = total;
+            } else {
+                visit_metrics.candidate_visits = usize::MAX;
+                incomplete_from = Some(index);
             }
             if incomplete_from.is_none() && remaining_visits < visits {
                 incomplete_from = Some(index);
@@ -1167,40 +1164,37 @@ fn collect_candidates(
             }
         }
         if !required_overflow {
-            required_visits = match required_visits.checked_add(visits) {
-                Some(total) => total,
-                None => {
+            required_visits = if let Some(total) = required_visits.checked_add(visits) {
+                total
+            } else {
+                required_overflow = true;
+                incomplete_from.get_or_insert(index);
+                0
+            };
+            if let Some(breakdown) = estimate.breakdown {
+                required_exact = if let Some(total) = required_exact.checked_add(breakdown.exact) {
+                    total
+                } else {
                     required_overflow = true;
                     incomplete_from.get_or_insert(index);
                     0
-                }
-            };
-            if let Some(breakdown) = estimate.breakdown {
-                required_exact = match required_exact.checked_add(breakdown.exact) {
-                    Some(total) => total,
-                    None => {
-                        required_overflow = true;
-                        incomplete_from.get_or_insert(index);
-                        0
-                    }
                 };
-                required_ngram = match required_ngram.checked_add(breakdown.ngram) {
-                    Some(total) => total,
-                    None => {
-                        required_overflow = true;
-                        incomplete_from.get_or_insert(index);
-                        0
-                    }
+                required_ngram = if let Some(total) = required_ngram.checked_add(breakdown.ngram) {
+                    total
+                } else {
+                    required_overflow = true;
+                    incomplete_from.get_or_insert(index);
+                    0
                 };
-                required_short_fallback =
-                    match required_short_fallback.checked_add(breakdown.short_fallback) {
-                        Some(total) => total,
-                        None => {
-                            required_overflow = true;
-                            incomplete_from.get_or_insert(index);
-                            0
-                        }
-                    };
+                required_short_fallback = if let Some(total) =
+                    required_short_fallback.checked_add(breakdown.short_fallback)
+                {
+                    total
+                } else {
+                    required_overflow = true;
+                    incomplete_from.get_or_insert(index);
+                    0
+                };
             } else {
                 breakdown_complete = false;
             }
@@ -1464,16 +1458,16 @@ fn align_interval(
                 && !old_affected
                 && !new_affected
                 && let Some(sources) = group_candidate_sources(
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 1],
+                    &old[old_index..=old_index],
+                    &new[new_index..=new_index],
                     candidates,
                 )
             {
                 has_match_proposal |= propose_group_match(
                     &mut cells,
                     (from, (old_index + 1) * width + new_index + 1),
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 1],
+                    &old[old_index..=old_index],
+                    &new[new_index..=new_index],
                     sources,
                     options,
                     false,

@@ -460,7 +460,7 @@ fn reconstruct_spaces(
                 projected_interval(preceding.bbox, direction),
                 projected_interval(following.bbox, direction),
             );
-            let font_size = (preceding.font_size + following.font_size) / 2.0;
+            let font_size = f64::midpoint(preceding.font_size, following.font_size);
             let threshold = (options.space_gap_font_size_ratio * font_size)
                 .max(options.space_gap_advance_ratio * average_advance);
             // CJK side bearings and font changes can create gaps inside a word.

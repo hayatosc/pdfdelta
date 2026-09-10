@@ -367,8 +367,8 @@ fn cell_views(
         .iter()
         .filter(|glyph| glyph.page == grid.page)
     {
-        let x = (glyph.bbox.min.x + glyph.bbox.max.x) / 2.0;
-        let y = (glyph.bbox.min.y + glyph.bbox.max.y) / 2.0;
+        let x = f64::midpoint(glyph.bbox.min.x, glyph.bbox.max.x);
+        let y = f64::midpoint(glyph.bbox.min.y, glyph.bbox.max.y);
         if x < grid.xs[0]
             || x > grid.xs[columns]
             || y > grid.ys[0]

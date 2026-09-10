@@ -49,15 +49,12 @@ struct Anchor {
 }
 
 fn spend(budget: &mut usize, amount: usize) -> bool {
-    match budget.checked_sub(amount) {
-        Some(left) => {
-            *budget = left;
-            true
-        }
-        None => {
-            *budget = 0;
-            false
-        }
+    if let Some(left) = budget.checked_sub(amount) {
+        *budget = left;
+        true
+    } else {
+        *budget = 0;
+        false
     }
 }
 
@@ -411,7 +408,7 @@ fn proposal_grid(
     if row_right >= columns[1].1.bounds.min.x {
         return None;
     }
-    let row_column_cut = (row_right + columns[1].1.bounds.min.x) / 2.0;
+    let row_column_cut = f64::midpoint(row_right, columns[1].1.bounds.min.x);
     let last = rows.last()?.1;
     if !spend(
         budget,
@@ -476,7 +473,7 @@ fn proposal_grid(
         if gap.0 >= gap.1 {
             return None;
         }
-        xs.push((gap.0 + gap.1) / 2.0);
+        xs.push(f64::midpoint(gap.0, gap.1));
     }
     xs.push(frame.max.x);
     let structure_sources = anchors

@@ -79,7 +79,7 @@ pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, In
             path.display().to_string()
         };
         return Err(InputReadError::LimitExceeded {
-            message: format!("cannot read {target}: PDF input exceeds the {max_bytes}-byte limit",),
+            message: format!("cannot read {target}: PDF input exceeds the {max_bytes}-byte limit"),
             limit: max_bytes,
         });
     }

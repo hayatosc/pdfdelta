@@ -41,6 +41,7 @@ pub enum TuningUse {
 }
 
 impl TuningUse {
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Unused => "unused",
@@ -48,6 +49,7 @@ impl TuningUse {
         }
     }
 
+    #[must_use]
     pub fn parse(value: &str) -> Option<Self> {
         match value.trim() {
             "unused" => Some(Self::Unused),
@@ -113,6 +115,7 @@ impl BenchmarkProvenance {
 
     /// A known producer family remains useful evidence when its version is
     /// unavailable; unknown families do not count as producer validation.
+    #[must_use]
     pub fn known_producer(&self) -> bool {
         !self.producer_family.eq_ignore_ascii_case("unknown")
     }
@@ -664,6 +667,7 @@ pub struct EvaluationSummary {
 }
 
 impl EvaluationSummary {
+    #[must_use]
     pub fn from_records(records: Vec<EvaluationRecord>) -> Self {
         let document_totals = records
             .iter()
@@ -727,6 +731,7 @@ impl EvaluationSummary {
         }
     }
 
+    #[must_use]
     pub fn with_baselines(mut self, baselines: Vec<BaselineRecord>) -> Self {
         self.baselines = baselines;
         self
@@ -1052,6 +1057,7 @@ pub struct BaselineRecord {
 /// Executable paths and hashes belong to a specific run and must be supplied
 /// through [`EvaluationSummary::with_baselines`] rather than embedded in
 /// library defaults.
+#[must_use]
 pub fn default_baselines() -> Vec<BaselineRecord> {
     Vec::new()
 }
@@ -1075,6 +1081,7 @@ pub struct ReproducibleArtifact {
 
 /// Hashes bytes using the same lowercase SHA-256 representation as the
 /// revision manifest.
+#[must_use]
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()

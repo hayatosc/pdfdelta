@@ -20,6 +20,7 @@ impl BlockSeparator {
     ///
     /// # Panics
     /// Panics if a per-boundary pattern is used outside its three-block group.
+    #[must_use]
     pub fn at(self, boundary: usize) -> Self {
         match self {
             Self::PerBoundary(spaces) => {

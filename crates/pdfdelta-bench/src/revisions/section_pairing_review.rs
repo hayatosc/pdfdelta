@@ -527,7 +527,7 @@ fn build_complete(
         match proposal.edits {
             SectionProposalEdits::Exact(_) => exact_edits = add(exact_edits, 1)?,
             SectionProposalEdits::EditDistanceExceeded => {
-                edit_distance_exceeded = add(edit_distance_exceeded, 1)?
+                edit_distance_exceeded = add(edit_distance_exceeded, 1)?;
             }
         }
         if sample.existing_change_overlap.count != 0 {
@@ -1373,10 +1373,10 @@ fn validate_sample_report(sample: &SectionPairingProposalReviewSampleReport) -> 
                 .ok_or_else(|| "section-pairing ownership range is reversed".to_owned())?;
             match range.ownership {
                 SectionPairingOwnershipReport::Accepted => {
-                    accepted = checked_add_report(accepted, count)?
+                    accepted = checked_add_report(accepted, count)?;
                 }
                 SectionPairingOwnershipReport::Leaf { .. } => {
-                    leaf = checked_add_report(leaf, count)?
+                    leaf = checked_add_report(leaf, count)?;
                 }
                 SectionPairingOwnershipReport::Gap { .. } => gap = checked_add_report(gap, count)?,
             }
@@ -1542,7 +1542,7 @@ impl ReviewBudget {
         amount: usize,
     ) -> Result<(), SectionPairingProposalReviewStopReasonReport> {
         charge(&mut self.text_scalars, amount, MAX_TEXT_SCALARS)
-            .map_err(|_| SectionPairingProposalReviewStopReasonReport::TextLimit)
+            .map_err(|()| SectionPairingProposalReviewStopReasonReport::TextLimit)
     }
 
     fn charge_source(
@@ -1550,7 +1550,7 @@ impl ReviewBudget {
         amount: usize,
     ) -> Result<(), SectionPairingProposalReviewStopReasonReport> {
         charge(&mut self.source_evidence, amount, MAX_PROJECTION_EVIDENCE)
-            .map_err(|_| SectionPairingProposalReviewStopReasonReport::SourceEvidenceLimit)
+            .map_err(|()| SectionPairingProposalReviewStopReasonReport::SourceEvidenceLimit)
     }
 
     fn charge_output(
@@ -1558,7 +1558,7 @@ impl ReviewBudget {
         amount: usize,
     ) -> Result<(), SectionPairingProposalReviewStopReasonReport> {
         charge(&mut self.output_items, amount, MAX_OUTPUT_ITEMS)
-            .map_err(|_| SectionPairingProposalReviewStopReasonReport::OutputLimit)
+            .map_err(|()| SectionPairingProposalReviewStopReasonReport::OutputLimit)
     }
 
     fn charge_output_bytes(
@@ -1566,7 +1566,7 @@ impl ReviewBudget {
         amount: usize,
     ) -> Result<(), SectionPairingProposalReviewStopReasonReport> {
         charge(&mut self.output_bytes, amount, MAX_OUTPUT_BYTES)
-            .map_err(|_| SectionPairingProposalReviewStopReasonReport::OutputLimit)
+            .map_err(|()| SectionPairingProposalReviewStopReasonReport::OutputLimit)
     }
 
     fn charge_overlap_visit(
@@ -1574,7 +1574,7 @@ impl ReviewBudget {
         amount: usize,
     ) -> Result<(), SectionPairingProposalReviewStopReasonReport> {
         charge(&mut self.overlap_visits, amount, MAX_OVERLAP_BLOCK_VISITS)
-            .map_err(|_| SectionPairingProposalReviewStopReasonReport::OverlapWorkLimit)
+            .map_err(|()| SectionPairingProposalReviewStopReasonReport::OverlapWorkLimit)
     }
 }
 

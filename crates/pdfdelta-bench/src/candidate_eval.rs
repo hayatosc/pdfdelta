@@ -112,7 +112,7 @@ pub struct CandidateEvalRecord {
     pub unmatched_old_blocks: usize,
     /// Inverted-index recall@K, one entry per K in `top_k`.
     pub recall_at_k: Vec<f64>,
-    /// MinHash LSH recall@K, one entry per K in `top_k`.
+    /// `MinHash` LSH recall@K, one entry per K in `top_k`.
     pub minhash_recall_at_k: Vec<f64>,
     /// Exhaustive-oracle recall@K, one entry per K in `top_k`.
     pub oracle_recall_at_k: Vec<f64>,
@@ -121,9 +121,9 @@ pub struct CandidateEvalRecord {
     /// Inverted-index candidate counts per old block (nearest-rank p95).
     pub candidate_count_p95: usize,
     pub candidate_count_max: usize,
-    /// MinHash LSH candidate counts per old block (nearest-rank p50).
+    /// `MinHash` LSH candidate counts per old block (nearest-rank p50).
     pub minhash_candidate_count_p50: usize,
-    /// MinHash LSH candidate counts per old block (nearest-rank p95).
+    /// `MinHash` LSH candidate counts per old block (nearest-rank p95).
     pub minhash_candidate_count_p95: usize,
     pub minhash_candidate_count_max: usize,
     /// Exhaustive-oracle candidate counts per old block (nearest-rank p50).
@@ -135,9 +135,9 @@ pub struct CandidateEvalRecord {
     pub index_build_latency_ns: u64,
     /// Inverted-index full, untruncated query-pass latency from one observation.
     pub query_latency_ns: u64,
-    /// MinHash LSH construction latency from one observation, in nanoseconds.
+    /// `MinHash` LSH construction latency from one observation, in nanoseconds.
     pub minhash_index_build_latency_ns: u64,
-    /// MinHash LSH full, untruncated query-pass latency from one observation.
+    /// `MinHash` LSH full, untruncated query-pass latency from one observation.
     pub minhash_query_latency_ns: u64,
     /// Exhaustive-oracle construction latency from one observation, in nanoseconds.
     pub oracle_index_build_latency_ns: u64,
@@ -160,14 +160,14 @@ pub struct CandidateEvalRecord {
     /// investigation signal, not a sufficient condition for a production
     /// LIMIT failure (false positives possible, false negatives not).
     pub estimated_visits_upper_bound_exceeds_limit: bool,
-    /// MinHash LSH estimated visits per old block (nearest-rank p50).
+    /// `MinHash` LSH estimated visits per old block (nearest-rank p50).
     pub minhash_estimated_visits_p50: usize,
-    /// MinHash LSH estimated visits per old block (nearest-rank p95).
+    /// `MinHash` LSH estimated visits per old block (nearest-rank p95).
     pub minhash_estimated_visits_p95: usize,
     pub minhash_estimated_visits_max: usize,
-    /// Sum of MinHash LSH estimated visits across all old blocks.
+    /// Sum of `MinHash` LSH estimated visits across all old blocks.
     pub minhash_estimated_visits_upper_bound_total: usize,
-    /// Whether MinHash LSH `estimated_visits_upper_bound_total` exceeds
+    /// Whether `MinHash` LSH `estimated_visits_upper_bound_total` exceeds
     /// `max_candidate_visits`.
     pub minhash_estimated_visits_upper_bound_exceeds_limit: bool,
     /// Total n-gram posting visits across all old blocks, excluding exact
@@ -205,6 +205,7 @@ impl CandidateEvalRecord {
     /// Recall values share the same integer denominator, so exact
     /// comparison is used; an empty evaluation or any vector length
     /// mismatch is never healthy.
+    #[must_use]
     pub fn healthy(&self) -> bool {
         !self.top_k.is_empty()
             && self.top_k.len() == self.recall_at_k.len()
@@ -384,7 +385,7 @@ pub fn evaluate_candidate_visit_pressure(
     measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)
 }
 
-/// Measures the all-old-block candidate visit pressure of the MinHash LSH
+/// Measures the all-old-block candidate visit pressure of the `MinHash` LSH
 /// generator for two extracted glyph documents.
 pub fn evaluate_minhash_candidate_visit_pressure(
     old: &Document<Glyph>,

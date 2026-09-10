@@ -754,7 +754,7 @@ fn reserve<T>(
     check_limit(resource, requested, limits.max_evidence_items)?;
     collection
         .try_reserve(additional)
-        .map_err(|_| Error::LimitExceeded {
+        .map_err(|()| Error::LimitExceeded {
             resource,
             limit: limits.max_evidence_items,
         })

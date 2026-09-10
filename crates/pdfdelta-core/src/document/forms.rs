@@ -42,7 +42,7 @@ struct PendingField {
     name_known: bool,
 }
 
-/// Reads saved AcroForm values through the neutral parser facade, including
+/// Reads saved `AcroForm` values through the neutral parser facade, including
 /// fields without widgets. Names and values are inherited along the field tree;
 /// button export names remain names rather than being collapsed into booleans.
 /// Widget appearances and XFA stay explicit unresolved obligations.
@@ -221,9 +221,10 @@ pub fn extract_form_evidence(
             break;
         }
         let field_type = match dictionary.get(b"FT".as_slice()) {
-            Some(value) => match resolve(pdf, value.clone()) {
-                Ok((PdfObject::Name(name), _)) => Some(Arc::new(name)),
-                _ => {
+            Some(value) => {
+                if let Ok((PdfObject::Name(name), _)) = resolve(pdf, value.clone()) {
+                    Some(Arc::new(name))
+                } else {
                     failure(
                         &mut result,
                         EvidenceFailure::Unresolved,
@@ -232,7 +233,7 @@ pub fn extract_form_evidence(
                     );
                     None
                 }
-            },
+            }
             None => field.field_type,
         };
         text_bytes = text_bytes.saturating_add(field_type.as_ref().map_or(0, |name| name.len()));

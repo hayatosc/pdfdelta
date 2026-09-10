@@ -50,14 +50,14 @@ impl ExitStatus {
 /// Fatal execution errors are returned through `Result` and become code 2 in
 /// `main`; an incomplete comparison takes precedence over detected changes.
 fn exit_status(summary: &ReportSummary, _strict: bool) -> ExitStatus {
-    if !summary.comparison_complete {
-        ExitStatus::IncompleteComparison
-    } else {
+    if summary.comparison_complete {
         match summary.difference_status {
             DifferenceStatus::Detected => ExitStatus::ContentChanges,
             DifferenceStatus::NoContentChange => ExitStatus::NoContentChanges,
             DifferenceStatus::Indeterminate => ExitStatus::IncompleteComparison,
         }
+    } else {
+        ExitStatus::IncompleteComparison
     }
 }
 

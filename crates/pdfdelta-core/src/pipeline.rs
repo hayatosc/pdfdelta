@@ -223,7 +223,7 @@ pub enum PipelinePhaseStatus {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PipelineMetrics {
-    /// Painting glyphs retained for comparison after page CropBox filtering.
+    /// Painting glyphs retained for comparison after page `CropBox` filtering.
     pub painting_glyphs: Option<usize>,
     pub lines: Option<usize>,
     pub blocks: Option<usize>,
@@ -349,10 +349,12 @@ impl Default for PipelineDiagnostics {
 }
 
 impl PipelineDiagnostics {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
     pub fn records(&self) -> &[PipelineDiagnosticRecord] {
         &self.records
     }

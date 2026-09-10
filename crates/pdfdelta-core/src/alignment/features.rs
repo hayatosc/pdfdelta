@@ -108,6 +108,7 @@ fn relative_page_position(page: Option<u32>, bounds: Option<(u32, u32)>) -> Opti
     u16::try_from(scaled).ok()
 }
 
+#[must_use]
 pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
     if left.is_empty() && right.is_empty() {
         return 1.0;
@@ -116,6 +117,7 @@ pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
     2.0 * shared as f64 / (left.len() + right.len()) as f64
 }
 
+#[must_use]
 pub fn multiset_dice_similarity(left: &NGramCounts, right: &NGramCounts) -> f64 {
     // Shared mass is symmetric, so iterating the smaller multiset minimizes
     // lookups without changing the result.

@@ -630,10 +630,7 @@ fn scope_fingerprint(document: &ExpectedDocument) -> Option<String> {
     for scope in &document.scopes {
         for value in [
             scope.id.as_str(),
-            scope
-                .completeness
-                .map(|_| "complete")
-                .unwrap_or("unspecified"),
+            scope.completeness.map_or("unspecified", |_| "complete"),
             scope.old.start_quote.as_str(),
             scope.old.end_quote.as_str(),
             scope.new.start_quote.as_str(),
@@ -932,8 +929,8 @@ fn contains_point(container: Rect, point: pdfdelta_core::model::Vec2) -> bool {
 
 fn center(rect: Rect) -> pdfdelta_core::model::Vec2 {
     pdfdelta_core::model::Vec2 {
-        x: (rect.min.x + rect.max.x) / 2.0,
-        y: (rect.min.y + rect.max.y) / 2.0,
+        x: f64::midpoint(rect.min.x, rect.max.x),
+        y: f64::midpoint(rect.min.y, rect.max.y),
     }
 }
 
@@ -1262,8 +1259,9 @@ fn report_control(evidence: ControlEvidence<'_>) -> ControlReport {
             )
         });
     let (candidate_recall, candidate_expected_outcomes) = expected
-        .map(|document| candidate_match_summary(document, &candidate_actuals))
-        .unwrap_or((None, None));
+        .map_or((None, None), |document| {
+            candidate_match_summary(document, &candidate_actuals)
+        });
     let (old_token_resolution, new_token_resolution) = source_token_resolution(comparison);
     ControlReport {
         name: name.to_owned(),
@@ -1418,13 +1416,12 @@ fn source_token_resolution(
     comparison
         .assessment
         .as_ref()
-        .map(|assessment| {
+        .map_or((None, None), |assessment| {
             (
                 Some(token_resolution_counts(&assessment.old_resolution)),
                 Some(token_resolution_counts(&assessment.new_resolution)),
             )
         })
-        .unwrap_or((None, None))
 }
 
 fn failure_reason_name(reason: &ExpectedChangeFailureReason) -> &'static str {

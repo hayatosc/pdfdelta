@@ -80,7 +80,7 @@ const EXTRACTION_LIMITS: ExtractionLimits = ExtractionLimits {
     max_vector_lines: 1_024,
 };
 
-/// Exercises the production CMap parsers with finite resource limits.
+/// Exercises the production `CMap` parsers with finite resource limits.
 ///
 /// Inputs larger than 64 KiB are ignored. Parser errors are accepted outcomes.
 ///
@@ -758,7 +758,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
         profile: "layout-pipeline-v1".into(),
         model: None,
     });
-    for index in 0..usize::from(seed % 3) + 1 {
+    for index in 0..=usize::from(seed % 3) {
         let width = 2 + u32::from(seed) % 3;
         let height = 2 + (u32::from(seed) >> 2) % 3;
         let mut rgb = Vec::with_capacity((width * height * 3) as usize);

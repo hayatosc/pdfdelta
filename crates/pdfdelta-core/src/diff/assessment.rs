@@ -2936,15 +2936,12 @@ impl<'a, 'document> Assessor<'a, 'document> {
     }
 
     fn charge(&mut self, work: usize) -> bool {
-        match self.remaining_work.checked_sub(work) {
-            Some(remaining) => {
-                self.remaining_work = remaining;
-                true
-            }
-            None => {
-                self.remaining_work = 0;
-                false
-            }
+        if let Some(remaining) = self.remaining_work.checked_sub(work) {
+            self.remaining_work = remaining;
+            true
+        } else {
+            self.remaining_work = 0;
+            false
         }
     }
 

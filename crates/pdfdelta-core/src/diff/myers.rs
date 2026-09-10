@@ -233,7 +233,7 @@ fn index(diagonal: isize, offset: isize) -> usize {
 }
 
 fn layer_value(layer: &[usize], distance: usize, diagonal: isize) -> usize {
-    let position = (diagonal + distance as isize) / 2;
+    let position = isize::midpoint(diagonal, distance as isize);
     layer[position as usize]
 }
 

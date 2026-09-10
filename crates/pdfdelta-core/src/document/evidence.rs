@@ -290,7 +290,7 @@ impl EvidenceStore {
             self.backends.len(),
         ]
         .into_iter()
-        .try_fold(0usize, |sum, count| sum.checked_add(count))
+        .try_fold(0usize, usize::checked_add)
         .ok_or_else(|| invalid("evidence item count overflows"))?;
         bounded(items, limits.max_items, "evidence items")?;
         if self.revision.is_empty() {
@@ -736,6 +736,7 @@ impl EvidenceStore {
 
     /// True only when a provider inspected this channel and no dependent issue
     /// remains. Missing inventories are never interpreted as empty documents.
+    #[must_use]
     pub fn inventory_complete(&self, page: Option<PageId>, channel: Channel) -> bool {
         self.inventories.iter().any(|inventory| {
             (inventory.page.is_none() || inventory.page == page)

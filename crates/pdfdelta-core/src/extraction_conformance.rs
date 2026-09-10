@@ -11,6 +11,7 @@ pub struct PrimitiveExtractionSnapshot {
 }
 
 impl PrimitiveExtractionSnapshot {
+    #[must_use]
     pub fn new(glyphs: Vec<SnapshotGlyph>) -> Self {
         Self { glyphs }
     }
@@ -93,6 +94,7 @@ impl GeometryTolerance {
         Ok(Self { absolute })
     }
 
+    #[must_use]
     pub fn absolute(self) -> f64 {
         self.absolute
     }

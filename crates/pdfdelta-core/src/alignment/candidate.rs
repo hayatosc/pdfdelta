@@ -649,7 +649,7 @@ pub struct MinHashLshCandidateGenerator {
 }
 
 impl MinHashLshCandidateGenerator {
-    /// Creates a MinHash LSH candidate generator with default options.
+    /// Creates a `MinHash` LSH candidate generator with default options.
     ///
     /// # Errors
     ///
@@ -658,7 +658,7 @@ impl MinHashLshCandidateGenerator {
         Self::with_options(new, MinHashLshOptions::default())
     }
 
-    /// Creates a MinHash LSH candidate generator with the given options.
+    /// Creates a `MinHash` LSH candidate generator with the given options.
     ///
     /// # Errors
     ///

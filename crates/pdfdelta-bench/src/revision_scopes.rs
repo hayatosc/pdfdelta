@@ -304,8 +304,7 @@ impl SideResolver<'_> {
             {
                 Ok(location)
             }
-            Ok(ScopedQuoteLocateOutcome::Unique(_))
-            | Ok(ScopedQuoteLocateOutcome::Indeterminate)
+            Ok(ScopedQuoteLocateOutcome::Unique(_) | ScopedQuoteLocateOutcome::Indeterminate)
             | Err(_) => Err(anchor_unavailable(
                 scope,
                 self.side,
@@ -516,7 +515,7 @@ fn certified_terminal_band(blocks: &[BlockText], indices: &[usize]) -> Option<Ve
                 .as_ref()
                 .expect("page geometry was checked above")
                 .iter()
-                .flat_map(|signature| signature.values())
+                .flat_map(pdfdelta_core::normalize::FontSizeSignature::values)
         })
         .min_by(f64::total_cmp)?;
     let band = smallest_font * 0.5;
@@ -657,10 +656,10 @@ fn span_range_with_limits(
             .get(block_order)
             .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?
             .canonical;
-        let next_first_whitespace = !mapped
+        let next_first_whitespace = mapped
             .unmapped
             .first()
-            .is_some_and(|token| token.scalar_index == 0)
+            .is_none_or(|token| token.scalar_index != 0)
             && mapped.text.chars().next().is_some_and(char::is_whitespace);
         let insert_space = position > 0
             && separator.at(position - 1) == BlockSeparator::Space

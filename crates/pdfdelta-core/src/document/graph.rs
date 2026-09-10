@@ -55,6 +55,7 @@ pub enum ViewBasis {
 }
 
 impl ViewBasis {
+    #[must_use]
     pub fn is_inferred(self) -> bool {
         matches!(
             self,
@@ -103,6 +104,7 @@ pub enum NodeContent {
 }
 
 impl NodeContent {
+    #[must_use]
     pub fn channel(&self) -> Option<Channel> {
         match self {
             Self::Text { .. } => Some(Channel::Text),

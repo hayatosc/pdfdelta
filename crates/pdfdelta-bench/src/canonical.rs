@@ -26,10 +26,12 @@ impl Paragraph {
         Ok(Self { id, text })
     }
 
+    #[must_use]
     pub fn id(&self) -> &str {
         &self.id
     }
 
+    #[must_use]
     pub fn text(&self) -> &str {
         &self.text
     }
@@ -65,6 +67,7 @@ impl CanonicalDocument {
         Ok(Self { paragraphs })
     }
 
+    #[must_use]
     pub fn paragraphs(&self) -> &[Paragraph] {
         &self.paragraphs
     }
@@ -211,15 +214,18 @@ impl CanonicalRenderDocument {
         })
     }
 
+    #[must_use]
     pub fn title(&self) -> &str {
         &self.title
     }
 
+    #[must_use]
     pub fn sections(&self) -> &[CanonicalSection] {
         &self.sections
     }
 
     /// Flattens the title, section headings, and paragraphs in source order.
+    #[must_use]
     pub fn render_lines(&self) -> Vec<String> {
         let capacity = 1
             + self.sections.len()
@@ -309,14 +315,17 @@ fn metadata_paragraph(
 }
 
 impl CanonicalSection {
+    #[must_use]
     pub fn id(&self) -> &str {
         &self.id
     }
 
+    #[must_use]
     pub fn heading(&self) -> &str {
         &self.heading
     }
 
+    #[must_use]
     pub fn paragraphs(&self) -> &[Paragraph] {
         &self.paragraphs
     }

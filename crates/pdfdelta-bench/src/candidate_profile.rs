@@ -36,6 +36,7 @@ pub enum CandidateProfileGenerator {
 }
 
 impl CandidateProfileGenerator {
+    #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
             Self::InvertedIndex => "inverted-index",
@@ -78,6 +79,7 @@ pub struct CandidateProfileRecord {
 
 impl CandidateProfileRecord {
     /// Whether every requested K retained the known identity counterpart.
+    #[must_use]
     pub fn healthy(&self) -> bool {
         self.top_k.len() == self.recall_at_k.len()
             && !self.top_k.is_empty()

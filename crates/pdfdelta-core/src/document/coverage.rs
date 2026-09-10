@@ -31,6 +31,7 @@ pub struct ChannelCoverage {
 /// Inferred or unsuccessful comparisons do not discharge source obligations.
 /// Channel completeness also requires complete discovery on both sides; overall
 /// document completeness additionally requires resolved comparison search.
+#[must_use]
 pub fn document_coverage(
     old: DocumentView<'_>,
     new: DocumentView<'_>,

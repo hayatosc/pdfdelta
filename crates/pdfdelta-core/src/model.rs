@@ -59,7 +59,7 @@ pub enum TextRenderMode {
     Clip,
 }
 
-/// Geometric relationship between a glyph and the page CropBox.
+/// Geometric relationship between a glyph and the page `CropBox`.
 ///
 /// This records only the page-level crop boundary. It does not claim to
 /// resolve path clipping, transparency, or later paint operations.
@@ -72,7 +72,7 @@ pub enum GlyphCropStatus {
 
 /// Geometric relationship between a glyph and a supported explicit path clip.
 ///
-/// `Unclipped` means no explicit path clip was active. The page CropBox is
+/// `Unclipped` means no explicit path clip was active. The page `CropBox` is
 /// recorded independently by [`GlyphCropStatus`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum GlyphPathClipStatus {
@@ -142,7 +142,7 @@ impl From<&Glyph> for GlyphEvidence {
     }
 }
 
-/// A marked-content sequence in page content or one Form XObject invocation.
+/// A marked-content sequence in page content or one Form `XObject` invocation.
 /// The half-open range indexes the document's primary glyph items. Repeated
 /// invocations remain separate records; an MCID alone is not a unique identity.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -166,6 +166,7 @@ pub struct Document<T> {
 }
 
 impl<T> Document<T> {
+    #[must_use]
     pub fn new(items: Vec<T>) -> Self {
         Self {
             items,
@@ -177,6 +178,7 @@ impl<T> Document<T> {
 
     /// Creates a document with neutral straight-path evidence retained beside
     /// its primary items.
+    #[must_use]
     pub fn with_vector_lines(items: Vec<T>, vector_lines: Vec<VectorLine>) -> Self {
         Self {
             items,
@@ -188,11 +190,13 @@ impl<T> Document<T> {
 
     /// Attaches reversible source memberships without changing primary items.
     /// Consumers must validate ranges before dereferencing untrusted metadata.
+    #[must_use]
     pub fn with_marked_content(mut self, marked_content: Vec<MarkedContent>) -> Self {
         self.marked_content = marked_content;
         self
     }
 
+    #[must_use]
     pub fn marked_content(&self) -> &[MarkedContent] {
         &self.marked_content
     }
@@ -201,6 +205,7 @@ impl<T> Document<T> {
     /// Earlier glyphs may be covered; later glyphs have no subsequent recorded
     /// non-text paint. Native glyphs alone cannot classify text in these images
     /// or paths. This boundary does not prove recognition or actual visibility.
+    #[must_use]
     pub fn with_last_non_text_paint(
         mut self,
         pages: std::collections::BTreeMap<PageId, u32>,
@@ -209,14 +214,17 @@ impl<T> Document<T> {
         self
     }
 
+    #[must_use]
     pub fn last_non_text_paint(&self) -> &std::collections::BTreeMap<PageId, u32> {
         &self.last_non_text_paint
     }
 
+    #[must_use]
     pub fn items(&self) -> &[T] {
         &self.items
     }
 
+    #[must_use]
     pub fn vector_lines(&self) -> &[VectorLine] {
         &self.vector_lines
     }
@@ -224,11 +232,13 @@ impl<T> Document<T> {
     /// Returns only the primary items, discarding all auxiliary evidence.
     ///
     /// Keep the document when all evidence must survive ownership transfer.
+    #[must_use]
     pub fn into_items(self) -> Vec<T> {
         self.items
     }
 
     /// Returns primary items and vector lines, discarding other acquisition metadata.
+    #[must_use]
     pub fn into_parts(self) -> (Vec<T>, Vec<VectorLine>) {
         (self.items, self.vector_lines)
     }

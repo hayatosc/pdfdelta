@@ -25,6 +25,7 @@ pub struct RelationComparison {
 }
 
 impl RelationComparison {
+    #[must_use]
     pub fn changed(&self) -> bool {
         self.old_present != self.new_present
     }

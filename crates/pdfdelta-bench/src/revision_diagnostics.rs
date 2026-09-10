@@ -1363,9 +1363,7 @@ fn wrong_kind_diagnostic(
         }
     }
 
-    let trace = if quote_matching_occurrences != 1 {
-        WrongChangeKindTraceReport::Ambiguous
-    } else {
+    let trace = if quote_matching_occurrences == 1 {
         let occurrence_index = matching_occurrence_index.ok_or_else(|| {
             DiagnosticScanError::Invalid(
                 "wrong-kind quote-match count lacks an occurrence index".to_owned(),
@@ -1436,6 +1434,8 @@ fn wrong_kind_diagnostic(
             ActualRelationTraceStatus::Ambiguous => WrongChangeKindTraceReport::Ambiguous,
             ActualRelationTraceStatus::Untraced => WrongChangeKindTraceReport::Untraced,
         }
+    } else {
+        WrongChangeKindTraceReport::Ambiguous
     };
     Ok(WrongChangeKindDiagnostic::Complete {
         actual_index,

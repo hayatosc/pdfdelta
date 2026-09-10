@@ -162,7 +162,7 @@ fn write_svg<W: Write>(
     .map_err(map_io_error)?;
     writeln!(
         writer,
-        r#"  <defs>
+        r"  <defs>
     <style>
       svg {{ background: #f4f5f7; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }}
       .diagnostic-title {{ fill: #101828; font-size: 14px; font-weight: 700; }}
@@ -182,7 +182,7 @@ fn write_svg<W: Write>(
       .mismatch .snapshot-bbox {{ stroke: #7a2e0e; stroke-width: 2.75px; }}
       .mismatch .snapshot-baseline {{ stroke-width: 2.75px; }}
     </style>
-  </defs>"#
+  </defs>"
     )
     .map_err(map_io_error)?;
 

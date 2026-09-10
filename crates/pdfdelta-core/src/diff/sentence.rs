@@ -421,10 +421,10 @@ fn assemble_merged_clause_run(
     let old_blocks = ordered_unique_blocks(&old_consumed)?;
     let new_blocks = ordered_unique_blocks(&new_consumed)?;
     let origin = |role: BlockRole| {
-        if role != BlockRole::Body {
-            ChangeOrigin::RunningMatter
-        } else {
+        if role == BlockRole::Body {
             ChangeOrigin::LocalFragment
+        } else {
+            ChangeOrigin::RunningMatter
         }
     };
     let separator = |blocks: &[BlockId]| {
@@ -3220,10 +3220,10 @@ fn collapse_granular_whitespace(
         let part = value
             .get(start..offset)
             .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
-        if !output.is_empty() {
-            output.push(' ');
+        if output.is_empty() {
             original_boundaries.push(start);
         } else {
+            output.push(' ');
             original_boundaries.push(start);
         }
         output.push_str(part);
@@ -4018,10 +4018,10 @@ fn collapse_quote_local_whitespace(
         let part = value
             .get(start..offset)
             .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
-        if !text.is_empty() {
-            text.push(' ');
+        if text.is_empty() {
             original_boundaries.push(start);
         } else {
+            text.push(' ');
             original_boundaries.push(start);
         }
         text.push_str(part);
@@ -6930,16 +6930,13 @@ fn build_signature_index(
                 .metrics
                 .index_posting_items_examined
                 .checked_add(actual);
-            match (attempted, examined) {
-                (Some(attempted), Some(examined)) => {
-                    shadow.metrics.index_posting_items_attempted = attempted;
-                    shadow.metrics.index_posting_items_examined = examined;
-                    Some(index)
-                }
-                _ => {
-                    shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
-                    None
-                }
+            if let (Some(attempted), Some(examined)) = (attempted, examined) {
+                shadow.metrics.index_posting_items_attempted = attempted;
+                shadow.metrics.index_posting_items_examined = examined;
+                Some(index)
+            } else {
+                shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+                None
             }
         }
         Err(error) => {
@@ -7045,7 +7042,7 @@ fn apply_signature_filter(
     }
     if !shadow.active {
         return (shadow.mode != SentenceEdgeSignatureFilterMode::Direct).then_some(());
-    };
+    }
     let Some(index) = index else {
         if shadow.mode == SentenceEdgeSignatureFilterMode::Direct
             && shadow.direct_metrics.stop_reason.is_none()
@@ -9191,8 +9188,7 @@ impl BlockUncertaintyBudget {
         let comparison_factor = issue_atoms.max(block.issues.len());
         let atom_budget = build_remaining
             .checked_sub(work)
-            .map(|remaining| remaining / comparison_factor)
-            .unwrap_or(0);
+            .map_or(0, |remaining| remaining / comparison_factor);
         let evidence_atom_lengths = block
             .raw
             .source_map
@@ -15415,14 +15411,14 @@ fn enforce_edge_gate_shadow_completion(metrics: &mut SentenceRecoveryMetrics) {
     let Some(shadow) = metrics.sentence_edge_gate_shadow.as_mut() else {
         return;
     };
-    let reason = metrics
-        .near_relation_stop_reason
-        .map(Into::into)
-        .unwrap_or_else(|| {
+    let reason = metrics.near_relation_stop_reason.map_or_else(
+        || {
             shadow
                 .stop_reason
                 .unwrap_or(SentenceEdgeGateShadowStopReason::DiagnosticFailure)
-        });
+        },
+        Into::into,
+    );
     shadow.complete = false;
     shadow.stop_reason.get_or_insert(reason);
 }
@@ -15702,10 +15698,10 @@ fn build_clause_occurrence(
         (
             RecoveryUnitKind::Sentence,
             role,
-            if role != BlockRole::Body {
-                ChangeOrigin::RunningMatter
-            } else {
+            if role == BlockRole::Body {
                 ChangeOrigin::LocalFragment
+            } else {
+                ChangeOrigin::RunningMatter
             },
         ),
         budget,
@@ -15921,10 +15917,10 @@ fn build_sentence_occurrence(
                 (
                     kind,
                     role,
-                    if role != BlockRole::Body {
-                        ChangeOrigin::RunningMatter
-                    } else {
+                    if role == BlockRole::Body {
                         origin
+                    } else {
+                        ChangeOrigin::RunningMatter
                     },
                 ),
                 budget,
@@ -19467,6 +19463,7 @@ impl LocalFragmentFlatExactBoundaryShadowMetrics {
     /// The diagnostic retains two reusable radix buffers and one active-fragment index buffer.
     /// `None` indicates that the platform-sized byte calculation overflowed.
     #[doc(hidden)]
+    #[must_use]
     pub fn expected_radix_scratch_bytes(fragment_count: usize) -> Option<usize> {
         let bytes_per_fragment = std::mem::size_of::<ExactClassRecord>()
             .checked_mul(2)?
@@ -25101,7 +25098,7 @@ fn extend_paired_stream_exact_matches<'a>(
     proposals
         .try_reserve_exact(remaining_candidates)
         .map_err(|_| SentenceEdgeGateShadowStopReason::AllocationFailure)?;
-    for ((pair_index, interval_index, _, _), group) in groups.iter_mut() {
+    for ((pair_index, interval_index, _, _), group) in &mut groups {
         if group.old.len() != group.new.len() || group.old.is_empty() {
             continue;
         }
@@ -29825,8 +29822,7 @@ fn exact_clause_prefix_candidates(
         let end = trimmed
             .char_indices()
             .nth(CLAUSE_PREFIX_PAIR_CHARS)
-            .map(|(byte, _)| byte)
-            .unwrap_or(trimmed.len());
+            .map_or(trimmed.len(), |(byte, _)| byte);
         trimmed.get(..end)
     }
     fn index_postings<'a>(

@@ -2249,8 +2249,8 @@ fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> 
     // of either the bare scalar or the whole oversized block: 31 leading 'a'
     // scalars, the changed digit, then 32 trailing 'z' scalars, with `...`
     // marking both elisions.
-    let expected_minus = format!("- ... {} 4{} ...\n", "a".repeat(31), "z".repeat(32),);
-    let expected_plus = format!("+ ... {} 5{} ...\n", "a".repeat(31), "z".repeat(32),);
+    let expected_minus = format!("- ... {} 4{} ...\n", "a".repeat(31), "z".repeat(32));
+    let expected_plus = format!("+ ... {} 5{} ...\n", "a".repeat(31), "z".repeat(32));
     assert!(report.contains(&expected_minus), "{report}");
     assert!(report.contains(&expected_plus), "{report}");
     Ok(())

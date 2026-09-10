@@ -108,7 +108,7 @@ impl ExternalFontIdentities {
         self.identities.get(base_font)
     }
 
-    /// Iterates the asserted identities in deterministic BaseFont order for
+    /// Iterates the asserted identities in deterministic `BaseFont` order for
     /// cache-key hashing and diagnostics.
     pub fn iter(&self) -> impl Iterator<Item = (&[u8], &FontProgramHash)> {
         self.identities
@@ -168,18 +168,22 @@ impl ExtractionIssue {
         })
     }
 
+    #[must_use]
     pub const fn kind(&self) -> ExtractionIssueKind {
         self.kind
     }
 
+    #[must_use]
     pub const fn scope(&self) -> ExtractionScope {
         self.scope
     }
 
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
 
+    #[must_use]
     pub fn into_parts(self) -> (ExtractionIssueKind, ExtractionScope, String) {
         (self.kind, self.scope, self.description)
     }
@@ -276,6 +280,7 @@ impl ExtractionOutcome {
         Ok(Self { document, issues })
     }
 
+    #[must_use]
     pub fn complete(document: Document<Glyph>) -> Self {
         Self {
             document,
@@ -283,18 +288,22 @@ impl ExtractionOutcome {
         }
     }
 
+    #[must_use]
     pub fn is_complete(&self) -> bool {
         self.issues.is_empty()
     }
 
+    #[must_use]
     pub fn document(&self) -> &Document<Glyph> {
         &self.document
     }
 
+    #[must_use]
     pub fn issues(&self) -> &[ExtractionIssue] {
         &self.issues
     }
 
+    #[must_use]
     pub fn into_parts(self) -> (Document<Glyph>, Vec<ExtractionIssue>) {
         (self.document, self.issues)
     }

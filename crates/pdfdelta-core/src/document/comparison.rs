@@ -96,6 +96,7 @@ impl DocumentViewComparison {
     }
 
     /// Unmatched evidence and channel inventories remain caller obligations.
+    #[must_use]
     pub fn search_resolved(&self) -> bool {
         self.relation_unresolved.is_empty()
             && self.scopes.iter().all(|scope| {
@@ -205,7 +206,7 @@ pub fn compare_document_views(
                     document.scopes[cursor]
                         .result
                         .unresolved
-                        .push(format!("child correspondence {index}: {error}",));
+                        .push(format!("child correspondence {index}: {error}"));
                     continue;
                 }
                 Err(error) => return Err(error),

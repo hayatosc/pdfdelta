@@ -20,7 +20,7 @@ pub const GENERALIZATION_SCHEMA_VERSION: u32 = 1;
 #[serde(rename_all = "snake_case")]
 pub enum Dimension {
     Correspondence,
-    /// Local content operations; composited page rendering is measured by PixelRegion.
+    /// Local content operations; composited page rendering is measured by `PixelRegion`.
     ChangeUnit,
     /// Review text spans, independent of mandatory changed-token positions.
     DisplayRange,
@@ -203,10 +203,12 @@ pub struct AlternativeScore {
 }
 
 impl AlternativeScore {
+    #[must_use]
     pub fn precision(&self) -> Option<f64> {
         ratio(self.true_positive, self.true_positive + self.false_positive)
     }
 
+    #[must_use]
     pub fn recall(&self) -> Option<f64> {
         ratio(self.true_positive, self.true_positive + self.false_negative)
     }

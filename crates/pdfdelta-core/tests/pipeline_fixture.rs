@@ -239,7 +239,7 @@ fn native_graph_supplies_source_backed_catalog_footer_views() -> Result<()> {
         assert!(
             view.tokens
                 .iter()
-                .filter_map(|token| token.as_scalar())
+                .filter_map(pdfdelta_core::normalize::ComparableToken::as_scalar)
                 .collect::<String>()
                 .contains("Cat. No. 12A34 Form 5678")
         );

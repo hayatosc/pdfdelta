@@ -119,7 +119,9 @@ pub(super) fn render(
         for issue in &extraction.issues {
             let scope = match issue.scope {
                 ExtractionScope::Document => "scope=document".to_owned(),
-                ExtractionScope::Page(page) => format!("scope=page, page={}", (page.0 as u64) + 1),
+                ExtractionScope::Page(page) => {
+                    format!("scope=page, page={}", u64::from(page.0) + 1)
+                }
                 ExtractionScope::PageGap { retained_before } => {
                     format!("scope=page-gap, retained-pages-before={retained_before}")
                 }
@@ -177,12 +179,12 @@ pub(super) fn render(
         writeln!(output).map_err(|error| Error::Report(error.to_string()))?;
         let mut pages = Vec::new();
         let mut side_notes = Vec::new();
-        for span in region.old_span.iter() {
+        if let Some(span) = &region.old_span {
             let window = resolve_window(&old, span)?;
             pages.extend_from_slice(&window.pages);
             side_notes.push(("old", window.render_marked_region()));
         }
-        for span in region.new_span.iter() {
+        if let Some(span) = &region.new_span {
             let window = resolve_window(&new, span)?;
             pages.extend_from_slice(&window.pages);
             side_notes.push(("new", window.render_marked_region()));
@@ -318,12 +320,12 @@ pub(super) fn render(
         writeln!(output).map_err(|error| Error::Report(error.to_string()))?;
         let mut pages = Vec::new();
         let mut side_notes = Vec::new();
-        for span in region.old_span.iter() {
+        if let Some(span) = &region.old_span {
             let window = resolve_window(&old, span)?;
             pages.extend_from_slice(&window.pages);
             side_notes.push(("old", window.render_marked_region()));
         }
-        for span in region.new_span.iter() {
+        if let Some(span) = &region.new_span {
             let window = resolve_window(&new, span)?;
             pages.extend_from_slice(&window.pages);
             side_notes.push(("new", window.render_marked_region()));
@@ -583,7 +585,7 @@ impl<'a> Cluster<'a> {
             (None, Some(new)) => parts.push(format!("new {new}")),
             (None, None) => {}
         }
-        parts.push(format!("confidence: {}", confidence_name(self.confidence),));
+        parts.push(format!("confidence: {}", confidence_name(self.confidence)));
         if !self.tags.is_empty() {
             let tags = self
                 .tags
@@ -677,7 +679,7 @@ fn format_pages(pages: &[u32]) -> String {
     let mut start = pages[0];
     let mut end = pages[0];
     for page in &pages[1..] {
-        if (*page as u64) == (end as u64) + 1 {
+        if u64::from(*page) == u64::from(end) + 1 {
             end = *page;
         } else {
             runs.push((start, end));
@@ -689,8 +691,8 @@ fn format_pages(pages: &[u32]) -> String {
     let joined = runs
         .iter()
         .map(|(start, end)| {
-            let s = (*start as u64) + 1;
-            let e = (*end as u64) + 1;
+            let s = u64::from(*start) + 1;
+            let e = u64::from(*end) + 1;
             if start == end {
                 s.to_string()
             } else {

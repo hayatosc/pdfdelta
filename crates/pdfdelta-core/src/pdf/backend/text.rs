@@ -5,7 +5,7 @@ use crate::{Error, Result};
 /// The input bytes remain the caller's original evidence on success or failure.
 ///
 /// # Errors
-/// Rejects malformed Unicode and undefined PDFDocEncoding entries, and enforces
+/// Rejects malformed Unicode and undefined `PDFDocEncoding` entries, and enforces
 /// the output byte limit before growing the decoded string.
 pub fn decode_text_string(bytes: &[u8], max_output_bytes: usize) -> Result<String> {
     let mut output = String::new();

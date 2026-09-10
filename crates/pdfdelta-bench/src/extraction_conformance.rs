@@ -45,6 +45,7 @@ pub struct ExtractionConformanceRecord {
 }
 
 impl ExtractionConformanceRecord {
+    #[must_use]
     pub const fn passed(&self) -> bool {
         self.mismatch.is_none()
     }

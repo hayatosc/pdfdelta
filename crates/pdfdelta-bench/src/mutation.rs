@@ -11,7 +11,7 @@ pub const MIN_LINE_GAP: u16 = 8;
 pub const MAX_LINE_GAP: u16 = 72;
 
 pub const DEFAULT_PAGE_WIDTH: u16 = 612;
-/// Matches the MediaBox height both renderers emitted before plans carried a page size.
+/// Matches the `MediaBox` height both renderers emitted before plans carried a page size.
 pub const DEFAULT_PAGE_HEIGHT: u16 = 792;
 pub const MIN_MARGIN: u16 = 0;
 pub const MAX_MARGIN: u16 = DEFAULT_PAGE_WIDTH - 1;
@@ -74,15 +74,18 @@ impl RenderLine {
         Ok(Self { text, row, x })
     }
 
+    #[must_use]
     pub fn text(&self) -> &str {
         &self.text
     }
 
+    #[must_use]
     pub const fn row(&self) -> usize {
         self.row
     }
 
     /// Horizontal offset from [`RenderPlan::margin`].
+    #[must_use]
     pub const fn x(&self) -> u16 {
         self.x
     }
@@ -283,6 +286,7 @@ impl RenderPlan {
         })
     }
 
+    #[must_use]
     pub fn pages(&self) -> &[Vec<String>] {
         &self.pages
     }
@@ -291,22 +295,27 @@ impl RenderPlan {
         &self.positions
     }
 
+    #[must_use]
     pub const fn line_gap(&self) -> u16 {
         self.line_gap
     }
 
+    #[must_use]
     pub const fn margin(&self) -> u16 {
         self.margin
     }
 
+    #[must_use]
     pub const fn font_size(&self) -> u16 {
         self.font_size
     }
 
+    #[must_use]
     pub const fn page_width(&self) -> u16 {
         self.page_width
     }
 
+    #[must_use]
     pub const fn page_height(&self) -> u16 {
         self.page_height
     }
@@ -429,10 +438,12 @@ impl ExpectedCanonicalSpan {
         Ok(Self { start, end })
     }
 
+    #[must_use]
     pub const fn start(&self) -> usize {
         self.start
     }
 
+    #[must_use]
     pub const fn end(&self) -> usize {
         self.end
     }
@@ -470,14 +481,17 @@ impl ExpectedSemanticChange {
         })
     }
 
+    #[must_use]
     pub const fn kind(&self) -> ChangeKind {
         self.kind
     }
 
+    #[must_use]
     pub fn old_spans(&self) -> &[ExpectedCanonicalSpan] {
         &self.old_spans
     }
 
+    #[must_use]
     pub fn new_spans(&self) -> &[ExpectedCanonicalSpan] {
         &self.new_spans
     }
@@ -514,6 +528,7 @@ impl ExpectedManifest {
         })
     }
 
+    #[must_use]
     pub fn none() -> Self {
         Self {
             changes: Vec::new(),
@@ -523,6 +538,7 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub fn one(change: ExpectedSemanticChange) -> Self {
         Self {
             changes: vec![change],
@@ -532,6 +548,7 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub fn one_proven_region(change: ExpectedSemanticChange) -> Self {
         Self {
             changes: vec![change],
@@ -541,6 +558,7 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub fn one_candidate_with_proven_region(
         exact_change: ExpectedSemanticChange,
         candidate_change: ExpectedSemanticChange,
@@ -554,10 +572,12 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub fn changes(&self) -> &[ExpectedSemanticChange] {
         &self.changes
     }
 
+    #[must_use]
     pub fn exact_changes(&self) -> &[ExpectedSemanticChange] {
         match self.evidence {
             ExpectedEvidence::ExactChangeEvents
@@ -566,6 +586,7 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub fn proven_regions(&self) -> &[ExpectedSemanticChange] {
         match self.evidence {
             ExpectedEvidence::ExactChangeEvents => &[],
@@ -574,6 +595,7 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub fn candidate_changes(&self) -> &[ExpectedSemanticChange] {
         match self.evidence {
             ExpectedEvidence::CandidateWithProvenChangedRegion => &self.candidate_changes,
@@ -581,6 +603,7 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub fn acceptance_exact_changes(&self) -> &[ExpectedSemanticChange] {
         match self.evidence {
             ExpectedEvidence::ExactChangeEvents => &self.changes,
@@ -589,6 +612,7 @@ impl ExpectedManifest {
         }
     }
 
+    #[must_use]
     pub const fn is_candidate_policy(&self) -> bool {
         matches!(
             self.evidence,
@@ -596,6 +620,7 @@ impl ExpectedManifest {
         )
     }
 
+    #[must_use]
     pub fn label(&self) -> String {
         if self.evidence == ExpectedEvidence::ProvenChangedRegions {
             return "proven-changed-region".to_owned();
@@ -621,14 +646,17 @@ pub struct CanonicalParagraphSpan {
 }
 
 impl CanonicalParagraphSpan {
+    #[must_use]
     pub fn paragraph_id(&self) -> &str {
         &self.paragraph_id
     }
 
+    #[must_use]
     pub const fn start(&self) -> usize {
         self.start
     }
 
+    #[must_use]
     pub const fn end(&self) -> usize {
         self.end
     }
@@ -667,10 +695,12 @@ impl MutationPlan {
         })
     }
 
+    #[must_use]
     pub fn old(&self) -> &RenderPlan {
         &self.old
     }
 
+    #[must_use]
     pub fn new_plan(&self) -> &RenderPlan {
         &self.new
     }
@@ -718,14 +748,17 @@ impl MutationPlan {
         Ok(self)
     }
 
+    #[must_use]
     pub const fn expectation(&self) -> &ExpectedManifest {
         &self.expectation
     }
 
+    #[must_use]
     pub fn old_paragraphs(&self) -> &[CanonicalParagraphSpan] {
         &self.old_paragraphs
     }
 
+    #[must_use]
     pub fn new_paragraphs(&self) -> &[CanonicalParagraphSpan] {
         &self.new_paragraphs
     }
@@ -1802,7 +1835,7 @@ fn validate_plan_source(side: &str, plan: &RenderPlan, document: &CanonicalDocum
     let expected = document
         .paragraphs()
         .iter()
-        .map(|paragraph| paragraph.text())
+        .map(super::canonical::Paragraph::text)
         .collect::<Vec<_>>()
         .join(" ");
     if rendered != expected {

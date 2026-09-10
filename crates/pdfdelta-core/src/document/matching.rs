@@ -110,6 +110,7 @@ impl From<&BTreeSet<super::Channel>> for MatchingChannels {
 
 /// Selects content, linked field appearances, and required containing context.
 /// Relationship/presentation requests include all supporting content views.
+#[must_use]
 pub fn selected_nodes(graph: &DocumentGraph, channels: MatchingChannels) -> BTreeSet<NodeId> {
     if channels.relations
         || channels.presentation

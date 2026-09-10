@@ -333,7 +333,7 @@ impl<'a> Type3ResourceHasher<'a> {
                 unresolved("direct Type 3 resource streams are unavailable through the PDF facade")
             }
             PdfObject::Null => Ok(tagged_hash(b"null", &[])),
-            PdfObject::Boolean(value) => Ok(tagged_hash(b"boolean", &[*value as u8])),
+            PdfObject::Boolean(value) => Ok(tagged_hash(b"boolean", &[u8::from(*value)])),
             PdfObject::Integer(value) => Ok(tagged_hash(b"integer", &value.to_be_bytes())),
             PdfObject::Real(value) if value.is_finite() => {
                 let normalized = if *value == 0.0 { 0.0 } else { *value };
@@ -631,7 +631,7 @@ pub(super) fn unresolved<T>(message: &str) -> Result<T> {
     Err(Error::Unresolved(message.into()))
 }
 
-/// Replaces ascent/descent with the descriptor FontBBox extent whenever the
+/// Replaces ascent/descent with the descriptor `FontBBox` extent whenever the
 /// declared metrics cannot form a positive vertical extent.
 pub(super) fn apply_bbox_vertical_fallback(
     (ascent, descent): (Option<f64>, Option<f64>),

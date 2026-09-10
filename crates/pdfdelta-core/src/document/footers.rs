@@ -116,7 +116,7 @@ pub(crate) fn candidates(
                     .as_ref()
                     .expect("page geometry was checked above")
                     .iter()
-                    .flat_map(|s| s.values())
+                    .flat_map(super::super::normalize::FontSizeSignature::values)
             })
             .min_by(f64::total_cmp);
         let Some(size) = size else {
@@ -204,7 +204,7 @@ pub(crate) fn candidates(
         }
         let Some(text) = tokens
             .iter()
-            .map(|token| token.as_scalar())
+            .map(super::super::normalize::ComparableToken::as_scalar)
             .collect::<Option<String>>()
         else {
             continue;

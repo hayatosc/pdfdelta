@@ -43,9 +43,10 @@ fn quoted(value: &str) -> String {
 fn field_value(value: &FieldValue) -> String {
     match value {
         FieldValue::Text(text) => quoted(text),
-        FieldValue::Name(bytes) => match std::str::from_utf8(bytes) {
-            Ok(text) => format!("name {}", quoted(text)),
-            Err(_) => {
+        FieldValue::Name(bytes) => {
+            if let Ok(text) = std::str::from_utf8(bytes) {
+                format!("name {}", quoted(text))
+            } else {
                 let mut text = String::from("name bytes: ");
                 for byte in bytes.iter().take(64) {
                     let _ = write!(text, "{byte:02x}");
@@ -55,7 +56,7 @@ fn field_value(value: &FieldValue) -> String {
                 }
                 text
             }
-        },
+        }
         FieldValue::Selected(selected) => if *selected {
             "selected"
         } else {
@@ -196,11 +197,9 @@ pub(super) fn append_details(
                     text,
                     "  - {}\n  + {}",
                     old.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into()),
+                        .map_or_else(|| "(text unresolved)".into(), quoted),
                     new.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into())
+                        .map_or_else(|| "(text unresolved)".into(), quoted)
                 );
             }
             TypedOperation::ValueChanged { old, new } => {

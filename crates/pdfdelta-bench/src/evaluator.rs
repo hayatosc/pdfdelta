@@ -24,7 +24,7 @@ use crate::{
     renderers::{RenderLimits, RendererKind},
 };
 
-/// Controlled ASCII fixtures require exact canonical-range agreement (IoU 1.0).
+/// Controlled ASCII fixtures require exact canonical-range agreement (`IoU` 1.0).
 pub const EXPECTED_SPAN_IOU_THRESHOLD: f64 = 1.0;
 
 #[derive(Debug)]
@@ -1097,6 +1097,7 @@ fn extraction_limits() -> ExtractionLimits {
 
 /// Returns the bounded comparison options used by the generated fixture
 /// evaluator and by sensitivity runs unless a scenario overrides them.
+#[must_use]
 pub fn default_pipeline_options() -> PipelineOptions {
     let mut options = PipelineOptions {
         max_ngram_token_elements: 64 * 1024,

@@ -43,6 +43,7 @@ pub struct ExtractionIssueRecord {
 }
 
 impl ExtractionIssueRecord {
+    #[must_use]
     pub fn from_issue(side: DocumentSide, issue: ExtractionIssue) -> Self {
         let (kind, scope, description) = issue.into_parts();
         Self {
@@ -62,6 +63,7 @@ pub struct ExtractionStatus {
 }
 
 impl ExtractionStatus {
+    #[must_use]
     pub fn complete() -> Self {
         Self {
             old_complete: true,
@@ -143,6 +145,7 @@ pub enum DifferenceStatus {
 }
 
 impl DifferenceStatus {
+    #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Detected => "detected",

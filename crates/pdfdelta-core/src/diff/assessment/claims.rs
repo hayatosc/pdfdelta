@@ -1171,15 +1171,12 @@ fn bools(length: usize, value: bool) -> Result<Vec<bool>> {
 }
 
 fn charge(remaining_work: &mut usize, amount: usize) -> bool {
-    match remaining_work.checked_sub(amount) {
-        Some(remaining) => {
-            *remaining_work = remaining;
-            true
-        }
-        None => {
-            *remaining_work = 0;
-            false
-        }
+    if let Some(remaining) = remaining_work.checked_sub(amount) {
+        *remaining_work = remaining;
+        true
+    } else {
+        *remaining_work = 0;
+        false
     }
 }
 

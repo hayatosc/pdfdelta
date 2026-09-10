@@ -435,24 +435,23 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
                 request.password.as_deref(),
                 &fonts,
             );
-            match cache
+            if let Some(outcome) = cache
                 .as_ref()
                 .and_then(|cache| cache.load(&key, &ExtractionLimits::default()))
             {
-                Some(outcome) => outcome,
-                None => {
-                    let outcome = extractor
-                        .extract_outcome_with_external_font_identities(
-                            parsed.as_ref(),
-                            ExtractionLimits::default(),
-                            &fonts,
-                        )
-                        .map_err(Failure::core)?;
-                    if let Some(cache) = cache {
-                        cache.store(&key, &outcome);
-                    }
-                    outcome
+                outcome
+            } else {
+                let outcome = extractor
+                    .extract_outcome_with_external_font_identities(
+                        parsed.as_ref(),
+                        ExtractionLimits::default(),
+                        &fonts,
+                    )
+                    .map_err(Failure::core)?;
+                if let Some(cache) = cache {
+                    cache.store(&key, &outcome);
                 }
+                outcome
             }
         }
     };

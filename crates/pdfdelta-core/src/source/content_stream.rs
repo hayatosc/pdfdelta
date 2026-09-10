@@ -48,7 +48,7 @@ impl ContentStreamGlyphExtractor {
         Ok(self
             .page_frames(pdf, limits, max_pages)?
             .into_iter()
-            .map(|frame| frame.map(|frame| frame.canonical_bounds()))
+            .map(|frame| frame.map(PageCoordinateFrame::canonical_bounds))
             .collect())
     }
 
@@ -209,10 +209,12 @@ pub struct PageCoordinateFrame {
 }
 
 impl PageCoordinateFrame {
+    #[must_use]
     pub fn canonical_bounds(self) -> Rect {
         self.geometry.crop_bounds
     }
 
+    #[must_use]
     pub fn rotation(self) -> u16 {
         self.geometry.rotation
     }
