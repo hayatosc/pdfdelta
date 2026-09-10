@@ -1440,6 +1440,50 @@ mod tests {
         assert_eq!(maximum_cardinality_matching(&edges, 2), 2);
     }
 
+    #[test]
+    fn maximum_cardinality_matching_agrees_with_brute_force_on_small_graphs() {
+        fn brute_force(edges: &[Vec<usize>], right_count: usize) -> usize {
+            fn recurse(edges: &[Vec<usize>], used: &mut [bool], left: usize) -> usize {
+                if left == edges.len() {
+                    return 0;
+                }
+                let mut best = recurse(edges, used, left + 1);
+                for &right in &edges[left] {
+                    if !used[right] {
+                        used[right] = true;
+                        best = best.max(1 + recurse(edges, used, left + 1));
+                        used[right] = false;
+                    }
+                }
+                best
+            }
+            let mut used = vec![false; right_count];
+            recurse(edges, &mut used, 0)
+        }
+
+        for left in 0..=4usize {
+            for right in 0..=4usize {
+                let slots = left * right;
+                for mask in 0..(1u32 << slots) {
+                    let edges = (0..left)
+                        .map(|left_index| {
+                            (0..right)
+                                .filter(|right_index| {
+                                    mask & (1 << (left_index * right + right_index)) != 0
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        maximum_cardinality_matching(&edges, right),
+                        brute_force(&edges, right),
+                        "left={left} right={right} mask={mask}"
+                    );
+                }
+            }
+        }
+    }
+
     fn text_span(separator: BlockSeparator, start: usize, end: usize) -> TextSpan {
         TextSpan {
             blocks: vec![BlockId(1), BlockId(2)],
