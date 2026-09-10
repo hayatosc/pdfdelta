@@ -421,6 +421,41 @@ mod tests {
     }
 
     #[test]
+    fn cache_round_trips_float_geometry_exactly() {
+        let dir = unique_temp_dir("float-roundtrip");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, extraction_limits) = fixture_limits();
+        let key = cache_key(
+            b"pdf",
+            &parse_limits,
+            &extraction_limits,
+            None,
+            &ExternalFontIdentities::default(),
+        );
+        // Values whose shortest decimal form is not reproduced by a
+        // non-roundtrip float parser. The cache must preserve them exactly so
+        // cached and fresh extraction produce identical comparison evidence.
+        let mut sample = glyph(1);
+        sample.bbox.min.x = 118.74473953002929;
+        sample.bbox.max.x = 111.22514000000001;
+        sample.baseline.x = 147.69013999999999;
+        sample.baseline.y = 220.15813966430665;
+        let outcome = ExtractionOutcome::complete(Document::new(vec![sample.clone()]));
+        cache.store(&key, &outcome);
+
+        let loaded = cache
+            .load(&key, &extraction_limits)
+            .expect("stored extraction should load from the cache");
+        let loaded = loaded.document().items()[0].clone();
+        assert_eq!(loaded.bbox.min.x.to_bits(), sample.bbox.min.x.to_bits());
+        assert_eq!(loaded.bbox.max.x.to_bits(), sample.bbox.max.x.to_bits());
+        assert_eq!(loaded.baseline.x.to_bits(), sample.baseline.x.to_bits());
+        assert_eq!(loaded.baseline.y.to_bits(), sample.baseline.y.to_bits());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn oversized_entries_are_never_stored_and_marker_skips_later_stores() {
         // The ceiling is parameterized so the guard is testable without
         // materializing a 256 MiB payload: serialization aborts at the
