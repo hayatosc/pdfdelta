@@ -1,5 +1,6 @@
 //! Fuzzing-only entry points for internal parsers.
 
+use crate::diff::Confidence;
 use crate::document::{
     BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
     DocumentView, EvidenceLimits, EvidenceStore, GraphLimits, HierarchyLimits, NodeId,
@@ -21,6 +22,7 @@ use crate::pdf::{
     DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfVersion, RawStream,
 };
 use crate::pipeline::{PipelineOptions, compare_glyph_documents};
+use crate::report::{ExtractionStatus, summarize};
 use crate::source::{
     ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
 };
@@ -693,6 +695,60 @@ pub fn fuzz_layout_pipeline(input: &[u8]) {
     if let Ok(svg) = crate::report::render_glyph_overlay_svg(&document) {
         assert!(svg.starts_with("<svg"));
     }
+}
+
+/// Compares two arbitrary synthetic documents through the full text pipeline.
+///
+/// Inputs larger than 64 KiB are ignored, and each half must be non-empty. The
+/// two halves produce separate documents that are compared in both directions,
+/// exercising alignment, recovery, sentence pairing, the Myers diff, and report
+/// summarization. Comparison errors are accepted outcomes; a successful
+/// comparison must still summarize and satisfy the public result shapes.
+///
+/// # Panics
+///
+/// Panics if a successful comparison cannot be summarized or violates a public
+/// result-shape invariant.
+#[doc(hidden)]
+pub fn fuzz_text_comparison(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES || input.len() < 2 {
+        return;
+    }
+    let (left, right) = input.split_at(input.len() / 2);
+    if left.is_empty() || right.is_empty() {
+        return;
+    }
+    let old = synthetic_glyph_document(left);
+    let new = synthetic_glyph_document(right);
+    let _ = check_text_comparison(&old, &new);
+    let _ = check_text_comparison(&new, &old);
+}
+
+fn check_text_comparison(old: &Document<Glyph>, new: &Document<Glyph>) -> bool {
+    let Ok(comparison) = compare_glyph_documents(old, new, PipelineOptions::default()) else {
+        return false;
+    };
+    let summary = summarize(&comparison, &ExtractionStatus::complete())
+        .expect("a successful comparison must summarize");
+    assert_eq!(summary.content_changes, comparison.changes.len());
+    assert_eq!(
+        summary.uncertain_changes,
+        comparison
+            .changes
+            .iter()
+            .filter(|change| change.confidence == Confidence::Low)
+            .count()
+    );
+    for change in &comparison.changes {
+        assert!(!change.occurrences.is_empty());
+        for occurrence in &change.occurrences {
+            assert!(occurrence.old_span.is_some() || occurrence.new_span.is_some());
+        }
+    }
+    for region in &comparison.unresolved_regions {
+        assert!(region.old_span.is_some() || region.new_span.is_some());
+    }
+    true
 }
 
 /// Exercises the shared evidence graph and solver over an arbitrary synthetic
@@ -1405,6 +1461,30 @@ mod tests {
         // Degenerate inputs must not panic or fabricate identity changes.
         fuzz_layout_pipeline(&[0]);
         fuzz_layout_pipeline(&[255]);
+    }
+
+    #[test]
+    fn synthetic_text_comparison_seeds_reach_the_diff_pipeline() {
+        let mut reached = 0;
+        for seed in 0u8..=32 {
+            let mut input = vec![seed];
+            input.extend((0..192u16).map(|index| {
+                (index as u8)
+                    .wrapping_mul(seed.wrapping_add(7))
+                    .wrapping_add(seed.wrapping_mul(3))
+            }));
+            let (left, right) = input.split_at(input.len() / 2);
+            let old = synthetic_glyph_document(left);
+            let new = synthetic_glyph_document(right);
+            if check_text_comparison(&old, &new) && check_text_comparison(&new, &old) {
+                reached += 1;
+            }
+            fuzz_text_comparison(&input);
+        }
+        assert!(
+            reached >= 16,
+            "only {reached} of 33 seeds reached and summarized the comparison"
+        );
     }
 
     #[test]
