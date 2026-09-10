@@ -29,6 +29,7 @@ mod structure_candidates;
 mod structures;
 mod tables;
 mod text_candidates;
+mod text_scopes;
 mod visual;
 mod widgets;
 
@@ -48,4 +49,5 @@ pub use relations::RelationComparison;
 pub use scoped_keys::*;
 pub use structures::*;
 pub use text_candidates::{TextCandidateLimits, TextCandidateSearch};
+pub use text_scopes::TextScopeReview;
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};

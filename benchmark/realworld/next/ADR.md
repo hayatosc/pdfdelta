@@ -84,6 +84,10 @@ P3/P4 use bounded existing scopes and relations, with repetition, moves, copies,
 gaps and split competitors. New source-traceable A or B recovery on independent
 ID-free prose is required; C growth alone does not satisfy it. Evaluate positive
 and negative single-column, column-change and cross-page split cases.
+The initial closed-parent implementation and its limits are recorded in
+`P3-scope-contract.md`. `development/` registers 24 active input pairs plus retained
+failed replacement attempts before comparison; annotation and evaluation remain
+pending. Neither fixture success nor registration satisfies the recovery gate.
 P5 emits static review artifacts with source locations, evidence IDs, strict masks
 and explicit A/B/C labels. P6 starts with an observer experiment on installed hayro
 APIs, checks rendering invariance and tiny-detail counterexamples, and connects to

@@ -176,6 +176,47 @@ pub(super) fn append_details(
     let old_nodes = old.nodes.iter().map(|node| (node.id, node)).collect();
     let new_nodes = new.nodes.iter().map(|node| (node.id, node)).collect();
     let mut seen = 0;
+    for (scope_index, scope) in comparison.scopes.iter().enumerate() {
+        for review in &scope.result.text_scope_reviews {
+            let pair = &review.comparison;
+            let category = match pair.interpretation {
+                InterpretationStatus::ConditionalOnCorrespondence => "B: scope content change",
+                InterpretationStatus::Inferred => "C: inferred scope comparison",
+            };
+            let _ = writeln!(
+                text,
+                "\n{category} (non-owning): {} -> {}",
+                label(&pair.old, &old_nodes),
+                label(&pair.new, &new_nodes)
+            );
+            let _ = writeln!(
+                text,
+                "  Scope {scope_index}, boundary proposals {:?}; convention {}.",
+                review.boundaries,
+                preview(&review.convention)
+            );
+            if let Some(TypedOperation::TextChanged { old, new }) = &pair.operation {
+                let _ = writeln!(
+                    text,
+                    "  - {}\n  + {}",
+                    old.as_deref()
+                        .map(quoted)
+                        .unwrap_or_else(|| "(text unresolved)".into()),
+                    new.as_deref()
+                        .map(quoted)
+                        .unwrap_or_else(|| "(text unresolved)".into())
+                );
+            }
+            if let Some(mask) = &pair.text_mask {
+                let _ = writeln!(
+                    text,
+                    "  Conditional changed positions: old {}, new {}. This review adds no strict ownership; displayed text includes context.",
+                    mask.old.len(),
+                    mask.new.len()
+                );
+            }
+        }
+    }
     if let Some(keys) = &comparison.key_presence {
         let operations: BTreeMap<_, _> = keys
             .scoped

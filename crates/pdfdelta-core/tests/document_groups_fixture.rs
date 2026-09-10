@@ -132,6 +132,306 @@ fn compare(
     .expect("compare grouped source views")
 }
 
+fn inventoried_fixture(parts: &[&str]) -> (EvidenceStore, DocumentGraph) {
+    let mut result = fixture(parts);
+    result
+        .0
+        .inventories
+        .push(pdfdelta_core::document::ChannelInventory {
+            page: None,
+            channel: pdfdelta_core::document::Channel::Text,
+            backend: 0,
+            sources: result
+                .0
+                .structured
+                .iter()
+                .map(|item| SourceRef::Structured { element: item.id })
+                .collect(),
+            complete: true,
+        });
+    result
+}
+
+#[test]
+fn closed_id_free_scope_change_does_not_own_its_context() {
+    let old = inventoried_fixture(&["Start boundary.", "a", "End boundary."]);
+    let new = inventoried_fixture(&["Start boundary.", "aa", "End boundary."]);
+    let comparison = compare(&old, &new, DocumentComparisonLimits::default());
+    let reviews = &comparison.scopes[0].result.text_scope_reviews;
+    assert_eq!(reviews.len(), 1, "{:#?}", comparison.scopes[0]);
+    let review = &reviews[0];
+    assert_eq!(review.convention, "closed-retained-order-interval-v1");
+    for (graph, members, sources, boundaries) in [
+        (
+            &old.1,
+            &review.comparison.old,
+            &review.old_sources,
+            &review.old_boundaries,
+        ),
+        (
+            &new.1,
+            &review.comparison.new,
+            &review.new_sources,
+            &review.new_boundaries,
+        ),
+    ] {
+        let expected: Vec<_> = members
+            .iter()
+            .flat_map(|id| {
+                graph
+                    .nodes
+                    .iter()
+                    .find(|node| node.id == *id)
+                    .expect("member")
+                    .sources
+                    .iter()
+                    .copied()
+            })
+            .collect();
+        assert_eq!(*sources, expected);
+        assert!(!sources.is_empty());
+        assert!(boundaries.iter().all(|boundary| !boundary.is_empty()));
+        assert!(
+            boundaries
+                .iter()
+                .flatten()
+                .all(|source| !sources.contains(source))
+        );
+    }
+    assert_eq!(
+        review.comparison.interpretation,
+        InterpretationStatus::ConditionalOnCorrespondence
+    );
+    assert!(matches!(
+        review.comparison.operation,
+        Some(TypedOperation::TextChanged { .. })
+    ));
+    let mask = review
+        .comparison
+        .text_mask
+        .as_ref()
+        .expect("conditional mask");
+    assert!(
+        mask.old.is_empty() && mask.new.is_empty(),
+        "a -> aa has no unique insertion position"
+    );
+    assert!(
+        comparison
+            .comparisons()
+            .filter(|local| local.operation.is_some())
+            .all(|local| local.interpretation == InterpretationStatus::Inferred)
+    );
+    let mut without_reviews = comparison.clone();
+    without_reviews.scopes[0].result.text_scope_reviews.clear();
+    let coverage = |result: &DocumentViewComparison| {
+        pdfdelta_core::document::document_coverage(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            result,
+            &std::collections::BTreeSet::from([pdfdelta_core::document::Channel::Text]),
+        )
+    };
+    assert_eq!(coverage(&comparison), coverage(&without_reviews));
+    assert!(!coverage(&comparison)[0].complete);
+}
+
+#[test]
+fn closed_scope_split_and_reverse_keep_finite_members_and_source_masks() {
+    let old = inventoried_fixture(&[
+        "Start boundary.",
+        "The annual fee is 100 dollars.",
+        "End boundary.",
+    ]);
+    let mut new = inventoried_fixture(&[
+        "Start boundary.",
+        "The annual ",
+        "fee is 200 dollars.",
+        "End boundary.",
+    ]);
+    new.1.nodes.reverse();
+    new.1.edges.reverse();
+    for (a, b) in [(&old, &new), (&new, &old)] {
+        let result = compare(a, b, DocumentComparisonLimits::default());
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        assert_eq!(reviews.len(), 1);
+        let review = &reviews[0];
+        assert_eq!(review.comparison.old.len(), a.0.structured.len() - 2);
+        assert_eq!(review.comparison.new.len(), b.0.structured.len() - 2);
+        let mask = review
+            .comparison
+            .text_mask
+            .as_ref()
+            .expect("split source mask");
+        assert_eq!(mask.old.len(), 1);
+        assert_eq!(mask.new.len(), 1);
+        assert_eq!(mask.old[0].position, 18);
+        assert_eq!(mask.new[0].position, 18);
+    }
+}
+
+#[test]
+fn anchors_do_not_close_detached_incomplete_or_repeated_scopes() {
+    let old = inventoried_fixture(&["Start boundary.", "old value", "End boundary."]);
+    let clean = inventoried_fixture(&["Start boundary.", "new value", "End boundary."]);
+    let mut detached = clean.clone();
+    detached
+        .1
+        .edges
+        .retain(|edge| edge.kind != EdgeKind::Precedes);
+    let mut missing_inventory = clean.clone();
+    missing_inventory.0.inventories.clear();
+    let mut partial = clean.clone();
+    partial.1.relations_complete = false;
+    let repeated = inventoried_fixture(&[
+        "Start boundary.",
+        "new value",
+        "End boundary.",
+        "Start boundary.",
+        "new value",
+        "End boundary.",
+    ]);
+    for new in [&detached, &missing_inventory, &partial, &repeated] {
+        let result = compare(&old, new, DocumentComparisonLimits::default());
+        assert!(result.scopes[0].result.text_scope_reviews.is_empty());
+    }
+    let mut limits = DocumentComparisonLimits::default();
+    limits.text.max_token_visits = 0;
+    let result = compare(&old, &clean, limits);
+    assert!(result.scopes[0].result.text_scope_reviews.is_empty());
+}
+
+#[test]
+fn scope_review_parent_inference_is_preserved() {
+    let nest = |mut fixture: (EvidenceStore, DocumentGraph)| {
+        let id = NodeId(
+            fixture
+                .1
+                .nodes
+                .iter()
+                .map(|node| node.id.0)
+                .max()
+                .expect("fixture root")
+                + 1,
+        );
+        for edge in &mut fixture.1.edges {
+            if edge.kind == EdgeKind::Contains && edge.from == NodeId(0) {
+                edge.from = id;
+            }
+        }
+        fixture.1.nodes.push(pdfdelta_core::document::GraphNode {
+            id,
+            kind: pdfdelta_core::document::NodeKind::Section,
+            pages: Vec::new(),
+            sources: Vec::new(),
+            identity: Some(pdfdelta_core::document::IdentityKey {
+                namespace: "inferred-section".into(),
+                value: "scope".into(),
+            }),
+            basis: ViewBasis::ReconstructedStructure,
+            content: NodeContent::Container,
+        });
+        fixture.1.edges.push(pdfdelta_core::document::GraphEdge {
+            from: NodeId(0),
+            to: id,
+            kind: EdgeKind::Contains,
+            sources: Vec::new(),
+            basis: ViewBasis::ReconstructedStructure,
+        });
+        fixture
+    };
+    let old = nest(inventoried_fixture(&[
+        "Start boundary.",
+        "a",
+        "End boundary.",
+    ]));
+    let new = nest(inventoried_fixture(&[
+        "Start boundary.",
+        "aa",
+        "End boundary.",
+    ]));
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    let reviews: Vec<_> = result
+        .scopes
+        .iter()
+        .flat_map(|scope| &scope.result.text_scope_reviews)
+        .collect();
+    assert_eq!(reviews.len(), 1);
+    assert_eq!(
+        reviews[0].comparison.interpretation,
+        InterpretationStatus::Inferred
+    );
+}
+
+#[test]
+fn scope_content_copy_is_not_an_exact_insertion_history() {
+    let old = inventoried_fixture(&["Start boundary.", "x", "End boundary."]);
+    let new = inventoried_fixture(&["Start boundary.", "x", "x", "End boundary."]);
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    let reviews = &result.scopes[0].result.text_scope_reviews;
+    assert_eq!(reviews.len(), 1);
+    let mask = reviews[0]
+        .comparison
+        .text_mask
+        .as_ref()
+        .expect("ambiguous copy mask");
+    assert_eq!(mask.claims.changed_source_lower, 1);
+    assert!(mask.old.is_empty() && mask.new.is_empty());
+    assert_eq!(reviews[0].comparison.new.len(), 2);
+    assert!(
+        !result.scopes[0]
+            .result
+            .counterpart_decisions
+            .unresolved
+            .is_empty()
+    );
+}
+
+#[test]
+fn scope_reviews_reject_acquisition_issues_and_interleaved_boundaries() {
+    let old = inventoried_fixture(&[
+        "Left alpha.",
+        "old",
+        "Right alpha.",
+        "Left beta.",
+        "second",
+        "Right beta.",
+    ]);
+    let crossed = inventoried_fixture(&[
+        "Left alpha.",
+        "new",
+        "Left beta.",
+        "Right alpha.",
+        "second",
+        "Right beta.",
+    ]);
+    let result = compare(&old, &crossed, DocumentComparisonLimits::default());
+    assert!(result.scopes[0].result.text_scope_reviews.is_empty());
+    let mut issue = inventoried_fixture(&[
+        "Left alpha.",
+        "new",
+        "Right alpha.",
+        "Left beta.",
+        "second",
+        "Right beta.",
+    ]);
+    issue.0.issues.push(pdfdelta_core::document::EvidenceIssue {
+        page: None,
+        channel: pdfdelta_core::document::Channel::Text,
+        sources: Vec::new(),
+        boundary: None,
+        kind: pdfdelta_core::document::EvidenceFailure::Unresolved,
+        reason: "unknown missing text".into(),
+    });
+    let result = compare(&old, &issue, DocumentComparisonLimits::default());
+    assert!(result.scopes[0].result.text_scope_reviews.is_empty());
+}
+
 #[test]
 fn split_and_merge_preserve_text_and_all_member_references() {
     let whole = fixture(&["α100"]);

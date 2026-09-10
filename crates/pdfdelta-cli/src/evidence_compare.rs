@@ -95,6 +95,9 @@ struct DocumentReport<'a> {
     comparison_complete: bool,
     typed_changes: usize,
     inferred_changes: usize,
+    /// Non-owning range content changes, separate from strict typed changes.
+    scope_content_changes: usize,
+    inferred_scope_changes: usize,
     coverage: Vec<ChannelCoverage>,
     old: EvidenceSummary<'a>,
     new: EvidenceSummary<'a>,
@@ -219,6 +222,16 @@ pub fn compare(
                 relation.changed() && relation.interpretation == InterpretationStatus::Inferred
             })
             .count();
+    let scope_changes = |interpretation| {
+        comparison
+            .scopes
+            .iter()
+            .flat_map(|scope| &scope.result.text_scope_reviews)
+            .filter(|review| review.comparison.interpretation == interpretation)
+            .count()
+    };
+    let scope_content_changes = scope_changes(InterpretationStatus::ConditionalOnCorrespondence);
+    let inferred_scope_changes = scope_changes(InterpretationStatus::Inferred);
     let report = DocumentReport {
         schema_version: 2,
         comparison_wall_time_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
@@ -229,6 +242,8 @@ pub fn compare(
         comparison_complete: complete,
         typed_changes: changes,
         inferred_changes,
+        scope_content_changes,
+        inferred_scope_changes,
         coverage,
         old: EvidenceSummary::new(&old),
         new: EvidenceSummary::new(&new),
@@ -242,7 +257,7 @@ pub fn compare(
         })?;
     }
     let mut text = format!(
-        "Document comparison: {}\nTyped changes: {changes}\nInferred changes: {inferred_changes}\n",
+        "Document comparison: {}\nTyped changes: {changes}\nInferred changes: {inferred_changes}\nScope content changes (B; non-owning): {scope_content_changes}\nInferred scope changes (C; non-owning): {inferred_scope_changes}\n",
         if complete { "complete" } else { "incomplete" }
     );
     for coverage in &report.coverage {

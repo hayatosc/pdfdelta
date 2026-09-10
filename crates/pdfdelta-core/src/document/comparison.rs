@@ -50,6 +50,10 @@ pub struct ScopeViewComparison {
     pub unresolved: Vec<String>,
     #[serde(default)]
     pub extraction_dependencies: Vec<super::ExtractionDependency>,
+    /// Non-owning comparisons of closed intervals. These are excluded from
+    /// strict comparison iterators, coverage, and automatic change ownership.
+    #[serde(default)]
+    pub text_scope_reviews: Vec<super::TextScopeReview>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -275,6 +279,9 @@ pub fn compare_document_views(
         document.scopes.iter_mut().map(|scope| &mut scope.result),
         limits.extraction,
     );
+    for scope in &mut document.scopes {
+        super::text_scopes::append(old, new, &mut scope.result, scope.interpretation, limits)?;
+    }
     if limits.matching.channels.relations {
         super::relations::compare_relations(
             old,
@@ -318,6 +325,13 @@ pub fn compare_scope_views(
         std::iter::once(&mut result),
         limits.extraction,
     );
+    super::text_scopes::append(
+        old,
+        new,
+        &mut result,
+        InterpretationStatus::ConditionalOnCorrespondence,
+        limits,
+    )?;
     Ok(result)
 }
 
@@ -380,6 +394,7 @@ fn compare_validated_scope(
         structural_correspondences: Vec::new(),
         unresolved: Vec::new(),
         extraction_dependencies: Vec::new(),
+        text_scope_reviews: Vec::new(),
     };
     if !source_candidates_exhaustive && incomplete_source_nodes.is_none() {
         result
