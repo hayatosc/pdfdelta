@@ -1106,7 +1106,7 @@ fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
     Document::with_vector_lines(glyphs, vector_lines)
 }
 
-const SYNTHETIC_TEXTS: [&str; 10] = [
+const SYNTHETIC_TEXTS: [&str; 16] = [
     "a",
     "b",
     " ",
@@ -1117,6 +1117,12 @@ const SYNTHETIC_TEXTS: [&str; 10] = [
     "\u{8a2d}\u{5b9a}",
     "e\u{301}",
     "-\n",
+    "release10",
+    "paragraph",
+    "value 20",
+    "unchanged.",
+    "wrap-",
+    "hyphenation",
 ];
 
 const SYNTHETIC_RENDER_MODES: [TextRenderMode; 4] = [
