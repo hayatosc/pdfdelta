@@ -208,8 +208,7 @@ pub(super) const MAX_EXPECTED_CHANGE_DIAGNOSTICS: usize = 4_096;
 pub struct ActualChange {
     pub kind: ChangeKind,
     pub occurrences: Vec<ActualChangeOccurrence>,
-    /// Number of exact hunks emitted by the source
-    /// [`ChangeEvent`](pdfdelta_core::diff::ChangeEvent).
+    /// Number of exact hunks emitted by the source [`ChangeEvent`].
     ///
     /// Event matching may coalesce exact hunks from one proved relation
     /// into one logical occurrence, but quality metrics must still report the public output's

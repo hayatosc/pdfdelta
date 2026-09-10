@@ -9,12 +9,17 @@ run = [
   "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
   "cargo test --workspace --locked",
   "cargo test --workspace --locked --all-features --lib",
+  "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps --all-features --locked",
   "cargo run -p pdfdelta-bench --locked -- verify",
 ]
 
 [tasks.fmt]
 description = "Check Rust formatting"
 run = "cargo fmt --all -- --check"
+
+[tasks.doc]
+description = "Build workspace documentation with warnings denied"
+run = "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps --all-features --locked"
 
 [tasks.clippy]
 description = "Lint every workspace target"

@@ -171,7 +171,7 @@ enum Command {
         /// Manifest describing the public revision pairs.
         #[arg(long, default_value = "benchmark/realworld/manifest.tsv")]
         manifest: PathBuf,
-        /// Directory holding downloads named <pair>-old.pdf and <pair>-new.pdf.
+        /// Directory holding downloads named `<pair>-old.pdf` and `<pair>-new.pdf`.
         #[arg(long)]
         cache_dir: PathBuf,
         /// Restrict the run to one corpus set (dev, holdout, or all).
