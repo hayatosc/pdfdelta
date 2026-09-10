@@ -798,24 +798,101 @@ fn check_text_comparison(old: &Document<Glyph>, new: &Document<Glyph>) -> bool {
     true
 }
 
-/// Exercises the shared evidence graph and solver over an arbitrary synthetic
-/// [`Document<Glyph>`].
+/// Exercises the shared evidence graph and solver over arbitrary synthetic
+/// [`Document<Glyph>`] values.
 ///
-/// Inputs larger than 64 KiB are ignored. The same store and graph are compared
-/// on both sides, so a successful comparison must not report any typed
-/// operation. Evidence, graph, and comparison errors are accepted outcomes.
+/// Inputs larger than 64 KiB are ignored. A single-byte input compares one
+/// store with itself: a successful comparison must not report any typed
+/// operation. Longer inputs split into two documents, build one store for each,
+/// and compare them through the shared solver; a successful comparison must
+/// serialize and satisfy the channel coverage contract. Evidence, graph, and
+/// comparison errors are accepted outcomes.
 ///
 /// # Panics
 ///
-/// Panics if an identity comparison of the constructed document reports a
-/// typed operation through the shared solver.
+/// Panics if an identity comparison reports a typed operation, if a pairwise
+/// comparison cannot serialize, or if channel coverage is internally
+/// inconsistent.
 #[doc(hidden)]
 pub fn fuzz_graph_pipeline(input: &[u8]) {
     if input.len() > MAX_INPUT_BYTES || input.is_empty() {
         return;
     }
-    let document = synthetic_glyph_document(input);
-    let _ = exercise_default_graph_pipeline(&document, input[0]);
+    if input.len() < 2 {
+        let document = synthetic_glyph_document(input);
+        let _ = exercise_default_graph_pipeline(&document, input[0]);
+        return;
+    }
+    let (left, right) = input.split_at(input.len() / 2);
+    let old = synthetic_glyph_document(left);
+    let new = synthetic_glyph_document(right);
+    let old_store = exercise_default_graph_pipeline(&old, input[0]);
+    let new_store = exercise_default_graph_pipeline(&new, input.get(1).copied().unwrap_or(0));
+    if let (Some(old_store), Some(new_store)) = (old_store, new_store) {
+        let _ = check_graph_pair(&old_store, &new_store);
+    }
+}
+
+fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> bool {
+    let limits = EvidenceLimits::default();
+    let Ok(old_graph) = DocumentGraph::from_evidence(
+        old_store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return false;
+    };
+    let Ok(new_graph) = DocumentGraph::from_evidence(
+        new_store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return false;
+    };
+    let old_view = DocumentView {
+        evidence: old_store,
+        graph: &old_graph,
+    };
+    let new_view = DocumentView {
+        evidence: new_store,
+        graph: &new_graph,
+    };
+    let Ok(comparison) = crate::document::compare_document_views(
+        old_view,
+        new_view,
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        DocumentComparisonLimits::default(),
+        HierarchyLimits::default(),
+    ) else {
+        return false;
+    };
+    assert!(
+        serde_json::to_vec(&comparison).is_ok(),
+        "a successful document comparison must serialize"
+    );
+    let channels = [
+        crate::document::Channel::Text,
+        crate::document::Channel::Visual,
+        crate::document::Channel::Forms,
+        crate::document::Channel::Relations,
+    ]
+    .into_iter()
+    .collect();
+    for entry in crate::document::document_coverage(old_view, new_view, &comparison, &channels) {
+        assert!(entry.old_compared_sources <= entry.old_discovered_sources);
+        assert!(entry.new_compared_sources <= entry.new_discovered_sources);
+        if entry.complete {
+            assert!(entry.old_inventory_complete && entry.new_inventory_complete);
+            assert_eq!(entry.old_uncompared_sources, 0);
+            assert_eq!(entry.new_uncompared_sources, 0);
+        }
+    }
+    true
 }
 
 /// Exercises the multichannel evidence graph and shared solver over an
@@ -827,7 +904,7 @@ pub fn fuzz_graph_pipeline(input: &[u8]) {
 /// comparison. The comparison uses the same store and graph for both sides, so
 /// a successful comparison must not report any typed operation. Evidence,
 /// graph, or comparison errors are accepted outcomes.
-fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool {
+fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> Option<EvidenceStore> {
     let mut page_ids: BTreeSet<PageId> = document.items().iter().map(|glyph| glyph.page).collect();
     page_ids.insert(PageId(0));
     let pages = page_ids
@@ -849,7 +926,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
         ExtractionOutcome::complete(document.clone()),
         limits,
     ) else {
-        return false;
+        return None;
     };
     store.backends.push(BackendIdentity {
         kind: BackendKind::Renderer,
@@ -891,7 +968,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
         let pixel_bounds = [0, 0, width, height];
         let region_id = region.id;
         let Ok(bounds) = region.pixel_bounds_in_page(pixel_bounds) else {
-            return false;
+            return None;
         };
         let ocr_backend = store.backends.len();
         store.backends.push(BackendIdentity {
@@ -1018,7 +1095,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
         limits,
         GraphLimits::default(),
     ) else {
-        return false;
+        return None;
     };
     let _ = crate::document::assess_form_appearances(&store, Default::default());
     let Ok(comparison) = crate::document::compare_document_views(
@@ -1037,7 +1114,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
         DocumentComparisonLimits::default(),
         HierarchyLimits::default(),
     ) else {
-        return false;
+        return None;
     };
     assert!(
         comparison
@@ -1045,7 +1122,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
             .all(|pair| pair.operation.is_none()),
         "identity graph comparison reported a typed operation"
     );
-    true
+    Some(store)
 }
 
 fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
@@ -1584,7 +1661,7 @@ mod tests {
             if compare_glyph_documents(&document, &document, PipelineOptions::default()).is_ok() {
                 comparison_reached += 1;
             }
-            if exercise_default_graph_pipeline(&document, seed) {
+            if exercise_default_graph_pipeline(&document, seed).is_some() {
                 graph_comparison_reached += 1;
             }
             if crate::report::render_glyph_overlay_svg(&document).is_ok() {
@@ -1614,6 +1691,30 @@ mod tests {
         // Degenerate inputs must not panic or fabricate identity changes.
         fuzz_layout_pipeline(&[0]);
         fuzz_layout_pipeline(&[255]);
+    }
+
+    #[test]
+    fn synthetic_graph_pairs_reach_the_shared_solver() {
+        let mut reached = 0;
+        for seed in 0u8..=16 {
+            let mut input = vec![seed, seed.wrapping_mul(3)];
+            input.extend((0..192u16).map(|index| (index as u8).wrapping_mul(seed.wrapping_add(5))));
+            let (left, right) = input.split_at(input.len() / 2);
+            let old = synthetic_glyph_document(left);
+            let new = synthetic_glyph_document(right);
+            if let (Some(old_store), Some(new_store)) = (
+                exercise_default_graph_pipeline(&old, input[0]),
+                exercise_default_graph_pipeline(&new, input.get(1).copied().unwrap_or(0)),
+            ) && check_graph_pair(&old_store, &new_store)
+            {
+                reached += 1;
+            }
+            fuzz_graph_pipeline(&input);
+        }
+        assert!(
+            reached >= 1,
+            "no synthetic pair reached the shared graph solver"
+        );
     }
 
     #[test]
