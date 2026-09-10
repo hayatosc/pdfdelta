@@ -2634,13 +2634,13 @@ mod tests {
         set_type3_numbers(
             &mut font,
             b"FontMatrix",
-            [0.0200043, 0.0, 0.0, 0.0200043, 0.0, 0.0],
+            [0.020_004_3, 0.0, 0.0, 0.020_004_3, 0.0, 0.0],
         );
         set_type3_numbers(&mut font, b"FontBBox", [-6.0, -11.0, 44.0, 38.0]);
         set_type3_numbers(&mut font, b"Widths", [30.0, 47.0]);
 
         let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
-        let scale = 0.0200043 * 1000.0;
+        let scale = 0.020_004_3 * 1000.0;
         let glyphs = loaded.decoder.decode(b"AB", 2, usize::MAX)?;
         assert_eq!(glyphs[0], glyph(b'A', "A", 30.0 * scale));
         assert_eq!(glyphs[1], glyph(b'B', "B", 47.0 * scale));
@@ -2650,12 +2650,12 @@ mod tests {
         set_type3_numbers(
             &mut font,
             b"FontMatrix",
-            [0.00999451, 0.0, 0.0, 0.00999451, 0.0, 0.0],
+            [0.009_994_51, 0.0, 0.0, 0.009_994_51, 0.0, 0.0],
         );
         set_type3_numbers(&mut font, b"FontBBox", [-20.8, -30.2, 131.4, 88.0]);
         set_type3_numbers(&mut font, b"Widths", [50.0, 118.8]);
         let second = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
-        let second_scale = 0.00999451 * 1000.0;
+        let second_scale = 0.009_994_51 * 1000.0;
         assert_eq!(
             second.decoder.decode(b"B", 1, usize::MAX)?[0].width_1000_em,
             118.8 * second_scale

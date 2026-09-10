@@ -909,7 +909,7 @@ mod tests {
             block_id,
             canonical_tokens: tokens,
             comparable_tokens: tokens,
-            comparable_to_canonical: &IDENTITY_BOUNDARIES[..tokens + 1],
+            comparable_to_canonical: &IDENTITY_BOUNDARIES[..=tokens],
             trusted,
             role,
         }

@@ -1075,7 +1075,7 @@ mod tests {
     #[test]
     fn parses_char_and_both_range_forms() -> Result<()> {
         let cmap = parse_to_unicode(
-            br#"
+            br"
                 2 begincodespacerange
                 <00> <7F>
                 <8100> <81FF>
@@ -1089,7 +1089,7 @@ mod tests {
                 1 beginbfrange
                 <8100> <8101> [<0066 0069> <0066 006C>]
                 endbfrange
-            "#,
+            ",
             LIMITS,
         )?;
 
@@ -1113,7 +1113,7 @@ mod tests {
     #[test]
     fn parses_standard_postscript_wrapper() -> Result<()> {
         let cmap = parse_to_unicode(
-            br#"
+            br"
                 /CIDInit /ProcSet findresource begin
                 12 dict begin
                 begincmap
@@ -1123,7 +1123,7 @@ mod tests {
                 CMapName currentdict /CMap defineresource pop
                 end
                 end
-            "#,
+            ",
             LIMITS,
         )?;
 
@@ -1134,7 +1134,7 @@ mod tests {
     #[test]
     fn parses_cid_system_info_dictionary_inside_cmap() -> Result<()> {
         let cmap = parse_to_unicode(
-            br#"
+            br"
                 /CIDInit /ProcSet findresource begin
                 12 dict begin
                 begincmap
@@ -1149,7 +1149,7 @@ mod tests {
                 CMapName currentdict /CMap defineresource pop
                 end
                 end
-            "#,
+            ",
             LIMITS,
         )?;
 

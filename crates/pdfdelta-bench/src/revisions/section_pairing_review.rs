@@ -1973,7 +1973,7 @@ mod tests {
             .expect("diagnostics produce bundle");
             let value = serde_json::to_value(report).expect("stop serializes");
             assert_eq!(value["status"], "unavailable");
-            assert_eq!(value.as_object().map(|object| object.len()), Some(2));
+            assert_eq!(value.as_object().map(serde_json::Map::len), Some(2));
             assert_eq!(object_keys(&value), ["reason", "status"]);
         }
     }

@@ -25,7 +25,7 @@ use crate::source::{
     ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
 };
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 const MAX_INPUT_BYTES: usize = 64 * 1024;
@@ -594,9 +594,9 @@ pub fn fuzz_glyph_extraction(input: &[u8]) {
         return;
     }
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let outcome = match source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS) {
-        Ok(outcome) => outcome,
-        Err(_) => return,
+    let Ok(outcome) = source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS)
+    else {
+        return;
     };
     assert!(outcome.document().items().len() <= EXTRACTION_LIMITS.max_glyphs);
     // `ExtractionOutcome::new` validates issue scopes and glyph-gap
@@ -724,14 +724,10 @@ pub fn fuzz_graph_pipeline(input: &[u8]) {
 /// must not report any typed operation. Evidence, graph, or comparison errors
 /// are accepted outcomes.
 fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool {
-    let mut page_ids: BTreeMap<PageId, ()> = document
-        .items()
-        .iter()
-        .map(|glyph| (glyph.page, ()))
-        .collect();
-    page_ids.entry(PageId(0)).or_default();
+    let mut page_ids: BTreeSet<PageId> = document.items().iter().map(|glyph| glyph.page).collect();
+    page_ids.insert(PageId(0));
     let pages = page_ids
-        .into_keys()
+        .into_iter()
         .map(|page| PageEvidence { page, bounds: None })
         .collect();
     let limits = EvidenceLimits::default();

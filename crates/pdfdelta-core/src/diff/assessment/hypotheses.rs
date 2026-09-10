@@ -166,7 +166,7 @@ fn evaluate_pair<T: Eq + Hash>(
     let old_residual = project(old.residual, old_indices)?;
     let new_residual = project(new.residual, new_indices)?;
 
-    let literal = match claims::literal_claims(
+    let Some(literal) = claims::literal_claims(
         &old_values,
         &new_values,
         &old_source,
@@ -174,9 +174,9 @@ fn evaluate_pair<T: Eq + Hash>(
         &old_residual,
         &new_residual,
         remaining_work,
-    )? {
-        Some(claims) => claims,
-        None => return Ok(false),
+    )?
+    else {
+        return Ok(false);
     };
     let update_work = old_indices
         .len()

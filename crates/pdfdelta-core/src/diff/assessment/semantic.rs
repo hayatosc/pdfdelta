@@ -143,9 +143,8 @@ where
         }
     }
 
-    let suffix = match build_suffix(old, new, remaining_work)? {
-        Some(suffix) => suffix,
-        None => return Ok(Outcome::BudgetExceeded),
+    let Some(suffix) = build_suffix(old, new, remaining_work)? else {
+        return Ok(Outcome::BudgetExceeded);
     };
     enumerate_paths(
         old,

@@ -3733,16 +3733,20 @@ fn granular_relation(scores: impl IntoIterator<Item = u16>) -> RecoveryWatchGran
         ..RecoveryWatchGranularRelation::default()
     };
     for (partner, score) in scores.into_iter().enumerate() {
-        if score > relation.best_score {
-            relation.second_score = relation.best_score;
-            relation.best_score = score;
-            relation.partner_index = Some(partner);
-            relation.tied_for_best = false;
-        } else if score == relation.best_score {
-            relation.second_score = score;
-            relation.tied_for_best = true;
-        } else {
-            relation.second_score = relation.second_score.max(score);
+        match score.cmp(&relation.best_score) {
+            std::cmp::Ordering::Greater => {
+                relation.second_score = relation.best_score;
+                relation.best_score = score;
+                relation.partner_index = Some(partner);
+                relation.tied_for_best = false;
+            }
+            std::cmp::Ordering::Equal => {
+                relation.second_score = score;
+                relation.tied_for_best = true;
+            }
+            std::cmp::Ordering::Less => {
+                relation.second_score = relation.second_score.max(score);
+            }
         }
     }
     if relation.best_score == 0 {
@@ -8596,17 +8600,21 @@ struct RunBest {
 
 impl RunBest {
     fn record(&mut self, partner: usize, score: RunSignatureScore) {
-        if score > self.score {
-            self.second = self.score;
-            self.score = score;
-            self.partner = Some(partner);
-            self.ambiguous = false;
-        } else if score == self.score {
-            self.second = self.second.max(score);
-            self.partner = None;
-            self.ambiguous = true;
-        } else {
-            self.second = self.second.max(score);
+        match score.cmp(&self.score) {
+            std::cmp::Ordering::Greater => {
+                self.second = self.score;
+                self.score = score;
+                self.partner = Some(partner);
+                self.ambiguous = false;
+            }
+            std::cmp::Ordering::Equal => {
+                self.second = self.second.max(score);
+                self.partner = None;
+                self.ambiguous = true;
+            }
+            std::cmp::Ordering::Less => {
+                self.second = self.second.max(score);
+            }
         }
     }
 
@@ -32914,7 +32922,7 @@ mod tests {
         }
     }
 
-    fn page_anchor_test_side<'a>(blocks: &'a [BlockText]) -> Side<'a> {
+    fn page_anchor_test_side(blocks: &[BlockText]) -> Side<'_> {
         let canonical = blocks
             .iter()
             .map(|block| block.matching_tokens.clone())
@@ -35585,14 +35593,14 @@ mod tests {
                         .trusted_position
                         .as_mut()
                         .expect("fixture is positioned")
-                        .ordinal = 2
+                        .ordinal = 2;
                 }
                 1 => {
                     occurrences[1]
                         .trusted_position
                         .as_mut()
                         .expect("fixture is positioned")
-                        .stream_index = 1
+                        .stream_index = 1;
                 }
                 2 => occurrences[1].span_index = Some(1),
                 3 => occurrences[1].role = Some(BlockRole::RepeatedHeader),
@@ -42963,7 +42971,7 @@ mod tests {
         let output_ranges_before = budget.output_ranges;
         let output_tokens_before = budget.output_tokens;
 
-        assert!(
+        assert_eq!(
             append_isolated_exact_tail_matches(
                 &mut plan,
                 &mut old_occurrences,
@@ -42972,9 +42980,8 @@ mod tests {
                 1,
                 &mut budget,
                 &census,
-            ) == ExactTailAppendOutcome::Unavailable(
-                ExactTailRecoveryStopReason::OverlappingRanges,
-            )
+            ),
+            ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::OverlappingRanges,)
         );
         assert!(plan.matches.is_empty());
         assert_eq!(plan.deletion_consumed, [old_range]);
@@ -42999,7 +43006,7 @@ mod tests {
         let output_ranges_before = budget.output_ranges;
         let output_tokens_before = budget.output_tokens;
 
-        assert!(
+        assert_eq!(
             append_isolated_exact_tail_matches(
                 &mut plan,
                 &mut old_occurrences,
@@ -43008,9 +43015,8 @@ mod tests {
                 1,
                 &mut budget,
                 &census,
-            ) == ExactTailAppendOutcome::Unavailable(
-                ExactTailRecoveryStopReason::OutputCommitFailed,
-            )
+            ),
+            ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::OutputCommitFailed,)
         );
         assert!(plan.matches.is_empty());
         assert!(plan.deletion_consumed.is_empty());
@@ -43777,13 +43783,12 @@ mod tests {
                 Some(BlockRole::Body),
             ),
         ];
-        let index_error = match SentenceEdgeSignatureIndex::new_with_allocation_failure_after(
+        let Err(index_error) = SentenceEdgeSignatureIndex::new_with_allocation_failure_after(
             &candidates,
             CandidatePostingIndexScope::Global,
             1,
-        ) {
-            Ok(_) => panic!("injected index allocation failure must be reported"),
-            Err(error) => error,
+        ) else {
+            panic!("injected index allocation failure must be reported");
         };
         let mut index_shadow = SentenceEdgeSignatureShadow::new(
             8,
@@ -44617,7 +44622,7 @@ mod tests {
         .expect("baseline signature index fits");
         let metrics = baseline.metrics();
         let distinct_keys = metrics.own_distinct_keys + metrics.all_distinct_keys;
-        let probe = match SentenceEdgeSignatureIndex::new_with_limits(
+        let Err(probe) = SentenceEdgeSignatureIndex::new_with_limits(
             &occurrences,
             CandidatePostingIndexScope::Global,
             SentenceEdgeSignatureIndexBuildLimits {
@@ -44625,9 +44630,8 @@ mod tests {
                 distinct_keys,
                 estimated_logical_bytes: metrics.estimated_logical_bytes,
             },
-        ) {
-            Ok(_) => panic!("completed bytes exclude the transition peak"),
-            Err(error) => error,
+        ) else {
+            panic!("completed bytes exclude the transition peak");
         };
         let SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
             attempted: transition_peak,
@@ -44993,14 +44997,14 @@ mod tests {
         let mut direct_order = empty;
         direct_order
             .record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 1, 2)
-            .and_then(|_| {
+            .and_then(|()| {
                 direct_order.record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 3, 4)
             })
             .expect("fingerprints record");
         let mut reference_order = empty;
         reference_order
             .record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 3, 4)
-            .and_then(|_| {
+            .and_then(|()| {
                 reference_order.record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 1, 2)
             })
             .expect("fingerprints record");

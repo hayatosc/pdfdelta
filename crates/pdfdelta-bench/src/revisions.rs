@@ -14819,9 +14819,7 @@ fn create_temp_artifact_with_counter(
             .open(&temp_path)
         {
             Ok(file) => return Ok((file, temp_path)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                continue;
-            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => {
                 return Err(BenchError::Publication(format!(
                     "cannot create temporary artifact {}: {error}",
@@ -29717,7 +29715,7 @@ mod tests {
         report_a.candidate_visits = Some(999);
 
         let mut report_b = base;
-        report_b.runtime_ms = 888888;
+        report_b.runtime_ms = 888_888;
         report_b.candidate_visits = Some(12345);
 
         let summary_a = RevisionSummaryReport::from_reports(&[report_a]);

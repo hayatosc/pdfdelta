@@ -804,18 +804,16 @@ impl BlockText {
         } else {
             extent(offset)?.start
         };
-        Some(if left == right {
-            RawBoundary::Exact(left)
-        } else if left > right {
-            RawBoundary::WithinSource(ScalarRange {
+        Some(match left.cmp(&right) {
+            std::cmp::Ordering::Equal => RawBoundary::Exact(left),
+            std::cmp::Ordering::Greater => RawBoundary::WithinSource(ScalarRange {
                 start: right,
                 end: left,
-            })
-        } else {
-            RawBoundary::Ambiguous(ScalarRange {
+            }),
+            std::cmp::Ordering::Less => RawBoundary::Ambiguous(ScalarRange {
                 start: left,
                 end: right,
-            })
+            }),
         })
     }
 

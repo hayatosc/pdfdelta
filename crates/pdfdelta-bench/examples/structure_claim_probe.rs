@@ -212,16 +212,14 @@ struct CountCell {
 }
 
 fn combine(left: CountCell, right: CountCell) -> CountCell {
-    if left.lcs > right.lcs {
-        left
-    } else if right.lcs > left.lcs {
-        right
-    } else {
-        CountCell {
+    match left.lcs.cmp(&right.lcs) {
+        std::cmp::Ordering::Greater => left,
+        std::cmp::Ordering::Less => right,
+        std::cmp::Ordering::Equal => CountCell {
             lcs: left.lcs,
             min_matched: left.min_matched.min(right.min_matched),
             max_matched: left.max_matched.max(right.max_matched),
-        }
+        },
     }
 }
 
@@ -1145,10 +1143,7 @@ fn parse_stamp_candidate_at(source: &[char], start: usize) -> Option<StampCandid
     }
     let version_start = cursor + 1;
     cursor = version_start;
-    while source
-        .get(cursor)
-        .is_some_and(|character| character.is_ascii_digit())
-    {
+    while source.get(cursor).is_some_and(char::is_ascii_digit) {
         cursor += 1;
     }
     if cursor == version_start || !source.get(cursor).is_some_and(char::is_ascii_whitespace) {
@@ -1188,10 +1183,7 @@ fn parse_stamp_candidate_at(source: &[char], start: usize) -> Option<StampCandid
     }
     let date_start = cursor;
     let day_start = cursor;
-    while source
-        .get(cursor)
-        .is_some_and(|character| character.is_ascii_digit())
-    {
+    while source.get(cursor).is_some_and(char::is_ascii_digit) {
         cursor += 1;
     }
     let day_length = cursor.saturating_sub(day_start);
@@ -1203,10 +1195,7 @@ fn parse_stamp_candidate_at(source: &[char], start: usize) -> Option<StampCandid
         cursor += 1;
     }
     for _ in 0..3 {
-        if !source
-            .get(cursor)
-            .is_some_and(|character| character.is_ascii_alphabetic())
-        {
+        if !source.get(cursor).is_some_and(char::is_ascii_alphabetic) {
             return None;
         }
         cursor += 1;
@@ -1218,10 +1207,7 @@ fn parse_stamp_candidate_at(source: &[char], start: usize) -> Option<StampCandid
         cursor += 1;
     }
     for _ in 0..4 {
-        if !source
-            .get(cursor)
-            .is_some_and(|character| character.is_ascii_digit())
-        {
+        if !source.get(cursor).is_some_and(char::is_ascii_digit) {
             return None;
         }
         cursor += 1;
@@ -1262,7 +1248,7 @@ fn find_unique_case_folded(text: &[char], needle: &str) -> ProbeResult<Range<usi
         .filter_map(|start| {
             text[start..start + needle.len()]
                 .iter()
-                .map(|character| character.to_ascii_lowercase())
+                .map(char::to_ascii_lowercase)
                 .eq(needle.iter().copied())
                 .then_some(start..start + needle.len())
         })

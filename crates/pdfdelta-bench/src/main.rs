@@ -184,7 +184,7 @@ enum Command {
         /// alignment candidate visits, alignment DP cells, diff token and
         /// edit-distance limits) uniformly by this factor (>= 1); parser and
         /// extraction limits are untouched. When omitted, every pair uses
-        /// the limit_scale_hint recorded in the manifest.
+        /// the `limit_scale_hint` recorded in the manifest.
         #[arg(long)]
         limit_scale: Option<f64>,
         /// Verify downloads and checksums without running comparisons.
@@ -874,10 +874,8 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
 
     Ok(if execution_error {
         2
-    } else if passed == total {
-        0
     } else {
-        1
+        u8::from(passed != total)
     })
 }
 
@@ -998,10 +996,8 @@ fn candidates<W: Write>(
 
     Ok(if execution_error {
         2
-    } else if records.iter().any(|record| !record.healthy()) {
-        1
     } else {
-        0
+        u8::from(records.iter().any(|record| !record.healthy()))
     })
 }
 
@@ -1075,7 +1071,7 @@ fn candidate_profile<W: Write>(
         write_candidate_profiles_json(path, &records).map_err(|error| error.to_string())?;
     }
 
-    Ok(if healthy == records.len() { 0 } else { 1 })
+    Ok(u8::from(healthy != records.len()))
 }
 
 fn sensitivity<W: Write>(writer: &mut W, json_output: Option<&Path>) -> Result<u8, String> {
@@ -1354,11 +1350,7 @@ fn revisions<W: Write>(
         write_evaluation_summary_json(path, &reports).map_err(|error| error.to_string())?;
     }
 
-    Ok(if reports.iter().any(|record| !record.healthy()) {
-        1
-    } else {
-        0
-    })
+    Ok(u8::from(reports.iter().any(|record| !record.healthy())))
 }
 
 fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> String {

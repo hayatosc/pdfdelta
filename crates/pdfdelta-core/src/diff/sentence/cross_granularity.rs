@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[allow(clippy::wildcard_imports)]
 use super::*;
 
 const MAX_CROSS_GRANULARITY_SUBSTITUTIONS: usize = 2;
@@ -1201,7 +1202,7 @@ mod tests {
         occurrence
     }
 
-    fn cross_granularity_test_side<'a>(blocks: &'a [crate::normalize::BlockText]) -> Side<'a> {
+    fn cross_granularity_test_side(blocks: &[crate::normalize::BlockText]) -> Side<'_> {
         let index = blocks
             .iter()
             .enumerate()
@@ -1356,7 +1357,7 @@ mod tests {
             .iter()
             .filter_map(|token| match token {
                 ComparableToken::Scalar(scalar) => Some(*scalar),
-                _ => None,
+                ComparableToken::Unmapped { .. } => None,
             })
             .collect::<String>();
         let near = exact.replacen('.', ";", 1).replacen('F', "f", 1);

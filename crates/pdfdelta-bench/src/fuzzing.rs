@@ -56,7 +56,7 @@ pub fn fuzz_canonical_yaml(input: &[u8]) {
 mod tests {
     use super::*;
 
-    const VALID_YAML: &str = r#"
+    const VALID_YAML: &str = r"
 document:
   title: Quarterly Service Report
   sections:
@@ -65,7 +65,7 @@ document:
       paragraphs:
         - id: availability-p1
           text: Release 10 remains available during the transition.
-"#;
+";
 
     #[test]
     fn valid_canonical_yaml_reaches_success_path() {

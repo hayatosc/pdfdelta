@@ -1890,7 +1890,7 @@ mod tests {
             expected_start = span.end() + 1;
         }
         assert_eq!(
-            spans.last().map_or(0, |span| span.end()),
+            spans.last().map_or(0, super::CanonicalParagraphSpan::end),
             rendered_scalar_count
         );
     }
@@ -1923,7 +1923,7 @@ mod tests {
         assert_eq!(
             old_spans
                 .iter()
-                .map(|span| span.paragraph_id())
+                .map(super::CanonicalParagraphSpan::paragraph_id)
                 .collect::<Vec<_>>(),
             vec!["intro", "metrics", "closing"]
         );
@@ -1943,7 +1943,7 @@ mod tests {
     #[test]
     fn structured_column_change_keeps_surrounding_sections_full_width() {
         let document = CanonicalRenderDocument::from_yaml(
-            r#"
+            r"
 document:
   title: Column report
   sections:
@@ -1968,7 +1968,7 @@ document:
       paragraphs:
         - id: conclusion-p1
           text: Closing context
-"#,
+",
         )
         .expect("test YAML is valid");
         let plan = Mutation::ColumnChangeInSection {

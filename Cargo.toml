@@ -32,14 +32,62 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
-correctness = "deny"
+pedantic = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
 dbg_macro = "deny"
-suspicious = "deny"
+suspicious = { level = "deny", priority = -1 }
 todo = "deny"
 unimplemented = "deny"
 # `expect_used` stays unset: explicit `expect` is reserved for locally proven
 # invariants and test setup, and its message must explain why failure is impossible.
 unwrap_used = "deny"
+
+# Numeric evidence code converts between bounded geometry, token, and index
+# spaces. Every conversion is guarded by validated finite evidence and explicit
+# count limits; spelling each one as `try_from` with an unwrap would obscure the
+# math without adding a checked boundary.
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+cast_lossless = "allow"
+# Exact canonical comparisons are the contract: evidence is compared bit for
+# bit, and near-equality would merge distinct source declarations.
+float_cmp = "allow"
+# Owned evidence flows through the pipeline by value; borrowing would extend
+# lifetimes across stages without removing work.
+large_types_passed_by_value = "allow"
+needless_pass_by_value = "allow"
+# Exhaustive state machines, solver stages, and fixture tables are intentionally
+# long; splitting them for a line threshold would hurt traceability.
+too_many_lines = "allow"
+# Error contracts are typed by `Error`, `BenchError`, and `RecoveryOwnershipError`
+# and documented where they differ; per-function sections would repeat them.
+missing_errors_doc = "allow"
+# Domain vocabulary deliberately reuses related names, shared prefixes, and
+# single-letter geometry coordinates.
+similar_names = "allow"
+struct_field_names = "allow"
+many_single_char_names = "allow"
+# `Option<Option<T>>` distinguishes unknown evidence from an absent declaration.
+option_option = "allow"
+# Data carriers legitimately hold several independent boolean flags.
+struct_excessive_bools = "allow"
+# Large local arrays are bounded test fixtures.
+large_stack_arrays = "allow"
+# Return-shape and module-layout pedantry: these are deliberate API and file
+# organization choices rather than defects.
+unnecessary_wraps = "allow"
+items_after_statements = "allow"
+default_trait_access = "allow"
+match_same_arms = "allow"
+format_push_string = "allow"
+format_collect = "allow"
+unused_self = "allow"
+trivially_copy_pass_by_ref = "allow"
+ref_option = "allow"
+if_not_else = "allow"
+missing_panics_doc = "allow"
 
 [profile.release]
 lto = "thin"

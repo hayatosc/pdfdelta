@@ -576,7 +576,7 @@ mod tests {
         }
     }
 
-    fn side<'a>(blocks: &'a [BlockText]) -> super::super::super::Side<'a> {
+    fn side(blocks: &[BlockText]) -> super::super::super::Side<'_> {
         super::super::super::SidePlan::inspect("test", blocks)
             .expect("test blocks are valid")
             .materialize()

@@ -305,15 +305,15 @@ mod tests {
         max_pairs: 32,
     };
 
-    fn candidate<'a>(
+    fn candidate(
         id: usize,
         block_id: u64,
         range: std::ops::Range<usize>,
         role: BlockRole,
         span: usize,
         hash: u64,
-        tokens: &'a [u8],
-    ) -> TrustedResidualCandidate<'a, u8> {
+        tokens: &[u8],
+    ) -> TrustedResidualCandidate<'_, u8> {
         TrustedResidualCandidate {
             range: TrustedResidualRange {
                 candidate_id: id,

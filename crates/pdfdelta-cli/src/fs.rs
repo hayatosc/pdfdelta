@@ -292,7 +292,7 @@ pub fn create_temporary_output_for(
         }
         match options.open(&temporary_path) {
             Ok(file) => return Ok((temporary_path, file)),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => {
                 return Err(format!(
                     "cannot create temporary {output_kind} next to {}: {error}",

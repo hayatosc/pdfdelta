@@ -1152,7 +1152,7 @@ mod tests {
         }
     }
 
-    fn side<'a>(blocks: &'a [crate::normalize::BlockText]) -> Side<'a> {
+    fn side(blocks: &[crate::normalize::BlockText]) -> Side<'_> {
         super::super::super::SidePlan::inspect("test", blocks)
             .expect("test blocks are valid")
             .materialize()

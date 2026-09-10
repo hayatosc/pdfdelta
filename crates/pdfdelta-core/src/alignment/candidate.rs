@@ -877,7 +877,7 @@ fn compute_minhash_signature(ngrams: &NGramCounts, num_hashes: usize) -> Vec<u64
     let mut signature = vec![u64::MAX; num_hashes];
     for &h in &ngram_hashes {
         for (i, slot) in signature.iter_mut().enumerate() {
-            let val = mix64(h ^ (i as u64).wrapping_mul(0x9e3779b97f4a7c15));
+            let val = mix64(h ^ (i as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15));
             if val < *slot {
                 *slot = val;
             }
@@ -918,8 +918,8 @@ fn hash_u64_slice(slice: &[u64]) -> u64 {
 }
 
 fn mix64(mut z: u64) -> u64 {
-    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
     z ^ (z >> 31)
 }
 

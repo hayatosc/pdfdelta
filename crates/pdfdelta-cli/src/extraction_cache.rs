@@ -436,10 +436,10 @@ mod tests {
         // non-roundtrip float parser. The cache must preserve them exactly so
         // cached and fresh extraction produce identical comparison evidence.
         let mut sample = glyph(1);
-        sample.bbox.min.x = 118.74473953002929;
-        sample.bbox.max.x = 111.22514000000001;
-        sample.baseline.x = 147.69013999999999;
-        sample.baseline.y = 220.15813966430665;
+        sample.bbox.min.x = 118.744_739_530_029_29;
+        sample.bbox.max.x = 111.225_140_000_000_01;
+        sample.baseline.x = 147.690_139_999_999_99;
+        sample.baseline.y = 220.158_139_664_306_65;
         let outcome = ExtractionOutcome::complete(Document::new(vec![sample.clone()]));
         cache.store(&key, &outcome);
 

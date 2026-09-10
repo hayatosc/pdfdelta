@@ -1559,7 +1559,7 @@ pub(super) fn evaluate_scoped_token_metrics(
     scopes: &[ResolvedScope],
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
-    _recovered_atomic_diffs: &[RecoveredAtomicDiff],
+    recovered_atomic_diffs: &[RecoveredAtomicDiff],
 ) -> Result<ScopedTokenMetrics, String> {
     evaluate_scoped_token_metrics_with_limits(
         changes,
@@ -1567,7 +1567,7 @@ pub(super) fn evaluate_scoped_token_metrics(
         scopes,
         old_blocks,
         new_blocks,
-        _recovered_atomic_diffs,
+        recovered_atomic_diffs,
         ClassificationLimits::default(),
     )
     .map_err(token_metrics_error)
