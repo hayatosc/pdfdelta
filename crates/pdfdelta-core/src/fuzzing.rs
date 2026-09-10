@@ -909,6 +909,7 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
 ///
 /// Panics if evidence produced by form or structure extraction fails validation.
 #[doc(hidden)]
+#[must_use]
 pub fn fuzz_native_evidence(input: &[u8]) -> bool {
     if input.len() > MAX_INPUT_BYTES {
         return false;
