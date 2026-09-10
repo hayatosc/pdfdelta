@@ -1,0 +1,590 @@
+[
+  {
+    "repeat": 0,
+    "route": "text",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 1.04,
+    "peak_rss_kib": 98504,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "text",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.8,
+    "peak_rss_kib": 99312,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "all",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.98,
+    "peak_rss_kib": 97840,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "all",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.9,
+    "peak_rss_kib": 98020,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 1,
+    "route": "text",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.75,
+    "peak_rss_kib": 98768,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 1,
+    "route": "text",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.83,
+    "peak_rss_kib": 98532,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 1,
+    "route": "all",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.97,
+    "peak_rss_kib": 98740,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 1,
+    "route": "all",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.97,
+    "peak_rss_kib": 99936,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 2,
+    "route": "text",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.79,
+    "peak_rss_kib": 96964,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 2,
+    "route": "text",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.79,
+    "peak_rss_kib": 97880,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 2,
+    "route": "all",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.89,
+    "peak_rss_kib": 98688,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 2,
+    "route": "all",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.91,
+    "peak_rss_kib": 97588,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 3,
+    "route": "text",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.78,
+    "peak_rss_kib": 98924,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 3,
+    "route": "text",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.77,
+    "peak_rss_kib": 99404,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 3,
+    "route": "all",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.99,
+    "peak_rss_kib": 100136,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 3,
+    "route": "all",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.96,
+    "peak_rss_kib": 99644,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 4,
+    "route": "text",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.77,
+    "peak_rss_kib": 97400,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 4,
+    "route": "text",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.77,
+    "peak_rss_kib": 98360,
+    "contract_sha256": "98a119cc1afce4b0b458142906e487d9897c5a4a8246cafa7a710038db2b47f5",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 62
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 4,
+    "route": "all",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.94,
+    "peak_rss_kib": 98764,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 147788,
+        "feature_entries": 9407,
+        "index_entries": 0,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 4,
+    "route": "all",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 1.0,
+    "peak_rss_kib": 98648,
+    "contract_sha256": "21d943da4803f623905db54973ad30dd0d9508da7aaad0c736c4e4406c7162d6",
+    "scopes": [
+      {
+        "source_complete": true,
+        "text_complete": true,
+        "text_pairs": 36,
+        "token_visits": 81034,
+        "feature_entries": 9407,
+        "index_entries": 4935,
+        "proposals": 107
+      }
+    ],
+    "pair": "irs-w4-korean-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "text",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.46,
+    "peak_rss_kib": 33660,
+    "contract_sha256": "ed0635624e77659ea153ee1821510906e626776b684cc2dedcca4c41b8c0c197",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 81
+      }
+    ],
+    "pair": "irs-form-1040-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "text",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.44,
+    "peak_rss_kib": 33640,
+    "contract_sha256": "ed0635624e77659ea153ee1821510906e626776b684cc2dedcca4c41b8c0c197",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 81
+      }
+    ],
+    "pair": "irs-form-1040-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "all",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 0.52,
+    "peak_rss_kib": 33780,
+    "contract_sha256": "d303f0a71059b7e596ea9ad3df7845810c87e7a87668171ca1b2f2aed4320b16",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 152
+      }
+    ],
+    "pair": "irs-form-1040-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "all",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 0.51,
+    "peak_rss_kib": 34204,
+    "contract_sha256": "d303f0a71059b7e596ea9ad3df7845810c87e7a87668171ca1b2f2aed4320b16",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 152
+      }
+    ],
+    "pair": "irs-form-1040-2024-to-2025"
+  },
+  {
+    "repeat": 0,
+    "route": "text",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 27.89,
+    "peak_rss_kib": 443968,
+    "contract_sha256": "aab89dbbeb6ed2d9ccf587109d3850d72d58a7256d3cf45fef1754048556a221",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 627
+      }
+    ],
+    "pair": "edpb-right-of-access-v1-to-final"
+  },
+  {
+    "repeat": 0,
+    "route": "text",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 28.58,
+    "peak_rss_kib": 442424,
+    "contract_sha256": "aab89dbbeb6ed2d9ccf587109d3850d72d58a7256d3cf45fef1754048556a221",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 627
+      }
+    ],
+    "pair": "edpb-right-of-access-v1-to-final"
+  },
+  {
+    "repeat": 0,
+    "route": "all",
+    "engine": "baseline",
+    "exit_code": 3,
+    "elapsed_seconds": 28.68,
+    "peak_rss_kib": 443596,
+    "contract_sha256": "19bd772a7d08cbe00063615f7efc381f44912cfe22b481b37b7c6a30c9c3b7c1",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 627
+      }
+    ],
+    "pair": "edpb-right-of-access-v1-to-final"
+  },
+  {
+    "repeat": 0,
+    "route": "all",
+    "engine": "candidate",
+    "exit_code": 3,
+    "elapsed_seconds": 30.44,
+    "peak_rss_kib": 442860,
+    "contract_sha256": "19bd772a7d08cbe00063615f7efc381f44912cfe22b481b37b7c6a30c9c3b7c1",
+    "scopes": [
+      {
+        "source_complete": false,
+        "text_complete": false,
+        "text_pairs": 0,
+        "token_visits": 0,
+        "feature_entries": 0,
+        "index_entries": 0,
+        "proposals": 627
+      }
+    ],
+    "pair": "edpb-right-of-access-v1-to-final"
+  }
+]
