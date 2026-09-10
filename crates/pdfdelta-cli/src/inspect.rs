@@ -10,7 +10,10 @@ use pdfdelta_core::{
     source::{ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits},
 };
 
-use crate::fs::{parse_external_font_identities, parse_lopdf, read_limited, read_password_file};
+use crate::fs::{
+    parse_external_font_identities, parse_lopdf, paths_refer_to_same_file, read_limited,
+    read_password_file, write_output_atomically,
+};
 
 pub fn inspect_document(
     path: &Path,
@@ -22,6 +25,15 @@ pub fn inspect_document(
     font_identity: &[String],
 ) -> Result<(), String> {
     let backend_info = backend_info || (!glyphs && !objects && svg.is_none());
+    if let Some(svg_path) = svg
+        && paths_refer_to_same_file(svg_path, path, "SVG output collision")?
+    {
+        return Err(format!(
+            "refusing SVG output {} because it refers to the inspected PDF {}",
+            svg_path.display(),
+            path.display()
+        ));
+    }
     let limits = ParseLimits::default();
     let bytes = read_limited(path, limits.max_input_bytes)?;
     let password = password_file.map(read_password_file).transpose()?;
@@ -213,15 +225,10 @@ pub fn inspect_svg(
         )
         .map_err(inspect_error(path))?;
     let document = outcome.document();
-    let mut file = std::fs::File::create(svg_path).map_err(|error| {
-        format!(
-            "cannot create svg output file {}: {error}",
-            svg_path.display()
-        )
-    })?;
-    pdfdelta_core::report::write_glyph_overlay_svg(document, &mut file)
-        .map_err(|error| format!("cannot render svg overlay for {}: {error}", path.display()))?;
-    Ok(())
+    write_output_atomically(svg_path, "SVG overlay", |writer| {
+        pdfdelta_core::report::write_glyph_overlay_svg(document, writer)
+            .map_err(|error| format!("cannot render svg overlay for {}: {error}", path.display()))
+    })
 }
 
 pub fn write_inspection_line<W: Write>(

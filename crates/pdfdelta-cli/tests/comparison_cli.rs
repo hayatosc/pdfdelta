@@ -203,6 +203,46 @@ fn inspect_with_svg_flag_renders_valid_svg_file() {
 }
 
 #[test]
+fn inspect_svg_refuses_to_alias_or_overwrite_outputs() {
+    let directory = TestDirectory::new();
+    let document = directory.join("document.pdf");
+    write_pdf(&document, &["Testing SVG glyph overlay rendering"]);
+    let original = fs::read(&document).expect("input PDF should be readable");
+
+    // The SVG destination must not refer to the inspected PDF.
+    let aliased = inspect(&document, &["--svg", path_text(&document)]);
+    assert_eq!(aliased.status.code(), Some(2), "{}", stderr(&aliased));
+    assert!(
+        stderr(&aliased).contains("refers to the inspected PDF"),
+        "{}",
+        stderr(&aliased)
+    );
+    assert_eq!(
+        fs::read(&document).expect("input PDF should remain readable"),
+        original,
+        "refused SVG output must not modify the inspected PDF"
+    );
+
+    // Existing output files are never replaced.
+    let svg_path = directory.join("overlay.svg");
+    let first = inspect(&document, &["--svg", path_text(&svg_path)]);
+    assert_eq!(first.status.code(), Some(0), "{}", stderr(&first));
+    let published = fs::read(&svg_path).expect("published SVG should be readable");
+    let second = inspect(&document, &["--svg", path_text(&svg_path)]);
+    assert_eq!(second.status.code(), Some(2), "{}", stderr(&second));
+    assert!(
+        stderr(&second).contains("already exists"),
+        "{}",
+        stderr(&second)
+    );
+    assert_eq!(
+        fs::read(&svg_path).expect("published SVG should remain readable"),
+        published,
+        "a refused overwrite must leave the published SVG unchanged"
+    );
+}
+
+#[test]
 fn replacement_exits_one() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
