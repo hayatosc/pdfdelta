@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "pair": "irs-form-3800-old-identical-control",
+  "reviewed_on": "2026-09-11",
+  "annotation": "partial",
+  "notes": "Complete literal first-page terminal scope of identical old input; every reviewed source scalar must be compared without change.",
+  "scopes": [
+    {
+      "id": "first-page-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2023) ",
+        "end_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2023) "
+      },
+      "new": {
+        "start_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2023) ",
+        "end_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2023) "
+      }
+    }
+  ],
+  "changes": []
+}

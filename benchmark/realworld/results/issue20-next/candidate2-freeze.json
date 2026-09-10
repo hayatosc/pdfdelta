@@ -1,0 +1,73 @@
+{
+  "status": "frozen_replay_scored_unseen2_validation_failed",
+  "frozen_at_utc": "2026-09-10T12:31:50.706481+00:00",
+  "source_revision": "356b7f518da651649bb2db745bdf8139139d2576",
+  "source_changes_at_build": true,
+  "directory": "/tmp/pdfdelta-issue20-candidate2",
+  "build_command": "cargo build --release --locked -p pdfdelta-cli -p pdfdelta-bench",
+  "pdfdelta_sha256": "585f99b4c6506957bc6623948d83649f078f63c0425f120bed882964a2f8ad69",
+  "pdfbench_sha256": "79b6f47f6f349e3d16b48ad07e072d07a6ce3e20a78791700a5d025a793963ff",
+  "source_archive_sha256": "a0f5166da962fe77e8292854ef1b43a8edf94f6b7425e72dd655c285b374615b",
+  "tracked_patch_sha256": "91137f0d6b0e47bffc9d056134096addecb90e5c5e1ee5e8d926d3debfae991f",
+  "source_archive_contents": "Cargo.toml, Cargo.lock, crates, and ISSUE20_GOAL_PLAN.md, including untracked source files.",
+  "configuration": {
+    "path": "candidate2-limits.txt",
+    "sha256": "08a4cce8fad678987173bd068e3cb6928a0a0b123113eabd3abb95caf8d47c1c"
+  },
+  "inventory_sha256": "5bafe80fa0af3764255f3f13c2186ca00400afdfea68e6c61c313ea90b8c56cb",
+  "tasks_sha256": "9f7c94d74d1fb20ae0b4922f46f21c2eec14e4d18edc1b4420b43082399ae203",
+  "matching_objective": "scoped_identity_then_literal_then_inferred_structure_v3",
+  "counterpart_decision_policy": "preserve_unmatched_alternatives_v1",
+  "native_key_policy": "native_document_keys_v1",
+  "scoped_key_policy": "native_key_membership_v1",
+  "source_contract": "audited-source-contract.json",
+  "routes": [
+    "native",
+    "shared_text",
+    "shared_all"
+  ],
+  "changes_since_prior_candidate": "Exact group successor accounting charges examined tokens; conflict exhaustion remains local to indexed dependency components and their consumers.",
+  "checks": {
+    "fmt": "passed",
+    "clippy_workspace_all_targets_deny_warnings": "passed",
+    "workspace_tests": "passed",
+    "generated_verification": "48/48 policy cells, 42/48 strict cells; six retained ambiguous cells"
+  },
+  "excluded_consumed_series": [
+    "Every series in existing corpora and prior issue trials, including ECMA-404 and HTTP Problem Details RFC 7807/9457"
+  ],
+  "new_unseen_series_selected_at_freeze": 0,
+  "remaining": "Complete the frozen three-route corpus replay; predeclare a new source-grounded unseen selection and annotation protocol, select new series afterward, then validate changed scopes and complete scoped unchanged-input controls. Preserve failed trials and exact-mask annotation limitations.",
+  "replay": {
+    "routes_artifact": "candidate2-routes.json",
+    "finished": 84,
+    "unavailable_input_routes": 3,
+    "native_reports": 26,
+    "shared_text_reports": 28,
+    "shared_all_reports": 28,
+    "note": "All shared-route runs emitted partial reports (exit 3); this is not complete coverage. Two native runs exited 134. Scored recovery and regression analysis remain pending."
+  },
+  "scoring": {
+    "source_eligible_events": 17,
+    "recovered_events_per_shared_route": 1,
+    "annotated_changed_tokens": 709,
+    "reported_changed_tokens_per_shared_route": 17,
+    "true_positive_tokens_per_shared_route": 17,
+    "false_positive_tokens_per_shared_route": 0,
+    "historical_common_events_recovered": "0/14",
+    "native_recovered": "2/39",
+    "complete_documents": 0,
+    "coverage_count_losses": 0,
+    "baseline_conditional_operations_lost": 0
+  },
+  "unseen2": {
+    "required_events": 2,
+    "shared_route_recovered_events": 0,
+    "finished_trials": 18,
+    "results": "unseen2-results.json",
+    "failure_notes": [
+      "ECMA native acquisition exits with byte-limit code 3; shared text inventory is empty but explicitly incomplete.",
+      "RFC shared text inventory is complete but the required primary-production insertion is not established."
+    ]
+  }
+}

@@ -228,6 +228,7 @@ fn store() -> EvidenceStore {
         rendered: Vec::new(),
         structured: Vec::new(),
         inventories: Vec::new(),
+        key_inventories: Vec::new(),
         issues: Vec::new(),
     }
 }
@@ -515,7 +516,14 @@ mod visual_supplier {
         };
         let all = compare(limits);
         assert!(!all.scopes[0].result.candidates.exhaustive);
-        assert_eq!(all.comparisons().count(), 0);
+        assert_eq!(all.comparisons().count(), 1);
+        assert!(matches!(
+            all.comparisons()
+                .next()
+                .expect("independent field")
+                .operation,
+            Some(TypedOperation::ValueChanged { .. })
+        ));
         for channel in [Channel::Forms, Channel::Visual] {
             let channels: std::collections::BTreeSet<_> = [channel].into();
             limits.matching.channels = MatchingChannels::from(&channels);
@@ -638,6 +646,74 @@ mod visual_supplier {
             assert!(result.comparisons().all(
                 |pair| pair.interpretation == InterpretationStatus::ConditionalOnCorrespondence
             ));
+        }
+    }
+
+    #[test]
+    fn incomplete_conflict_checks_preserve_only_independent_field_comparisons() {
+        let fields = |text| {
+            let (mut store, _) = value(text);
+            let template = store.structured[0].clone();
+            store.structured = (1..=5)
+                .map(|id| {
+                    let mut field = template.clone();
+                    field.id = id;
+                    let StructuredValue::FormField { name, .. } = &mut field.value else {
+                        unreachable!()
+                    };
+                    *name = format!("field-{id}");
+                    field
+                })
+                .collect();
+            store
+        };
+        let old = fields("10");
+        let new = fields("20");
+        for shares_physical_evidence in [false, true] {
+            let mut old_graph = graph(&old);
+            let new_graph = graph(&new);
+            old_graph.source_conflicts.push(SourceConflict {
+                sources: (1..=if shares_physical_evidence { 5 } else { 4 })
+                    .map(|element| SourceRef::Structured { element })
+                    .collect(),
+                reason: "alternative readings of one physical field".into(),
+            });
+            let mut limits = DocumentComparisonLimits::default();
+            limits.matching.max_pair_checks = 5;
+            let result = compare_document_views(
+                DocumentView {
+                    evidence: &old,
+                    graph: &old_graph,
+                },
+                DocumentView {
+                    evidence: &new,
+                    graph: &new_graph,
+                },
+                CorrespondenceScope {
+                    old: NodeId(0),
+                    new: NodeId(0),
+                },
+                limits,
+                HierarchyLimits::default(),
+            )
+            .expect("localize incomplete conflict checks");
+            assert!(!result.scopes[0].result.matching.conflict_search_complete);
+            assert!(!result.search_resolved());
+            assert_eq!(
+                result.comparisons().count(),
+                usize::from(!shares_physical_evidence)
+            );
+            for pair in result.comparisons() {
+                assert!(pair.compared);
+                assert_eq!(
+                    pair.interpretation,
+                    InterpretationStatus::ConditionalOnCorrespondence
+                );
+                assert!(matches!(
+                    pair.operation,
+                    Some(TypedOperation::ValueChanged { .. })
+                ));
+            }
         }
     }
 
@@ -840,6 +916,77 @@ fn scope_pipeline_requires_complete_candidate_enumeration_before_local_results()
     assert!(!limited.candidates.exhaustive);
     assert!(limited.comparisons.is_empty());
     assert!(!limited.unresolved.is_empty());
+
+    let mut independent_old_store = old_store.clone();
+    let mut independent_new_store = new_store.clone();
+    let mut independent_old_graph = old_graph.clone();
+    let mut independent_new_graph = new_graph.clone();
+    for (store, graph) in [
+        (&mut independent_old_store, &mut independent_old_graph),
+        (&mut independent_new_store, &mut independent_new_graph),
+    ] {
+        let mut evidence = store.structured[0].clone();
+        evidence.id = 3;
+        store.structured.push(evidence);
+        let mut node = graph.nodes[1].clone();
+        node.id = NodeId(3);
+        node.sources = vec![SourceRef::Structured { element: 3 }];
+        node.identity.as_mut().expect("field identity").value = "independent".into();
+        graph.nodes.push(node);
+        let mut edge = graph.edges[0].clone();
+        edge.to = NodeId(3);
+        graph.edges.push(edge);
+    }
+    let compare_partial = |old_graph: &DocumentGraph| {
+        compare_scope_views(
+            DocumentView {
+                evidence: &independent_old_store,
+                graph: old_graph,
+            },
+            DocumentView {
+                evidence: &independent_new_store,
+                graph: &independent_new_graph,
+            },
+            scope,
+            DocumentComparisonLimits {
+                matching: MatchingLimits {
+                    max_proposals: 1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .expect("partial candidate search")
+    };
+    let partial = compare_partial(&independent_old_graph);
+    assert!(!partial.candidates.exhaustive);
+    assert_eq!(partial.comparisons.len(), 1);
+    assert_eq!(partial.comparisons[0].old, vec![NodeId(3)]);
+    assert!(matches!(
+        partial.comparisons[0].operation,
+        Some(TypedOperation::ValueChanged { .. })
+    ));
+    assert!(
+        partial
+            .candidates
+            .incomplete_nodes
+            .as_ref()
+            .expect("omitted endpoints")
+            .new
+            .contains(&NodeId(2))
+    );
+
+    independent_old_graph
+        .source_conflicts
+        .push(pdfdelta_core::document::SourceConflict {
+            sources: vec![
+                SourceRef::Structured { element: 1 },
+                SourceRef::Structured { element: 3 },
+            ],
+            reason: "two alternative readings of shared physical evidence".into(),
+        });
+    let dependent = compare_partial(&independent_old_graph);
+    assert!(dependent.comparisons.is_empty());
 }
 
 #[test]

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "pair": "irs-form-2210-2023-to-2024",
+  "reviewed_on": "2026-09-11",
+  "annotation": "partial",
+  "notes": "Complete first-page footer scope from the notice through the closing year parenthesis, independently reviewed in both rendered sources before comparison. Notice, catalog 11744P, and form identifier 2210 are unchanged. The final year digit changes from 3 to 4. An identical trailing literal space on both inputs lies outside the selected scope; it is retained in the independent full-source oracle and exact source-view accounting. Body changes are outside this scope.",
+  "scopes": [
+    {
+      "id": "first-page-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11744P Form 2210 (2023)",
+        "end_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11744P Form 2210 (2023)"
+      },
+      "new": {
+        "start_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11744P Form 2210 (2024)",
+        "end_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11744P Form 2210 (2024)"
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "footer-year-replacement",
+      "kind": "replacement",
+      "scope": "first-page-footer",
+      "occurrence_count": 1,
+      "old_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11744P Form 2210 (2023)",
+      "new_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 11744P Form 2210 (2024)",
+      "old_changed_ranges": [
+        {
+          "start": 93,
+          "end": 94
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 93,
+          "end": 94
+        }
+      ],
+      "note": "One complete footer replacement with both changed source scalars localized. All other source scalars, including the identical trailing space outside this review scope, are unchanged."
+    }
+  ]
+}

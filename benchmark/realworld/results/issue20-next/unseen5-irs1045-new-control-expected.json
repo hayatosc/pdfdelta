@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "pair": "irs-form-1045-2024-to-2025-new-control",
+  "reviewed_on": "2026-09-10",
+  "annotation": "partial",
+  "notes": "Identical-input control for the complete predeclared first-page terminal footer. Requires zero established changes and full source accounting within this scope; broader document completeness is separate.",
+  "scopes": [
+    {
+      "id": "first-page-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2025) Created 10/23/25",
+        "end_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2025) Created 10/23/25"
+      },
+      "new": {
+        "start_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2025) Created 10/23/25",
+        "end_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2025) Created 10/23/25"
+      }
+    }
+  ],
+  "changes": []
+}

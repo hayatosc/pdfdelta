@@ -31,6 +31,7 @@ pub struct FormEvidence {
     pub fields: Vec<StructuredEvidence>,
     pub issues: Vec<EvidenceIssue>,
     pub inventory: ChannelInventory,
+    pub key_inventory: super::KeyInventory,
 }
 
 struct PendingField {
@@ -57,6 +58,11 @@ pub fn extract_form_evidence(
     limits: FormLimits,
 ) -> Result<FormEvidence> {
     let mut result = FormEvidence {
+        key_inventory: super::KeyInventory {
+            domain: super::KeyDomain::PdfFieldName,
+            backend,
+            complete: true,
+        },
         fields: Vec::new(),
         issues: Vec::new(),
         inventory: ChannelInventory {
@@ -532,7 +538,9 @@ fn failure(
     sources: Vec<SourceRef>,
 ) {
     result.inventory.complete = false;
+    result.key_inventory.complete = false;
     result.issues.push(EvidenceIssue {
+        boundary: None,
         page: None,
         channel: Channel::Forms,
         sources,

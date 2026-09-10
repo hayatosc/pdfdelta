@@ -1,0 +1,1905 @@
+{
+  "status": "consumed_development_acquisition_measurement_not_comparison_acceptance",
+  "binary_sha256": "bbb099124e0345571dcc0f280f1d9a8226b3451052f1798d72dc804385b583f4",
+  "request": {
+    "job": {
+      "kind": "content",
+      "structure": false,
+      "first_structure_id": 0
+    },
+    "password": null,
+    "font_identities": [],
+    "cache_dir": null
+  },
+  "max_response_bytes": 134217728,
+  "rows": [
+    {
+      "side": "old",
+      "input_sha256": "5389ccfe23e39af0c9891a35d5368d7b49aa53086641789b876fb32b97843380",
+      "input_bytes": 3295126,
+      "response_bytes": 105868862,
+      "worker_exit_code": 0,
+      "elapsed_seconds": 0.9350134849955793,
+      "stderr": "",
+      "glyphs": 458391,
+      "pages": 178,
+      "issues": 0,
+      "inventories": [
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 79
+        },
+        {
+          "channel": "text",
+          "complete": true,
+          "source_count": 0
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 338
+        },
+        {
+          "channel": "text",
+          "complete": true,
+          "source_count": 0
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3902
+        },
+        {
+          "channel": "text",
+          "complete": true,
+          "source_count": 0
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 830
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1557
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1677
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1851
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1902
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1756
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2024
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1809
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1892
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1879
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1838
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1935
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1856
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1484
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2345
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2868
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2448
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3024
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3162
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3608
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1739
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3408
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3336
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2887
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1997
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3579
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2839
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3039
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2006
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2185
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2833
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3952
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2586
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2062
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3594
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3829
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2655
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2635
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2330
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3040
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2822
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2893
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2847
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2080
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2794
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1546
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2242
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2373
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1938
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2897
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2663
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2674
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2655
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2669
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3060
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3779
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1844
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2634
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2784
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2973
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2475
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2759
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2373
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2373
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2981
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3133
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2721
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2357
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2839
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3062
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2629
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3444
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2867
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2225
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2824
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2545
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2872
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2413
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2560
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3130
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2562
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3299
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3182
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2784
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2728
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2748
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2361
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2491
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3026
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2477
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2667
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3026
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3121
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2340
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2820
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2661
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2626
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3085
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2961
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2112
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2704
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2394
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3260
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3408
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2618
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3150
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3450
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2999
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2511
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3416
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2263
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2608
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2739
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2534
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3111
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2499
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3282
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3111
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2843
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2374
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2353
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2568
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3260
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3154
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2648
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2352
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1888
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2912
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2345
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3086
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2397
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1895
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2580
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2512
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2603
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3293
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3151
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3423
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2823
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2669
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2406
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2734
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2628
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3319
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2809
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2457
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2429
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2684
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2450
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2160
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3014
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3280
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2622
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2215
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2370
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3106
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2967
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2496
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2844
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2954
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2645
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3075
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2630
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2357
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2594
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2252
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2285
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1901
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2925
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1718
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2251
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2207
+        }
+      ]
+    },
+    {
+      "side": "new",
+      "input_sha256": "062aeac34c8453eaf629bd439458ab2524caee1a1295d1c4ed96ed726a09b465",
+      "input_bytes": 3406561,
+      "response_bytes": 110493448,
+      "worker_exit_code": 0,
+      "elapsed_seconds": 1.1264715580036864,
+      "stderr": "",
+      "glyphs": 495728,
+      "pages": 194,
+      "issues": 0,
+      "inventories": [
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 79
+        },
+        {
+          "channel": "text",
+          "complete": true,
+          "source_count": 0
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 196
+        },
+        {
+          "channel": "text",
+          "complete": true,
+          "source_count": 0
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 5116
+        },
+        {
+          "channel": "text",
+          "complete": true,
+          "source_count": 0
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 848
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1615
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1812
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1961
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2039
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1934
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2046
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1873
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2065
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1880
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1886
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2099
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1920
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 731
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2180
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2558
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2483
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3055
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2883
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3474
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2658
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3723
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2030
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3315
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3068
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1777
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2842
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2775
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3308
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2019
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2205
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2555
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3810
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2975
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1864
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3842
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3898
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2698
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2577
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2434
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3035
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2910
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2915
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2962
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2154
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2728
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1900
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2406
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2557
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2109
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2748
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2234
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2523
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2976
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2917
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2944
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3732
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2314
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2316
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3239
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2954
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2621
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2736
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2624
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2519
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2804
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2873
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3138
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2389
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3062
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2639
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2826
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3411
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2854
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2676
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2384
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2971
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2564
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2808
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2818
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2754
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2983
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2660
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3347
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3180
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2547
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2819
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2769
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2380
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2687
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3087
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2404
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2611
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3030
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3189
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2346
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2748
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2855
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2474
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2925
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3183
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2327
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2567
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2405
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3128
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3282
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2576
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3204
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3478
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3020
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2528
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3445
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2279
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2726
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2798
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2598
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3074
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2558
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3459
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3057
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2629
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2392
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2359
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2584
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3284
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3269
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2823
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2550
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2188
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2706
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2252
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3292
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2391
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2216
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2601
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2533
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2508
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2843
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3379
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3208
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3225
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2767
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2754
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2458
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2357
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3101
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2927
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2837
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2254
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2567
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2688
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 1857
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2879
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3433
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2979
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2074
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2332
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2763
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2941
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2801
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2529
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 3653
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2600
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2494
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2943
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2299
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2761
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2360
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2523
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2355
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2687
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2116
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2175
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2562
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 281
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 7
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2116
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2224
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2285
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2502
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2085
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2336
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2187
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2369
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2276
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2032
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 2317
+        },
+        {
+          "channel": "text",
+          "complete": false,
+          "source_count": 770
+        }
+      ]
+    }
+  ]
+}

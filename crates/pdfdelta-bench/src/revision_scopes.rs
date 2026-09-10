@@ -46,10 +46,10 @@ struct ClassificationLimits {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct TokenInterval {
-    block_order: usize,
-    start: usize,
-    end: usize,
+pub(super) struct TokenInterval {
+    pub(super) block_order: usize,
+    pub(super) start: usize,
+    pub(super) end: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,10 +65,10 @@ struct CollapsedContextMapping {
     intervals: Vec<TokenInterval>,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct ScopedExpectedTokenEvidence {
-    old: Vec<TokenInterval>,
-    new: Vec<TokenInterval>,
+    pub(super) old: Vec<TokenInterval>,
+    pub(super) new: Vec<TokenInterval>,
 }
 
 impl Default for ClassificationLimits {
@@ -1624,6 +1624,44 @@ fn evaluate_scoped_token_metrics_with_limits(
             }
         }
     }
+    score_projected_tokens(
+        [reported_old, reported_new],
+        expected,
+        scopes,
+        [old_blocks, new_blocks],
+        budget,
+        limits,
+    )
+}
+
+/// Scores already source-projected masks through the same interval kernel as
+/// native change spans. This does not infer event identity from token coverage.
+pub(super) fn evaluate_projected_tokens(
+    reported: [Vec<TokenInterval>; 2],
+    expected: ScopedExpectedTokenEvidence,
+    scopes: &[ResolvedScope],
+    blocks: [&[BlockText]; 2],
+) -> Result<ScopedTokenMetrics, String> {
+    score_projected_tokens(
+        reported,
+        expected,
+        scopes,
+        blocks,
+        ClassificationBudget::default(),
+        ClassificationLimits::default(),
+    )
+}
+
+fn score_projected_tokens(
+    reported: [Vec<TokenInterval>; 2],
+    expected: ScopedExpectedTokenEvidence,
+    scopes: &[ResolvedScope],
+    blocks: [&[BlockText]; 2],
+    mut budget: ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<ScopedTokenMetrics, String> {
+    let [old_blocks, new_blocks] = blocks;
+    let [mut reported_old, mut reported_new] = reported;
     normalize_intervals(&mut reported_old, &mut budget, limits)?;
     normalize_intervals(&mut reported_new, &mut budget, limits)?;
 

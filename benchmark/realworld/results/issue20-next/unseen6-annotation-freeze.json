@@ -1,0 +1,88 @@
+{
+  "status": "source_annotations_frozen_before_any_comparison",
+  "frozen_at_utc": "2026-09-10T14:44:05.834591+00:00",
+  "candidate": "candidate4-freeze.json",
+  "evaluator": "strict-evaluator-freeze.json",
+  "protocol": "unseen6-protocol.json",
+  "source_view": "native_page_paint_order_scalars_v1",
+  "required_events": 2,
+  "images": [
+    {
+      "path": "unseen6-f2441--2025-review.png",
+      "sha256": "4da509c64f678e102f7adf1a39b78e9bee20363c42d08fb54499b84497516a63"
+    },
+    {
+      "path": "unseen6-f2441--2024-review.png",
+      "sha256": "2c0beecbed30c7d3c7ddca85948041ba5978d12ed5a084bf59d778a6f83e43d3"
+    },
+    {
+      "path": "unseen6-f8863--2025-review.png",
+      "sha256": "b18119b9373b201c3ad1d6ac8da9ec5c70a6096424ab3c0a6ea810c3bcce9c7c"
+    },
+    {
+      "path": "unseen6-f8863--2024-review.png",
+      "sha256": "4baa60724c93bb52719df4b7842559753615be0b70812b701c9f5726e4fc6fb3"
+    }
+  ],
+  "annotations": [
+    {
+      "path": "unseen6-irs2441-new-control-expected.json",
+      "sha256": "51c672bc52c48e716bfa33fa27ea9131da1e8d4e5d544c65a48967f310ce2e9d"
+    },
+    {
+      "path": "unseen6-irs2441-expected.json",
+      "sha256": "02dc0c2d31df27e9b5f9e632fa1509c7ad5f0d938cedd7db38e7b14a16c7cc02"
+    },
+    {
+      "path": "unseen6-irs2441-old-control-expected.json",
+      "sha256": "b949c4cf6f24b7e11bfdc46e120d090dddb99431ce6f470dc4a9452b6b693ea4"
+    },
+    {
+      "path": "unseen6-irs8863-old-control-expected.json",
+      "sha256": "dcb07368285f5218641c48b6c0219832031679f2b834b493bde14eeba9f6e128"
+    },
+    {
+      "path": "unseen6-irs8863-expected.json",
+      "sha256": "7c45900d39783fe60848bd96377aa0fc4a4047a9056f556ff56740f37d35e83f"
+    },
+    {
+      "path": "unseen6-irs8863-new-control-expected.json",
+      "sha256": "7d4e13beb2d97bda47d13f9b5eca68e7089fbf6f97e88b82ceffa9084bb4ddae"
+    }
+  ],
+  "selection": {
+    "path": "unseen6-selection.json",
+    "sha256": "45357302c7b999a233d03b277323af1b9b07186751a29c4fc6bee2819dedeb72"
+  },
+  "source_identities": {
+    "path": "unseen6-terminal-source-identities.json",
+    "sha256": "669b25ed025756a9312f8c536c1f7cedba5f67b1f677f2e46120c8a5aba2d93e"
+  },
+  "mask_check": {
+    "path": "unseen6-eligible-literal-preflight.json",
+    "sha256": "9101b1be22d109942c781ca570d7d9493ec54bcec224dea0e66913d21a0aef70"
+  },
+  "mask_checker": {
+    "path": "literal-source-mask-preflight.py",
+    "sha256": "c5298e379534dea1d8cdb2a6f614fef30c936b5c0fccc541e986bacfd16cadbc"
+  },
+  "selectors": [
+    {
+      "path": "unseen6-irs2441-selectors.json",
+      "sha256": "b6acd8562558eb0af0d4a20e3aee0ec510986a305a70de252dd9efbfd37535ef"
+    },
+    {
+      "path": "unseen6-irs8863-selectors.json",
+      "sha256": "f28b8e5815c6133c7f39ba7d0b983af1271744c5c0f28e32045354013d175084"
+    }
+  ],
+  "tasks": {
+    "path": "tasks.txt",
+    "sha256": "019db843b930ddb149792b74b0225bcc2f8fc2c18085762616d7fedc7ac9697f"
+  },
+  "limitations": [
+    "Two distinct annual form series from the same publisher and producer family. Acceptance is limited to the two reviewed complete footer scopes.",
+    "Four earlier invalid source trials remain retained without comparison.",
+    "Every literal source whitespace scalar is retained. Raw and source-mapped view masks agree, and all changed positions are uniquely localized."
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "status": "consumed_failed_holdout_now_development_data",
+  "recorded_at_utc": "2026-09-10T12:54:17.508913+00:00",
+  "candidate": "candidate2-freeze.json",
+  "protocol": "unseen2-protocol.json",
+  "selected_series": [
+    {
+      "pair": "ecma367-ed1-to-ed2",
+      "subject": "Eiffel language",
+      "revision_provenance": "https://ecma-international.org/publications-and-standards/standards/ecma-367/",
+      "comparison_inspected": false,
+      "annotations_frozen": false
+    },
+    {
+      "pair": "rfc1766-to-rfc3066",
+      "subject": "Language identification tags",
+      "revision_provenance": "https://datatracker.ietf.org/doc/rfc3066/",
+      "comparison_inspected": false,
+      "annotations_frozen": false
+    }
+  ],
+  "considered_not_selected": [
+    {
+      "series": "RFC 4627/7159 JSON",
+      "reason": "Closely related JSON specification subject to consumed ECMA-404; avoid overlap in the new-series gate."
+    }
+  ],
+  "acquisition_attempts": [
+    {
+      "inputs": [
+        "ecma367-old",
+        "ecma367-new",
+        "rfc1766-old",
+        "rfc3066-new"
+      ],
+      "environment": "sandbox",
+      "exit_codes": [
+        6,
+        6,
+        6,
+        6
+      ],
+      "result": "DNS unavailable; retry with approved network access",
+      "comparison_inspected": false
+    },
+    {
+      "inputs": [
+        "ecma367-old",
+        "ecma367-new"
+      ],
+      "urls": [
+        "https://www.ecma-international.org/wp-content/uploads/ECMA-367_1st_edition_june_2005.pdf",
+        "https://www.ecma-international.org/wp-content/uploads/ECMA-367_2nd_edition_june_2006.pdf"
+      ],
+      "result": "downloaded"
+    },
+    {
+      "inputs": [
+        "rfc1766-old",
+        "rfc3066-new"
+      ],
+      "failed_url_patterns": [
+        "https://www.rfc-editor.org/rfc/pdfrfc/rfc{number}.txt.pdf",
+        "https://www.ietf.org/rfc/rfc{number}.txt.pdf",
+        "https://docbox.etsi.org/reference/ietf/RFC/RFC{number}.pdf",
+        "https://www.rfc-editor.org/pdfrfc/rfc{number}.txt.pdf"
+      ],
+      "result": "curl exit 22; last pattern confirmed HTTP 404; no comparison performed"
+    },
+    {
+      "inputs": [
+        "rfc1766-old",
+        "rfc3066-new"
+      ],
+      "urls": [
+        "https://ftp.ripe.net/rfc/rfc1766.txt.pdf",
+        "https://ftp.ripe.net/rfc/rfc3066.txt.pdf"
+      ],
+      "http_status": [
+        200,
+        200
+      ],
+      "result": "downloaded"
+    }
+  ],
+  "acquired_inputs": [
+    {
+      "file": "ecma367-new.pdf",
+      "bytes": 3406561,
+      "sha256": "062aeac34c8453eaf629bd439458ab2524caee1a1295d1c4ed96ed726a09b465",
+      "pages": 194,
+      "metadata": {
+        "format": "PDF 1.5",
+        "title": "ECMA-367, 2nd edition, June 2006",
+        "author": "meyer",
+        "subject": "",
+        "keywords": "",
+        "creator": "FrameMaker 7.2",
+        "producer": "Acrobat Distiller 7.0.5 (Windows)",
+        "creationDate": "D:20060808072849Z",
+        "modDate": "D:20220429101716+02'00'",
+        "trapped": "",
+        "encryption": null
+      }
+    },
+    {
+      "file": "ecma367-old.pdf",
+      "bytes": 3295126,
+      "sha256": "5389ccfe23e39af0c9891a35d5368d7b49aa53086641789b876fb32b97843380",
+      "pages": 178,
+      "metadata": {
+        "format": "PDF 1.3",
+        "title": "ECMA-367, 1st edition, June 2005",
+        "author": "patrick",
+        "subject": "",
+        "keywords": "",
+        "creator": "FrameMaker 7.0",
+        "producer": "Acrobat Distiller 6.0.1 (Windows)",
+        "creationDate": "D:20050627171537Z",
+        "modDate": "D:20220429101646+02'00'",
+        "trapped": "",
+        "encryption": null
+      }
+    },
+    {
+      "file": "rfc1766-old.pdf",
+      "bytes": 12098,
+      "sha256": "c0a53448f79a8d910c6c234ddb6183ec306fcc09ee07a52d999e3e27cdf24138",
+      "pages": 9,
+      "metadata": {
+        "format": "PDF 1.2",
+        "title": "",
+        "author": "",
+        "subject": "",
+        "keywords": "",
+        "creator": "",
+        "producer": "Aladdin Ghostscript 5.10",
+        "creationDate": "D:20020327121649",
+        "modDate": "",
+        "trapped": "",
+        "encryption": null
+      }
+    },
+    {
+      "file": "rfc3066-new.pdf",
+      "bytes": 18451,
+      "sha256": "688e6b821026ed943cca37f7e637660d7a90bd275d8a676c7be922e7dd8a2d9a",
+      "pages": 13,
+      "metadata": {
+        "format": "PDF 1.2",
+        "title": "",
+        "author": "",
+        "subject": "",
+        "keywords": "",
+        "creator": "",
+        "producer": "Aladdin Ghostscript 5.10",
+        "creationDate": "D:20020327124248",
+        "modDate": "",
+        "trapped": "",
+        "encryption": null
+      }
+    }
+  ],
+  "acquired_at_utc": "2026-09-10T12:56:53.206660+00:00",
+  "consumption_reason": "The frozen trial failed. A general compact native worker transport was subsequently implemented after diagnosing the response-byte limit. This series cannot validate that implementation as unseen."
+}

@@ -56,6 +56,26 @@ enum Command {
         #[arg(long)]
         report: PathBuf,
     },
+    /// Summarize shared-route search, coverage, and inference without annotation scoring.
+    SummarizeDocument {
+        #[arg(long)]
+        report: PathBuf,
+    },
+    /// Freeze source selectors without running alignment or comparison.
+    ValidateRevisionSelectors {
+        #[arg(long)]
+        expected: PathBuf,
+        #[arg(long)]
+        old: PathBuf,
+        #[arg(long)]
+        new: PathBuf,
+        /// Optionally score an existing shared-route report after source validation.
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// Declared source coordinate view, independent of comparison output.
+        #[arg(long, value_enum, default_value_t = SelectorSourceView::Layout)]
+        source_view: SelectorSourceView,
+    },
     /// Generate an English/Japanese prose or table matrix with local producers.
     GenerateDocumentMatrix {
         #[arg(long, value_enum, default_value = "prose")]
@@ -465,6 +485,12 @@ enum RendererChoice {
     ClassicXrefTj,
 }
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum SelectorSourceView {
+    Layout,
+    PaintOrder,
+}
+
 impl RendererChoice {
     const fn kind(self) -> RendererKind {
         match self {
@@ -485,6 +511,62 @@ fn main() -> ExitCode {
         Some(Command::EvaluateDocument { annotation, report }) => {
             evaluate_document(&mut stdout, &annotation, &report)
         }
+        Some(Command::SummarizeDocument { report }) => (|| {
+            use pdfdelta_bench::generalization_report::{
+                MAX_DOCUMENT_REPORT_BYTES, summarize_document_report,
+            };
+            let bytes = read_bounded_file(&report, MAX_DOCUMENT_REPORT_BYTES, "document report")?;
+            let summary = summarize_document_report(&bytes).map_err(|error| error.to_string())?;
+            serde_json::to_writer_pretty(&mut stdout, &summary)
+                .map_err(|error| error.to_string())?;
+            writeln!(stdout).map_err(|error| error.to_string())?;
+            Ok(0)
+        })(),
+        Some(Command::ValidateRevisionSelectors {
+            expected,
+            old,
+            new,
+            report,
+            source_view,
+        }) => (|| {
+            use pdfdelta_bench::revisions::{load_expected_document, revision_selectors};
+            let annotation = read_bounded_file(&expected, 4 * 1024 * 1024, "expected annotation")?;
+            let expected = load_expected_document(
+                std::str::from_utf8(&annotation).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?;
+            let old = read_bounded_file(&old, ParseLimits::default().max_input_bytes, "old PDF")?;
+            let new = read_bounded_file(&new, ParseLimits::default().max_input_bytes, "new PDF")?;
+            let view = match source_view {
+                SelectorSourceView::Layout => revision_selectors::RevisionSourceView::Layout,
+                SelectorSourceView::PaintOrder => {
+                    revision_selectors::RevisionSourceView::PaintOrder
+                }
+            };
+            let old = revision_selectors::prepare_with_view(old, view)?;
+            let new = revision_selectors::prepare_with_view(new, view)?;
+            let selectors = revision_selectors::validate(&expected, &old.blocks, &new.blocks);
+            let evaluation = report
+                .as_ref()
+                .map(|report| {
+                    use pdfdelta_bench::generalization_report::{
+                        MAX_DOCUMENT_REPORT_BYTES, evaluate_revision_document_report,
+                    };
+                    let bytes =
+                        read_bounded_file(report, MAX_DOCUMENT_REPORT_BYTES, "shared report")?;
+                    evaluate_revision_document_report(&expected, [&old, &new], &bytes)
+                        .map_err(|error| error.to_string())
+                })
+                .transpose()?;
+            let report = serde_json::json!({
+                "schema_version": 1, "old": old.metadata, "new": new.metadata,
+                "selectors": selectors, "evaluation": evaluation,
+            });
+            serde_json::to_writer_pretty(&mut stdout, &report)
+                .map_err(|error| error.to_string())?;
+            writeln!(stdout).map_err(|error| error.to_string())?;
+            Ok(0)
+        })(),
         Some(Command::GenerateDocumentMatrix {
             kind,
             typst,

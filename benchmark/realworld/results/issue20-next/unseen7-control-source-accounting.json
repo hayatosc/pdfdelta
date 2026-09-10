@@ -1,0 +1,391 @@
+{
+  "status": "scoped_text_source_accounting_evidence",
+  "candidate": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/source-map-configuration.json",
+  "contract": "Complete literal terminal views under accepted source-only mandatory identity proposals; no text extraction issues or extraction dependencies. Broader document completeness is separate.",
+  "mapping_configuration": {
+    "core_path": "target/release/deps/libpdfdelta_core-cc96bc734cad66aa.rlib",
+    "core_sha256": "59a1f22a9067f71839b8abcd887ca9f7992687b9b1ac20c0d07f14a1f17b304c",
+    "helper": "native-source-snapshot.rs",
+    "helper_sha256": "e59e8a5e7cff015b72a85deac57332910654085c613a8173146b858177f83ff0",
+    "configuration": "Default parser, extraction, graph and scale-1 limits. Native base nodes only. Same frozen release library."
+  },
+  "run_script_sha256": "0afd178c649397ffd04a9d7f3228e9abf88c6439f9ccb1c61c50fbb33910c0ab",
+  "rows": [
+    {
+      "pair": "irs8889",
+      "control": "old",
+      "route": "shared_text",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs8889/old-control/shared_text/report.json": "965a3c1faa2f402aa997cdab9e543e8ba8091995a1512a114a0b11b60710ef7d",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2024.scalar-bindings.json": "6fd650912eeb74f48912c32c6993dc55e4fb708b32ade7c24ca75d5bf9413973",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2024.native-identities.json": "6fd650912eeb74f48912c32c6993dc55e4fb708b32ade7c24ca75d5bf9413973",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs8889-selectors.json": "17e1088e7fadeec4f017a01e7588ba843f2c818a31d1aa7e7796f96d9edda98c"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:37621P4:888969:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 53,
+      "reviewed_scalars": 102,
+      "terminal_glyphs": 102,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs8889",
+      "control": "old",
+      "route": "shared_all",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs8889/old-control/shared_all/report.json": "5b4302053c0512d8b14eb43bc0c81ad98bb735d8b1e415893d21ff305dfd0d21",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2024.scalar-bindings.json": "6fd650912eeb74f48912c32c6993dc55e4fb708b32ade7c24ca75d5bf9413973",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2024.native-identities.json": "6fd650912eeb74f48912c32c6993dc55e4fb708b32ade7c24ca75d5bf9413973",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs8889-selectors.json": "17e1088e7fadeec4f017a01e7588ba843f2c818a31d1aa7e7796f96d9edda98c"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:37621P4:888969:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 53,
+      "reviewed_scalars": 102,
+      "terminal_glyphs": 102,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs8889",
+      "control": "new",
+      "route": "shared_text",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs8889/new-control/shared_text/report.json": "d6c52a4bfc2d46d4875813e268b0bfc1f6abfcb758a234db08652c75aa81e1c4",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2025.scalar-bindings.json": "d3e179f0da118836eac6e94ed29d02e993e4fa4bf89d1ce11f4b2bf0772cb529",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2025.native-identities.json": "d3e179f0da118836eac6e94ed29d02e993e4fa4bf89d1ce11f4b2bf0772cb529",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs8889-selectors.json": "17e1088e7fadeec4f017a01e7588ba843f2c818a31d1aa7e7796f96d9edda98c"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:37621P4:888969:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 53,
+      "reviewed_scalars": 118,
+      "terminal_glyphs": 118,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs8889",
+      "control": "new",
+      "route": "shared_all",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs8889/new-control/shared_all/report.json": "01c5c08affa29db9b12b8bbc9809331e6effc8e552fa7f08f2784889617bdc90",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2025.scalar-bindings.json": "d3e179f0da118836eac6e94ed29d02e993e4fa4bf89d1ce11f4b2bf0772cb529",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f8889--2025.native-identities.json": "d3e179f0da118836eac6e94ed29d02e993e4fa4bf89d1ce11f4b2bf0772cb529",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs8889-selectors.json": "17e1088e7fadeec4f017a01e7588ba843f2c818a31d1aa7e7796f96d9edda98c"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:37621P4:888969:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 53,
+      "reviewed_scalars": 118,
+      "terminal_glyphs": 118,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs2210",
+      "control": "old",
+      "route": "shared_text",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs2210/old-control/shared_text/report.json": "6cc0f610b932d61873fbaee525b451b5e23469b9e2a03e75bc065d142051c1de",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2023.scalar-bindings.json": "c2dbb71f5f741ac63bb655adc8f641104bacb4bdd417c20227fcf93302644861",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2023.native-identities.json": "c2dbb71f5f741ac63bb655adc8f641104bacb4bdd417c20227fcf93302644861",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs2210-selectors.json": "332bef268b74d4eb286842331b235fba351add6710de07b629c5206265e1a69a"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11744P4:221062:For Paperwork Reduction Act Notice, see separate instructions."
+      },
+      "node": 181,
+      "reviewed_scalars": 95,
+      "terminal_glyphs": 96,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs2210",
+      "control": "old",
+      "route": "shared_all",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs2210/old-control/shared_all/report.json": "81b47ccf8510790bacf7cf9690b456e50961a065c08386e4fc74e96ce5e05072",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2023.scalar-bindings.json": "c2dbb71f5f741ac63bb655adc8f641104bacb4bdd417c20227fcf93302644861",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2023.native-identities.json": "c2dbb71f5f741ac63bb655adc8f641104bacb4bdd417c20227fcf93302644861",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs2210-selectors.json": "332bef268b74d4eb286842331b235fba351add6710de07b629c5206265e1a69a"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11744P4:221062:For Paperwork Reduction Act Notice, see separate instructions."
+      },
+      "node": 181,
+      "reviewed_scalars": 95,
+      "terminal_glyphs": 96,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs2210",
+      "control": "new",
+      "route": "shared_text",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs2210/new-control/shared_text/report.json": "f616e3672d7acd319aa92eed3982e16c8977d7fdae70d488a775f0198d2ae65a",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2024.scalar-bindings.json": "e1f9cc5906bd37eb12d861f50b5bceea8d1506f01c6a4dd83cc8da99fd0a12b4",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2024.native-identities.json": "e1f9cc5906bd37eb12d861f50b5bceea8d1506f01c6a4dd83cc8da99fd0a12b4",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs2210-selectors.json": "332bef268b74d4eb286842331b235fba351add6710de07b629c5206265e1a69a"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11744P4:221062:For Paperwork Reduction Act Notice, see separate instructions."
+      },
+      "node": 181,
+      "reviewed_scalars": 95,
+      "terminal_glyphs": 96,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs2210",
+      "control": "new",
+      "route": "shared_all",
+      "inputs": {
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/trials/irs2210/new-control/shared_all/report.json": "0f881221cc86679f54adad32eade1a43e0c3d3a2aabda3ac4e64129599078cd3",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2024.scalar-bindings.json": "e1f9cc5906bd37eb12d861f50b5bceea8d1506f01c6a4dd83cc8da99fd0a12b4",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/f2210--2024.native-identities.json": "e1f9cc5906bd37eb12d861f50b5bceea8d1506f01c6a4dd83cc8da99fd0a12b4",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/issue20/unseen7/irs2210-selectors.json": "332bef268b74d4eb286842331b235fba351add6710de07b629c5206265e1a69a"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11744P4:221062:For Paperwork Reduction Act Notice, see separate instructions."
+      },
+      "node": 181,
+      "reviewed_scalars": 95,
+      "terminal_glyphs": 96,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    }
+  ]
+}

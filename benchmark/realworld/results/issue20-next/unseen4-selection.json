@@ -1,0 +1,209 @@
+{
+  "status": "source_inventory_and_annotation_review_pending_no_comparisons",
+  "candidate": "candidate4-freeze.json",
+  "protocol": "unseen4-protocol.json",
+  "acquired_at_utc": "2026-09-10T13:59:12.041129+00:00",
+  "series": [
+    {
+      "series": "IRS Form 940",
+      "sources": [
+        {
+          "year": 2024,
+          "url": "https://www.irs.gov/pub/irs-prior/f940--2024.pdf",
+          "bytes": 823418,
+          "sha256": "227a363340f8e445ecc4249bea3421de2644b32a89b5aacaf2ef2d8d21947d23",
+          "acquisition": "sandbox DNS attempt failed with curl exit 6; authorized external retry succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2024 Form 940",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "Employer's Annual Federal Unemployment (FUTA) Tax Return",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20241126112611-05'00'",
+            "modDate": "D:20241126112611-05'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 3
+        },
+        {
+          "year": 2025,
+          "url": "https://www.irs.gov/pub/irs-prior/f940--2025.pdf",
+          "bytes": 833678,
+          "sha256": "575bb0d645ff613574c9b58506c6e0f7cbdc757c85ebc3e766ffc59fd5709d7c",
+          "acquisition": "sandbox DNS attempt failed with curl exit 6; authorized external retry succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2025 Form 940",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "Employer's Annual Federal Unemployment (FUTA) Tax Return",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20251126064427-06'00'",
+            "modDate": "D:20251126064427-06'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 3
+        }
+      ],
+      "comparisons_run": 0,
+      "source_status": "failed_source_premise_no_shared_terminal_identity",
+      "failure": "The newer footer adds a URL to the identity prefix; old/new source identities differ. No comparison was run. Retain as an invalid source trial and select a replacement before output inspection."
+    },
+    {
+      "series": "IRS Form 990",
+      "sources": [
+        {
+          "year": 2024,
+          "url": "https://www.irs.gov/pub/irs-prior/f990--2024.pdf",
+          "bytes": 798626,
+          "sha256": "d721599e650b57ae0124bb66c9cf39d5ffcf00b3ddd7a84a0fa849aca6811eed",
+          "acquisition": "sandbox DNS attempt failed with curl exit 6; authorized external retry succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2024 Form 990",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "Return of Organization Exempt From Income Tax",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20241209132218-06'00'",
+            "modDate": "D:20241209132218-06'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 12
+        },
+        {
+          "year": 2025,
+          "url": "https://www.irs.gov/pub/irs-prior/f990--2025.pdf",
+          "bytes": 796676,
+          "sha256": "0b715d2790691ca6d4fb16ba0923e3cdf1d0e04cd26ea48788d41a708e945533",
+          "acquisition": "sandbox DNS attempt failed with curl exit 6; authorized external retry succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2025 Form 990",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "Return of Organization Exempt From Income Tax",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20251212071120-06'00'",
+            "modDate": "D:20251212071120-06'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 12
+        }
+      ],
+      "comparisons_run": 0,
+      "source_status": "failed_exact_mask_identifiability_before_comparison",
+      "failure": "The footer year digit can instead align with the creation-date digit under an equal-cost insertion/deletion path. The complete source scope therefore has no unique exact changed mask. Retain annotation, reviewed images, and failed mask check; replace before comparison rather than narrowing the scope."
+    },
+    {
+      "series": "IRS Form 1041",
+      "replaces_invalid_series": "IRS Form 940",
+      "source_status": "eligible_source_reviewed_unique_identity_selector_and_exact_mask",
+      "sources": [
+        {
+          "year": 2024,
+          "url": "https://www.irs.gov/pub/irs-prior/f1041--2024.pdf",
+          "bytes": 174268,
+          "sha256": "d697c2294b671b943b3d779d789b648573282ff735723c7bee5a18cb7d41feee",
+          "acquisition": "authorized download succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2024 Form 1041 ",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "U.S. Income Tax Return for Estates and Trusts",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20241204134748-05'00'",
+            "modDate": "D:20241204134748-05'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 3
+        },
+        {
+          "year": 2025,
+          "url": "https://www.irs.gov/pub/irs-prior/f1041--2025.pdf",
+          "bytes": 181366,
+          "sha256": "95540fbdb580102735b89866554bb0b556d37f3e6c8781c677c8398db7908c10",
+          "acquisition": "authorized download succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2025 Form 1041 ",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "U.S. Income Tax Return for Estates and Trusts",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20260107155118-06'00'",
+            "modDate": "D:20260107155118-06'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 3
+        }
+      ],
+      "comparisons_run": 0
+    },
+    {
+      "series": "IRS Form 1042",
+      "replaces_invalid_series": "IRS Form 990",
+      "source_status": "eligible_source_reviewed_unique_identity_selector_and_exact_mask",
+      "sources": [
+        {
+          "year": 2024,
+          "url": "https://www.irs.gov/pub/irs-prior/f1042--2024.pdf",
+          "bytes": 140624,
+          "sha256": "e6a1a826e01fef0230a3f9a7bc8a04373cd6cb1a7adea5619aa78d6cb660e136",
+          "acquisition": "authorized download succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2024 Form 1042",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "Annual Withholding Tax Return for U.S. Source Income of Foreign Persons",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20241217081545-06'00'",
+            "modDate": "D:20241217081545-06'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 2
+        },
+        {
+          "year": 2025,
+          "url": "https://www.irs.gov/pub/irs-prior/f1042--2025.pdf",
+          "bytes": 146431,
+          "sha256": "b449abb3a0a56ce757ed51976d759970a398a6898a0f95d49664e15da6d8aabd",
+          "acquisition": "authorized download succeeded with exit 0",
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2025 Form 1042",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "Annual Withholding Tax Return for U.S. Source Income of Foreign Persons",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20251209064515-06'00'",
+            "modDate": "D:20251209064515-06'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "pages": 2
+        }
+      ],
+      "comparisons_run": 0
+    }
+  ],
+  "diversity_limit": "Two different form series from the same publisher. This holdout can support only the reviewed source-backed scopes; it does not establish universal PDF accuracy or independent producer diversity."
+}

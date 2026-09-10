@@ -217,6 +217,16 @@ impl<T> Document<T> {
         &self.items
     }
 
+    /// Transforms primary items while retaining all auxiliary source evidence.
+    pub fn map_items<U>(self, map: impl FnMut(T) -> U) -> Document<U> {
+        Document {
+            items: self.items.into_iter().map(map).collect(),
+            vector_lines: self.vector_lines,
+            marked_content: self.marked_content,
+            last_non_text_paint: self.last_non_text_paint,
+        }
+    }
+
     pub fn vector_lines(&self) -> &[VectorLine] {
         &self.vector_lines
     }

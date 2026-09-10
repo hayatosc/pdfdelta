@@ -20,6 +20,12 @@ pub struct ChannelCoverage {
     pub new_discovered_sources: usize,
     pub old_compared_sources: usize,
     pub new_compared_sources: usize,
+    /// Stored-field references accounted for by validated native key presence.
+    /// Paragraph identity never discharges its glyph or relationship evidence.
+    #[serde(default)]
+    pub old_presence_sources: usize,
+    #[serde(default)]
+    pub new_presence_sources: usize,
     pub old_uncompared_sources: usize,
     pub new_uncompared_sources: usize,
     pub complete: bool,
@@ -44,16 +50,44 @@ pub fn document_coverage(
                 side_coverage(old, comparison, *channel, true);
             let (new_inventory, new_discovered, new_compared) =
                 side_coverage(new, comparison, *channel, false);
-            let old_uncompared_sources = old_discovered.difference(&old_compared).count();
-            let new_uncompared_sources = new_discovered.difference(&new_compared).count();
+            let presence = |old: bool, discovered: &BTreeSet<_>, compared: &BTreeSet<_>| {
+                if *channel != Channel::Forms {
+                    return 0;
+                }
+                let Some(keys) = &comparison.key_presence else {
+                    return 0;
+                };
+                comparison
+                    .keyed_element_operations()
+                    .filter(|operation| {
+                        let claim = &keys.claims[operation.claim];
+                        claim.domain == super::KeyDomain::PdfFieldName
+                            && (claim.side == super::PresenceSide::Old) == old
+                            && discovered.contains(&operation.identity_source)
+                            && !compared.contains(&operation.identity_source)
+                    })
+                    .map(|operation| operation.identity_source)
+                    .collect::<BTreeSet<_>>()
+                    .len()
+            };
+            let old_presence_sources = presence(true, &old_discovered, &old_compared);
+            let new_presence_sources = presence(false, &new_discovered, &new_compared);
+            let old_compared_sources = old_discovered.intersection(&old_compared).count();
+            let new_compared_sources = new_discovered.intersection(&new_compared).count();
+            let old_uncompared_sources =
+                old_discovered.len() - old_compared_sources - old_presence_sources;
+            let new_uncompared_sources =
+                new_discovered.len() - new_compared_sources - new_presence_sources;
             ChannelCoverage {
                 channel: *channel,
                 old_inventory_complete: old_inventory,
                 new_inventory_complete: new_inventory,
                 old_discovered_sources: old_discovered.len(),
                 new_discovered_sources: new_discovered.len(),
-                old_compared_sources: old_discovered.len() - old_uncompared_sources,
-                new_compared_sources: new_discovered.len() - new_uncompared_sources,
+                old_compared_sources,
+                new_compared_sources,
+                old_presence_sources,
+                new_presence_sources,
                 old_uncompared_sources,
                 new_uncompared_sources,
                 complete: old_inventory

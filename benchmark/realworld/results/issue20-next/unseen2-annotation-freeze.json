@@ -1,0 +1,43 @@
+{
+  "status": "source_annotations_frozen_before_any_comparison",
+  "frozen_at_utc": "2026-09-10T13:04:45.335026+00:00",
+  "candidate": "candidate2-freeze.json",
+  "protocol": "unseen2-protocol.json",
+  "source_view": "native_page_paint_order_scalars_v1",
+  "required_events": 2,
+  "images": [
+    {
+      "path": "unseen2-rfc1766-old-review.png",
+      "sha256": "463df789b59c970613995c71d28cfb2bb972fb854e9ee9970aa071f985b70ba9"
+    },
+    {
+      "path": "unseen2-ecma367-new-review.png",
+      "sha256": "57ec287bf4882feb8219698678eb003f238b2621a3479a5062c82f3b9c9754e7"
+    },
+    {
+      "path": "unseen2-ecma367-old-review.png",
+      "sha256": "6d9e62cee7aed7c43b219c08a4b8e7e26cc76e0906b21636b1a6bfe7c3aeaf03"
+    },
+    {
+      "path": "unseen2-rfc3066-new-review.png",
+      "sha256": "7fb8ad3a9ce13a7471d0513d044420be20fb3ed5c10b8bdacab59b23a2952298"
+    }
+  ],
+  "annotations": [
+    {
+      "path": "unseen2-ecma367-expected.json",
+      "sha256": "4e3d4a3a32506e369b8033f1c14d0c8e25e04a082dbc083b89b9ed826898db8f"
+    },
+    {
+      "path": "unseen2-rfc-language-tags-expected.json",
+      "sha256": "a42fb982694d6ed2799734e00ea8994961727d6bb036217ad731e09a1d222032"
+    }
+  ],
+  "limitations": [
+    "Editorial scoped correspondence is independently reviewed; no production source identity is assumed.",
+    "ECMA old line endings have no space glyph after syntax, and abbreviation; these are visible layout boundaries.",
+    "The complete ECMA category bullet is reviewed. The initial note about deleted advice was incorrect and corrected before comparison.",
+    "RFC scope is only the primary-production declaration; other grammar and document changes are outside it.",
+    "No complete-document success can be inferred from these two text scopes."
+  ]
+}

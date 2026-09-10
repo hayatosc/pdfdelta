@@ -149,6 +149,7 @@ pub fn collect(
             complete: false,
         });
         store.issues.push(EvidenceIssue {
+            boundary: None,
             page: Some(page.page),
             channel: Channel::Visual,
             sources,

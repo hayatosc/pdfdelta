@@ -1,0 +1,1432 @@
+{
+  "status": "frozen_unseen_validation_failed",
+  "candidate": "candidate4-freeze.json",
+  "annotations": "unseen5-annotation-freeze.json",
+  "trials": [
+    {
+      "pair": "irs1045",
+      "comparison": "revision",
+      "route": "native",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.35,\"peak_rss_kib\":32320,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/revision/native/report.json",
+      "report_sha256": "dfddc365f84fe33a094d1918a597e626f2788fd7f25d6698a4731de1515f8fee",
+      "native_summary": {
+        "established_changes": 4,
+        "content_changes": 4,
+        "proven_changed_regions": 3,
+        "formatting_only_changes": 46,
+        "uncertain_changes": 0,
+        "unresolved_regions": 88,
+        "unsupported_extraction_issues": 0,
+        "unresolved_extraction_issues": 0,
+        "comparison_complete": false,
+        "difference_status": "detected",
+        "comparison_scope": {
+          "supported_text": true,
+          "images_compared": false
+        },
+        "tentative_candidates": 9,
+        "old_alignment_coverage": {
+          "resolved_tokens": 2247,
+          "total_tokens": 4415,
+          "ratio": 0.5089467723669309
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 2265,
+          "total_tokens": 4663,
+          "ratio": 0.4857387947673172
+        },
+        "comparison_coverage_ratio": 0.4857387947673172
+      }
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "revision",
+      "route": "shared_text",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.36,\"peak_rss_kib\":27256,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/revision/shared_text/report.json",
+      "report_sha256": "7c360d8646b1585cc69e6878d40141287f844a2ce8762c1af7ce1f54908890f3",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4301,
+          "new_discovered_sources": 4545,
+          "old_compared_sources": 3113,
+          "new_compared_sources": 3130,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1188,
+          "new_uncompared_sources": 1415,
+          "complete": false
+        }
+      ],
+      "typed_changes": 1,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 93
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 378
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 4
+        }
+      ],
+      "source_evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1045-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 17,
+              "f1": 0.9444444444444444,
+              "false_positive_tokens_per_10k_unchanged": 81.9672131147541,
+              "precision": 0.8947368421052632,
+              "recall": 1.0,
+              "reported_changed_tokens": 19,
+              "span_iou": 0.8947368421052632,
+              "true_positive_tokens": 17
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "revision",
+      "route": "shared_all",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.46,\"peak_rss_kib\":27896,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/revision/shared_all/report.json",
+      "report_sha256": "f240f3d4c18db79c49ffcd3dcdb430e97d63198529000301d1c859b0d93549e6",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4301,
+          "new_discovered_sources": 4545,
+          "old_compared_sources": 3113,
+          "new_compared_sources": 3130,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1188,
+          "new_uncompared_sources": 1415,
+          "complete": false
+        },
+        {
+          "channel": "visual",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 2,
+          "new_discovered_sources": 2,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 2,
+          "new_uncompared_sources": 2,
+          "complete": false
+        },
+        {
+          "channel": "forms",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 185,
+          "new_discovered_sources": 193,
+          "old_compared_sources": 137,
+          "new_compared_sources": 137,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 48,
+          "new_uncompared_sources": 56,
+          "complete": false
+        },
+        {
+          "channel": "relations",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 680,
+          "new_discovered_sources": 727,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 680,
+          "new_uncompared_sources": 727,
+          "complete": false
+        }
+      ],
+      "typed_changes": 1,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "form appearance or rich-text value requires separate comparison",
+          "count": 378
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: state-selected widget rendering is not supported",
+          "count": 17
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: widget normal appearance is missing",
+          "count": 361
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "page widget appearances require separate comparison",
+          "count": 2
+        },
+        {
+          "channel": "forms",
+          "kind": "unsupported",
+          "reason": "XFA form content remains unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 93
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 378
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 4
+        }
+      ],
+      "source_evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1045-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 17,
+              "f1": 0.9444444444444444,
+              "false_positive_tokens_per_10k_unchanged": 81.9672131147541,
+              "precision": 0.8947368421052632,
+              "recall": 1.0,
+              "reported_changed_tokens": 19,
+              "span_iou": 0.8947368421052632,
+              "true_positive_tokens": 17
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "old-control",
+      "route": "native",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.34,\"peak_rss_kib\":30120,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/old-control/native/report.json",
+      "report_sha256": "9413d5ed941569702d603d592fa0b08ee37526dc20948034febcc30c1c7351ff",
+      "native_summary": {
+        "established_changes": 0,
+        "content_changes": 0,
+        "proven_changed_regions": 0,
+        "formatting_only_changes": 0,
+        "uncertain_changes": 0,
+        "unresolved_regions": 75,
+        "unsupported_extraction_issues": 0,
+        "unresolved_extraction_issues": 0,
+        "comparison_complete": false,
+        "difference_status": "indeterminate",
+        "comparison_scope": {
+          "supported_text": true,
+          "images_compared": false
+        },
+        "tentative_candidates": 0,
+        "old_alignment_coverage": {
+          "resolved_tokens": 2537,
+          "total_tokens": 4415,
+          "ratio": 0.5746319365798415
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 2537,
+          "total_tokens": 4415,
+          "ratio": 0.5746319365798415
+        },
+        "comparison_coverage_ratio": 0.5746319365798415
+      }
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "old-control",
+      "route": "shared_text",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.37,\"peak_rss_kib\":27400,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/old-control/shared_text/report.json",
+      "report_sha256": "f85f309e640c155d88641cda4764b7b4e961162707ebc2f8dee44e1c0b325819",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4301,
+          "new_discovered_sources": 4301,
+          "old_compared_sources": 3728,
+          "new_compared_sources": 3728,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 573,
+          "new_uncompared_sources": 573,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 88
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 370
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "old-control",
+      "route": "shared_all",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.43,\"peak_rss_kib\":28308,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/old-control/shared_all/report.json",
+      "report_sha256": "80da4cf2ddf7321377440abafb4ae124a1d344effc5fc62d8cf88083be713577",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4301,
+          "new_discovered_sources": 4301,
+          "old_compared_sources": 3728,
+          "new_compared_sources": 3728,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 573,
+          "new_uncompared_sources": 573,
+          "complete": false
+        },
+        {
+          "channel": "visual",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 2,
+          "new_discovered_sources": 2,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 2,
+          "new_uncompared_sources": 2,
+          "complete": false
+        },
+        {
+          "channel": "forms",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 185,
+          "new_discovered_sources": 185,
+          "old_compared_sources": 185,
+          "new_compared_sources": 185,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": false
+        },
+        {
+          "channel": "relations",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 680,
+          "new_discovered_sources": 680,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 680,
+          "new_uncompared_sources": 680,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "form appearance or rich-text value requires separate comparison",
+          "count": 370
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: state-selected widget rendering is not supported",
+          "count": 14
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: widget normal appearance is missing",
+          "count": 356
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "page widget appearances require separate comparison",
+          "count": 2
+        },
+        {
+          "channel": "forms",
+          "kind": "unsupported",
+          "reason": "XFA form content remains unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 88
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 370
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "new-control",
+      "route": "native",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.35,\"peak_rss_kib\":32544,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/new-control/native/report.json",
+      "report_sha256": "788f55a41e0581b9a477a896c769ee9c1c9116ef89cf7973a58399dab7c7ad79",
+      "native_summary": {
+        "established_changes": 0,
+        "content_changes": 0,
+        "proven_changed_regions": 0,
+        "formatting_only_changes": 0,
+        "uncertain_changes": 0,
+        "unresolved_regions": 74,
+        "unsupported_extraction_issues": 0,
+        "unresolved_extraction_issues": 0,
+        "comparison_complete": false,
+        "difference_status": "indeterminate",
+        "comparison_scope": {
+          "supported_text": true,
+          "images_compared": false
+        },
+        "tentative_candidates": 0,
+        "old_alignment_coverage": {
+          "resolved_tokens": 2771,
+          "total_tokens": 4663,
+          "ratio": 0.5942526270641219
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 2771,
+          "total_tokens": 4663,
+          "ratio": 0.5942526270641219
+        },
+        "comparison_coverage_ratio": 0.5942526270641219
+      }
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "new-control",
+      "route": "shared_text",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.72,\"peak_rss_kib\":49048,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/new-control/shared_text/report.json",
+      "report_sha256": "eff54ed0bb6b764b2f7b98af61bb48d631410b3ec1767e48e359d326a57b8dc3",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4545,
+          "new_discovered_sources": 4545,
+          "old_compared_sources": 4020,
+          "new_compared_sources": 4020,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 525,
+          "new_uncompared_sources": 525,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 98
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 386
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pair": "irs1045",
+      "comparison": "new-control",
+      "route": "shared_all",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.80,\"peak_rss_kib\":50108,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1045/new-control/shared_all/report.json",
+      "report_sha256": "70b5703adc93b4bebc6565c500756a8ee18064fb5153bad0e7dae8bc4375e3e5",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4545,
+          "new_discovered_sources": 4545,
+          "old_compared_sources": 4020,
+          "new_compared_sources": 4020,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 525,
+          "new_uncompared_sources": 525,
+          "complete": false
+        },
+        {
+          "channel": "visual",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 2,
+          "new_discovered_sources": 2,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 2,
+          "new_uncompared_sources": 2,
+          "complete": false
+        },
+        {
+          "channel": "forms",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 193,
+          "new_discovered_sources": 193,
+          "old_compared_sources": 193,
+          "new_compared_sources": 193,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": false
+        },
+        {
+          "channel": "relations",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 727,
+          "new_discovered_sources": 727,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 727,
+          "new_uncompared_sources": 727,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "form appearance or rich-text value requires separate comparison",
+          "count": 386
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: state-selected widget rendering is not supported",
+          "count": 20
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: widget normal appearance is missing",
+          "count": 366
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "page widget appearances require separate comparison",
+          "count": 2
+        },
+        {
+          "channel": "forms",
+          "kind": "unsupported",
+          "reason": "XFA form content remains unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 98
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 386
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "revision",
+      "route": "native",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":1.44,\"peak_rss_kib\":47176,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/revision/native/report.json",
+      "report_sha256": "244baf9a76661ed57f58c1bd9bf208baafb571ec26f8f022af9296bd6f8d5703",
+      "native_summary": {
+        "established_changes": 3,
+        "content_changes": 3,
+        "proven_changed_regions": 0,
+        "formatting_only_changes": 6,
+        "uncertain_changes": 0,
+        "unresolved_regions": 162,
+        "unsupported_extraction_issues": 0,
+        "unresolved_extraction_issues": 0,
+        "comparison_complete": false,
+        "difference_status": "detected",
+        "comparison_scope": {
+          "supported_text": true,
+          "images_compared": false
+        },
+        "tentative_candidates": 17,
+        "old_alignment_coverage": {
+          "resolved_tokens": 5039,
+          "total_tokens": 8619,
+          "ratio": 0.584638589163476
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 5040,
+          "total_tokens": 8868,
+          "ratio": 0.5683355886332883
+        },
+        "comparison_coverage_ratio": 0.5683355886332883
+      }
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "revision",
+      "route": "shared_text",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.63,\"peak_rss_kib\":38232,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/revision/shared_text/report.json",
+      "report_sha256": "0acd8ad84376be708e51eafb0e386d7833e02572b5c39b50a52c247acdeb6872",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 8001,
+          "new_discovered_sources": 8230,
+          "old_compared_sources": 5607,
+          "new_compared_sources": 5618,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 2394,
+          "new_uncompared_sources": 2612,
+          "complete": false
+        }
+      ],
+      "typed_changes": 1,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 84
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 230
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 8
+        }
+      ],
+      "source_evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1066-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 16,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 16,
+              "span_iou": 1.0,
+              "true_positive_tokens": 16
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "revision",
+      "route": "shared_all",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.59,\"peak_rss_kib\":38836,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/revision/shared_all/report.json",
+      "report_sha256": "96eeca10307a82b7ee29eedc8ec49144173ff1c80d54dc041a50694bda35de09",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 8001,
+          "new_discovered_sources": 8230,
+          "old_compared_sources": 5607,
+          "new_compared_sources": 5618,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 2394,
+          "new_uncompared_sources": 2612,
+          "complete": false
+        },
+        {
+          "channel": "visual",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4,
+          "new_discovered_sources": 4,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 4,
+          "new_uncompared_sources": 4,
+          "complete": false
+        },
+        {
+          "channel": "forms",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 107,
+          "new_discovered_sources": 123,
+          "old_compared_sources": 89,
+          "new_compared_sources": 89,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 18,
+          "new_uncompared_sources": 34,
+          "complete": false
+        },
+        {
+          "channel": "relations",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 775,
+          "new_discovered_sources": 831,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 775,
+          "new_uncompared_sources": 831,
+          "complete": false
+        }
+      ],
+      "typed_changes": 13,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "form appearance or rich-text value requires separate comparison",
+          "count": 230
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: state-selected widget rendering is not supported",
+          "count": 34
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: widget normal appearance is missing",
+          "count": 196
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "page widget appearances require separate comparison",
+          "count": 2
+        },
+        {
+          "channel": "forms",
+          "kind": "unsupported",
+          "reason": "XFA form content remains unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 84
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 230
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 8
+        }
+      ],
+      "source_evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1066-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 16,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 16,
+              "span_iou": 1.0,
+              "true_positive_tokens": 16
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "old-control",
+      "route": "native",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.75,\"peak_rss_kib\":41324,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/old-control/native/report.json",
+      "report_sha256": "9978167cca98c0e3cb699ff7d15d5a901c7a93ea08a978e211c661e46db3ff57",
+      "native_summary": {
+        "established_changes": 0,
+        "content_changes": 0,
+        "proven_changed_regions": 0,
+        "formatting_only_changes": 0,
+        "uncertain_changes": 0,
+        "unresolved_regions": 97,
+        "unsupported_extraction_issues": 0,
+        "unresolved_extraction_issues": 0,
+        "comparison_complete": false,
+        "difference_status": "indeterminate",
+        "comparison_scope": {
+          "supported_text": true,
+          "images_compared": false
+        },
+        "tentative_candidates": 0,
+        "old_alignment_coverage": {
+          "resolved_tokens": 6607,
+          "total_tokens": 8619,
+          "ratio": 0.7665622462002553
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 6607,
+          "total_tokens": 8619,
+          "ratio": 0.7665622462002553
+        },
+        "comparison_coverage_ratio": 0.7665622462002553
+      }
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "old-control",
+      "route": "shared_text",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.45,\"peak_rss_kib\":37928,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/old-control/shared_text/report.json",
+      "report_sha256": "4fedf1d75b6d5739c6628015e34c650bbcf1d5e94a825af69e6e2a7a4247be34",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 8001,
+          "new_discovered_sources": 8001,
+          "old_compared_sources": 7076,
+          "new_compared_sources": 7076,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 925,
+          "new_uncompared_sources": 925,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 64
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 214
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "old-control",
+      "route": "shared_all",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.56,\"peak_rss_kib\":38428,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/old-control/shared_all/report.json",
+      "report_sha256": "6e34071a5af83b595a9c79a4f5fdd865b28808042142b85c7f0cc91732496acb",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 8001,
+          "new_discovered_sources": 8001,
+          "old_compared_sources": 7076,
+          "new_compared_sources": 7076,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 925,
+          "new_uncompared_sources": 925,
+          "complete": false
+        },
+        {
+          "channel": "visual",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4,
+          "new_discovered_sources": 4,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 4,
+          "new_uncompared_sources": 4,
+          "complete": false
+        },
+        {
+          "channel": "forms",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 107,
+          "new_discovered_sources": 107,
+          "old_compared_sources": 107,
+          "new_compared_sources": 107,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": false
+        },
+        {
+          "channel": "relations",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 775,
+          "new_discovered_sources": 775,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 775,
+          "new_uncompared_sources": 775,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "form appearance or rich-text value requires separate comparison",
+          "count": 214
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: state-selected widget rendering is not supported",
+          "count": 32
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: widget normal appearance is missing",
+          "count": 182
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "page widget appearances require separate comparison",
+          "count": 2
+        },
+        {
+          "channel": "forms",
+          "kind": "unsupported",
+          "reason": "XFA form content remains unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 64
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 214
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "new-control",
+      "route": "native",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.77,\"peak_rss_kib\":40316,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/new-control/native/report.json",
+      "report_sha256": "1658071ac7b43c7b84ca481ede2898b830325ce4a29eb864231d2430f4544665",
+      "native_summary": {
+        "established_changes": 0,
+        "content_changes": 0,
+        "proven_changed_regions": 0,
+        "formatting_only_changes": 0,
+        "uncertain_changes": 0,
+        "unresolved_regions": 97,
+        "unsupported_extraction_issues": 0,
+        "unresolved_extraction_issues": 0,
+        "comparison_complete": false,
+        "difference_status": "indeterminate",
+        "comparison_scope": {
+          "supported_text": true,
+          "images_compared": false
+        },
+        "tentative_candidates": 0,
+        "old_alignment_coverage": {
+          "resolved_tokens": 7020,
+          "total_tokens": 8868,
+          "ratio": 0.7916102841677943
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 7020,
+          "total_tokens": 8868,
+          "ratio": 0.7916102841677943
+        },
+        "comparison_coverage_ratio": 0.7916102841677943
+      }
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "new-control",
+      "route": "shared_text",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.54,\"peak_rss_kib\":38688,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/new-control/shared_text/report.json",
+      "report_sha256": "3184cdff1d448cb555f9fa74274d5a23975c9ae51e2f34fcc66a96678c72fdf6",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 8230,
+          "new_discovered_sources": 8230,
+          "old_compared_sources": 7259,
+          "new_compared_sources": 7259,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 971,
+          "new_uncompared_sources": 971,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 104
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 246
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pair": "irs1066",
+      "comparison": "new-control",
+      "route": "shared_all",
+      "exit_code": 3,
+      "process": "Command exited with non-zero status 3\n{\"elapsed_seconds\":0.60,\"peak_rss_kib\":39448,\"exit_code\":3}\n",
+      "report_path": "/tmp/pdfdelta-issue20-unseen5/trials/irs1066/new-control/shared_all/report.json",
+      "report_sha256": "0d34fb1d63e91e7cdef4050f00749fd7b85d2e0739660a77efbf6d9b223769fd",
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 8230,
+          "new_discovered_sources": 8230,
+          "old_compared_sources": 7259,
+          "new_compared_sources": 7259,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 971,
+          "new_uncompared_sources": 971,
+          "complete": false
+        },
+        {
+          "channel": "visual",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4,
+          "new_discovered_sources": 4,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 4,
+          "new_uncompared_sources": 4,
+          "complete": false
+        },
+        {
+          "channel": "forms",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 123,
+          "new_discovered_sources": 123,
+          "old_compared_sources": 123,
+          "new_compared_sources": 123,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": false
+        },
+        {
+          "channel": "relations",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 831,
+          "new_discovered_sources": 831,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 831,
+          "new_uncompared_sources": 831,
+          "complete": false
+        }
+      ],
+      "typed_changes": 0,
+      "inferred_changes": 0,
+      "issues": [
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "form appearance or rich-text value requires separate comparison",
+          "count": 246
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: state-selected widget rendering is not supported",
+          "count": 36
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "invalid configuration: widget normal appearance is missing",
+          "count": 210
+        },
+        {
+          "channel": "forms",
+          "kind": "unresolved",
+          "reason": "page widget appearances require separate comparison",
+          "count": 2
+        },
+        {
+          "channel": "forms",
+          "kind": "unsupported",
+          "reason": "XFA form content remains unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+          "count": 2
+        },
+        {
+          "channel": "relations",
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+          "count": 104
+        },
+        {
+          "channel": "relations",
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented",
+          "count": 246
+        },
+        {
+          "channel": "visual",
+          "kind": "unresolved",
+          "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+          "count": 8
+        }
+      ]
+    }
+  ],
+  "limits": "Native reported completeness is limited to its declared supported-text contract. Shared control scope coverage has not been certified. Zero operations do not prove a pass."
+}

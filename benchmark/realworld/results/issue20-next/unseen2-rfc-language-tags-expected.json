@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "pair": "rfc1766-to-rfc3066",
+  "reviewed_on": "2026-09-10",
+  "annotation": "partial",
+  "notes": "Source-only visual review before any comparison. PDF page 2 on both sides, language-tag grammar. The complete primary production retains its alphabetic one-to-eight-character right-hand side and its role as the first production referenced by Language-Tag; its left-hand symbol gains sub. The neighboring Language-Tag reference independently confirms the same rename. This is an editorial correspondence, not a claimed PDF source identity certificate.",
+  "scopes": [
+    {
+      "id": "primary-production",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "Primary-tag = 1*8ALPHA",
+        "end_quote": "Primary-tag = 1*8ALPHA"
+      },
+      "new": {
+        "start_quote": "Primary-subtag = 1*8ALPHA",
+        "end_quote": "Primary-subtag = 1*8ALPHA"
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "primary-production-change",
+      "kind": "insertion",
+      "scope": "primary-production",
+      "occurrence_count": 1,
+      "new_quote": "Primary-subtag = 1*8ALPHA",
+      "new_changed_ranges": [
+        {
+          "start": 8,
+          "end": 11
+        }
+      ],
+      "note": "PDF page 2 on both sides, language-tag grammar. The complete primary production retains its alphabetic one-to-eight-character right-hand side and its role as the first production referenced by Language-Tag; its left-hand symbol gains sub. The neighboring Language-Tag reference independently confirms the same rename. This is an editorial correspondence, not a claimed PDF source identity certificate."
+    }
+  ]
+}

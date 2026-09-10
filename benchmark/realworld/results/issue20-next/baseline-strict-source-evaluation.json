@@ -1,0 +1,1081 @@
+{
+  "schema_version": 1,
+  "evaluation_contract": "complete_literal_source_mask_v2",
+  "evaluator": "strict-evaluator-freeze.json",
+  "routes": [
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 660,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 33461,
+        "sha256": "3c3ac946023fe79165ffcc4fb0696a6281da5f8ee32cbbc0a7c0677400891a41",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 660,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 33460,
+        "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "arxiv-version-date-stamp",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "arxiv-attention-v6-to-v7",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "distribution-stamp",
+            "tokens": {
+              "expected_changed_tokens": 11,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 660,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 33461,
+        "sha256": "3c3ac946023fe79165ffcc4fb0696a6281da5f8ee32cbbc0a7c0677400891a41",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 660,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 33460,
+        "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "arxiv-version-date-stamp",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "arxiv-attention-v6-to-v7",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "distribution-stamp",
+            "tokens": {
+              "expected_changed_tokens": 11,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "route": "shared_text",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "route": "shared_all",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 648,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 61504,
+        "sha256": "af44e1bd2ee698a108e1f22b676b484b453b358c210ffce84886ffeb9da71172",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 765,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 61625,
+        "sha256": "115f79affca4ac1aba07dfc9fad31a1ee7c5705cee88356471ebf910a70d279e",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "edition-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "copyright-year",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "copyright-notice-updated",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          }
+        ],
+        "pair": "ecma-109-ed10-to-ed11",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "cover-edition",
+            "tokens": {
+              "expected_changed_tokens": 14,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 648,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 61504,
+        "sha256": "af44e1bd2ee698a108e1f22b676b484b453b358c210ffce84886ffeb9da71172",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 765,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 61625,
+        "sha256": "115f79affca4ac1aba07dfc9fad31a1ee7c5705cee88356471ebf910a70d279e",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "edition-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "copyright-year",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "copyright-notice-updated",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          }
+        ],
+        "pair": "ecma-109-ed10-to-ed11",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "cover-edition",
+            "tokens": {
+              "expected_changed_tokens": 14,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 1457,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 218492,
+        "sha256": "90df6b680463318d266a804e91e57543ed891180fdd671594b952ad3863734df",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 1470,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 223589,
+        "sha256": "b399b25634b379576378d725284d5ed2b1a81c93c34ade9ee8eb48ef5eb75032",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "consultation-watermark-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "completeness-of-copy-clarified",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "exception-effect-qualified",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "rijkeboer-citation-reflow",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          }
+        ],
+        "pair": "edpb-right-of-access-v1-to-final",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "exception-confirmation-example",
+            "tokens": {
+              "expected_changed_tokens": 10,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 1457,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 218492,
+        "sha256": "90df6b680463318d266a804e91e57543ed891180fdd671594b952ad3863734df",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 1470,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 223589,
+        "sha256": "b399b25634b379576378d725284d5ed2b1a81c93c34ade9ee8eb48ef5eb75032",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "consultation-watermark-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "completeness-of-copy-clarified",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "exception-effect-qualified",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "rijkeboer-citation-reflow",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          }
+        ],
+        "pair": "edpb-right-of-access-v1-to-final",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "exception-confirmation-example",
+            "tokens": {
+              "expected_changed_tokens": 10,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "route": "shared_text",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "route": "shared_all",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 33,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 12680,
+        "sha256": "e93b279e270c8df071324b4c2c31b00280d8349b5395ef9db152d4f18ab5a011",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 33,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 13238,
+        "sha256": "189f3cb5d72a967dcc2cb90a35d295f4b2d93ba6f969900648b08bc76fb3b783",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "form-year-footer",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-w4-korean-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "page-three-running-header",
+            "tokens": {
+              "expected_changed_tokens": 2,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 33,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 12680,
+        "sha256": "e93b279e270c8df071324b4c2c31b00280d8349b5395ef9db152d4f18ab5a011",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 33,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 13238,
+        "sha256": "189f3cb5d72a967dcc2cb90a35d295f4b2d93ba6f969900648b08bc76fb3b783",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "form-year-footer",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-w4-korean-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "page-three-running-header",
+            "tokens": {
+              "expected_changed_tokens": 2,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "route": "shared_text",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "route": "shared_all",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "route": "shared_text",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "route": "shared_all",
+      "exit_code": "unavailable",
+      "evaluation": null,
+      "error": "comparison report unavailable\n"
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 3688,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 444332,
+        "sha256": "4672ba364e3a9e0dc53285adb174f084cdefaec3e782fc10234d5ff0f0ae6801",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 4304,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 493960,
+        "sha256": "cc32391022c1382ac7c91490f6bcc8838e0f889925270da23ef4e800e2ecb7ad",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "footer-rev-branding-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "keying-material-definition-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "toolkit-footnote-comma-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "cryptanalysis-review-window-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "toolkit-footnote-renumbered",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "standards-reference-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "approved-definition-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "association-definition-punctuation",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "nist-sp800-57-part1-r4-to-r5",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "introduction-adjacent-replacements",
+            "tokens": {
+              "expected_changed_tokens": 2,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          },
+          {
+            "id": "glossary-adjacent-replacements",
+            "tokens": {
+              "expected_changed_tokens": 5,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 3688,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 444332,
+        "sha256": "4672ba364e3a9e0dc53285adb174f084cdefaec3e782fc10234d5ff0f0ae6801",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 4304,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 493960,
+        "sha256": "cc32391022c1382ac7c91490f6bcc8838e0f889925270da23ef4e800e2ecb7ad",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "footer-rev-branding-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "keying-material-definition-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "toolkit-footnote-comma-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "cryptanalysis-review-window-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "toolkit-footnote-renumbered",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "standards-reference-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "approved-definition-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "association-definition-punctuation",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "nist-sp800-57-part1-r4-to-r5",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "introduction-adjacent-replacements",
+            "tokens": {
+              "expected_changed_tokens": 2,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          },
+          {
+            "id": "glossary-adjacent-replacements",
+            "tokens": {
+              "expected_changed_tokens": 5,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 2776,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 251607,
+        "sha256": "4e248bd56a790c019f1b3009632ce538d9e62aac6c32c8e378ca2622ece6300c",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 3182,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 293908,
+        "sha256": "0e83bac4fbd1a7979004464e471017f71112ce61a5c011482c061447a9b6caab",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "publication-stage",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "cs01-url-moved-to-previous-stage",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          }
+        ],
+        "pair": "oasis-csaf-v2-cs01-to-csd02",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "cover-stage-date",
+            "tokens": {
+              "expected_changed_tokens": 25,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 2776,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 251607,
+        "sha256": "4e248bd56a790c019f1b3009632ce538d9e62aac6c32c8e378ca2622ece6300c",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 3182,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 293908,
+        "sha256": "0e83bac4fbd1a7979004464e471017f71112ce61a5c011482c061447a9b6caab",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "publication-stage",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "cs01-url-moved-to-previous-stage",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          }
+        ],
+        "pair": "oasis-csaf-v2-cs01-to-csd02",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "cover-stage-date",
+            "tokens": {
+              "expected_changed_tokens": 25,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 3383,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 191498,
+        "sha256": "c45a1f4f3d0d9a66b3f890dce49a1e2ddeae69cfd67f907a5b6e97a6d64a0b54",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 5532,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 370799,
+        "sha256": "e8f8e9d2467618d5c5a6398bdf971cb90cdbe2c8e33242e028f442bee8e5de20",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [],
+        "pair": "oasis-mqtt-311-to-50",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "notices-unchanged-permissions",
+            "tokens": {
+              "expected_changed_tokens": 0,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 1.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 3383,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 191498,
+        "sha256": "c45a1f4f3d0d9a66b3f890dce49a1e2ddeae69cfd67f907a5b6e97a6d64a0b54",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 5532,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 370799,
+        "sha256": "e8f8e9d2467618d5c5a6398bdf971cb90cdbe2c8e33242e028f442bee8e5de20",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [],
+        "pair": "oasis-mqtt-311-to-50",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "notices-unchanged-permissions",
+            "tokens": {
+              "expected_changed_tokens": 0,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 1.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "route": "shared_text",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 579,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 71968,
+        "sha256": "e626d891a91c2fb4b5871b85408282d0429dce1b4fb8314c6618c13fa190ecb9",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 863,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 97968,
+        "sha256": "2f4582d19b5100cf0adefb502223acebaaabced473600c22d1a95423504ca428",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "former-current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "previous-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "cover-metadata",
+            "tokens": {
+              "expected_changed_tokens": 239,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "route": "shared_all",
+      "exit_code": "0",
+      "old_source": {
+        "block_count": 579,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 71968,
+        "sha256": "e626d891a91c2fb4b5871b85408282d0429dce1b4fb8314c6618c13fa190ecb9",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 863,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 97968,
+        "sha256": "2f4582d19b5100cf0adefb502223acebaaabced473600c22d1a95423504ca428",
+        "source_view": "default_native_layout_canonical_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "former-current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          {
+            "id": "previous-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          }
+        ],
+        "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "cover-metadata",
+            "tokens": {
+              "expected_changed_tokens": 239,
+              "f1": 0.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "reported_changed_tokens": 0,
+              "span_iou": 0.0,
+              "true_positive_tokens": 0
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    }
+  ]
+}

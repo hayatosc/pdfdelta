@@ -124,6 +124,7 @@ fn table(
         rendered: Vec::new(),
         structured: Vec::new(),
         inventories: Vec::new(),
+        key_inventories: Vec::new(),
         issues: Vec::new(),
     }
 }

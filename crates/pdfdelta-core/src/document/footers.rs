@@ -172,24 +172,25 @@ pub(crate) fn candidates(
                         .x,
                 )
         });
+        // Repetition assigns margin roles to individual fragments. Those
+        // inferred roles cannot veto the complete horizontal source band above.
         if members.windows(2).any(|pair| {
             let a = &blocks[pair[0]];
             let b = &blocks[pair[1]];
-            !a.role.is_alignment_compatible(b.role)
-                || a.position_signatures
+            a.position_signatures
+                .as_ref()
+                .expect("page geometry was checked above")
+                .last()
+                .expect("footer members have nonempty horizontal positions")
+                .baseline()
+                .x
+                > b.position_signatures
                     .as_ref()
                     .expect("page geometry was checked above")
-                    .last()
+                    .first()
                     .expect("footer members have nonempty horizontal positions")
                     .baseline()
                     .x
-                    > b.position_signatures
-                        .as_ref()
-                        .expect("page geometry was checked above")
-                        .first()
-                        .expect("footer members have nonempty horizontal positions")
-                        .baseline()
-                        .x
         }) {
             continue;
         }
@@ -432,6 +433,103 @@ impl super::DocumentGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        layout::BlockId,
+        model::{GlyphId, Vec2},
+        normalize::{
+            FontSizeSignature, MappedText, PositionSignature, ScalarRange, SourceMapEntry,
+            TextSource, TextSourceAtom,
+        },
+    };
+
+    fn terminal_block(id: u32, text: &str, x: f64, y: f64, role: BlockRole) -> BlockText {
+        let count = text.chars().count();
+        let mapped = MappedText {
+            text: text.into(),
+            unmapped: Vec::new(),
+            source_map: (0..count)
+                .map(|index| SourceMapEntry {
+                    output_range: ScalarRange {
+                        start: index,
+                        end: index + 1,
+                    },
+                    source: TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId(
+                            u64::from(id) * 1000 + index as u64,
+                        ))]
+                        .into(),
+                    },
+                })
+                .collect(),
+        };
+        BlockText {
+            block: BlockId(u64::from(id)),
+            role,
+            raw: mapped.clone(),
+            canonical: mapped.clone(),
+            matching: text.into(),
+            matching_tokens: mapped.comparable_tokens().expect("fixture tokens"),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: Some(vec![
+                FontSizeSignature::new(&[6.0]).expect("font size");
+                count
+            ]),
+            position_signatures: Some(
+                (0..count)
+                    .map(|index| {
+                        PositionSignature::new(
+                            Vec2 {
+                                x: x + index as f64,
+                                y,
+                            },
+                            Vec2 { x: 1.0, y: 0.0 },
+                        )
+                        .expect("source position")
+                    })
+                    .collect(),
+            ),
+            line_breaks: Some(Vec::new()),
+            page_breaks: Some(Vec::new()),
+        }
+    }
+
+    #[test]
+    fn terminal_geometry_survives_fragmented_inferred_margin_roles() {
+        for (label_y, expected) in [(30.0, 1), (50.0, 0)] {
+            let blocks = vec![
+                terminal_block(
+                    0,
+                    "Reviewed catalog instructions remain available.",
+                    0.0,
+                    30.0,
+                    BlockRole::Body,
+                ),
+                terminal_block(1, "Cat. No. 98Z76", 100.0, 30.0, BlockRole::Body),
+                terminal_block(
+                    2,
+                    "Form 4567 (2030)",
+                    200.0,
+                    label_y,
+                    BlockRole::RepeatedFooter,
+                ),
+            ];
+            let mut search = CandidateSearch {
+                complete: true,
+                work_limited: false,
+            };
+            let found =
+                candidates(&blocks, 8, &mut 100_000, 10, &mut search).expect("candidate search");
+            assert!(search.complete);
+            assert_eq!(found.len(), expected);
+            if let Some(footer) = found.first() {
+                assert_eq!(footer.members, [0, 1, 2]);
+                assert_eq!((&*footer.catalog, &*footer.form), ("98Z76", "4567"));
+            }
+        }
+    }
 
     #[test]
     fn catalog_and_form_identity_is_generic_and_duplicates_are_visible() {

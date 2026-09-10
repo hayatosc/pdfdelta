@@ -1,0 +1,152 @@
+{
+  "status": "post_output_development_annotation_only_not_unseen_acceptance",
+  "candidate": "candidate4-freeze.json",
+  "original_result": "unseen4-results.json",
+  "diagnostic": "unseen4-annotation-diagnostic.json",
+  "routes": [
+    {
+      "pair": "irs-form-1041-2024-to-2025",
+      "route": "shared_text",
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1041-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 17,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 17,
+              "span_iou": 1.0,
+              "true_positive_tokens": 17
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs-form-1041-2024-to-2025",
+      "route": "shared_all",
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1041-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 17,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 17,
+              "span_iou": 1.0,
+              "true_positive_tokens": 17
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs-form-1042-2024-to-2025",
+      "route": "shared_text",
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1042-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 16,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 16,
+              "span_iou": 1.0,
+              "true_positive_tokens": 16
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    },
+    {
+      "pair": "irs-form-1042-2024-to-2025",
+      "route": "shared_all",
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "footer-revision-and-created-date",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1042-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "first-page-footer",
+            "tokens": {
+              "expected_changed_tokens": 16,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 16,
+              "span_iou": 1.0,
+              "true_positive_tokens": 16
+            },
+            "unavailable": null
+          }
+        ]
+      }
+    }
+  ]
+}

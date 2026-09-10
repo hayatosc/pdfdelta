@@ -1,0 +1,233 @@
+{
+  "contract": "literal_source_and_synthetic_separator_preflight_v1",
+  "rows": [
+    {
+      "form": 1116,
+      "identities_match": true,
+      "raw_quotes": [
+        "For Paperwork Reduction Act Notice, see instructions. Cat. No. 11440U Form 1116 (2024) ",
+        "For Paperwork Reduction Act Notice, see instructions. Cat. No. 11440U Form 1116 (2025) Created 9/16/25"
+      ],
+      "raw": {
+        "edit_cost": 17,
+        "changed_source_lower": 17,
+        "changed_source_upper": 17,
+        "mandatory": [
+          [
+            84
+          ],
+          [
+            84,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101
+          ]
+        ],
+        "possible": [
+          [
+            84
+          ],
+          [
+            84,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101
+          ]
+        ],
+        "fully_localized": false
+      },
+      "view": {
+        "edit_cost": 17,
+        "changed_source_lower": 17,
+        "changed_source_upper": 17,
+        "mandatory": [
+          [
+            84
+          ],
+          [
+            84,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101
+          ]
+        ],
+        "possible": [
+          [
+            84
+          ],
+          [
+            84,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101
+          ]
+        ],
+        "fully_localized": false
+      },
+      "raw_view_source_masks_agree": true,
+      "eligible": false
+    },
+    {
+      "form": 2555,
+      "identities_match": true,
+      "raw_quotes": [
+        "For Paperwork Reduction Act Notice, see the Instructions for Form 1040.Cat. No. 11900P Form 2555 (2024) ",
+        "For Paperwork Reduction Act Notice, see the Instructions for Form 1040.Cat. No. 11900P Form 2555 (2025) Created 5/14/25 "
+      ],
+      "raw": {
+        "edit_cost": 18,
+        "changed_source_lower": 18,
+        "changed_source_upper": 18,
+        "mandatory": [
+          [],
+          [
+            101,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            112,
+            113,
+            114,
+            116,
+            117,
+            118
+          ]
+        ],
+        "possible": [
+          [
+            101,
+            102
+          ],
+          [
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119
+          ]
+        ],
+        "fully_localized": false
+      },
+      "view": {
+        "edit_cost": 18,
+        "changed_source_lower": 18,
+        "changed_source_upper": 18,
+        "mandatory": [
+          [],
+          [
+            102,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            113,
+            114,
+            115,
+            117,
+            118,
+            119
+          ]
+        ],
+        "possible": [
+          [
+            102,
+            103
+          ],
+          [
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120
+          ]
+        ],
+        "fully_localized": false
+      },
+      "raw_view_source_masks_agree": true,
+      "eligible": false
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "pair": "irs-form-1042-2024-to-2025-old-control",
+  "reviewed_on": "2026-09-10",
+  "annotation": "partial",
+  "notes": "Identical-input control for the complete predeclared first-page footer scope. Requires zero changes and complete non-inferred source accounting within this scope; document-wide completeness is assessed separately.",
+  "scopes": [
+    {
+      "id": "first-page-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Privacy Act and Paperwork Reduction Act Notice, see instructions.Cat. No. 11384VForm 1042 (2024) ",
+        "end_quote": "For Privacy Act and Paperwork Reduction Act Notice, see instructions.Cat. No. 11384VForm 1042 (2024) "
+      },
+      "new": {
+        "start_quote": "For Privacy Act and Paperwork Reduction Act Notice, see instructions.Cat. No. 11384VForm 1042 (2024) ",
+        "end_quote": "For Privacy Act and Paperwork Reduction Act Notice, see instructions.Cat. No. 11384VForm 1042 (2024) "
+      }
+    }
+  ],
+  "changes": []
+}

@@ -2911,7 +2911,7 @@ fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
     );
     assert_eq!(
         report["comparison"]["scopes"][0]["result"]["candidates"]["examined_pairs"],
-        4
+        2
     );
     assert_eq!(
         report["comparison"]["scopes"][0]["result"]["matching"]["channels"]["text"],
@@ -2924,6 +2924,66 @@ fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
     assert_eq!(pairs[0]["operation"]["new"]["value"], "20");
     assert_eq!(pairs[1]["operation"]["old"]["value"], "20");
     assert_eq!(pairs[1]["operation"]["new"]["value"], "100");
+}
+
+#[test]
+fn native_field_presence_reaches_cli_counts_and_coverage_without_character_masks() {
+    let directory = TestDirectory::new();
+    let old = directory.join("empty-fields.pdf");
+    let new = directory.join("added-field.pdf");
+    for (path, added) in [(&old, false), (&new, true)] {
+        write_pdf(path, &["Retained background"]);
+        let mut pdf = Document::load(path).expect("background");
+        let fields = if added {
+            vec![Object::Reference(pdf.add_object(dictionary! { "FT" => "Tx", "T" => Object::string_literal("added"), "V" => Object::string_literal("Stored value") }))]
+        } else {
+            Vec::new()
+        };
+        let root = pdf
+            .trailer
+            .get(b"Root")
+            .and_then(Object::as_reference)
+            .expect("root");
+        pdf.get_object_mut(root)
+            .and_then(Object::as_dict_mut)
+            .expect("catalog")
+            .set("AcroForm", dictionary! { "Fields" => fields });
+        pdf.save(path).expect("form PDF");
+    }
+    for (old, new, kind, presence) in [
+        (&old, &new, "inserted", "new_presence_sources"),
+        (&new, &old, "removed", "old_presence_sources"),
+    ] {
+        let report_path = directory.join(&format!("presence-{kind}.json"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .arg(old)
+            .arg(new)
+            .args(["--channels", "forms", "--json"])
+            .arg(&report_path)
+            .output()
+            .expect("field presence CLI");
+        assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("Keyed Field"), "{text}");
+        assert!(text.contains("no character mask"), "{text}");
+        assert!(!text.contains("Mandatory changed positions:"), "{text}");
+        let report: Value =
+            serde_json::from_slice(&fs::read(&report_path).expect("report")).expect("JSON");
+        assert_eq!(report["comparison_complete"], true);
+        assert_eq!(report["typed_changes"], 1);
+        assert_eq!(report["coverage"][0][presence], 1);
+        let operations = report["comparison"]["key_presence"]["scoped"]["operations"]
+            .as_array()
+            .expect("operations");
+        assert_eq!(operations.len(), 1);
+        assert_eq!(operations[0]["kind"], kind);
+        assert!(
+            report["comparison"]["scopes"][0]["result"]["comparisons"]
+                .as_array()
+                .expect("comparisons")
+                .is_empty()
+        );
+    }
 }
 
 #[test]

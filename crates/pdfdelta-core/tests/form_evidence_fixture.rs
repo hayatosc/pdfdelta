@@ -150,6 +150,7 @@ fn inherited_type_and_qualified_name_do_not_require_a_widget() {
     let result =
         extract_form_evidence(pdf.as_ref(), 0, 0, FormLimits::default()).expect("inherited form");
     assert!(result.inventory.complete);
+    assert!(result.key_inventory.complete);
     assert_eq!(result.fields.len(), 1);
     assert_eq!(result.fields[0].page, None);
     assert!(
@@ -169,6 +170,7 @@ fn ambiguous_partial_names_cannot_alias_a_qualified_field() {
     let result = extract_form_evidence(pdf.as_ref(), 0, 0, FormLimits::default())
         .expect("retain ambiguous field evidence");
     assert!(!result.inventory.complete);
+    assert!(!result.key_inventory.complete);
     assert_eq!(result.fields.len(), 2);
     assert!(
         matches!(&result.fields[0].value, StructuredValue::FormField {

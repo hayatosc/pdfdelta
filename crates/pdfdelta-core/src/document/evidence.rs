@@ -211,12 +211,76 @@ pub enum EvidenceFailure {
     BackendFailure,
 }
 
+/// A gap in retained extraction order. Neighbors locate the boundary; they are
+/// neither missing glyphs nor an estimate of the missing content's geometry.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EvidenceBoundary {
+    GlyphGap {
+        retained_before: usize,
+        before: Option<GlyphId>,
+        after: Option<GlyphId>,
+    },
+    PageGap {
+        retained_before: usize,
+        before: Option<PageId>,
+        after: Option<PageId>,
+    },
+}
+
+impl EvidenceBoundary {
+    pub(super) fn page_scope(&self, native: &Document<Glyph>) -> Option<PageId> {
+        let Self::GlyphGap {
+            retained_before, ..
+        } = self
+        else {
+            return None;
+        };
+        let before = retained_before
+            .checked_sub(1)
+            .and_then(|index| native.items().get(index))?;
+        let after = native.items().get(*retained_before)?;
+        (before.page == after.page).then_some(before.page)
+    }
+
+    pub(super) fn glyph_gap(native: &Document<Glyph>, retained_before: usize) -> Result<Self> {
+        if retained_before > native.items().len() {
+            return Err(invalid("glyph gap exceeds retained evidence"));
+        }
+        Ok(Self::GlyphGap {
+            retained_before,
+            before: retained_before
+                .checked_sub(1)
+                .and_then(|index| native.items().get(index))
+                .map(|glyph| glyph.id),
+            after: native.items().get(retained_before).map(|glyph| glyph.id),
+        })
+    }
+
+    pub(super) fn page_gap(pages: &[PageEvidence], retained_before: usize) -> Result<Self> {
+        if retained_before > pages.len() {
+            return Err(invalid("page gap exceeds retained evidence"));
+        }
+        Ok(Self::PageGap {
+            retained_before,
+            before: retained_before
+                .checked_sub(1)
+                .and_then(|index| pages.get(index))
+                .map(|page| page.page),
+            after: pages.get(retained_before).map(|page| page.page),
+        })
+    }
+}
+
 /// A failure's explicit dependency scope. No page means document-wide uncertainty.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceIssue {
     pub page: Option<PageId>,
     pub channel: Channel,
     pub sources: Vec<SourceRef>,
+    /// Local boundary evidence does not close the inventory of undiscovered rivals.
+    #[serde(default)]
+    pub boundary: Option<EvidenceBoundary>,
     pub kind: EvidenceFailure,
     pub reason: String,
 }
@@ -233,6 +297,25 @@ pub struct ChannelInventory {
     pub complete: bool,
 }
 
+/// Raw identity domains have different enumeration contracts from content channels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyDomain {
+    PdfFieldName,
+    PdfStructureId,
+}
+
+/// Document-wide discovery of every structured element in this native domain.
+/// Members are the store's structured evidence from this backend and domain,
+/// including members without keys. Completeness does not establish text coverage,
+/// unique keys, semantic identity across renames, or complete relationships.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyInventory {
+    pub domain: KeyDomain,
+    pub backend: usize,
+    pub complete: bool,
+}
+
 /// Raw evidence survives interpretation. Graph views refer to this store without
 /// deleting, rewriting, or transferring ownership of the original material.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -244,6 +327,8 @@ pub struct EvidenceStore {
     pub rendered: Vec<RenderedEvidence>,
     pub structured: Vec<StructuredEvidence>,
     pub inventories: Vec<ChannelInventory>,
+    #[serde(default)]
+    pub key_inventories: Vec<KeyInventory>,
     pub issues: Vec<EvidenceIssue>,
 }
 
@@ -286,6 +371,7 @@ impl EvidenceStore {
             self.rendered.len(),
             self.structured.len(),
             self.inventories.len(),
+            self.key_inventories.len(),
             self.issues.len(),
             self.backends.len(),
         ]
@@ -662,6 +748,20 @@ impl EvidenceStore {
                 }
             }
         }
+        let mut key_domains = BTreeSet::new();
+        for inventory in &self.key_inventories {
+            if self
+                .backends
+                .get(inventory.backend)
+                .map(|backend| backend.kind)
+                != Some(BackendKind::NativeParser)
+                || !key_domains.insert((inventory.backend, inventory.domain))
+            {
+                return Err(invalid(
+                    "key inventory requires a unique native backend/domain",
+                ));
+            }
+        }
         let mut inventory_keys = BTreeSet::new();
         let mut references = 0usize;
         for inventory in &self.inventories {
@@ -694,6 +794,26 @@ impl EvidenceStore {
             }
         }
         for issue in &self.issues {
+            if let Some(boundary) = &issue.boundary {
+                let expected = match boundary {
+                    EvidenceBoundary::GlyphGap {
+                        retained_before, ..
+                    } => EvidenceBoundary::glyph_gap(&self.native, *retained_before)?,
+                    EvidenceBoundary::PageGap {
+                        retained_before, ..
+                    } => EvidenceBoundary::page_gap(&self.pages, *retained_before)?,
+                };
+                if issue.channel != Channel::Text || *boundary != expected {
+                    return Err(invalid(
+                        "extraction boundary disagrees with retained evidence",
+                    ));
+                }
+                if issue.page != boundary.page_scope(&self.native) {
+                    return Err(invalid(
+                        "extraction boundary has an inconsistent page scope",
+                    ));
+                }
+            }
             if issue.reason.is_empty() || issue.page.is_some_and(|page| !pages.contains_key(&page))
             {
                 return Err(invalid(

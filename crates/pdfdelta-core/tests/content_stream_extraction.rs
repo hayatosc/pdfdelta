@@ -999,6 +999,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
             StructureLimits::default(),
         )?;
         assert_eq!(tags.elements.len(), 3);
+        assert!(tags.key_inventory.complete);
         if mcid == 0 {
             let limited = extract_structure_evidence(
                 parsed.as_ref(),
@@ -1011,6 +1012,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
                 },
             )?;
             assert_eq!(limited.elements.len(), 1);
+            assert!(!limited.key_inventory.complete);
             assert!(limited.issues.iter().any(|issue| issue.kind
                 == pdfdelta_core::document::EvidenceFailure::ResourceLimit
                 && issue.reason.contains("structure nesting depth")));
@@ -1022,6 +1024,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
         store.structured = tags.elements;
         store.issues.extend(tags.issues);
         store.inventories.push(tags.inventory);
+        store.key_inventories.push(tags.key_inventory);
         let graph = DocumentGraph::from_evidence(
             &store,
             PipelineOptions::default(),
@@ -1053,6 +1056,43 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
                     .count(),
                 11
             );
+            // A tag spanning pages has no single page in the evidence store.
+            // Its glyph membership still establishes all contributing pages.
+            let mut glyphs = store.native.items().to_vec();
+            let mut extra = glyphs[0].clone();
+            extra.id = pdfdelta_core::model::GlyphId(1000);
+            extra.page = pdfdelta_core::model::PageId(1);
+            let extra_id = extra.id;
+            glyphs.push(extra);
+            store.native = pdfdelta_core::model::Document::new(glyphs);
+            store.pages.push(PageEvidence {
+                page: pdfdelta_core::model::PageId(1),
+                bounds: None,
+            });
+            let StructuredValue::StructureElement { glyphs, .. } = &mut store.structured[2].value
+            else {
+                unreachable!()
+            };
+            glyphs.push(extra_id);
+            store.structured[2].page = None;
+            let graph = DocumentGraph::from_evidence(
+                &store,
+                PipelineOptions::default(),
+                EvidenceLimits::default(),
+                GraphLimits::default(),
+            )?;
+            let cell = graph
+                .nodes
+                .iter()
+                .find(|node| node.kind == NodeKind::Cell)
+                .expect("tagged cell view");
+            assert_eq!(
+                cell.pages,
+                vec![
+                    pdfdelta_core::model::PageId(0),
+                    pdfdelta_core::model::PageId(1)
+                ]
+            );
         } else {
             assert!(
                 store
@@ -1061,7 +1101,14 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
                     .any(|issue| issue.reason.contains("marked content was not extracted"))
             );
         }
-        assert_eq!(mapped_text(store.native.items()), "Tagged note");
+        assert_eq!(
+            mapped_text(store.native.items()),
+            if mcid == 0 {
+                "Tagged noteT"
+            } else {
+                "Tagged note"
+            }
+        );
         assert!(!store.inventory_complete(None, Channel::Relations));
     }
     Ok(())
@@ -1278,6 +1325,32 @@ fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<(
         ExtractionScope::GlyphGap { retained_before: 1 }
     );
     assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unresolved);
+    let before = outcome.document().items()[0].id;
+    let after = outcome.document().items()[1].id;
+    let store = pdfdelta_core::document::EvidenceStore::from_native(
+        "failed-form-gap".into(),
+        pdfdelta_core::document::BackendIdentity {
+            kind: pdfdelta_core::document::BackendKind::NativeParser,
+            name: "native".into(),
+            version: "fixture".into(),
+            profile: "raw".into(),
+            model: None,
+        },
+        vec![pdfdelta_core::document::PageEvidence {
+            page: PageId(0),
+            bounds: None,
+        }],
+        outcome,
+        Default::default(),
+    )?;
+    assert_eq!(
+        store.issues[0].boundary,
+        Some(pdfdelta_core::document::EvidenceBoundary::GlyphGap {
+            retained_before: 1,
+            before: Some(before),
+            after: Some(after),
+        })
+    );
     Ok(())
 }
 

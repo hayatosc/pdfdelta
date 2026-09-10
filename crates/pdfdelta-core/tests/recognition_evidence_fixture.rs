@@ -70,6 +70,7 @@ fn fixture(text: &str) -> EvidenceStore {
                 }],
             },
         }],
+        key_inventories: Vec::new(),
         inventories: vec![ChannelInventory {
             page: Some(PageId(0)),
             channel: Channel::Text,

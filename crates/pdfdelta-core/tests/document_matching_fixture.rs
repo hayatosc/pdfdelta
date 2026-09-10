@@ -1,8 +1,8 @@
 use pdfdelta_core::{
     document::{
         AlternativeViews, CorrespondenceProposal, CorrespondenceScope, DocumentGraph, EdgeKind,
-        FieldValue, GraphEdge, GraphNode, IdentityKey, MatchingLimits, NodeContent, NodeId,
-        NodeKind, ProposalBasis, SourceConflict, SourceRef, ViewBasis,
+        FieldValue, GraphEdge, GraphNode, IdentityKey, MatchingAlgorithm, MatchingLimits,
+        NodeContent, NodeId, NodeKind, ProposalBasis, SourceConflict, SourceRef, ViewBasis,
         propose_scope_correspondences, solve_correspondence_scope,
     },
     model::PageId,
@@ -51,6 +51,211 @@ const SCOPE: CorrespondenceScope = CorrespondenceScope {
     new: NodeId(0),
 };
 
+fn dense_assignment(
+    size: usize,
+    diagonal_weight: u32,
+) -> (DocumentGraph, Vec<CorrespondenceProposal>) {
+    let fields = vec![("unkeyed", "value"); size];
+    let mut graph = graph(&fields, 0);
+    for node in &mut graph.nodes {
+        node.identity = None;
+    }
+    let mut proposals = Vec::new();
+    for old in 1..=size {
+        for new in 1..=size {
+            proposals.push(CorrespondenceProposal {
+                old: vec![NodeId(old as u64)],
+                new: vec![NodeId(new as u64)],
+                basis: ProposalBasis::Model,
+                supplier: "assignment-fixture".into(),
+                weight: if old == new { diagonal_weight } else { 1 },
+            });
+        }
+    }
+    (graph, proposals)
+}
+
+#[test]
+fn positive_unique_model_match_retains_the_unmatched_history_at_every_weight() {
+    use pdfdelta_core::document::{
+        CounterpartDecisionMissing, CounterpartDecisionPolicy, CounterpartExplanation,
+    };
+
+    let old = graph(&[("old", "unrelated old value")], 0);
+    let new = graph(&[("new", "entirely different new value")], 0);
+    for weight in [1, 100, u32::MAX] {
+        let proposals = vec![CorrespondenceProposal {
+            old: vec![NodeId(1)],
+            new: vec![NodeId(1)],
+            basis: ProposalBasis::Model,
+            supplier: "unrelated-1x1".into(),
+            weight,
+        }];
+        let matching =
+            solve_correspondence_scope(&old, &new, SCOPE, &proposals, MatchingLimits::default())
+                .expect("valid 1x1 matching");
+        assert_eq!(matching.components[0].mandatory, [0]);
+        let decisions = matching.counterpart_decisions();
+        assert_eq!(
+            decisions.policy,
+            CounterpartDecisionPolicy::PreserveUnmatchedAlternativesV1
+        );
+        assert_eq!(decisions.unresolved.len(), 1);
+        let decision = &decisions.unresolved[0];
+        assert_eq!(decision.proposal, 0);
+        assert_eq!(
+            decision.explanations,
+            [
+                CounterpartExplanation::Correspondence,
+                CounterpartExplanation::SeparatePresence,
+            ]
+        );
+        assert_eq!(
+            decision.missing,
+            [CounterpartDecisionMissing::IndependentCorrespondenceEvidence]
+        );
+    }
+}
+
+#[test]
+fn incomplete_and_tied_matching_retain_unmatched_explanations() {
+    use pdfdelta_core::document::CounterpartDecisionMissing;
+
+    let (graph, proposals) = dense_assignment(2, 1);
+    for budget in [
+        0,
+        MatchingLimits::default().max_assignment_work_per_component,
+    ] {
+        let matching = solve_correspondence_scope(
+            &graph,
+            &graph,
+            SCOPE,
+            &proposals,
+            MatchingLimits {
+                max_assignment_work_per_component: budget,
+                ..MatchingLimits::default()
+            },
+        )
+        .expect("valid competing assignments");
+        let decisions = matching.counterpart_decisions();
+        assert_eq!(decisions.unresolved.len(), proposals.len());
+        assert!(decisions.unresolved.iter().all(|decision| {
+            decision
+                .missing
+                .contains(&CounterpartDecisionMissing::ResolvedRivals)
+        }));
+    }
+}
+
+#[test]
+fn independent_dense_assignments_bypass_subset_and_pairwise_caps() {
+    for size in [5, 20, 100] {
+        let (graph, proposals) = dense_assignment(size, 1_000_001);
+        let result = solve_correspondence_scope(
+            &graph,
+            &graph,
+            SCOPE,
+            &proposals,
+            MatchingLimits {
+                max_pair_checks: 0,
+                max_component_proposals: 0,
+                max_states_per_component: 0,
+                ..MatchingLimits::default()
+            },
+        )
+        .expect("valid assignment fixture");
+        assert!(result.conflict_search_complete);
+        assert_eq!(result.conflict_checks, 0);
+        assert!(result.source_only_mandatory.is_empty());
+        assert_eq!(result.components.len(), 1);
+        let component = &result.components[0];
+        assert_eq!(component.algorithm, MatchingAlgorithm::BipartiteAssignment);
+        assert!(
+            component.exhaustive,
+            "size={size}, work={}",
+            component.assignment_work
+        );
+        assert_eq!(
+            component.mandatory,
+            (0..size)
+                .map(|index| index * (size + 1))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            component
+                .mandatory
+                .iter()
+                .all(|index| result.inferred_proposals.contains(index))
+        );
+        eprintln!(
+            "size={size} proposals={} assignment_work={} ownership_visits={}",
+            proposals.len(),
+            component.assignment_work,
+            result.ownership_visits
+        );
+    }
+}
+
+#[test]
+fn tied_assignments_and_truncated_certificates_never_claim_a_unique_pair() {
+    let (graph, mut proposals) = dense_assignment(5, 1);
+    for _ in 0..2 {
+        let result = solve_correspondence_scope(
+            &graph,
+            &graph,
+            SCOPE,
+            &proposals,
+            MatchingLimits::default(),
+        )
+        .expect("valid assignment fixture");
+        assert!(result.components[0].exhaustive);
+        assert!(result.components[0].mandatory.is_empty());
+        proposals.reverse();
+    }
+    let (_, proposals) = dense_assignment(5, 100);
+    let result = solve_correspondence_scope(
+        &graph,
+        &graph,
+        SCOPE,
+        &proposals,
+        MatchingLimits {
+            max_assignment_work_per_component: 200,
+            ..MatchingLimits::default()
+        },
+    )
+    .expect("valid assignment fixture");
+    assert!(!result.components[0].exhaustive);
+    assert!(result.components[0].mandatory.is_empty());
+}
+
+#[test]
+fn scoped_identity_index_does_not_spend_budget_on_unrelated_pairs() {
+    let names: Vec<_> = (0..1000).map(|index| format!("field-{index}")).collect();
+    let old_fields: Vec<_> = names.iter().map(|name| (name.as_str(), "before")).collect();
+    let new_fields: Vec<_> = names
+        .iter()
+        .rev()
+        .map(|name| (name.as_str(), "after"))
+        .collect();
+    let old = graph(&old_fields, 0);
+    let new = graph(&new_fields, 1);
+    let limits = MatchingLimits {
+        max_pair_checks: 1000,
+        ..MatchingLimits::default()
+    };
+    let candidates =
+        propose_scope_correspondences(&old, &new, SCOPE, limits).expect("valid assignment fixture");
+    assert!(candidates.exhaustive);
+    assert_eq!(candidates.examined_pairs, 1000);
+    assert_eq!(candidates.proposals.len(), 1000);
+    for (index, proposal) in candidates.proposals.iter().enumerate() {
+        assert_eq!(proposal.new, vec![NodeId((1000 - index) as u64)]);
+    }
+    let result = solve_correspondence_scope(&old, &new, SCOPE, &candidates.proposals, limits)
+        .expect("valid assignment fixture");
+    assert_eq!(result.source_only_mandatory.len(), 1000);
+}
+
 #[test]
 fn disjoint_sources_cannot_mix_incompatible_partitions() {
     let mut old = graph(&[("a", "a"), ("b", "b"), ("c", "a"), ("d", "b")], 0);
@@ -79,6 +284,10 @@ fn disjoint_sources_cannot_mix_incompatible_partitions() {
         solve_correspondence_scope(&old, &new, SCOPE, &proposals, MatchingLimits::default())
             .expect("partition rivals share a solver component");
     assert_eq!(result.components.len(), 1);
+    assert_eq!(
+        result.components[0].algorithm,
+        MatchingAlgorithm::SubsetSearch
+    );
     assert!(result.components[0].exhaustive);
     assert!(result.components[0].mandatory.is_empty());
     proposals[1].old = vec![NodeId(2)];
@@ -151,6 +360,65 @@ fn shared_views_require_one_partition_for_the_whole_selection() {
 }
 
 #[test]
+fn certified_priority_prefix_survives_an_unfinished_residual_component() {
+    let mut old = graph(&[("anchor", "same"), ("b", "same"), ("c", "same")], 0);
+    old.nodes[3].sources = old.nodes[2].sources.clone();
+    let new = old.clone();
+    let proposals = [(1, 1), (1, 2), (2, 1), (2, 2), (2, 3), (3, 2), (3, 3)]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (old, new))| CorrespondenceProposal {
+            old: vec![NodeId(old)],
+            new: vec![NodeId(new)],
+            basis: if index == 0 {
+                ProposalBasis::ScopedIdentity
+            } else {
+                ProposalBasis::Model
+            },
+            supplier: "priority-prefix-fixture".into(),
+            weight: if index == 0 { 1 } else { u32::MAX },
+        })
+        .collect::<Vec<_>>();
+    for cap in [1, 24] {
+        let result = solve_correspondence_scope(
+            &old,
+            &new,
+            SCOPE,
+            &proposals,
+            MatchingLimits {
+                max_component_proposals: cap,
+                ..MatchingLimits::default()
+            },
+        )
+        .expect("complete ownership and priority-prefix evidence");
+        assert_eq!(result.components.len(), 1);
+        assert_eq!(result.components[0].exhaustive, cap == 24);
+        assert_eq!(result.components[0].mandatory, vec![0]);
+        assert!(result.source_only_mandatory.contains(&0));
+        assert!(
+            result
+                .counterpart_decisions()
+                .unresolved
+                .iter()
+                .all(|decision| decision.proposal != 0)
+        );
+    }
+    let stopped = solve_correspondence_scope(
+        &old,
+        &new,
+        SCOPE,
+        &proposals,
+        MatchingLimits {
+            max_component_proposals: 1,
+            max_states_per_component: 1,
+            ..MatchingLimits::default()
+        },
+    )
+    .expect("unfinished prefix remains uncertified");
+    assert!(stopped.components[0].mandatory.is_empty());
+}
+
+#[test]
 fn forced_literal_prefix_preserves_the_full_objective_under_a_small_component_cap() {
     use pdfdelta_core::{
         document::{TextNormalization, TextView},
@@ -216,6 +484,7 @@ fn forced_literal_prefix_preserves_the_full_objective_under_a_small_component_ca
         MatchingLimits {
             max_component_proposals: 2,
             max_states_per_component: 1,
+            max_assignment_work_per_component: 1,
             ..MatchingLimits::default()
         },
     )
@@ -354,6 +623,7 @@ fn truncated_conflict_component_does_not_claim_uniqueness() {
     let new = graph(&[("repeat", "x"), ("repeat", "y"), ("independent", "2")], 0);
     let limits = MatchingLimits {
         max_component_proposals: 1,
+        max_assignment_work_per_component: 32,
         ..MatchingLimits::default()
     };
     let candidates = propose_scope_correspondences(&old, &new, SCOPE, limits)
@@ -364,8 +634,12 @@ fn truncated_conflict_component_does_not_claim_uniqueness() {
     assert!(matched.components[0].mandatory.is_empty());
     assert!(matched.components[1].exhaustive);
     assert_eq!(matched.components[1].mandatory, vec![2]);
+    // Shared source ownership requires the general conflict checks even though
+    // every proposal names one node on each side.
+    let mut shared = old.clone();
+    shared.nodes[2].sources = shared.nodes[1].sources.clone();
     let stopped = solve_correspondence_scope(
-        &old,
+        &shared,
         &new,
         SCOPE,
         &candidates.proposals,
@@ -377,6 +651,57 @@ fn truncated_conflict_component_does_not_claim_uniqueness() {
     .expect("valid scoped correspondence");
     assert!(!stopped.conflict_search_complete);
     assert!(stopped.components.iter().all(|c| c.mandatory.is_empty()));
+}
+
+#[test]
+fn exhausted_conflict_checks_preserve_disjoint_assignment_components() {
+    let mut old = graph(
+        &[("shared-a", "x"), ("shared-b", "x"), ("independent", "1")],
+        0,
+    );
+    let new = graph(
+        &[("shared-a", "y"), ("shared-b", "y"), ("independent", "2")],
+        0,
+    );
+    old.nodes[2].sources = old.nodes[1].sources.clone();
+    let mut proposals = propose_scope_correspondences(&old, &new, SCOPE, MatchingLimits::default())
+        .expect("enumerate fields")
+        .proposals;
+    for _ in 0..2 {
+        let result = solve_correspondence_scope(
+            &old,
+            &new,
+            SCOPE,
+            &proposals,
+            MatchingLimits {
+                max_pair_checks: 0,
+                ..MatchingLimits::default()
+            },
+        )
+        .expect("retain independently completed components");
+        let independent = proposals
+            .iter()
+            .position(|proposal| proposal.old == [NodeId(3)])
+            .expect("independent field");
+        assert!(!result.conflict_search_complete);
+        assert_eq!(result.source_only_mandatory, [independent].into());
+        assert_eq!(result.components.iter().filter(|c| c.exhaustive).count(), 1);
+        assert!(
+            result
+                .components
+                .iter()
+                .filter(|c| !c.exhaustive)
+                .all(|c| c.mandatory.is_empty())
+        );
+        assert!(
+            result
+                .counterpart_decisions()
+                .unresolved
+                .iter()
+                .all(|decision| decision.proposal != independent)
+        );
+        proposals.reverse();
+    }
 }
 
 #[test]
@@ -441,9 +766,17 @@ fn candidate_truncation_is_distinct_from_solver_exhaustion() {
     assert!(!candidates.exhaustive);
     let matched = solve_correspondence_scope(&old, &new, SCOPE, &candidates.proposals, limits)
         .expect("valid scoped correspondence");
-    assert!(matched.components[0].exhaustive);
-    // Conditional on an incomplete proposal set, this cannot establish uniqueness.
-    assert_eq!(matched.components[0].mandatory, vec![0]);
+    assert!(matched.components.is_empty());
+    // A partially retained duplicate-key bucket must not manufacture a unique
+    // pair. Its complete endpoint sets remain unresolved without subset search.
+    let pending = candidates
+        .incomplete_nodes
+        .expect("complete omitted bucket");
+    assert_eq!(pending.old.into_iter().collect::<Vec<_>>(), vec![NodeId(1)]);
+    assert_eq!(
+        pending.new.into_iter().collect::<Vec<_>>(),
+        vec![NodeId(1), NodeId(2)]
+    );
 }
 
 #[test]

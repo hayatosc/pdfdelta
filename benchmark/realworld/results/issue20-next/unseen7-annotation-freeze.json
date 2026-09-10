@@ -1,0 +1,53 @@
+{
+  "status": "annotations_frozen_before_any_comparison",
+  "frozen_at_utc": "2026-09-10T15:22:50.572818+00:00",
+  "candidate": "candidate5-freeze.json",
+  "protocol": "unseen7-protocol.json",
+  "series": [
+    "IRS Form 8889",
+    "IRS Form 2210"
+  ],
+  "sources_only_comparisons_run": 0,
+  "source_years": {
+    "8889": [
+      2024,
+      2025
+    ],
+    "2210": [
+      2023,
+      2024
+    ]
+  },
+  "files": {
+    "benchmark/realworld/results/issue20-next/unseen7-irs8889-expected.json": "7f82a6d59b48bdcc60e45458882781a0b24bfdb097a1a10b5ba3abdfc6da3634",
+    "benchmark/realworld/results/issue20-next/unseen7-irs8889-old-control-expected.json": "c73bdd919779dcbb1d61cfde5dd9a3140de75dc4ffd3cb753549211eb0bce97f",
+    "benchmark/realworld/results/issue20-next/unseen7-irs8889-new-control-expected.json": "af1f7bfd89b05a01139eb0afe71bd84b2f04e93ccdbd87dbfba54144602d305d",
+    "benchmark/realworld/results/issue20-next/unseen7-irs8889-selectors.json": "17e1088e7fadeec4f017a01e7588ba843f2c818a31d1aa7e7796f96d9edda98c",
+    "benchmark/realworld/results/issue20-next/unseen7-f8889--2024-review.png": "1b9109a98abc4d480255e1cef06e122766508646e2f6429fd81e648b8fe7b443",
+    "/tmp/pdfdelta-issue20-unseen7/f8889--2024.native-identities.json": "fe9bae8f02663fcc6f4dbf024bc11859a35020df39770b939a61ff708ed501f2",
+    "/tmp/pdfdelta-issue20-unseen7/f8889--2024.scalar-bindings.json": "2d1a988cc3fe435f1ca0abdc40c70d469bfddaf11c7d4574448619d73515285f",
+    "benchmark/realworld/results/issue20-next/unseen7-f8889--2025-review.png": "d6bd46b787f3ef8c63a7f43d243a960fbd5f28c508dbf21be987bf81cae114b2",
+    "/tmp/pdfdelta-issue20-unseen7/f8889--2025.native-identities.json": "2fea7b29c9f43bcc968a97e8bb294c112ad782a75c578beffc4f730dfc6dc82e",
+    "/tmp/pdfdelta-issue20-unseen7/f8889--2025.scalar-bindings.json": "528fb0f732ada48886aeb90f9281d61bb13a3d517373989b713085854bdb5578",
+    "benchmark/realworld/results/issue20-next/unseen7-irs2210-expected.json": "81459e94df870461a5d75dffeef46e03a088b4c42187561560c8bbd87cf54dee",
+    "benchmark/realworld/results/issue20-next/unseen7-irs2210-old-control-expected.json": "e48aecab30829d941f78a29d5867c06872642327f35b005b139658bdc1d68fb3",
+    "benchmark/realworld/results/issue20-next/unseen7-irs2210-new-control-expected.json": "36c9bc66033ccfd7f76e63c546e0de7432b5f0c0a641f279fb23b09ed096737e",
+    "benchmark/realworld/results/issue20-next/unseen7-irs2210-selectors.json": "332bef268b74d4eb286842331b235fba351add6710de07b629c5206265e1a69a",
+    "benchmark/realworld/results/issue20-next/unseen7-f2210--2023-review.png": "1f0e77bc01c78400cd2a29c59ed004fa6ab1f850438b8030c5228a08c82106d8",
+    "/tmp/pdfdelta-issue20-unseen7/f2210--2023.native-identities.json": "dd8851ce555cf750e811343ce7991fe47a175fbf5e173083a7c2af1fc4932e42",
+    "/tmp/pdfdelta-issue20-unseen7/f2210--2023.scalar-bindings.json": "5d2877c07c6d644757c8b31ba53e1ece1d20ae425e45398f46edd1f6d13d1ef3",
+    "benchmark/realworld/results/issue20-next/unseen7-f2210--2024-review.png": "bc5444e070b3e9eb32497f9f251f0f4b27df2e045ab59a8a568f6e18bd321220",
+    "/tmp/pdfdelta-issue20-unseen7/f2210--2024.native-identities.json": "e6628fecdd7ce8302eb9b0afa8385b1467e81743121ace8c8623a22ea1837b1b",
+    "/tmp/pdfdelta-issue20-unseen7/f2210--2024.scalar-bindings.json": "29b048f6e6393816884044f25dd7b3e4d1e9dd76189db2b34bba20ffc50ad1ca",
+    "benchmark/realworld/results/issue20-next/unseen7-selection.json": "eba23896f9999722d879cce6fa52ff36066289cfea73fc45be2c9186921957f0",
+    "benchmark/realworld/results/issue20-next/unseen7-protocol.json": "9e11367987a942302758b8711398fa790f71b82085025a5913f57bece167e69d",
+    "benchmark/realworld/results/issue20-next/literal-source-mask-preflight.py": "c5298e379534dea1d8cdb2a6f614fef30c936b5c0fccc541e986bacfd16cadbc",
+    "benchmark/realworld/results/issue20-next/literal-source-mask-preflight-v2.py": "638e9490cf05c1c6129fcc6a21e48d6229b73664429d242da15274098e68f2c9",
+    "benchmark/realworld/results/issue20-next/native-scalar-bindings.rs": "a95120dff2e7da66d5a5d6d1b225d7a01579894ac32afc420b3dc3ec211fb7eb",
+    "benchmark/realworld/results/issue20-next/unseen7-second-replacement-literal-preflight.json": "c70e3db9274546e1b434804764b130f59da018c7399b3ac4baf49f82d149a890",
+    "benchmark/realworld/results/issue20-next/unseen7-tenth-replacement-literal-preflight.json": "49b87768cca3f7eceac211c162b05ee67ae0fdf4f521f1afa73b636dc15d6061",
+    "/tmp/pdfdelta-issue20-unseen7/tasks.txt": "d09c0bd53a133367d7f74577d25c8dcb74818bf3885f28638efdfdcb373268c4",
+    "/tmp/pdfdelta-issue20-unseen7/run-trial.sh": "07434f417322fe7d98300689ad1946e9654e44075354198b4d08681ca5e67399"
+  },
+  "diversity": "One publisher, two independent annual forms. Scoped footer evidence only; no universal PDF or document-completeness claim."
+}

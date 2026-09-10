@@ -26,12 +26,18 @@ pub struct DocumentComparisonLimits {
     pub local: LocalComparisonLimits,
     pub visual: VisualCandidateLimits,
     pub text: super::TextCandidateLimits,
+    pub keys: super::KeyPresenceLimits,
+    pub extraction: super::ExtractionDependencyLimits,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScopeViewComparison {
     pub candidates: ScopeProposals,
     pub matching: ScopeMatching,
+    /// Histories that weighted matching alone cannot distinguish. They do not
+    /// supply absence witnesses or discharge comparison coverage.
+    #[serde(default)]
+    pub counterpart_decisions: super::CounterpartDecisions,
     pub visual_search: VisualCandidateSearch,
     pub text_search: super::TextCandidateSearch,
     pub comparisons: Vec<LocalViewComparison>,
@@ -42,6 +48,8 @@ pub struct ScopeViewComparison {
     pub structural_correspondences: Vec<usize>,
     /// Conditional local results never imply that an entire PDF is complete.
     pub unresolved: Vec<String>,
+    #[serde(default)]
+    pub extraction_dependencies: Vec<super::ExtractionDependency>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -82,9 +90,21 @@ pub struct DocumentViewComparison {
     pub scopes: Vec<ComparedScope>,
     pub relations: Vec<super::RelationComparison>,
     pub relation_unresolved: Vec<String>,
+    /// Raw key-domain facts do not discharge text or semantic relationship claims.
+    #[serde(default)]
+    pub key_presence: Option<super::KeyPresenceComparison>,
 }
 
 impl DocumentViewComparison {
+    /// Named-element membership changes under the native key contract. These
+    /// own identity evidence only and do not contribute character/value masks.
+    pub fn keyed_element_operations(&self) -> impl Iterator<Item = &super::KeyedElementOperation> {
+        self.key_presence
+            .iter()
+            .flat_map(|keys| keys.scoped.iter())
+            .flat_map(|scoped| &scoped.operations)
+    }
+
     pub fn comparisons(&self) -> impl Iterator<Item = &LocalViewComparison> {
         self.scopes
             .iter()
@@ -132,6 +152,24 @@ pub fn compare_document_views(
     let old_nodes: BTreeMap<_, _> = old.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let new_nodes: BTreeMap<_, _> = new.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let mut document = DocumentViewComparison {
+        key_presence: Some(super::compare_document_keys(
+            old.evidence,
+            new.evidence,
+            &[
+                (
+                    super::KeyDomain::PdfFieldName,
+                    limits.matching.channels.forms,
+                ),
+                (
+                    super::KeyDomain::PdfStructureId,
+                    limits.matching.channels.text || limits.matching.channels.relations,
+                ),
+            ]
+            .into_iter()
+            .filter_map(|(domain, selected)| selected.then_some(domain))
+            .collect(),
+            limits.keys,
+        )),
         relations: Vec::new(),
         relation_unresolved: Vec::new(),
         scopes: vec![ComparedScope {
@@ -231,6 +269,12 @@ pub fn compare_document_views(
         }
         cursor += 1;
     }
+    super::extraction_dependencies::apply(
+        old,
+        new,
+        document.scopes.iter_mut().map(|scope| &mut scope.result),
+        limits.extraction,
+    );
     if limits.matching.channels.relations {
         super::relations::compare_relations(
             old,
@@ -239,14 +283,16 @@ pub fn compare_document_views(
             limits.matching.max_pair_checks,
         );
     }
+    super::scoped_keys::apply(old, new, &mut document, limits.keys);
     Ok(document)
 }
 
 /// Validates evidence, enumerates candidates, resolves common ownership, then
 /// applies the type-specific comparison to mandatory local pairs. No supplier
-/// can bypass the solver. Truncated generic enumeration publishes no local
-/// comparisons. Truncated visual enumeration suppresses every result that could
-/// depend on a missing visual rival, while independent source results may proceed.
+/// can bypass the solver. Incomplete enumeration suppresses every component that
+/// could depend on an omitted candidate. Without a bounded endpoint population,
+/// the entire scope remains unresolved; independent completed components may
+/// otherwise proceed. Missing visual rivals follow their evidence dependencies.
 ///
 /// This is a scoped result, not document-wide completeness. Callers must resolve
 /// child scopes, account for unmatched evidence and selected channel inventories,
@@ -265,7 +311,14 @@ pub fn compare_scope_views(
         .validate(old.evidence, limits.evidence, limits.graph)?;
     new.graph
         .validate(new.evidence, limits.evidence, limits.graph)?;
-    compare_validated_scope(old, new, scope, &[], limits)
+    let mut result = compare_validated_scope(old, new, scope, &[], limits)?;
+    super::extraction_dependencies::apply(
+        old,
+        new,
+        std::iter::once(&mut result),
+        limits.extraction,
+    );
+    Ok(result)
 }
 
 fn compare_validated_scope(
@@ -278,6 +331,7 @@ fn compare_validated_scope(
     let mut candidates =
         propose_scope_correspondences(old.graph, new.graph, scope, limits.matching)?;
     let source_candidates_exhaustive = candidates.exhaustive;
+    let incomplete_source_nodes = candidates.incomplete_nodes.clone();
     let text_search = super::text_candidates::append_text_candidates(
         old.graph,
         new.graph,
@@ -316,6 +370,7 @@ fn compare_validated_scope(
         limits.matching,
     )?;
     let mut result = ScopeViewComparison {
+        counterpart_decisions: matching.counterpart_decisions(),
         candidates,
         matching,
         visual_search,
@@ -324,13 +379,28 @@ fn compare_validated_scope(
         accepted_correspondences: Vec::new(),
         structural_correspondences: Vec::new(),
         unresolved: Vec::new(),
+        extraction_dependencies: Vec::new(),
     };
-    if !source_candidates_exhaustive || !result.matching.conflict_search_complete {
+    if !source_candidates_exhaustive && incomplete_source_nodes.is_none() {
         result
             .unresolved
-            .push("scope candidate or conflict enumeration is incomplete".into());
+            .push("scope candidate enumeration is incomplete".into());
         return Ok(result);
     }
+    let pending_source = if source_candidates_exhaustive {
+        Default::default()
+    } else {
+        result.unresolved.push(
+            "source candidate enumeration is incomplete in retained dependency regions".into(),
+        );
+        super::dependencies::pending_source_proposals(
+            old.graph,
+            new.graph,
+            &result.matching,
+            &result.candidates.proposals,
+            incomplete_source_nodes.as_ref(),
+        )
+    };
     let old_nodes: BTreeMap<_, _> = old.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let new_nodes: BTreeMap<_, _> = new.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let (mut old_pending_dependencies, mut new_pending_dependencies) =
@@ -372,13 +442,21 @@ fn compare_validated_scope(
         }));
     }
     for component in &result.matching.components {
+        if component
+            .proposals
+            .iter()
+            .any(|index| pending_source.contains(index))
+        {
+            result
+                .unresolved
+                .push("a correspondence component depends on omitted source candidates".into());
+            continue;
+        }
         if !component.exhaustive {
             result
                 .unresolved
                 .push("a correspondence conflict component exceeded its search budget".into());
-            continue;
-        }
-        if component.mandatory.is_empty() {
+        } else if component.mandatory.is_empty() {
             result
                 .unresolved
                 .push("a correspondence conflict component has competing optima".into());

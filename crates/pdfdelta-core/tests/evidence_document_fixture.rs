@@ -5,7 +5,8 @@ use pdfdelta_core::{
     Error,
     document::{
         BackendIdentity, BackendKind, Channel, ChannelInventory, ComparisonContract,
-        EvidenceLimits, EvidenceStore, PageEvidence, Raster, RenderedEvidence, SourceRef,
+        EvidenceBoundary, EvidenceLimits, EvidenceStore, PageEvidence, Raster, RenderedEvidence,
+        SourceRef,
     },
     model::{Document, GlyphId, PageId, Rect, Vec2},
     pdf::{LopdfParser, ParseLimits, PdfParser},
@@ -87,6 +88,141 @@ fn image_pdf(pixel: [u8; 3], content: &[u8], nested: bool) -> Vec<u8> {
 }
 
 #[test]
+fn shared_local_comparison_requires_bound_source_normalization_proof() {
+    use pdfdelta_core::document::{
+        DocumentGraph, GraphLimits, NodeContent, NodeId, TextNormalization, compare_local_views,
+        compare_text_group_views,
+    };
+    let make = |content: &[u8], work| {
+        let pdf = LopdfParser
+            .parse(
+                Arc::from(image_pdf([0, 0, 0], content, false)),
+                ParseLimits::default(),
+            )
+            .expect("PDF");
+        let extraction = ContentStreamGlyphExtractor
+            .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
+            .expect("glyphs");
+        let store = EvidenceStore::from_native(
+            "fixture".into(),
+            backend(BackendKind::NativeParser),
+            vec![page(0)],
+            extraction,
+            EvidenceLimits::default(),
+        )
+        .expect("store");
+        let graph = DocumentGraph::from_evidence(
+            &store,
+            Default::default(),
+            Default::default(),
+            GraphLimits {
+                max_normalization_work: work,
+                ..Default::default()
+            },
+        )
+        .expect("graph");
+        let node = graph
+            .nodes
+            .into_iter()
+            .find(|node| matches!(node.content, NodeContent::Text { .. }))
+            .expect("text node");
+        (store, node)
+    };
+    let wrapped = b"BT /F1 8 Tf 10 70 Td (inter-) Tj 0 -10 Td (national cat) Tj ET";
+    let (old_store, old) = make(wrapped, 1_000_000);
+    let (new_store, new) = make(b"BT /F1 8 Tf 10 70 Td (international dog) Tj ET", 1_000_000);
+    let NodeContent::Text { view } = &old.content else {
+        unreachable!()
+    };
+    assert!(
+        matches!(
+            view.normalization,
+            TextNormalization::Alternatives {
+                certificate: Some(_),
+                ..
+            }
+        ),
+        "{view:?}"
+    );
+    let graph = DocumentGraph::from_evidence(
+        &old_store,
+        Default::default(),
+        Default::default(),
+        Default::default(),
+    )
+    .expect("source-normalized graph");
+    let scope = pdfdelta_core::document::compare_document_views(
+        pdfdelta_core::document::DocumentView {
+            evidence: &old_store,
+            graph: &graph,
+        },
+        pdfdelta_core::document::DocumentView {
+            evidence: &old_store,
+            graph: &graph,
+        },
+        pdfdelta_core::document::CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        Default::default(),
+        Default::default(),
+    )
+    .expect("an identical interpretation family is valid comparison input");
+    assert_eq!(scope.comparisons().count(), 1);
+    assert!(scope.comparisons().all(|local| local.operation.is_none()));
+    let comparison = compare_local_views(&old, &new, &old_store, &new_store, Default::default())
+        .expect("comparison");
+    assert!(comparison.compared);
+    let mask = comparison.text_mask.expect("source-backed mask");
+    assert!(
+        !mask.old.iter().any(|token| token.position == 5),
+        "ambiguous hyphen cannot be mandatory"
+    );
+    assert!(mask.claims.changed_source_lower > 0);
+
+    let (_, unchanged) = make(b"BT /F1 8 Tf 10 70 Td (international cat) Tj ET", 1_000_000);
+    let ambiguous =
+        compare_local_views(&old, &unchanged, &old_store, &new_store, Default::default())
+            .expect("ambiguous comparison");
+    assert!(!ambiguous.compared);
+    assert!(ambiguous.operation.is_none());
+    let claims = ambiguous.text_mask.expect("bounded family").claims;
+    assert_eq!(claims.changed_source_lower, 0);
+    assert!(claims.changed_source_upper > 0);
+
+    let (_, mut suffix) = make(b"BT /F1 8 Tf 10 70 Td (suffix) Tj ET", 1_000_000);
+    suffix.id = NodeId(100);
+    let group = compare_text_group_views(&[&old, &suffix], &[&new, &suffix], Default::default())
+        .expect("group comparison");
+    assert!(group.compared);
+    assert_eq!(group.text_mask.expect("group mask").old, mask.old);
+
+    let mut changed = old.clone();
+    let NodeContent::Text { view } = &mut changed.content else {
+        unreachable!()
+    };
+    view.origins[0] = view.origins[1].clone();
+    let invalid = compare_local_views(&changed, &new, &old_store, &new_store, Default::default())
+        .expect("unresolved");
+    assert!(!invalid.compared);
+    assert!(invalid.text_mask.is_none());
+
+    let reloaded =
+        serde_json::from_slice(&serde_json::to_vec(&old).expect("serialize")).expect("reload");
+    let untrusted =
+        compare_local_views(&reloaded, &new, &old_store, &new_store, Default::default())
+            .expect("unresolved");
+    assert!(!untrusted.compared);
+    assert!(untrusted.text_mask.is_none());
+
+    let (_, limited) = make(wrapped, 0);
+    let limited = compare_local_views(&limited, &new, &old_store, &new_store, Default::default())
+        .expect("unresolved");
+    assert!(!limited.compared);
+    assert!(limited.text_mask.is_none());
+}
+
+#[test]
 fn native_image_only_pdf_keeps_visual_channel_unexamined() {
     let old_bytes = image_pdf([255, 0, 0], b"/I Do", false);
     let new_bytes = image_pdf([0, 0, 255], b"/I Do", false);
@@ -157,6 +293,308 @@ fn page_local_native_failure_preserves_independent_page_inventory() {
     assert!(!store.inventory_complete(Some(PageId(0)), Channel::Text));
     assert!(store.inventory_complete(Some(PageId(1)), Channel::Text));
     assert!(!store.inventory_complete(Some(PageId(1)), Channel::Visual));
+}
+
+#[test]
+fn native_gap_boundaries_preserve_neighbors_without_inventing_missing_sources() {
+    let pdf = LopdfParser
+        .parse(
+            Arc::from(image_pdf(
+                [0, 0, 0],
+                b"BT /F1 12 Tf 10 40 Td (AB) Tj ET",
+                false,
+            )),
+            ParseLimits::default(),
+        )
+        .expect("PDF");
+    let extracted = ContentStreamGlyphExtractor
+        .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
+        .expect("glyphs");
+    for cross_page in [false, true] {
+        let mut glyphs = extracted.document().items().to_vec();
+        assert_eq!(glyphs.len(), 2);
+        glyphs[0].id = GlyphId(71);
+        glyphs[1].id = GlyphId(503);
+        if cross_page {
+            glyphs[1].page = PageId(1);
+        }
+        for retained_before in 0..=2 {
+            let outcome = ExtractionOutcome::new(
+                Document::new(glyphs.clone()),
+                vec![
+                    ExtractionIssue::new(
+                        ExtractionIssueKind::Unresolved,
+                        ExtractionScope::GlyphGap { retained_before },
+                        "unreadable operator",
+                    )
+                    .expect("issue"),
+                ],
+            )
+            .expect("outcome");
+            let mut store = EvidenceStore::from_native(
+                "gap".into(),
+                backend(BackendKind::NativeParser),
+                vec![page(0), page(1)],
+                outcome,
+                EvidenceLimits::default(),
+            )
+            .expect("store");
+            assert_eq!(
+                store.issues[0].boundary,
+                Some(EvidenceBoundary::GlyphGap {
+                    retained_before,
+                    before: retained_before.checked_sub(1).map(|index| glyphs[index].id),
+                    after: glyphs.get(retained_before).map(|glyph| glyph.id),
+                })
+            );
+            assert_eq!(
+                store.issues[0].page,
+                (!cross_page && retained_before == 1).then_some(PageId(0))
+            );
+            assert!(store.issues[0].sources.is_empty());
+            assert!(!store.inventory_complete(None, Channel::Text));
+            let roundtrip: EvidenceStore =
+                serde_json::from_slice(&serde_json::to_vec(&store).expect("serialize"))
+                    .expect("deserialize");
+            roundtrip
+                .validate(EvidenceLimits::default())
+                .expect("valid boundary");
+            let Some(EvidenceBoundary::GlyphGap { before, .. }) = &mut store.issues[0].boundary
+            else {
+                panic!("boundary")
+            };
+            *before = Some(GlyphId(999));
+            assert!(store.validate(EvidenceLimits::default()).is_err());
+        }
+    }
+}
+
+#[test]
+fn page_and_empty_glyph_gaps_keep_document_edge_evidence() {
+    for retained_before in 0..=2 {
+        let outcome = ExtractionOutcome::new(
+            Document::new(Vec::new()),
+            vec![
+                ExtractionIssue::new(
+                    ExtractionIssueKind::Unresolved,
+                    ExtractionScope::PageGap { retained_before },
+                    "unreadable page branch",
+                )
+                .expect("issue"),
+            ],
+        )
+        .expect("outcome");
+        let store = EvidenceStore::from_native(
+            "page gap".into(),
+            backend(BackendKind::NativeParser),
+            vec![page(0), page(1)],
+            outcome,
+            EvidenceLimits::default(),
+        )
+        .expect("store");
+        assert_eq!(
+            store.issues[0].boundary,
+            Some(EvidenceBoundary::PageGap {
+                retained_before,
+                before: retained_before
+                    .checked_sub(1)
+                    .map(|index| PageId(index as u32)),
+                after: (retained_before < 2).then_some(PageId(retained_before as u32)),
+            })
+        );
+        assert_eq!(store.issues[0].page, None);
+        assert!(!store.inventory_complete(Some(PageId(1)), Channel::Text));
+    }
+    let outcome = ExtractionOutcome::new(
+        Document::new(Vec::new()),
+        vec![
+            ExtractionIssue::new(
+                ExtractionIssueKind::Unresolved,
+                ExtractionScope::GlyphGap { retained_before: 0 },
+                "no retained glyphs",
+            )
+            .expect("issue"),
+        ],
+    )
+    .expect("outcome");
+    let store = EvidenceStore::from_native(
+        "empty gap".into(),
+        backend(BackendKind::NativeParser),
+        Vec::new(),
+        outcome,
+        EvidenceLimits::default(),
+    )
+    .expect("store");
+    assert_eq!(
+        store.issues[0].boundary,
+        Some(EvidenceBoundary::GlyphGap {
+            retained_before: 0,
+            before: None,
+            after: None
+        })
+    );
+    let bad_page_gap = ExtractionOutcome::new(
+        Document::new(Vec::new()),
+        vec![
+            ExtractionIssue::new(
+                ExtractionIssueKind::Unresolved,
+                ExtractionScope::PageGap { retained_before: 1 },
+                "missing page inventory",
+            )
+            .expect("issue"),
+        ],
+    )
+    .expect("outcome");
+    assert!(
+        EvidenceStore::from_native(
+            "bad gap".into(),
+            backend(BackendKind::NativeParser),
+            Vec::new(),
+            bad_page_gap,
+            EvidenceLimits::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn shared_comparison_blocks_gap_crossing_text_and_keeps_independent_fields() {
+    use pdfdelta_core::document::{
+        CorrespondenceScope, DocumentComparisonLimits, DocumentGraph, DocumentView, FieldValue,
+        NodeId, StructuredEvidence, StructuredValue, TypedOperation, compare_document_views,
+        compare_scope_views,
+    };
+    let pdf = LopdfParser
+        .parse(
+            Arc::from(image_pdf(
+                [0, 0, 0],
+                b"BT /F1 12 Tf 10 40 Td (AB) Tj ET",
+                false,
+            )),
+            ParseLimits::default(),
+        )
+        .expect("PDF");
+    let make = |revision: &str, field: &str, gap: bool| {
+        let extraction = ContentStreamGlyphExtractor
+            .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
+            .expect("glyphs");
+        let extraction = if gap {
+            ExtractionOutcome::new(
+                extraction.document().clone(),
+                vec![
+                    ExtractionIssue::new(
+                        ExtractionIssueKind::Unresolved,
+                        ExtractionScope::GlyphGap { retained_before: 1 },
+                        "unreadable form",
+                    )
+                    .expect("issue"),
+                ],
+            )
+            .expect("partial extraction")
+        } else {
+            extraction
+        };
+        let mut store = EvidenceStore::from_native(
+            revision.into(),
+            backend(BackendKind::NativeParser),
+            vec![page(0)],
+            extraction,
+            EvidenceLimits::default(),
+        )
+        .expect("store");
+        store.structured.push(StructuredEvidence {
+            id: 0,
+            page: None,
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::FormField {
+                name: "independent".into(),
+                field_type: Some(b"Tx".to_vec()),
+                value: FieldValue::Text(field.into()),
+                widgets: Vec::new(),
+                button_states: Vec::new(),
+            },
+        });
+        let graph = DocumentGraph::from_evidence(
+            &store,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
+        .expect("graph");
+        (store, graph)
+    };
+    let new = make("new", "200", false);
+    for gap in [false, true] {
+        let old = make("old", "100", gap);
+        let result = compare_scope_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            DocumentComparisonLimits::default(),
+        )
+        .expect("comparison");
+        let document = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            DocumentComparisonLimits::default(),
+            Default::default(),
+        )
+        .expect("document comparison");
+        assert_eq!(
+            document.scopes[0].result.extraction_dependencies,
+            result.extraction_dependencies
+        );
+        assert!(
+            result
+                .comparisons
+                .iter()
+                .any(|comparison| comparison.compared
+                    && matches!(
+                        comparison.operation,
+                        Some(TypedOperation::ValueChanged { .. })
+                    ))
+        );
+        if gap {
+            assert_eq!(result.extraction_dependencies.len(), 1);
+            let dependency = &result.extraction_dependencies[0];
+            assert_eq!(dependency.old_issues, [0]);
+            assert!(dependency.new_issues.is_empty());
+            assert!(!dependency.work_limited);
+            let blocked = &result.comparisons[dependency.comparison];
+            assert!(!blocked.compared);
+            assert!(blocked.operation.is_none());
+            assert!(blocked.text_mask.is_none());
+        } else {
+            assert!(result.extraction_dependencies.is_empty());
+            assert!(
+                result
+                    .comparisons
+                    .iter()
+                    .all(|comparison| comparison.compared)
+            );
+        }
+    }
 }
 
 #[test]

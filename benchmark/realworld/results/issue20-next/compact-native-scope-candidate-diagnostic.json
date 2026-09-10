@@ -1,0 +1,62 @@
+{
+  "status": "consumed_development_candidate_diagnosis",
+  "report": "compact-native-wire-comparison.json",
+  "source_map_limitations": "Native base-node IDs reconstructed from the previous core build, whose native graph code is unchanged by the wire-only update; appended provider nodes are excluded. This is a diagnostic, not a complete correspondence inventory.",
+  "reviewed_scope": {
+    "old": {
+      "reviewed_sources": 199,
+      "nodes": {
+        "1406": 90,
+        "1407": 109
+      },
+      "proposals": [],
+      "pending": [],
+      "text_search_nodes": [
+        1407
+      ]
+    },
+    "new": {
+      "reviewed_sources": 201,
+      "nodes": {
+        "1382": 91,
+        "1383": 110
+      },
+      "proposals": [],
+      "pending": [],
+      "text_search_nodes": [
+        1383
+      ]
+    }
+  },
+  "source_search": {
+    "examined_pairs": 27478,
+    "index_work": 874898,
+    "group_token_checks": 716214,
+    "group_constraint_checks": 49993,
+    "exhaustive": false
+  },
+  "source_pending_node_counts": {
+    "old": 592,
+    "new": 603
+  },
+  "text_search": {
+    "examined_pairs": 0,
+    "source_ownership_visits": 788802,
+    "source_conflict_checks": 169136,
+    "source_search_states": 250,
+    "protected_correspondences": 1414,
+    "old_nodes": 2935,
+    "new_nodes": 4342,
+    "token_visits": 0,
+    "feature_entries": 0,
+    "exhaustive": false
+  },
+  "findings": [
+    "The native source scope spans two base nodes on each side. Neither has an emitted proposal.",
+    "The reviewed nodes are not direct members of the incomplete source-node sets; a full dependency closure was not computed by this diagnostic.",
+    "Text enumeration performs zero pair checks because source enumeration is incomplete. Its pending text sets contain the second fragment on each side.",
+    "Removing that early return alone would not establish the change: text similarity proposals remain inferred and cannot satisfy acceptance.",
+    "The shared typed-identity supplier is the mechanism behind the recovered IRS footer event; no equivalent source identity for this prose scope has been demonstrated."
+  ],
+  "next_action": "Trace independently identifiable typed evidence and source grouping requirements before making any correspondence-certification change. Do not relabel similarity as source identity."
+}

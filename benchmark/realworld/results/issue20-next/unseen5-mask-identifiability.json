@@ -1,0 +1,157 @@
+{
+  "status": "independent_source_string_and_literal_annotation_check_before_comparison",
+  "contract": "All optimal insertion/deletion paths excluding layout whitespace from compared text. Annotation ranges are read literally without filtering selected scalars. A selected space would fail the equality check.",
+  "rows": [
+    {
+      "pair": "irs-form-1045-2024-to-2025",
+      "edit_cost_without_layout_whitespace": 17,
+      "sides": {
+        "old": {
+          "literal_range_selected": [
+            120
+          ],
+          "mandatory": [
+            120
+          ],
+          "possible": [
+            120
+          ],
+          "selected_whitespace": [],
+          "exactly_identifiable": true
+        },
+        "new": {
+          "literal_range_selected": [
+            120,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            131,
+            132,
+            133,
+            134,
+            135,
+            136,
+            137,
+            138
+          ],
+          "mandatory": [
+            120,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            131,
+            132,
+            133,
+            134,
+            135,
+            136,
+            137,
+            138
+          ],
+          "possible": [
+            120,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            131,
+            132,
+            133,
+            134,
+            135,
+            136,
+            137,
+            138
+          ],
+          "selected_whitespace": [],
+          "exactly_identifiable": true
+        }
+      }
+    },
+    {
+      "pair": "irs-form-1066-2024-to-2025",
+      "edit_cost_without_layout_whitespace": 16,
+      "sides": {
+        "old": {
+          "literal_range_selected": [
+            93
+          ],
+          "mandatory": [
+            93
+          ],
+          "possible": [
+            93
+          ],
+          "selected_whitespace": [],
+          "exactly_identifiable": true
+        },
+        "new": {
+          "literal_range_selected": [
+            93,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110
+          ],
+          "mandatory": [
+            93,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110
+          ],
+          "possible": [
+            93,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110
+          ],
+          "selected_whitespace": [],
+          "exactly_identifiable": true
+        }
+      }
+    }
+  ]
+}

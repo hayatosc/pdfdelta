@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "pair": "ecma404-ed1-to-ed2",
+  "reviewed_on": "2026-09-10",
+  "annotation": "partial",
+  "notes": "Source-only annotation frozen before comparison. Reviewed the complete ISO/IEC 10646 citation in independent extracted text and rendered PDF pages 7 (old) and 9 (new), both printed page 1. The dated reference becomes undated; the rest of this citation is unchanged. Other edition changes are outside this scope.",
+  "scopes": [{
+    "id": "iso10646-citation",
+    "completeness": "complete",
+    "old": {"start_quote": "ISO/IEC 10646:2012, Information Technology", "end_quote": "Universal Coded Character Set (UCS)"},
+    "new": {"start_quote": "ISO/IEC 10646, Information Technology", "end_quote": "Universal Coded Character Set (UCS)"}
+  }],
+  "changes": [{
+    "id": "remove-normative-reference-edition",
+    "kind": "deletion",
+    "scope": "iso10646-citation",
+    "occurrence_count": 1,
+    "old_quote": "ISO/IEC 10646:2012, Information Technology – Universal Coded Character Set (UCS)",
+    "old_changed_ranges": [{"start": 13, "end": 18}],
+    "note": "Delete exactly :2012, retaining the reference number, comma, and title. This changes a dated normative reference to an undated one."
+  }]
+}

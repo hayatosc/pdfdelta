@@ -61,6 +61,15 @@ pub(super) fn append_visual_candidates(
         compared_pixels: 0,
         exhaustive: true,
     };
+    if !left
+        .iter()
+        .any(|node| matches!(node.content, NodeContent::Visual { .. }))
+        || !right
+            .iter()
+            .any(|node| matches!(node.content, NodeContent::Visual { .. }))
+    {
+        return Ok(search);
+    }
     if !candidates.exhaustive {
         search.exhaustive = false;
         return Ok(search);

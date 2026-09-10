@@ -1,0 +1,16 @@
+{
+  "status": "necessary_scalar_coverage_only_not_acceptance",
+  "inputs": {
+    "/tmp/pdfdelta-issue20-component-development/trials/ecma404-ed1-to-ed2/old-control/shared_text/report.json": "abdf083b86cac7487a0f802c151054cc267912c136a65ffef6662318c45f15bb",
+    "/tmp/pdfdelta-issue20-candidate2/ecma-old-native-scalars.json": "a1dc79fafc120ccd6a38e990d27a19966fb9cdf4264d65579fb837b4eae631d3",
+    "/tmp/pdfdelta-issue20-unseen-final/ecma404-selectors.json": "174c605f8bff4d7238ea69f39bdd85ed9b3b5d79a06fc25b19ccc8d586a36970"
+  },
+  "reviewed_scalars": 80,
+  "covered_scalars": 80,
+  "missing_scalar_indices": [],
+  "complete_scope_pass": false,
+  "limitations": [
+    "Source map must be reconstructed with the exact report library and configuration.",
+    "This does not certify extraction inventory or correspondence identity."
+  ]
+}

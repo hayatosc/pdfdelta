@@ -518,6 +518,7 @@ mod tests {
             rendered: Vec::new(),
             structured: Vec::new(),
             inventories: Vec::new(),
+            key_inventories: Vec::new(),
             issues: Vec::new(),
         };
         let graph = DocumentGraph::default();
@@ -603,6 +604,7 @@ mod tests {
             }],
         };
         let mut comparison = DocumentViewComparison {
+            key_presence: None,
             scopes: Vec::new(),
             relations: vec![relation],
             relation_unresolved: Vec::new(),
@@ -624,6 +626,7 @@ mod tests {
     #[test]
     fn absent_annotations_are_not_zero_change_expectations() {
         let comparison = DocumentViewComparison {
+            key_presence: None,
             scopes: Vec::new(),
             relations: Vec::new(),
             relation_unresolved: vec!["missing inventory".into()],
@@ -665,6 +668,7 @@ mod tests {
             }],
         };
         let comparison = DocumentViewComparison {
+            key_presence: None,
             scopes: Vec::new(),
             relations: Vec::new(),
             relation_unresolved: Vec::new(),

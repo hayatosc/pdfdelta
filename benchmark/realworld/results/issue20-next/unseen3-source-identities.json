@@ -1,0 +1,20 @@
+{
+  "status": "source_only_identity_inventory_before_comparison",
+  "rows": [
+    {
+      "form": 941,
+      "old_identity_count": 0,
+      "new_identity_count": 0,
+      "unique_shared_identities": 0,
+      "changed_text_identities": []
+    },
+    {
+      "form": 1065,
+      "old_identity_count": 29,
+      "new_identity_count": 29,
+      "unique_shared_identities": 29,
+      "changed_text_identities": []
+    }
+  ],
+  "limits": "Only explicit PDF structure identifiers are included. Terminal catalog/form identities and form-field identities are separate evidence classes, so zero entries here do not prove absence of all usable source identities."
+}

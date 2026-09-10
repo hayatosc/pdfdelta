@@ -1,0 +1,44 @@
+{
+  "status": "frozen_before_full_replay_and_new_series_selection",
+  "frozen_at_utc": "2026-09-10T13:31:17.187845+00:00",
+  "source_revision": "356b7f518da651649bb2db745bdf8139139d2576",
+  "source_changes_at_build": true,
+  "directory": "/tmp/pdfdelta-issue20-candidate3",
+  "build_command": "cargo build --release -p pdfdelta-cli; cargo build --release -p pdfdelta-bench",
+  "pdfdelta_sha256": "bbb099124e0345571dcc0f280f1d9a8226b3451052f1798d72dc804385b583f4",
+  "pdfbench_sha256": "e14d4ebc453d84979030a2c3a51e6d0ad9d9cfee5fa49285f79dfa89cb90910e",
+  "source_archive_sha256": "abc28ac8e3f36dbc9f6dd011e170114bd0d6db31838410ded5b68342c92e6d2a",
+  "tracked_patch_sha256": "57c11403aae7166ade3c2187e3f440d8968de95daea89a83e287802ab96eb8d2",
+  "source_archive_contents": "Cargo.toml, Cargo.lock, crates, and ISSUE20_GOAL_PLAN.md, including untracked source files.",
+  "configuration": {
+    "path": "candidate3-limits.txt",
+    "sha256": "08a4cce8fad678987173bd068e3cb6928a0a0b123113eabd3abb95caf8d47c1c"
+  },
+  "inventory_sha256": "5bafe80fa0af3764255f3f13c2186ca00400afdfea68e6c61c313ea90b8c56cb",
+  "tasks_sha256": "9f7c94d74d1fb20ae0b4922f46f21c2eec14e4d18edc1b4420b43082399ae203",
+  "matching_objective": "scoped_identity_then_literal_then_inferred_structure_v3",
+  "counterpart_decision_policy": "preserve_unmatched_alternatives_v1",
+  "native_key_policy": "native_document_keys_v1",
+  "scoped_key_policy": "native_key_membership_v1",
+  "source_contract": "audited-source-contract.json",
+  "routes": [
+    "native",
+    "shared_text",
+    "shared_all"
+  ],
+  "changes_since_prior_candidate": [
+    "Private versioned positional native glyph transport preserves every glyph field and auxiliary document metadata while retaining the 128 MiB response limit.",
+    "No matching, identity, scoring, or parser-limit changes."
+  ],
+  "checks": {
+    "fmt": "passed",
+    "clippy_workspace_all_targets_deny_warnings": "passed",
+    "workspace_tests": "2290 passed in 42 suites",
+    "generated_verification": "fresh release pdfbench verify: 48/48 policy cells; 42/48 strict cells with six retained ambiguous cells"
+  },
+  "excluded_consumed_series": [
+    "All existing corpus and prior trial series, including ECMA-404, ECMA-367, HTTP Problem Details RFC 7807/9457, and language tags RFC 1766/3066."
+  ],
+  "new_unseen_series_selected_at_freeze": 0,
+  "remaining": "Replay and score all frozen routes; follow unseen3-protocol.json on new source-eligible series; retain failed trials and prove scoped controls before closure."
+}

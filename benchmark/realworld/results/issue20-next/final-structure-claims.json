@@ -1,0 +1,1259 @@
+{
+  "schema_version": 1,
+  "experiment": "structure-claim-probe",
+  "probe_source_sha256": "0b603a0028d17d032e2d8b37a172fcfd2b12605f974c742f9885d3208cc595d8",
+  "diagnostic_only": true,
+  "hypothesis_only": true,
+  "caller_supplied_domains": true,
+  "declared_alignment_policy": "literal_minimal",
+  "source_inputs": [
+    {
+      "id": "dsa-old-introduction",
+      "path": "benchmark/realworld/results/structure-claim-probe/inputs/dsa-old-introduction.txt",
+      "normalized_byte_length": 1431,
+      "scalar_length": 1431,
+      "stripped_one_trailing_newline": true,
+      "sha256": "14e567a49d96048a93a60f5c9835d8ddb009578127c0b71808fc55af26f95b55"
+    },
+    {
+      "id": "dsa-new-introduction",
+      "path": "benchmark/realworld/results/structure-claim-probe/inputs/dsa-new-introduction.txt",
+      "normalized_byte_length": 2509,
+      "scalar_length": 2509,
+      "stripped_one_trailing_newline": true,
+      "sha256": "0a88c6bec0fb2e2408018677c703b9524c6c69ecb5c8868b5c1af9094292a35b"
+    },
+    {
+      "id": "dsa-old-paragraph",
+      "path": "benchmark/realworld/results/structure-claim-probe/inputs/dsa-old-paragraph.txt",
+      "normalized_byte_length": 261,
+      "scalar_length": 261,
+      "stripped_one_trailing_newline": true,
+      "sha256": "73944214a506ec6c5d81075574468ecd4dbed3e4162ce62c6eabd0fd14dce676"
+    },
+    {
+      "id": "dsa-new-paragraph",
+      "path": "benchmark/realworld/results/structure-claim-probe/inputs/dsa-new-paragraph.txt",
+      "normalized_byte_length": 150,
+      "scalar_length": 150,
+      "stripped_one_trailing_newline": true,
+      "sha256": "e32002b9cfc35d78144cb37373fd69a41f882c9d4702b3aca7de239d828d0764"
+    }
+  ],
+  "expected_manifests": [
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "annotation": "partial",
+      "change_ids": [
+        "dsa-specification-removed",
+        "edsa-added",
+        "dsa-legacy-verification-note",
+        "deterministic-ecdsa-rfc6979",
+        "security-level-glossary-note-removed",
+        "domain-parameter-requirement-moved",
+        "per-message-secret-number-scope-generalized"
+      ]
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "annotation": "partial",
+      "change_ids": [
+        "all-sector-scope-emphasized",
+        "core-expanded-from-five-to-six-functions",
+        "governance-and-supply-chain-emphasis-added"
+      ]
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "annotation": "scoped_complete",
+      "change_ids": [
+        "arxiv-version-date-stamp"
+      ]
+    }
+  ],
+  "annotation_audits": [
+    {
+      "id": "arxiv-version-date-stamp",
+      "pair": "arxiv-attention-v6-to-v7",
+      "scope": "distribution-stamp",
+      "old_length": 38,
+      "new_length": 37,
+      "scalar_lcs": 34,
+      "scalar_optimal_cost": 7,
+      "old_changed_count": 6,
+      "new_changed_count": 5,
+      "expected_mask_cost": 11,
+      "expected_mask_is_valid_edit_witness": true,
+      "expected_mask_in_policy_solution_set": false,
+      "expected_kept_pairs": 32,
+      "gold_minus_optimal": 4
+    },
+    {
+      "id": "core-expanded-from-five-to-six-functions",
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "scope": "core-functions-summary",
+      "old_length": 116,
+      "new_length": 138,
+      "scalar_lcs": 48,
+      "scalar_optimal_cost": 158,
+      "old_changed_count": 78,
+      "new_changed_count": 100,
+      "expected_mask_cost": 178,
+      "expected_mask_is_valid_edit_witness": true,
+      "expected_mask_in_policy_solution_set": false,
+      "expected_kept_pairs": 38,
+      "gold_minus_optimal": 20
+    }
+  ],
+  "role_policies": [
+    {
+      "id": "attention-distribution-stamp",
+      "role": "distribution_stamp",
+      "policy": "structure_first",
+      "relation": "supplied version and date fields are one review event",
+      "caller_supplied_domain": true,
+      "hypothesis_only": true,
+      "diagnostic_only": true,
+      "event_group": "arxiv-version-date-stamp",
+      "event_count": 1,
+      "event_kind": "replacement",
+      "outside_literal_objective": true,
+      "fields": [
+        {
+          "name": "version",
+          "old_range": {
+            "start": 17,
+            "end": 18
+          },
+          "new_range": {
+            "start": 17,
+            "end": 18
+          }
+        },
+        {
+          "name": "date",
+          "old_range": {
+            "start": 27,
+            "end": 38
+          },
+          "new_range": {
+            "start": 27,
+            "end": 37
+          }
+        }
+      ],
+      "source_ranges": {
+        "new_domain": {
+          "end": 37,
+          "start": 0
+        },
+        "old_domain": {
+          "end": 38,
+          "start": 0
+        }
+      },
+      "premises": [
+        {
+          "name": "version",
+          "identity": null,
+          "old_range": {
+            "start": 17,
+            "end": 18
+          },
+          "new_range": {
+            "start": 17,
+            "end": 18
+          },
+          "old_text": "6",
+          "new_text": "7",
+          "basis": "supplied field role with local exact refinement"
+        },
+        {
+          "name": "date",
+          "identity": null,
+          "old_range": {
+            "start": 27,
+            "end": 38
+          },
+          "new_range": {
+            "start": 27,
+            "end": 37
+          },
+          "old_text": "24 Jul 2023",
+          "new_text": "2 Aug 2023",
+          "basis": "supplied field role with local exact refinement"
+        }
+      ],
+      "literal_objective_audit": {
+        "old_length": 38,
+        "new_length": 37,
+        "scalar_lcs": 34,
+        "scalar_optimal_cost": 7,
+        "old_changed_count": 6,
+        "new_changed_count": 5,
+        "expected_mask_cost": 11,
+        "expected_mask_is_valid_edit_witness": true,
+        "expected_mask_in_policy_solution_set": false,
+        "expected_kept_pairs": 32,
+        "gold_minus_optimal": 4
+      },
+      "domain_proof": null,
+      "derived_comparison": {
+        "baseline_old_changed_ranges": [
+          {
+            "start": 17,
+            "end": 18
+          },
+          {
+            "start": 28,
+            "end": 29
+          },
+          {
+            "start": 30,
+            "end": 31
+          },
+          {
+            "start": 32,
+            "end": 33
+          }
+        ],
+        "baseline_new_changed_ranges": [
+          {
+            "start": 17,
+            "end": 18
+          },
+          {
+            "start": 29,
+            "end": 30
+          },
+          {
+            "start": 31,
+            "end": 32
+          }
+        ],
+        "baseline_old_changed_count": 4,
+        "baseline_new_changed_count": 3,
+        "baseline_mandatory_changed_count": 7,
+        "baseline_optimal_edit_cost": 7,
+        "baseline_complete_edit_witness": true,
+        "baseline_minimal_complete_edit_witness": true,
+        "baseline_changed_unlocalized": false,
+        "baseline_old_mask": {
+          "true_positive": 4,
+          "false_positive": 0,
+          "false_negative": 2
+        },
+        "baseline_new_mask": {
+          "true_positive": 3,
+          "false_positive": 0,
+          "false_negative": 2
+        },
+        "baseline_mask_gap": 4,
+        "derived_old_changed_ranges": [
+          {
+            "start": 17,
+            "end": 18
+          },
+          {
+            "start": 28,
+            "end": 29
+          },
+          {
+            "start": 30,
+            "end": 31
+          },
+          {
+            "start": 32,
+            "end": 33
+          }
+        ],
+        "derived_new_changed_ranges": [
+          {
+            "start": 17,
+            "end": 18
+          },
+          {
+            "start": 29,
+            "end": 30
+          },
+          {
+            "start": 31,
+            "end": 32
+          }
+        ],
+        "derived_old_changed_count": 4,
+        "derived_new_changed_count": 3,
+        "derived_changed_count": 7,
+        "derived_optimal_edit_cost": 7,
+        "derived_complete_edit_witness": true,
+        "derived_minimal_complete_edit_witness": true,
+        "derived_changed_unlocalized": false,
+        "old_mask": {
+          "true_positive": 4,
+          "false_positive": 0,
+          "false_negative": 2
+        },
+        "new_mask": {
+          "true_positive": 3,
+          "false_positive": 0,
+          "false_negative": 2
+        },
+        "derived_mask_gap": 4,
+        "mask_improvement": false,
+        "ungrouped_event_count": 2,
+        "expected_event_count": 1,
+        "derived_event_count": 1,
+        "expected_event_kind": "replacement",
+        "derived_event_kind": "replacement",
+        "grouping_improvement": true,
+        "grouping_match": true
+      }
+    },
+    {
+      "id": "dsa-approved-algorithm-list-membership",
+      "role": "approved_algorithm_list_membership",
+      "policy": "structure_first",
+      "relation": "DSA list-item membership is removed",
+      "caller_supplied_domain": true,
+      "hypothesis_only": true,
+      "diagnostic_only": true,
+      "event_group": "dsa-approved-algorithm-list",
+      "event_count": 1,
+      "event_kind": "deletion",
+      "outside_literal_objective": null,
+      "fields": [],
+      "source_ranges": {
+        "new_container": {
+          "end": 1570,
+          "start": 303
+        },
+        "new_item_boundary": {
+          "end": 303,
+          "start": 303
+        },
+        "new_membership": false,
+        "old_container": {
+          "end": 1157,
+          "start": 357
+        },
+        "old_item": {
+          "end": 460,
+          "start": 388
+        },
+        "old_membership": true
+      },
+      "premises": [
+        {
+          "name": "container",
+          "identity": "approved algorithm list",
+          "old_range": {
+            "start": 357,
+            "end": 1157
+          },
+          "new_range": {
+            "start": 303,
+            "end": 1570
+          },
+          "old_text": "Three techniques are approved. (1) The Digital Signature Algorithm (DSA) is specified in this Standard. The specification includes criteria for the generation of domain parameters, for the generation of public and private key pairs, and for the generation and verification of digital signatures. (2) The RSA digital signature algorithm is specified in American National Standard (ANS) X9.31 and Public Key Cryptography Standard (PKCS) #1. FIPS 186-4 approves the use of implementations of either or both of these standards and specifies additional requirements. (3) The Elliptic Curve Digital Signature Algorithm (ECDSA) is specified in ANS X9.62. FIPS 186-4 approves the use of ECDSA and specifies additional requirements. Recommended elliptic curves for Federal Government use are provided herein. ",
+          "new_text": "(1) The RSA digital signature algorithm is specified in the Internet Engineering Task Force Request for Comments (IETF RFC) 8017 [1] and was previously specified in Public Key Cryptography Standard (PKCS) #1 [2]. FIPS 186-5 approves the use of implementations of either or both of these standards and specifies key pair generation, as well as additional requirements. (2) The Elliptic Curve Digital Signature Algorithm (ECDSA) is specified in this standard. ECDSA was originally specified in American National Standards (ANS) X9.62 [3] (withdrawn). A variant of ECDSA with a deterministic signature generation procedure known as deterministic ECDSA is also approved and specified in IETF RFC 6979 [4]. Recommended elliptic curves for Federal Government use of ECDSA (including deterministic ECDSA) are provided in NIST Special Publication (SP) 800-186 [5]. (3) The Edwards Curve Digital Signature Algorithm (EdDSA) is specified in IETF RFC 8032 [6]. FIPS 186-5 approves the use of EdDSA and specifies additional requirements. Recommended elliptic curves for Federal Government use of EdDSA are provided in SP 800-186 [5]. Also included is HashEdDSA, a version of EdDSA where the EdDSA signature is generated on the hash of the message rather than the message itself. ",
+          "basis": "caller-supplied list container membership domain"
+        },
+        {
+          "name": "DSA",
+          "identity": "dsa",
+          "old_range": {
+            "start": 388,
+            "end": 460
+          },
+          "new_range": {
+            "start": 303,
+            "end": 303
+          },
+          "old_text": "(1) The Digital Signature Algorithm (DSA) is specified in this Standard.",
+          "new_text": "",
+          "basis": "caller-supplied membership fact"
+        }
+      ],
+      "literal_objective_audit": null,
+      "domain_proof": null,
+      "derived_comparison": null
+    },
+    {
+      "id": "dsa-topic-note-full-introduction",
+      "role": "topic_note",
+      "policy": "structure_first",
+      "relation": "supplied full-introduction correspondence",
+      "caller_supplied_domain": true,
+      "hypothesis_only": true,
+      "diagnostic_only": true,
+      "event_group": "dsa-topic-note",
+      "event_count": 1,
+      "event_kind": "insertion",
+      "outside_literal_objective": false,
+      "fields": [],
+      "source_ranges": {
+        "new_domain": {
+          "end": 2509,
+          "start": 0
+        },
+        "new_query": {
+          "end": 1718,
+          "start": 1611
+        },
+        "old_domain": {
+          "end": 1431,
+          "start": 0
+        }
+      },
+      "premises": [
+        {
+          "name": "topic-note-query",
+          "identity": "dsa-topic-note",
+          "old_range": null,
+          "new_range": {
+            "start": 1611,
+            "end": 1718
+          },
+          "old_text": "",
+          "new_text": "no longer specified in this standard and may only be used to verify previously generated digital signatures",
+          "basis": "caller-supplied full-introduction correspondence"
+        }
+      ],
+      "literal_objective_audit": null,
+      "domain_proof": {
+        "old_scalar_count": 1431,
+        "new_scalar_count": 2509,
+        "query_new": {
+          "start": 1611,
+          "end": 1718
+        },
+        "query_length": 107,
+        "scalar_lcs": 1097,
+        "scalar_optimal_cost": 1746,
+        "certain_changed_positions": 74,
+        "ambiguous_positions": 33,
+        "certain_same_positions": 0,
+        "min_inserted": 103,
+        "max_inserted": 107
+      },
+      "derived_comparison": null
+    },
+    {
+      "id": "dsa-topic-note-paired-paragraph",
+      "role": "topic_note",
+      "policy": "structure_first",
+      "relation": "supplied paired-paragraph correspondence",
+      "caller_supplied_domain": true,
+      "hypothesis_only": true,
+      "diagnostic_only": true,
+      "event_group": "dsa-topic-note",
+      "event_count": 1,
+      "event_kind": "replacement",
+      "outside_literal_objective": false,
+      "fields": [],
+      "source_ranges": {
+        "new_domain": {
+          "end": 150,
+          "start": 0
+        },
+        "new_query": {
+          "end": 148,
+          "start": 41
+        },
+        "old_domain": {
+          "end": 261,
+          "start": 0
+        }
+      },
+      "premises": [
+        {
+          "name": "topic-note-query",
+          "identity": "dsa-topic-note",
+          "old_range": null,
+          "new_range": {
+            "start": 41,
+            "end": 148
+          },
+          "old_text": "",
+          "new_text": "no longer specified in this standard and may only be used to verify previously generated digital signatures",
+          "basis": "caller-supplied paired-paragraph correspondence"
+        }
+      ],
+      "literal_objective_audit": null,
+      "domain_proof": {
+        "old_scalar_count": 261,
+        "new_scalar_count": 150,
+        "query_new": {
+          "start": 41,
+          "end": 148
+        },
+        "query_length": 107,
+        "scalar_lcs": 123,
+        "scalar_optimal_cost": 165,
+        "certain_changed_positions": 22,
+        "ambiguous_positions": 8,
+        "certain_same_positions": 77,
+        "min_inserted": 26,
+        "max_inserted": 27
+      },
+      "derived_comparison": null
+    },
+    {
+      "id": "csf-core-functions-supplied-sentence",
+      "role": "supplied_sentence",
+      "policy": "structure_first",
+      "relation": "supplied sentence is retained for objective compatibility diagnosis",
+      "caller_supplied_domain": true,
+      "hypothesis_only": true,
+      "diagnostic_only": true,
+      "event_group": "core-functions-summary",
+      "event_count": 1,
+      "event_kind": "replacement",
+      "outside_literal_objective": true,
+      "fields": [],
+      "source_ranges": {
+        "new_domain": {
+          "end": 138,
+          "start": 0
+        },
+        "old_domain": {
+          "end": 116,
+          "start": 0
+        }
+      },
+      "premises": [
+        {
+          "name": "govern",
+          "identity": "govern",
+          "old_range": null,
+          "new_range": {
+            "start": 25,
+            "end": 31
+          },
+          "old_text": "",
+          "new_text": "GOVERN",
+          "basis": "supplied function identity with local exact refinement"
+        },
+        {
+          "name": "identify",
+          "identity": "identify",
+          "old_range": {
+            "start": 72,
+            "end": 80
+          },
+          "new_range": {
+            "start": 33,
+            "end": 41
+          },
+          "old_text": "Identify",
+          "new_text": "IDENTIFY",
+          "basis": "supplied function identity with local exact refinement"
+        },
+        {
+          "name": "protect",
+          "identity": "protect",
+          "old_range": {
+            "start": 82,
+            "end": 89
+          },
+          "new_range": {
+            "start": 43,
+            "end": 50
+          },
+          "old_text": "Protect",
+          "new_text": "PROTECT",
+          "basis": "supplied function identity with local exact refinement"
+        },
+        {
+          "name": "detect",
+          "identity": "detect",
+          "old_range": {
+            "start": 91,
+            "end": 97
+          },
+          "new_range": {
+            "start": 52,
+            "end": 58
+          },
+          "old_text": "Detect",
+          "new_text": "DETECT",
+          "basis": "supplied function identity with local exact refinement"
+        },
+        {
+          "name": "respond",
+          "identity": "respond",
+          "old_range": {
+            "start": 99,
+            "end": 106
+          },
+          "new_range": {
+            "start": 60,
+            "end": 67
+          },
+          "old_text": "Respond",
+          "new_text": "RESPOND",
+          "basis": "supplied function identity with local exact refinement"
+        },
+        {
+          "name": "recover",
+          "identity": "recover",
+          "old_range": {
+            "start": 108,
+            "end": 115
+          },
+          "new_range": {
+            "start": 73,
+            "end": 80
+          },
+          "old_text": "Recover",
+          "new_text": "RECOVER",
+          "basis": "supplied function identity with local exact refinement"
+        }
+      ],
+      "literal_objective_audit": {
+        "old_length": 116,
+        "new_length": 138,
+        "scalar_lcs": 48,
+        "scalar_optimal_cost": 158,
+        "old_changed_count": 78,
+        "new_changed_count": 100,
+        "expected_mask_cost": 178,
+        "expected_mask_is_valid_edit_witness": true,
+        "expected_mask_in_policy_solution_set": false,
+        "expected_kept_pairs": 38,
+        "gold_minus_optimal": 20
+      },
+      "domain_proof": null,
+      "derived_comparison": {
+        "baseline_old_changed_ranges": [
+          {
+            "start": 5,
+            "end": 13
+          },
+          {
+            "start": 23,
+            "end": 24
+          },
+          {
+            "start": 25,
+            "end": 26
+          },
+          {
+            "start": 28,
+            "end": 30
+          },
+          {
+            "start": 31,
+            "end": 35
+          },
+          {
+            "start": 36,
+            "end": 46
+          },
+          {
+            "start": 51,
+            "end": 52
+          },
+          {
+            "start": 54,
+            "end": 55
+          },
+          {
+            "start": 56,
+            "end": 61
+          },
+          {
+            "start": 62,
+            "end": 65
+          },
+          {
+            "start": 66,
+            "end": 70
+          },
+          {
+            "start": 71,
+            "end": 74
+          },
+          {
+            "start": 75,
+            "end": 76
+          },
+          {
+            "start": 78,
+            "end": 79
+          },
+          {
+            "start": 80,
+            "end": 81
+          },
+          {
+            "start": 82,
+            "end": 84
+          },
+          {
+            "start": 89,
+            "end": 90
+          },
+          {
+            "start": 91,
+            "end": 93
+          },
+          {
+            "start": 95,
+            "end": 98
+          },
+          {
+            "start": 99,
+            "end": 100
+          },
+          {
+            "start": 102,
+            "end": 107
+          },
+          {
+            "start": 108,
+            "end": 109
+          },
+          {
+            "start": 110,
+            "end": 112
+          },
+          {
+            "start": 114,
+            "end": 115
+          }
+        ],
+        "baseline_new_changed_ranges": [
+          {
+            "start": 4,
+            "end": 6
+          },
+          {
+            "start": 13,
+            "end": 16
+          },
+          {
+            "start": 17,
+            "end": 19
+          },
+          {
+            "start": 23,
+            "end": 24
+          },
+          {
+            "start": 25,
+            "end": 32
+          },
+          {
+            "start": 33,
+            "end": 42
+          },
+          {
+            "start": 43,
+            "end": 51
+          },
+          {
+            "start": 52,
+            "end": 59
+          },
+          {
+            "start": 60,
+            "end": 68
+          },
+          {
+            "start": 73,
+            "end": 80
+          },
+          {
+            "start": 81,
+            "end": 82
+          },
+          {
+            "start": 84,
+            "end": 87
+          },
+          {
+            "start": 89,
+            "end": 91
+          },
+          {
+            "start": 93,
+            "end": 97
+          },
+          {
+            "start": 99,
+            "end": 102
+          },
+          {
+            "start": 107,
+            "end": 108
+          },
+          {
+            "start": 110,
+            "end": 112
+          },
+          {
+            "start": 113,
+            "end": 116
+          },
+          {
+            "start": 119,
+            "end": 120
+          },
+          {
+            "start": 121,
+            "end": 123
+          },
+          {
+            "start": 124,
+            "end": 128
+          },
+          {
+            "start": 130,
+            "end": 131
+          },
+          {
+            "start": 132,
+            "end": 133
+          },
+          {
+            "start": 136,
+            "end": 137
+          }
+        ],
+        "baseline_old_changed_count": 64,
+        "baseline_new_changed_count": 83,
+        "baseline_mandatory_changed_count": 147,
+        "baseline_optimal_edit_cost": 158,
+        "baseline_complete_edit_witness": false,
+        "baseline_minimal_complete_edit_witness": false,
+        "baseline_changed_unlocalized": true,
+        "baseline_old_mask": {
+          "true_positive": 49,
+          "false_positive": 15,
+          "false_negative": 29
+        },
+        "baseline_new_mask": {
+          "true_positive": 68,
+          "false_positive": 15,
+          "false_negative": 32
+        },
+        "baseline_mask_gap": 91,
+        "derived_old_changed_ranges": [
+          {
+            "start": 0,
+            "end": 3
+          },
+          {
+            "start": 4,
+            "end": 13
+          },
+          {
+            "start": 14,
+            "end": 18
+          },
+          {
+            "start": 19,
+            "end": 27
+          },
+          {
+            "start": 28,
+            "end": 30
+          },
+          {
+            "start": 31,
+            "end": 35
+          },
+          {
+            "start": 36,
+            "end": 46
+          },
+          {
+            "start": 47,
+            "end": 50
+          },
+          {
+            "start": 51,
+            "end": 61
+          },
+          {
+            "start": 62,
+            "end": 72
+          },
+          {
+            "start": 73,
+            "end": 80
+          },
+          {
+            "start": 83,
+            "end": 89
+          },
+          {
+            "start": 92,
+            "end": 97
+          },
+          {
+            "start": 100,
+            "end": 106
+          },
+          {
+            "start": 109,
+            "end": 115
+          }
+        ],
+        "derived_new_changed_ranges": [
+          {
+            "start": 0,
+            "end": 32
+          },
+          {
+            "start": 34,
+            "end": 38
+          },
+          {
+            "start": 39,
+            "end": 41
+          },
+          {
+            "start": 44,
+            "end": 50
+          },
+          {
+            "start": 53,
+            "end": 58
+          },
+          {
+            "start": 61,
+            "end": 67
+          },
+          {
+            "start": 69,
+            "end": 72
+          },
+          {
+            "start": 74,
+            "end": 79
+          },
+          {
+            "start": 80,
+            "end": 137
+          }
+        ],
+        "derived_old_changed_count": 93,
+        "derived_new_changed_count": 120,
+        "derived_changed_count": 213,
+        "derived_optimal_edit_cost": 158,
+        "derived_complete_edit_witness": false,
+        "derived_minimal_complete_edit_witness": false,
+        "derived_changed_unlocalized": true,
+        "old_mask": {
+          "true_positive": 70,
+          "false_positive": 23,
+          "false_negative": 8
+        },
+        "new_mask": {
+          "true_positive": 93,
+          "false_positive": 27,
+          "false_negative": 7
+        },
+        "derived_mask_gap": 65,
+        "mask_improvement": true,
+        "ungrouped_event_count": 6,
+        "expected_event_count": 1,
+        "derived_event_count": 1,
+        "expected_event_kind": "replacement",
+        "derived_event_kind": "replacement",
+        "grouping_improvement": true,
+        "grouping_match": true
+      }
+    }
+  ],
+  "historical_accepted_event_gaps": [
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "source": "benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/nist-fips-186-4-to-5.json",
+      "expected_events": 7,
+      "controls": [
+        {
+          "name": "native_native",
+          "status": "ok",
+          "expected_events": 7,
+          "accepted_events": 0,
+          "candidate_events": 1468,
+          "reported_events": 0,
+          "accepted_event_gap": 7,
+          "accepted_event_overage": 0,
+          "recall": 0.0
+        },
+        {
+          "name": "model_model",
+          "status": "ok",
+          "expected_events": 7,
+          "accepted_events": 0,
+          "candidate_events": 1044,
+          "reported_events": 0,
+          "accepted_event_gap": 7,
+          "accepted_event_overage": 0,
+          "recall": 0.0
+        }
+      ]
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "source": "benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/nist-csf-v1-1-to-v2-0.json",
+      "expected_events": 3,
+      "controls": [
+        {
+          "name": "native_native",
+          "status": "ok",
+          "expected_events": 3,
+          "accepted_events": 0,
+          "candidate_events": 0,
+          "reported_events": 0,
+          "accepted_event_gap": 3,
+          "accepted_event_overage": 0,
+          "recall": 0.0
+        },
+        {
+          "name": "model_model",
+          "status": "ok",
+          "expected_events": 3,
+          "accepted_events": 0,
+          "candidate_events": 3,
+          "reported_events": 0,
+          "accepted_event_gap": 3,
+          "accepted_event_overage": 0,
+          "recall": 0.0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "source": "benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/arxiv-attention-v6-to-v7.json",
+      "expected_events": 1,
+      "controls": [
+        {
+          "name": "native_native",
+          "status": "ok",
+          "expected_events": 1,
+          "accepted_events": 2,
+          "candidate_events": 0,
+          "reported_events": 2,
+          "accepted_event_gap": 0,
+          "accepted_event_overage": 1,
+          "recall": 0.0
+        },
+        {
+          "name": "model_model",
+          "status": "ok",
+          "expected_events": 1,
+          "accepted_events": 2,
+          "candidate_events": 3,
+          "reported_events": 2,
+          "accepted_event_gap": 0,
+          "accepted_event_overage": 1,
+          "recall": 0.0
+        }
+      ]
+    }
+  ],
+  "character_mask_guards": [
+    {
+      "id": "standard-case-fold",
+      "old": "Standard",
+      "new": "standard",
+      "old_changed_positions": [
+        0
+      ],
+      "new_changed_positions": [
+        0
+      ],
+      "space_positions": [],
+      "spaces_preserved": true
+    },
+    {
+      "id": "punctuation-and-case",
+      "old": ". F",
+      "new": "; f",
+      "old_changed_positions": [
+        0,
+        2
+      ],
+      "new_changed_positions": [
+        0,
+        2
+      ],
+      "space_positions": [
+        1
+      ],
+      "spaces_preserved": true
+    }
+  ],
+  "fixture_checks": [
+    {
+      "id": "standard-case-fold",
+      "old_scalars": 8,
+      "new_scalars": 8,
+      "old_glyphs": 8,
+      "new_glyphs": 8,
+      "glyphs_per_scalar": true,
+      "comparison_completed": true,
+      "assessment_present": true,
+      "reported_change_events": 1,
+      "candidate_events": 0,
+      "unresolved_regions": 0,
+      "expected_old_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "expected_new_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "emitted_old_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "emitted_new_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        }
+      ],
+      "emitted_old_mask_exact": true,
+      "emitted_new_mask_exact": true,
+      "emitted_old_spaces_preserved": true,
+      "emitted_new_spaces_preserved": true,
+      "expected_old_source_glyph_ids": [
+        1
+      ],
+      "expected_new_source_glyph_ids": [
+        1
+      ],
+      "emitted_old_source_glyph_ids": [
+        1
+      ],
+      "emitted_new_source_glyph_ids": [
+        1
+      ],
+      "source_projection_exact": true,
+      "failure": null
+    },
+    {
+      "id": "punctuation-and-case",
+      "old_scalars": 3,
+      "new_scalars": 3,
+      "old_glyphs": 3,
+      "new_glyphs": 3,
+      "glyphs_per_scalar": true,
+      "comparison_completed": true,
+      "assessment_present": true,
+      "reported_change_events": 1,
+      "candidate_events": 0,
+      "unresolved_regions": 0,
+      "expected_old_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        },
+        {
+          "start": 2,
+          "end": 3
+        }
+      ],
+      "expected_new_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        },
+        {
+          "start": 2,
+          "end": 3
+        }
+      ],
+      "emitted_old_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        },
+        {
+          "start": 2,
+          "end": 3
+        }
+      ],
+      "emitted_new_changed_ranges": [
+        {
+          "start": 0,
+          "end": 1
+        },
+        {
+          "start": 2,
+          "end": 3
+        }
+      ],
+      "emitted_old_mask_exact": true,
+      "emitted_new_mask_exact": true,
+      "emitted_old_spaces_preserved": true,
+      "emitted_new_spaces_preserved": true,
+      "expected_old_source_glyph_ids": [
+        1,
+        3
+      ],
+      "expected_new_source_glyph_ids": [
+        1,
+        3
+      ],
+      "emitted_old_source_glyph_ids": [
+        1,
+        3
+      ],
+      "emitted_new_source_glyph_ids": [
+        1,
+        3
+      ],
+      "source_projection_exact": true,
+      "failure": null
+    }
+  ],
+  "proof_verification": {
+    "alphabet": "ab",
+    "max_length": 4,
+    "pairs": 961,
+    "region_queries": 10881,
+    "passed": true
+  },
+  "dsa_unresolved_remainder_after_74_exact_changed_characters": {
+    "size": 33,
+    "min_additionally_changed": 29,
+    "max_additionally_changed": 33,
+    "condition": "same supplied introduction domain and same scalar-optimal path set"
+  },
+  "role_ambiguity_check": {
+    "id": "repeated-function-identity",
+    "rejected": true,
+    "reason": "role identity ['i', 'd', 'e', 'n', 't', 'i', 'f', 'y'] is ambiguous in its source text"
+  },
+  "discovery_decision": {
+    "stamp_mask_improves_over_literal_baseline": false,
+    "stamp_grouping_improves": true,
+    "production_fixture_masks_exact": true,
+    "repeated_function_identity_rejected": true,
+    "bounded_stamp_candidate_discovery_justified": false,
+    "function_identity_discovery_justified": false,
+    "automatic_production_matching_enabled": false,
+    "reason": "The supplied stamp policy improves grouping from two fields to one event, but its derived mask equals the literal-minimal baseline (cost 7; old/new FP 0/0 and FN 2/2), so no automatic candidate-discovery extension is justified; production matching remains disabled."
+  },
+  "limitations": [
+    "All role domains and source correspondences are caller-supplied diagnostic hypotheses; the stamp policy improves grouping only and does not improve the literal mask.",
+    "Production fixture results are derived from emitted spans and exact source projection; scalar mask guards alone do not establish production correctness.",
+    "Automatic glyph/PDF role discovery is not implemented because the supplied policies did not improve fixed masks without false positives.",
+    "The probe does not change production candidate selection or enable unconditional role matching.",
+    "The literal-minimal objective remains separate from structure-first event grouping."
+  ]
+}

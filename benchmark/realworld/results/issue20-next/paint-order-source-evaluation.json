@@ -1,0 +1,175 @@
+{
+  "status": "source_reviewed_development_recovery_not_original_layout_metric",
+  "source_view": "native_page_paint_order_scalars_v1",
+  "evaluator_sha256": "04452f6fbe924e32117fca5e01b81d1f490105ceb055b782c8152e3119aed216",
+  "annotation_sha256": "e886872234289fec682dc4e695dca7930217516baaf1d460e4f25bda18288f24",
+  "annotation_unchanged_from_baseline": true,
+  "physical_review": "source-selector-anomalies.json",
+  "baseline_cli_sha256": "ce2d10f1a20a6a093a317707482dc6e90cb0c124e7d8f4473ee1b14d6fd123ec",
+  "current_cli_sha256": "219d5b12ada90638007dee3af67dfb3a1b0ed81bc6367d7601f4c5b0aab0414c",
+  "interpretation": "One physically reviewed event is recovered on each current shared route. The baseline produced no report for this pair; it remains a process failure, not a fabricated successful comparison. The historical 0/14 layout-source subset is unchanged and is reported separately.",
+  "routes": [
+    {
+      "route": "shared_text",
+      "old_source": {
+        "block_count": 2,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 7603,
+        "sha256": "0a7a54354283044cb41373c6faabfa50955d44bdf91b4b76fa1ca2bf13f6d718",
+        "source_view": "native_page_paint_order_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 2,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 9387,
+        "sha256": "3d31c226df0d189ced80e039d01cf0f8820c1019681a0f0ca6264de277b7e982",
+        "source_view": "native_page_paint_order_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "age-cutoff-1961-primary",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "age-cutoff-1961-spouse",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "mfs-checkbox-restructured",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "combat-zone-deceased-checkbox-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "footer-form-year-stamp",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1040-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "page-one-footer",
+            "tokens": {
+              "expected_changed_tokens": 17,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 17,
+              "span_iou": 1.0,
+              "true_positive_tokens": 17
+            },
+            "unavailable": null
+          }
+        ]
+      },
+      "baseline": {
+        "exit_code": 2,
+        "report_produced": false,
+        "failure": "correspondence descendant ownership exceeded its limit of 1000000",
+        "established_events_recovered": 0
+      }
+    },
+    {
+      "route": "shared_all",
+      "old_source": {
+        "block_count": 2,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 7603,
+        "sha256": "0a7a54354283044cb41373c6faabfa50955d44bdf91b4b76fa1ca2bf13f6d718",
+        "source_view": "native_page_paint_order_scalars_v1"
+      },
+      "new_source": {
+        "block_count": 2,
+        "extraction_complete": true,
+        "extraction_issues": [],
+        "glyph_count": 9387,
+        "sha256": "3d31c226df0d189ced80e039d01cf0f8820c1019681a0f0ca6264de277b7e982",
+        "source_view": "native_page_paint_order_scalars_v1"
+      },
+      "evaluation": {
+        "expectations": [
+          {
+            "id": "age-cutoff-1961-primary",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "age-cutoff-1961-spouse",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "mfs-checkbox-restructured",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "combat-zone-deceased-checkbox-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          {
+            "id": "footer-form-year-stamp",
+            "matched": true,
+            "operation": [
+              0,
+              0
+            ],
+            "unavailable": null
+          }
+        ],
+        "pair": "irs-form-1040-2024-to-2025",
+        "projection_errors": [],
+        "schema_version": 1,
+        "scopes": [
+          {
+            "id": "page-one-footer",
+            "tokens": {
+              "expected_changed_tokens": 17,
+              "f1": 1.0,
+              "false_positive_tokens_per_10k_unchanged": 0.0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "reported_changed_tokens": 17,
+              "span_iou": 1.0,
+              "true_positive_tokens": 17
+            },
+            "unavailable": null
+          }
+        ]
+      },
+      "baseline": {
+        "exit_code": 2,
+        "report_produced": false,
+        "failure": "correspondence descendant ownership exceeded its limit of 1000000",
+        "established_events_recovered": 0
+      }
+    }
+  ]
+}

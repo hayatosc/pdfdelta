@@ -1,7 +1,7 @@
 //! Source-backed optional tokens for unresolved discretionary line-end hyphens.
 
 use super::{GroupText, Side, allocation_error, charge_work, space_token};
-use crate::{Result, alignment::BlockSeparator, normalize::ComparableToken};
+use crate::{Result, alignment::BlockSeparator};
 
 /// Returns a compact linear DAG: each marked token has retain and skip edges.
 /// Unrecognized or incomplete issue evidence produces no hypothesis set.
@@ -41,40 +41,13 @@ pub(super) fn optional_tokens(
             if !charge_work(remaining, work) {
                 return Ok(None);
             }
-            let Ok(ranges) = block.checked_normalization_issue_ranges() else {
+            let interval = group.comparable_origin.saturating_sub(offset)
+                ..(group.comparable_origin + group.tokens.len()).saturating_sub(offset);
+            let Ok(Some(positions)) = block.checked_optional_hyphens(tokens, interval) else {
                 return Ok(None);
             };
-            for (issue, range) in block.issues.iter().zip(ranges) {
-                let start = range.start
-                    + block
-                        .canonical
-                        .unmapped
-                        .partition_point(|token| token.scalar_index <= range.start);
-                let absolute = offset + start;
-                let group_end = group.comparable_origin + group.tokens.len();
-                let issue_start = absolute.saturating_sub(usize::from(range.start == range.end));
-                let issue_end = absolute.saturating_add((range.end - range.start).max(1));
-                if issue_start >= group_end || issue_end <= group.comparable_origin {
-                    continue;
-                }
-                let raw_index = issue.raw_range.start;
-                if raw_index == 0 {
-                    return Ok(None);
-                }
-                let mut context = block.raw.text.chars().skip(raw_index - 1);
-                let [preceding, raw_hyphen, following_break, following_letter] =
-                    std::array::from_fn(|_| context.next());
-                let supported = range.end == range.start + 1
-                    && issue.raw_range.end == raw_index + 1
-                    && matches!(raw_hyphen, Some('-' | '\u{2010}'))
-                    && following_break == Some('\n')
-                    && preceding.is_some_and(char::is_alphabetic)
-                    && following_letter.is_some_and(char::is_lowercase)
-                    && tokens.get(start) == raw_hyphen.map(ComparableToken::Scalar).as_ref();
-                if !supported || absolute < group.comparable_origin {
-                    return Ok(None);
-                }
-                optional[absolute - group.comparable_origin] = true;
+            for position in positions {
+                optional[offset + position - group.comparable_origin] = true;
             }
         }
         offset += tokens.len();

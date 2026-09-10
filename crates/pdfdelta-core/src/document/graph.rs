@@ -70,6 +70,11 @@ pub enum TextNormalization {
     /// Positions may be retained or removed independently, never selected by diff cost.
     Alternatives {
         optional_positions: Vec<usize>,
+        /// In-process source validation, bound to the complete token projection.
+        /// Serialized reports cannot convey this trust; reloaded alternatives
+        /// must be rebuilt from source evidence before local comparison.
+        #[serde(skip)]
+        certificate: Option<super::NormalizationCertificate>,
     },
     Unresolved {
         reason: String,
@@ -186,6 +191,7 @@ pub struct GraphLimits {
     pub max_tokens: usize,
     pub max_references: usize,
     pub max_label_bytes: usize,
+    pub max_normalization_work: usize,
 }
 
 impl Default for GraphLimits {
@@ -196,6 +202,7 @@ impl Default for GraphLimits {
             max_tokens: 5_000_000,
             max_references: 10_000_000,
             max_label_bytes: 16 * 1024 * 1024,
+            max_normalization_work: 1_000_000,
         }
     }
 }
@@ -296,12 +303,15 @@ impl DocumentGraph {
                     "recognized text cannot claim a direct-source view basis",
                 ));
             }
-            if node
+            if let Some(source) = node
                 .sources
                 .iter()
-                .any(|source| sources[source].is_some_and(|page| !node_pages.contains(&page)))
+                .find(|source| sources[*source].is_some_and(|page| !node_pages.contains(&page)))
             {
-                return Err(invalid("graph node omits a contributing source page"));
+                return Err(invalid(&format!(
+                    "graph node {:?} omits a contributing source page {:?} from {:?}",
+                    node.id, sources[source], source,
+                )));
             }
             if let Some(key) = &node.identity {
                 if key.namespace.is_empty() || key.value.is_empty() {
@@ -363,7 +373,9 @@ impl DocumentGraph {
                         return Err(invalid("text view silently omits source evidence"));
                     }
                     match &view.normalization {
-                        TextNormalization::Alternatives { optional_positions } => {
+                        TextNormalization::Alternatives {
+                            optional_positions, ..
+                        } => {
                             charge(
                                 &mut references,
                                 optional_positions.len(),

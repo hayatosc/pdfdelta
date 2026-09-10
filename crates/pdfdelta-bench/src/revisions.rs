@@ -106,8 +106,12 @@ mod fragment_review;
 pub mod order_probe;
 #[path = "revision_diagnostics.rs"]
 mod revision_diagnostics;
+#[path = "revision_document_report.rs"]
+pub mod revision_document_report;
 #[path = "revision_scopes.rs"]
 mod revision_scopes;
+#[path = "revision_selectors.rs"]
+pub mod revision_selectors;
 #[path = "revisions/section_pairing_review.rs"]
 mod section_pairing_review;
 

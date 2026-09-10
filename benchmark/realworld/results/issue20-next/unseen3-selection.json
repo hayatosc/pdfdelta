@@ -1,0 +1,176 @@
+{
+  "status": "consumed_source_trials_after_inferred_role_fix",
+  "recorded_at_utc": "2026-09-10T13:33:17.588965+00:00",
+  "candidate": "candidate3-freeze.json",
+  "protocol": "unseen3-protocol.json",
+  "selected_series": [
+    {
+      "series": "IRS Form 941",
+      "old": 2024,
+      "new": 2025,
+      "old_url": "https://www.irs.gov/pub/irs-prior/f941--2024.pdf",
+      "new_url": "https://www.irs.gov/pub/irs-prior/f941--2025.pdf"
+    },
+    {
+      "series": "IRS Form 1065",
+      "old": 2024,
+      "new": 2025,
+      "old_url": "https://www.irs.gov/pub/irs-prior/f1065--2024.pdf",
+      "new_url": "https://www.irs.gov/pub/irs-prior/f1065--2025.pdf"
+    }
+  ],
+  "selection_rationale": "Independent series from the existing 1040 and W-4 trials; public genuine revisions in publisher archives. Source-only review will determine whether an established-correspondence premise exists. No engine comparison has been run.",
+  "diversity_limit": "Both candidate series are IRS forms. Producer metadata is not yet reviewed; these trials do not represent broad publisher or document-type diversity.",
+  "annotation_status": "No changed scope or exact mask declared yet; source inventory and visual review pending.",
+  "acquired_at_utc": "2026-09-10T13:33:47.411759+00:00",
+  "acquired_inputs": [
+    {
+      "file": "f1065--2024.pdf",
+      "bytes": 322667,
+      "sha256": "0e090f62c33132f08628c72c964cc7359f4cbbf75581786d1ffb7999ee2f01e4",
+      "pages": 6,
+      "metadata": {
+        "format": "PDF 1.7",
+        "title": "2024 Form 1065 ",
+        "author": "C:DC:TS:CAR:MP",
+        "subject": "U.S. Return of Partnership Income",
+        "keywords": "Fillable",
+        "creator": "Designer 6.5",
+        "producer": "Designer 6.5",
+        "creationDate": "D:20241205095130-05'00'",
+        "modDate": "D:20241205095130-05'00'",
+        "trapped": "",
+        "encryption": null
+      }
+    },
+    {
+      "file": "f1065--2025.pdf",
+      "bytes": 334608,
+      "sha256": "0f19f556e12ef53c41ba27e5930b4373103f3abcf64693c4ea686451b2a8f56f",
+      "pages": 6,
+      "metadata": {
+        "format": "PDF 1.7",
+        "title": "2025 Form 1065",
+        "author": "C:DC:TS:CAR:MP",
+        "subject": "U.S. Return of Partnership Income",
+        "keywords": "Fillable",
+        "creator": "Designer 6.5",
+        "producer": "Designer 6.5",
+        "creationDate": "D:20260108095620-06'00'",
+        "modDate": "D:20260108095620-06'00'",
+        "trapped": "",
+        "encryption": null
+      }
+    },
+    {
+      "file": "f941--2024.pdf",
+      "bytes": 1041920,
+      "sha256": "d2a52222be38b3e991fb2f6980c770d48218c2a25dffcb4870e77d18b0db0c53",
+      "pages": 3,
+      "metadata": {
+        "format": "PDF 1.7",
+        "title": "Form 941 (Rev. March 2024)",
+        "author": "SE:W:CAR:MP",
+        "subject": "Employer's QUARTERLY Federal Tax Return",
+        "keywords": "Fillable",
+        "creator": "Designer 6.5",
+        "producer": "Designer 6.5",
+        "creationDate": "D:20240226113930-05'00'",
+        "modDate": "D:20241022153000-04'00'",
+        "trapped": "",
+        "encryption": null
+      }
+    },
+    {
+      "file": "f941--2025.pdf",
+      "bytes": 831930,
+      "sha256": "efe78a2db0487f66ab233aae0d63b1179c36d15505bc1ed053682320a2a76b62",
+      "pages": 3,
+      "metadata": {
+        "format": "PDF 1.7",
+        "title": "Form 941 (Rev. March 2025)",
+        "author": "C:DC:TS:CAR:MP",
+        "subject": "Employer's QUARTERLY Federal Tax Return",
+        "keywords": "Fillable",
+        "creator": "Designer 6.5",
+        "producer": "Designer 6.5",
+        "creationDate": "D:20250227102430-06'00'",
+        "modDate": "D:20250227102430-06'00'",
+        "trapped": "",
+        "encryption": null
+      }
+    }
+  ],
+  "source_review": {
+    "comparisons_run": 0,
+    "producer_diversity": "All four PDFs report Designer 6.5; there is no observed producer diversity.",
+    "series": [
+      {
+        "series": "IRS Form 941",
+        "status": "terminal_source_identity_found_on_both_sides_pending_visual_annotation",
+        "evidence": "unseen3-terminal-source-identities.json",
+        "note": "The shared catalog/form/prefix identity is derived from source terminal-line evidence; PDF structure IDs themselves are absent."
+      },
+      {
+        "series": "IRS Form 1065",
+        "status": "failed_source_trial_no_matching_terminal_identity_on_old_side",
+        "evidence": "unseen3-terminal-source-identities.json",
+        "note": "No comparison run. Twenty-nine shared PDF structure identifiers have no changed bound text; the native terminal identity appears only on the new side. A replacement source trial is still needed."
+      }
+    ]
+  },
+  "replacement_source_trials": [
+    {
+      "series": "IRS Form 1120",
+      "old": 2024,
+      "new": 2025,
+      "recorded_at_utc": "2026-09-10T13:47:59.363043+00:00",
+      "status": "failed_source_trial_no_matching_terminal_identity_on_old_side",
+      "comparisons_run": 0,
+      "inputs": [
+        {
+          "file": "f1120--2024.pdf",
+          "url": "https://www.irs.gov/pub/irs-prior/f1120--2024.pdf",
+          "bytes": 330971,
+          "sha256": "abf0266bdbea750c05e53fc9f771f428d32d18e4508d1c0dd4827486aba2d7fc",
+          "pages": 6,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2024 Form 1120",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "U.S. Corporation Income Tax Return",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20241220120504-06'00'",
+            "modDate": "D:20241220120504-06'00'",
+            "trapped": "",
+            "encryption": null
+          }
+        },
+        {
+          "file": "f1120--2025.pdf",
+          "url": "https://www.irs.gov/pub/irs-prior/f1120--2025.pdf",
+          "bytes": 340034,
+          "sha256": "016c7fb4042a565c23a98014b17019af7ddc89e3260dd3f926b84d6688b7be6e",
+          "pages": 6,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "2025 Form 1120",
+            "author": "C:DC:TS:CAR:MP",
+            "subject": "U.S. Corporation Income Tax Return",
+            "keywords": "Fillable",
+            "creator": "Designer 6.5",
+            "producer": "Designer 6.5",
+            "creationDate": "D:20260108100723-05'00'",
+            "modDate": "D:20260108100723-05'00'",
+            "trapped": "",
+            "encryption": null
+          }
+        }
+      ],
+      "note": "Same inferred-role incompatibility suspected as Form 1065: notice/catalog remain Body while the old form label is classified as repeated margin content. No correspondence acceptance has been claimed."
+    }
+  ],
+  "consumption_reason": "Source-only investigation of Forms 1065 and 1120 exposed a generic inferred-margin-role rejection in terminal-band grouping. That implementation change consumes all source-inspected series in this selection, including Form 941. No engine comparison was run on any of these series before the change; their source successes and failures remain retained."
+}

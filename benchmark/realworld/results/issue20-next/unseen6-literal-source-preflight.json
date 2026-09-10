@@ -1,0 +1,233 @@
+{
+  "contract": "literal_source_and_synthetic_separator_preflight_v1",
+  "rows": [
+    {
+      "form": 5227,
+      "identities_match": true,
+      "raw_quotes": [
+        "For Paperwork Reduction Act Notice, see the instructions. Cat. No. 13227T Form 5227 (2024) ",
+        "For Paperwork Reduction Act Notice, see the instructions. Cat. No. 13227T Form 5227 (2025) Created 5/7/25 "
+      ],
+      "raw": {
+        "edit_cost": 17,
+        "changed_source_lower": 17,
+        "changed_source_upper": 17,
+        "mandatory": [
+          [
+            88
+          ],
+          [
+            88,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104
+          ]
+        ],
+        "possible": [
+          [
+            88
+          ],
+          [
+            88,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105
+          ]
+        ],
+        "fully_localized": false
+      },
+      "view": {
+        "edit_cost": 17,
+        "changed_source_lower": 17,
+        "changed_source_upper": 17,
+        "mandatory": [
+          [
+            88
+          ],
+          [
+            88,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104
+          ]
+        ],
+        "possible": [
+          [
+            88
+          ],
+          [
+            88,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105
+          ]
+        ],
+        "fully_localized": false
+      },
+      "raw_view_source_masks_agree": true,
+      "eligible": false
+    },
+    {
+      "form": 8027,
+      "identities_match": true,
+      "raw_quotes": [
+        "For Privacy Act and Paperwork Reduction Act Notice, see the separate instructions.Cat. No. 49989UForm 8027 (2024)",
+        "For Privacy Act and Paperwork Reduction Act Notice, see the separate instructions.Cat. No. 49989UForm 8027 (2025) Created 4/18/25"
+      ],
+      "raw": {
+        "edit_cost": 18,
+        "changed_source_lower": 18,
+        "changed_source_upper": 18,
+        "mandatory": [
+          [],
+          [
+            111,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128
+          ]
+        ],
+        "possible": [
+          [
+            111,
+            112
+          ],
+          [
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128
+          ]
+        ],
+        "fully_localized": false
+      },
+      "view": {
+        "edit_cost": 18,
+        "changed_source_lower": 18,
+        "changed_source_upper": 18,
+        "mandatory": [
+          [],
+          [
+            113,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130
+          ]
+        ],
+        "possible": [
+          [
+            113,
+            114
+          ],
+          [
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130
+          ]
+        ],
+        "fully_localized": false
+      },
+      "raw_view_source_masks_agree": true,
+      "eligible": false
+    }
+  ]
+}

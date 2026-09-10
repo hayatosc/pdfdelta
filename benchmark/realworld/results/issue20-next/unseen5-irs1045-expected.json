@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "pair": "irs-form-1045-2024-to-2025",
+  "reviewed_on": "2026-09-10",
+  "annotation": "partial",
+  "notes": "Complete first-page terminal footer, independently reviewed in both rendered pages. The same catalog number, form identifier, and notice prefix identify the terminal band. The revision changes the final year digit and adds a creation date; all other non-whitespace source scalars in this scope remain unchanged. Source quotes preserve actual glyph spaces and omit synthetic visual-gap spaces. Other page changes are outside this scope.",
+  "scopes": [
+    {
+      "id": "first-page-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2024)",
+        "end_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2024)"
+      },
+      "new": {
+        "start_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2025) Created 10/23/25",
+        "end_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2025) Created 10/23/25"
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "footer-revision-and-created-date",
+      "kind": "replacement",
+      "scope": "first-page-footer",
+      "occurrence_count": 1,
+      "old_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2024)",
+      "new_quote": "For Disclosure, Privacy Act, and Paperwork Reduction Act Notice, see separate instructions.Cat. No. 10670AForm 1045 (2025) Created 10/23/25",
+      "old_changed_ranges": [
+        {
+          "start": 120,
+          "end": 121
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 120,
+          "end": 121
+        },
+        {
+          "start": 123,
+          "end": 130
+        },
+        {
+          "start": 131,
+          "end": 139
+        }
+      ],
+      "note": "One complete footer replacement, with the final year digit replaced and the creation-date text inserted. Layout whitespace is excluded from changed-token scoring."
+    }
+  ]
+}

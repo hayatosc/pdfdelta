@@ -248,17 +248,13 @@ fn concatenate_text(
         source_backed: Vec::new(),
         normalization: TextNormalization::Exact,
     };
+    let mut optional_positions = Vec::new();
     for node in nodes {
         let NodeContent::Text { view } = &node.content else {
             return Err(crate::Error::Unresolved(
                 "group contains a nontext view".into(),
             ));
         };
-        if view.normalization != TextNormalization::Exact {
-            return Err(crate::Error::Unresolved(
-                "group text normalization is unresolved".into(),
-            ));
-        }
         if view.tokens.len() != view.origins.len() || view.tokens.len() != view.source_backed.len()
         {
             return Err(super::evidence::invalid(
@@ -275,9 +271,24 @@ fn concatenate_text(
                 "local group source references",
             )?;
         }
+        let optional = view.optional_tokens().ok_or_else(|| {
+            crate::Error::Unresolved(
+                "group text normalization has no source-validated interpretation family".into(),
+            )
+        })?;
+        optional_positions.extend(
+            optional
+                .into_iter()
+                .enumerate()
+                .filter(|(_, optional)| *optional)
+                .map(|(position, _)| result.tokens.len() + position),
+        );
         result.tokens.extend_from_slice(&view.tokens);
         result.origins.extend_from_slice(&view.origins);
         result.source_backed.extend_from_slice(&view.source_backed);
+    }
+    if !optional_positions.is_empty() {
+        result.bind_optional_positions(optional_positions);
     }
     Ok(result)
 }
@@ -345,14 +356,12 @@ fn compare_text(
     }
     // Alternatives need a source-side normalization certificate. A bare external
     // list of optional characters is not such a certificate.
-    if old.normalization != TextNormalization::Exact
-        || new.normalization != TextNormalization::Exact
-    {
-        unresolved.push("local text normalization has no validated exact interpretation".into());
+    let (Some(old_optional), Some(new_optional)) = (old.optional_tokens(), new.optional_tokens())
+    else {
+        unresolved
+            .push("local text normalization has no source-validated interpretation family".into());
         return Ok(None);
-    }
-    let old_optional = vec![false; old.tokens.len()];
-    let new_optional = vec![false; new.tokens.len()];
+    };
     let mut remaining_work = limits.proof_work;
     let claims = local_text_claims(
         LocalTextSide {

@@ -205,7 +205,8 @@ pub fn compare(
                 relation.changed()
                     && relation.interpretation == InterpretationStatus::ConditionalOnCorrespondence
             })
-            .count();
+            .count()
+        + comparison.keyed_element_operations().count();
     let inferred_changes = comparison
         .comparisons()
         .filter(|pair| {
@@ -260,6 +261,13 @@ pub fn compare(
                 "unresolved"
             }
         );
+        if coverage.old_presence_sources > 0 || coverage.new_presence_sources > 0 {
+            let _ = writeln!(
+                text,
+                "  Native field membership accounts for {} old and {} new additional references.",
+                coverage.old_presence_sources, coverage.new_presence_sources
+            );
+        }
     }
     crate::evidence_text::append_details(
         &mut text,
@@ -327,6 +335,7 @@ fn collect(
         if options.channels.contains(&channel) {
             for page in &store.pages {
                 store.issues.push(EvidenceIssue {
+                    boundary: None,
                     page: Some(page.page),
                     channel,
                     sources: Vec::new(),

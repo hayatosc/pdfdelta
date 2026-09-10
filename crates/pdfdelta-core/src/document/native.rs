@@ -22,6 +22,7 @@ pub(super) fn block_text_view(
     limits: GraphLimits,
     tokens_used: &mut usize,
     references_used: &mut usize,
+    normalization_work: &mut usize,
 ) -> Result<(TextView, Vec<SourceRef>)> {
     let pairs = block.canonical.comparable_tokens_with_sources()?;
     super::graph::charge(
@@ -67,21 +68,20 @@ pub(super) fn block_text_view(
         origins.push(refs.into_iter().collect());
         source_backed.push(backed);
     }
-    Ok((
-        TextView {
-            tokens,
-            origins,
-            source_backed,
-            normalization: if block.issues.is_empty() {
-                TextNormalization::Exact
-            } else {
-                TextNormalization::Unresolved {
-                    reason: "source normalization retains competing interpretations".into(),
-                }
-            },
+    let mut view = TextView {
+        tokens,
+        origins,
+        source_backed,
+        normalization: if block.issues.is_empty() {
+            TextNormalization::Exact
+        } else {
+            TextNormalization::Unresolved {
+                reason: "source normalization retains competing interpretations".into(),
+            }
         },
-        all_sources.into_iter().collect(),
-    ))
+    };
+    view.certify_normalization(block, normalization_work);
+    Ok((view, all_sources.into_iter().collect()))
 }
 
 impl EvidenceStore {
@@ -122,34 +122,33 @@ impl EvidenceStore {
             .into_iter()
             .map(|issue| {
                 let (kind, scope, reason) = issue.into_parts();
-                let page = match scope {
-                    ExtractionScope::Page(page) => Some(page),
-                    ExtractionScope::GlyphGap { retained_before } => {
-                        let before = retained_before
-                            .checked_sub(1)
-                            .and_then(|index| native.items().get(index));
-                        let after = native.items().get(retained_before);
-                        match (before, after) {
-                            (Some(before), Some(after)) if before.page == after.page => {
-                                Some(before.page)
-                            }
-                            _ => None,
-                        }
+                let boundary = match scope {
+                    ExtractionScope::GlyphGap { retained_before } => Some(
+                        super::EvidenceBoundary::glyph_gap(&native, retained_before)?,
+                    ),
+                    ExtractionScope::PageGap { retained_before } => {
+                        Some(super::EvidenceBoundary::page_gap(&pages, retained_before)?)
                     }
-                    ExtractionScope::Document | ExtractionScope::PageGap { .. } => None,
+                    _ => None,
                 };
-                EvidenceIssue {
+                let page = match (&boundary, scope) {
+                    (Some(boundary), _) => boundary.page_scope(&native),
+                    (_, ExtractionScope::Page(page)) => Some(page),
+                    _ => None,
+                };
+                Ok(EvidenceIssue {
                     page,
                     channel: Channel::Text,
                     sources: Vec::new(),
+                    boundary,
                     kind: match kind {
                         ExtractionIssueKind::Unsupported => EvidenceFailure::Unsupported,
                         ExtractionIssueKind::Unresolved => EvidenceFailure::Unresolved,
                     },
                     reason,
-                }
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>>>()?;
         let incomplete_document = issues.iter().any(|issue| issue.page.is_none());
         let incomplete_pages = issues
             .iter()
@@ -175,6 +174,7 @@ impl EvidenceStore {
             rendered: Vec::new(),
             structured: Vec::new(),
             inventories,
+            key_inventories: Vec::new(),
             issues,
         };
         store.validate(limits)?;
@@ -243,9 +243,15 @@ impl DocumentGraph {
         let block_start = graph.nodes.len();
         let mut tokens_used = 0usize;
         let mut references_used = 0usize;
+        let mut normalization_work = graph_limits.max_normalization_work;
         for block in &blocks {
-            let (view, sources) =
-                block_text_view(block, graph_limits, &mut tokens_used, &mut references_used)?;
+            let (view, sources) = block_text_view(
+                block,
+                graph_limits,
+                &mut tokens_used,
+                &mut references_used,
+                &mut normalization_work,
+            )?;
             let id = NodeId(graph.nodes.len() as u64);
             let kind = match block.role {
                 BlockRole::Body => NodeKind::Paragraph,

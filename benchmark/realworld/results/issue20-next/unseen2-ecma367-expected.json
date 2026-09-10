@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "pair": "ecma367-ed1-to-ed2",
+  "reviewed_on": "2026-09-10",
+  "annotation": "partial",
+  "notes": "Source-only annotation before comparison. Complete Definition category bullet in section 5.1, PDF page 23 on both sides. The stable heading, category label and position within the five-category list support editorial correspondence; they do not certify a production graph correspondence. Reviewed page images and raw paint-order text. Paint-order old source omits spaces after syntax, and abbreviation across physical line endings; new source retains them. These absent layout spaces are not visible editorial changes. Both failed initial selector attempts are retained. The initial note incorrectly described the abbreviation advice as deleted; reinspection of the full source corrects that claim before comparison.",
+  "scopes": [
+    {
+      "id": "definition-category",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax,validity of semantic properties; the rest of the Standard may use the term as an abbreviationfor the concept.",
+        "end_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax,validity of semantic properties; the rest of the Standard may use the term as an abbreviationfor the concept."
+      },
+      "new": {
+        "start_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity or semantic properties; the rest of the Standard may use the term as an abbreviation for the concept.",
+        "end_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity or semantic properties; the rest of the Standard may use the term as an abbreviation for the concept."
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "definition-of-to-or",
+      "kind": "replacement",
+      "scope": "definition-category",
+      "occurrence_count": 1,
+      "new_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity or semantic properties; the rest of the Standard may use the term as an abbreviation for the concept.",
+      "new_changed_ranges": [
+        {
+          "start": 101,
+          "end": 102
+        }
+      ],
+      "note": "Replace exactly f by r in validity of/or semantic properties; retain the other visible content of this complete bullet. Source quotes preserve missing glyph spaces at old line boundaries.",
+      "old_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax,validity of semantic properties; the rest of the Standard may use the term as an abbreviationfor the concept.",
+      "old_changed_ranges": [
+        {
+          "start": 100,
+          "end": 101
+        }
+      ]
+    }
+  ]
+}

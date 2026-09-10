@@ -1,0 +1,83 @@
+{
+  "status": "source_annotations_frozen_before_any_comparison",
+  "frozen_at_utc": "2026-09-10T14:07:29.648800+00:00",
+  "candidate": "candidate4-freeze.json",
+  "protocol": "unseen4-protocol.json",
+  "source_view": "native_page_paint_order_scalars_v1",
+  "required_events": 2,
+  "images": [
+    {
+      "path": "unseen4-f1041--2024-review.png",
+      "sha256": "d4d06bdb26e7e77cddef1d73ff0e00f28c4aa297dedc5e1a58c7b8fbcf42a90f"
+    },
+    {
+      "path": "unseen4-f1041--2025-review.png",
+      "sha256": "6330a40b6750e0e31c3a8fb67ccbcd2741630178a4e4ac2c753ba8bcdc19aae0"
+    },
+    {
+      "path": "unseen4-f1042--2025-review.png",
+      "sha256": "82bfb02cd2f8a3cfeec27c72ca85988768a01013a7b16a491aea6c22edcfc0f2"
+    },
+    {
+      "path": "unseen4-f1042--2024-review.png",
+      "sha256": "24ae6e256063e7f3b2a2efba240b123da81209c20f5d339c56df1cac1a8c0e00"
+    }
+  ],
+  "annotations": [
+    {
+      "path": "unseen4-irs1041-old-control-expected.json",
+      "sha256": "c1d94370d7ac48fefdd397a12a8b29327892d6f5f56205a58c2a3398e765b632"
+    },
+    {
+      "path": "unseen4-irs1041-expected.json",
+      "sha256": "5638f30b7de672d1e2cefa674ddb0cfc8b48955e8efa525870f036187680d10e"
+    },
+    {
+      "path": "unseen4-irs1041-new-control-expected.json",
+      "sha256": "ba74bd6137a9e526ac30bdac092f51789efd50ba41a2538b394fce85e23d9d78"
+    },
+    {
+      "path": "unseen4-irs1042-old-control-expected.json",
+      "sha256": "74b9952f69106d9b4606bf3006db235762967f6fe477d814a4c104396e8c3d69"
+    },
+    {
+      "path": "unseen4-irs1042-expected.json",
+      "sha256": "e62101457267977a78774d5dd64c608e350d838b374faf4662eec593ab910abf"
+    },
+    {
+      "path": "unseen4-irs1042-new-control-expected.json",
+      "sha256": "8edee33acb12c2868db01d7647e7571a70acc8e0abc50eda533c282fd05df915"
+    }
+  ],
+  "selection": {
+    "path": "unseen4-selection.json",
+    "sha256": "240966bee2bfe9f7997761d977b3e61b0203d4e90212e3799371f10df04bf589"
+  },
+  "source_identities": {
+    "path": "unseen4-terminal-source-identities.json",
+    "sha256": "7ad96542ba53bb82b0c4c72889487456d8935da4d2c94b0f0460bdfea0d31608"
+  },
+  "mask_check": {
+    "path": "unseen4-mask-identifiability.json",
+    "sha256": "51cc36dae00ddb713991f16ded1049cac35d1a4f1c511b66f84acbc920ac4a4a"
+  },
+  "selectors": [
+    {
+      "path": "unseen4-irs1041-selectors.json",
+      "sha256": "3e50d98b7d93067eeb68c32bfa6698f9982c1403c22fce6b497e6ae5be7cf311"
+    },
+    {
+      "path": "unseen4-irs1042-selectors.json",
+      "sha256": "1652e1d6b69941377e822ae6c72b69f54abc825afb73e0bc4fbb2bca1e995d9f"
+    }
+  ],
+  "tasks": {
+    "path": "tasks.txt",
+    "sha256": "fbbfee9526bf91637b2f908ae146d1e960d922b9f82228b981cede1a22723024"
+  },
+  "limitations": [
+    "Two distinct form series from one publisher and the same producer family; scope-limited results do not imply general PDF accuracy.",
+    "Form 940 failed the shared-source-identity premise and Form 990 failed exact-mask identifiability; both source trials are retained without comparison.",
+    "Each required event covers the entire first-page terminal footer; other page changes and document-wide completeness remain outside the scoped event claim."
+  ]
+}

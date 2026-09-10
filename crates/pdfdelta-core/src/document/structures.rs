@@ -34,6 +34,7 @@ pub struct StructureEvidence {
     pub elements: Vec<StructuredEvidence>,
     pub issues: Vec<EvidenceIssue>,
     pub inventory: ChannelInventory,
+    pub key_inventory: super::KeyInventory,
 }
 
 struct Pending {
@@ -63,6 +64,11 @@ pub fn extract_structure_evidence(
     limits: StructureLimits,
 ) -> Result<StructureEvidence> {
     let mut result = StructureEvidence {
+        key_inventory: super::KeyInventory {
+            domain: super::KeyDomain::PdfStructureId,
+            backend,
+            complete: true,
+        },
         elements: Vec::new(),
         issues: Vec::new(),
         inventory: ChannelInventory {
@@ -301,6 +307,7 @@ pub fn extract_structure_evidence(
             Ok(())
         })();
         if let Err(error) = imported {
+            result.key_inventory.complete = false;
             let stop = matches!(error, Error::LimitExceeded { .. });
             issue(
                 &mut result,
@@ -395,6 +402,7 @@ fn page_reference(
 
 fn issue(result: &mut StructureEvidence, source: Option<SourceRef>, error: Error) {
     result.issues.push(EvidenceIssue {
+        boundary: None,
         page: None,
         channel: Channel::Relations,
         sources: source.into_iter().collect(),

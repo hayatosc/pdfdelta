@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "pair": "ecma367-ed1-to-ed2",
+  "reviewed_on": "2026-09-10",
+  "annotation": "partial",
+  "notes": "Source-only visual review before any comparison. PDF page 23 on both sides, section 5.1 Standard elements, Definition category. Scope ends at properties before the changed clause-ending punctuation. It includes the complete category description up to that boundary, not the subsequently deleted abbreviation advice. The label, section number and position in the five-category list establish the reviewed editorial correspondence; this does not certify a production PDF graph correspondence.",
+  "scopes": [
+    {
+      "id": "definition-category-first-clause",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity of semantic properties",
+        "end_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity of semantic properties"
+      },
+      "new": {
+        "start_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity or semantic properties",
+        "end_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity or semantic properties"
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "definition-category-first-clause-change",
+      "kind": "replacement",
+      "scope": "definition-category-first-clause",
+      "occurrence_count": 1,
+      "new_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity or semantic properties",
+      "new_changed_ranges": [
+        {
+          "start": 101,
+          "end": 102
+        }
+      ],
+      "note": "PDF page 23 on both sides, section 5.1 Standard elements, Definition category. Scope ends at properties before the changed clause-ending punctuation. It includes the complete category description up to that boundary, not the subsequently deleted abbreviation advice. The label, section number and position in the five-category list establish the reviewed editorial correspondence; this does not certify a production PDF graph correspondence.",
+      "old_quote": "Definition: introduction of a term defining a certain concept, which may relate to syntax, validity of semantic properties",
+      "old_changed_ranges": [
+        {
+          "start": 101,
+          "end": 102
+        }
+      ]
+    }
+  ]
+}

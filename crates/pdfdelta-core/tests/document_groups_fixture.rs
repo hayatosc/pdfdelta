@@ -23,6 +23,7 @@ fn fixture(parts: &[&str]) -> (EvidenceStore, DocumentGraph) {
         }],
         rendered: Vec::new(),
         inventories: Vec::new(),
+        key_inventories: Vec::new(),
         issues: Vec::new(),
         structured: parts
             .iter()
@@ -57,6 +58,54 @@ fn graph(store: &EvidenceStore) -> DocumentGraph {
         limits.graph,
     )
     .expect("derive ordered text views")
+}
+
+#[test]
+fn shared_prefix_search_preserves_independent_literals_within_its_budget() {
+    let texts: Vec<_> = (0..150)
+        .map(|index| format!("shared {index:03} {}", "x".repeat(index)))
+        .collect();
+    let parts: Vec<_> = texts.iter().map(String::as_str).collect();
+    let old = fixture(&parts);
+    let new = fixture(&parts);
+    let mut limits = DocumentComparisonLimits::default();
+    limits.matching.max_group_token_checks = 100_000;
+    let result = compare(&old, &new, limits);
+    assert!(result.scopes[0].result.candidates.exhaustive);
+    assert!(result.scopes[0].result.candidates.group_token_checks < 100_000);
+    assert_eq!(result.comparisons().count(), parts.len());
+    assert!(
+        result
+            .comparisons()
+            .all(|comparison| comparison.compared && comparison.operation.is_none())
+    );
+}
+
+#[test]
+fn group_successor_mismatches_charge_only_examined_tokens() {
+    let old_texts: Vec<_> = (0..20)
+        .map(|index| format!(" A{index:02}{}", "a".repeat(1024)))
+        .collect();
+    let new_texts: Vec<_> = (0..20)
+        .flat_map(|index| [" ".into(), format!("B{index:02}{}", "b".repeat(1024))])
+        .collect();
+    let old = fixture(&old_texts.iter().map(String::as_str).collect::<Vec<_>>());
+    let new = fixture(&new_texts.iter().map(String::as_str).collect::<Vec<_>>());
+    let mut limits = DocumentComparisonLimits::default();
+    limits.matching.max_group_token_checks = 100_000;
+    let result = pdfdelta_core::document::propose_scope_correspondences(
+        &old.1,
+        &new.1,
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        limits.matching,
+    )
+    .expect("enumerate source groups");
+    assert!(result.exhaustive);
+    assert!(result.proposals.is_empty());
+    assert!(result.group_token_checks < limits.matching.max_group_token_checks);
 }
 
 fn compare(
@@ -127,6 +176,117 @@ fn split_and_merge_preserve_text_and_all_member_references() {
             .collect();
         assert_eq!(sources.len(), new.0.structured.len());
     }
+}
+
+#[test]
+fn changed_split_and_merge_preserve_exact_sources_and_inferred_boundaries() {
+    let whole = fixture(&["The annual fee is 100 dollars."]);
+    let mut parts = fixture(&["The annual ", "fee is 200 dollars."]);
+    parts.1.nodes.reverse();
+    parts.1.edges.reverse();
+    for (old, new) in [(&whole, &parts), (&parts, &whole)] {
+        let result = compare(old, new, DocumentComparisonLimits::default());
+        let pairs: Vec<_> = result.comparisons().collect();
+        assert_eq!(pairs.len(), 1);
+        let pair = pairs[0];
+        assert_eq!(pair.old.len(), old.0.structured.len());
+        assert_eq!(pair.new.len(), new.0.structured.len());
+        assert_eq!(pair.interpretation, InterpretationStatus::Inferred);
+        assert!(pair.compared);
+        let mask = pair
+            .text_mask
+            .as_ref()
+            .expect("local literal character mask");
+        assert_eq!(mask.old.len(), 1);
+        assert_eq!(mask.new.len(), 1);
+        assert_eq!(mask.old[0].position, 18);
+        assert_eq!(mask.new[0].position, 18);
+        assert!(
+            !result.scopes[0]
+                .result
+                .counterpart_decisions
+                .unresolved
+                .is_empty()
+        );
+        assert_eq!(result.keyed_element_operations().count(), 0);
+    }
+}
+
+#[test]
+fn nonexact_groups_require_order_and_do_not_invent_boundary_spaces() {
+    let whole = fixture(&["The annual fee is 100 dollars."]);
+    let mut parts = fixture(&["The annual", "fee is 200 dollars."]);
+    let result = compare(&whole, &parts, DocumentComparisonLimits::default());
+    let group = result.scopes[0]
+        .result
+        .candidates
+        .proposals
+        .iter()
+        .find(|candidate| candidate.new.len() == 2)
+        .expect("retained ordered group");
+    let nodes: std::collections::BTreeMap<_, _> =
+        parts.1.nodes.iter().map(|node| (node.id, node)).collect();
+    let old_node = whole
+        .1
+        .nodes
+        .iter()
+        .find(|node| node.id == group.old[0])
+        .expect("retained whole-text endpoint");
+    let local = compare_text_group_views(
+        &[old_node],
+        &group.new.iter().map(|id| nodes[id]).collect::<Vec<_>>(),
+        Default::default(),
+    )
+    .expect("literal boundary comparison");
+    let mask = local.text_mask.expect("changed boundary mask");
+    assert!(mask.old.iter().any(|token| token.position == 10));
+
+    parts.1.edges.retain(|edge| edge.kind != EdgeKind::Precedes);
+    let result = compare(&whole, &parts, DocumentComparisonLimits::default());
+    assert!(
+        result.scopes[0]
+            .result
+            .candidates
+            .proposals
+            .iter()
+            .all(|candidate| { candidate.old.len() == 1 && candidate.new.len() == 1 })
+    );
+}
+
+#[test]
+fn nonexact_group_budget_preserves_independent_source_correspondences() {
+    let old = fixture(&["fixed anchor", "The annual fee is 100 dollars."]);
+    let new = fixture(&["fixed anchor", "The annual ", "fee is 200 dollars."]);
+    let mut limits = DocumentComparisonLimits::default();
+    let source = pdfdelta_core::document::propose_scope_correspondences(
+        &old.1,
+        &new.1,
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        limits.matching,
+    )
+    .expect("complete source search");
+    assert!(source.exhaustive);
+    limits.matching.max_group_token_checks = source.group_token_checks;
+    let result = compare(&old, &new, limits);
+    assert!(!result.scopes[0].result.text_search.exhaustive);
+    let pairs: Vec<_> = result.comparisons().collect();
+    assert_eq!(pairs.len(), 1);
+    assert!(pairs[0].compared && pairs[0].operation.is_none());
+    assert_eq!(
+        pairs[0].interpretation,
+        InterpretationStatus::ConditionalOnCorrespondence
+    );
+    assert!(
+        result.scopes[0]
+            .result
+            .candidates
+            .proposals
+            .iter()
+            .all(|candidate| { candidate.supplier != "retained-order-trigram-group-v1" })
+    );
 }
 
 #[test]
@@ -398,6 +558,16 @@ fn nonidentical_paragraphs_reach_exact_masks_as_inferred_correspondences() {
     let old = fixture(&["The fee is 100 dollars."]);
     let new = fixture(&["The fee is 200 dollars."]);
     let result = compare(&old, &new, DocumentComparisonLimits::default());
+    let decisions = &result.scopes[0].result.counterpart_decisions.unresolved;
+    assert_eq!(decisions.len(), 1);
+    assert_eq!(
+        decisions[0].explanations,
+        [
+            pdfdelta_core::document::CounterpartExplanation::Correspondence,
+            pdfdelta_core::document::CounterpartExplanation::SeparatePresence,
+        ]
+    );
+    assert_eq!(result.keyed_element_operations().count(), 0);
     let pairs: Vec<_> = result.comparisons().collect();
     assert_eq!(pairs.len(), 1);
     assert_eq!(pairs[0].interpretation, InterpretationStatus::Inferred);

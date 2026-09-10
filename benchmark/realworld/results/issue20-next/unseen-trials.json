@@ -1,0 +1,214 @@
+{
+  "protocol": "unseen-protocol.json",
+  "comparison_outputs_inspected": true,
+  "trials": [
+    {
+      "id": "ecma404-ed1-to-ed2",
+      "series": "ecma404-json-syntax",
+      "status": "failed_validation_consumed_for_development",
+      "old_url": "https://ecma-international.org/wp-content/uploads/ECMA-404_1st_edition_october_2013.pdf",
+      "new_url": "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf",
+      "selection_evidence": "https://ecma-international.org/publications-and-standards/standards/ecma-404/",
+      "reason": "Two archived editions of a compact real syntax standard; new series outside prior development corpora.",
+      "source_view": "layout",
+      "annotation": {
+        "path": "unseen-ecma404-expected.json",
+        "sha256": "fcc8ed3bef83a3ac55f0b8248558e063ed108c8ff667b84144d086a24971f5e3"
+      },
+      "selectors": {
+        "path": "/tmp/pdfdelta-issue20-unseen-final/ecma404-selectors.json",
+        "sha256": "174c605f8bff4d7238ea69f39bdd85ed9b3b5d79a06fc25b19ccc8d586a36970",
+        "expectations": [
+          {
+            "changed_range_error": null,
+            "id": "remove-normative-reference-edition",
+            "old": {
+              "status": "unique_source_selector",
+              "source_scalars": 80
+            },
+            "new": {
+              "status": "not_required",
+              "source_scalars": 0
+            }
+          }
+        ]
+      },
+      "inputs": {
+        "old": {
+          "url": "https://ecma-international.org/wp-content/uploads/ECMA-404_1st_edition_october_2013.pdf",
+          "sha256": "e8d1c121ce084662bb2c37379c20eba8e652f3e98a1f6e73e6d6b01d3cacf20d",
+          "bytes": 635321,
+          "pages": 14,
+          "metadata": {
+            "format": "PDF 1.5",
+            "title": "ECMA-404, 1st edition, October 2013",
+            "author": "Patrick Charollais",
+            "subject": "",
+            "keywords": "",
+            "creator": "Microsoft\u00ae Word 2013",
+            "producer": "Microsoft\u00ae Word 2013",
+            "creationDate": "D:20150415171907+02'00'",
+            "modDate": "D:20220204113523+01'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "reviewed_pdf_page_1based": 7,
+          "review_image_sha256": "a5212395b24a05af60447a59ca40e82758802c8553d846d8ef42b8b5b6ba5731",
+          "source_extraction": {
+            "block_count": 222,
+            "extraction_complete": true,
+            "extraction_issues": [],
+            "glyph_count": 14047,
+            "sha256": "e8d1c121ce084662bb2c37379c20eba8e652f3e98a1f6e73e6d6b01d3cacf20d",
+            "source_view": "default_native_layout_canonical_scalars_v1"
+          }
+        },
+        "new": {
+          "url": "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf",
+          "sha256": "760a6f77c38172f4de333412292eaed092f33852592ca0cce9b7535a6e415fcf",
+          "bytes": 639695,
+          "pages": 16,
+          "metadata": {
+            "format": "PDF 1.5",
+            "title": "ECMA-404, 2nd edition, December 2017",
+            "author": "Patrick Charollais",
+            "subject": "",
+            "keywords": "",
+            "creator": "Microsoft\u00ae Word 2013",
+            "producer": "Microsoft\u00ae Word 2013",
+            "creationDate": "D:20171123101502+01'00'",
+            "modDate": "D:20220203170259+01'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "reviewed_pdf_page_1based": 9,
+          "review_image_sha256": "f3469faf5e4c129dff18bbc2fc3f5980c6af4fc5c7f701a0217347fa10d9bd6b",
+          "source_extraction": {
+            "block_count": 259,
+            "extraction_complete": true,
+            "extraction_issues": [],
+            "glyph_count": 15904,
+            "sha256": "760a6f77c38172f4de333412292eaed092f33852592ca0cce9b7535a6e415fcf",
+            "source_view": "default_native_layout_canonical_scalars_v1"
+          }
+        }
+      }
+    },
+    {
+      "id": "rfc7807-to-rfc9457",
+      "series": "rfc-http-problem-details",
+      "status": "failed_validation_consumed_for_development",
+      "old_url": "https://ftp.ripe.net/rfc/rfc7807.txt.pdf",
+      "new_url": "https://www.rfc-editor.org/rfc/rfc9457.pdf",
+      "selection_evidence": "https://www.rfc-editor.org/info/rfc9457/",
+      "reason": "The new standard explicitly obsoletes the old revision; different publisher from the other selected series.",
+      "source_view": "paint-order",
+      "annotation": {
+        "path": "unseen-rfc-problem-details-expected.json",
+        "sha256": "dabfedb0932a612b56f639c6119437ac4d2278ca42bdde7d84988e135033a0f7"
+      },
+      "selectors": {
+        "path": "/tmp/pdfdelta-issue20-unseen-final/rfc-problem-details-final-selectors.json",
+        "sha256": "602aab0c1008185bde0e30c49d788103f57fda107aa69a62f14fa371c5ece2d6",
+        "expectations": [
+          {
+            "changed_range_error": null,
+            "id": "detail-advice-member-to-string",
+            "old": {
+              "status": "unique_source_selector",
+              "source_scalars": 134
+            },
+            "new": {
+              "status": "unique_source_selector",
+              "source_scalars": 131
+            }
+          }
+        ]
+      },
+      "inputs": {
+        "old": {
+          "url": "https://ftp.ripe.net/rfc/rfc7807.txt.pdf",
+          "sha256": "d7b80f17006f735504db039c090d754dd693c9ed7713faa76dcbedbf60729d91",
+          "bytes": 24952,
+          "pages": 16,
+          "metadata": {
+            "format": "PDF 1.4",
+            "title": "Enscript Output",
+            "author": "RFC Editor",
+            "subject": "",
+            "keywords": "",
+            "creator": "GNU enscript 1.6.4",
+            "producer": "GPL Ghostscript 9.06",
+            "creationDate": "D:20160331172618-07'00'",
+            "modDate": "D:20160331172618-07'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "reviewed_pdf_page_1based": 5,
+          "review_image_sha256": "c440ccdfdc2fdbf3f07894f3a5a9bfcfeca7e53a31e60d4f8a779f065a73091c",
+          "source_extraction": {
+            "block_count": 16,
+            "extraction_complete": true,
+            "extraction_issues": [],
+            "glyph_count": 30295,
+            "sha256": "d7b80f17006f735504db039c090d754dd693c9ed7713faa76dcbedbf60729d91",
+            "source_view": "native_page_paint_order_scalars_v1"
+          }
+        },
+        "new": {
+          "url": "https://www.rfc-editor.org/rfc/rfc9457.pdf",
+          "sha256": "9e556f5dcbf7dd780928cfe03ec7f2080a635e1bcb41ddbeecbe8141c67d09ed",
+          "bytes": 214288,
+          "pages": 16,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "RFC 9457: Problem Details for HTTP APIs",
+            "author": "Mark Nottingham, Erik Wilde, Sanjay Dalal",
+            "subject": "\n       This document defines a \"problem detail\" to carry machine-readable details of errors in HTTP response content to avoid the need to define new error response formats for HTTP APIs. \n       This document obsoletes RFC 7807. \n    ",
+            "keywords": "",
+            "creator": "xml2rfc 3.17.5",
+            "producer": "WeasyPrint 56.1",
+            "creationDate": "D:20230731212913-07'00'",
+            "modDate": "D:20230731212915-07'00'",
+            "trapped": "",
+            "encryption": null
+          },
+          "reviewed_pdf_page_1based": 7,
+          "review_image_sha256": "a36acab4306819b382ec5c06baa8d6404643baa25e109549373bd9f70a36f319",
+          "source_extraction": {
+            "block_count": 16,
+            "extraction_complete": true,
+            "extraction_issues": [],
+            "glyph_count": 31812,
+            "sha256": "9e556f5dcbf7dd780928cfe03ec7f2080a635e1bcb41ddbeecbe8141c67d09ed",
+            "source_view": "native_page_paint_order_scalars_v1"
+          }
+        }
+      }
+    }
+  ],
+  "frozen_at_utc": "2026-09-10T12:00:37.297799+00:00",
+  "failed_trials": [
+    {
+      "id": "ecma-old-initial-download",
+      "reason": "Sandbox DNS resolution failed; same URL subsequently downloaded successfully with network access. No PDF content or comparison output was available from the failed attempt."
+    },
+    {
+      "id": "rfc-problem-details-selectors.json",
+      "source_view": "layout",
+      "expected_sha256": "0dcd7a9f9f180d245f485e00698a8d86a22298f1c4ce9a1b344599f09be336d4",
+      "selector_result_sha256": "53b9786fec8e8418e36270fa824b176884f56b1defb46487bf7d1a2a0fed5cb8",
+      "reason": "scoped-complete scope \"detail-advice-sentence\" new start anchor is indeterminate",
+      "replacement": "Same physically reviewed sentence and changed word; raw glyph source coordinates explicitly record the missing space glyph across rather/than. No comparison output inspected."
+    },
+    {
+      "id": "rfc-problem-details-paint-selectors.json",
+      "source_view": "paint-order",
+      "expected_sha256": "0dcd7a9f9f180d245f485e00698a8d86a22298f1c4ce9a1b344599f09be336d4",
+      "selector_result_sha256": "4292e437eae6240286f9e28c9fdf76e1dd883577833e2cff3436ea9027f4499e",
+      "reason": "scoped-complete scope \"detail-advice-sentence\" new end anchor is missing",
+      "replacement": "Same physically reviewed sentence and changed word; raw glyph source coordinates explicitly record the missing space glyph across rather/than. No comparison output inspected."
+    }
+  ],
+  "status": "consumed_by_group_successor_budget_fix_after_failed_validation"
+}

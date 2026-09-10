@@ -1,0 +1,344 @@
+{
+  "status": "consumed_development_control_scope_evidence_not_unseen_acceptance",
+  "candidate": "candidate4-freeze.json",
+  "contract": "The entire source-backed terminal view containing the reviewed scope is compared under an accepted scoped-identity proposal mandatory in the completed source-only component. Every terminal glyph is bound to the exact reconstructed view; literal masks cover both full views with a zero change upper bound. No text extraction issue or extraction dependency is present. This supports the declared text scope only.",
+  "mapping_configuration": "Native base graph reconstructed from the current frozen candidate4 library libpdfdelta_core-cc96bc734cad66aa.rlib with default parse, extraction, graph, and scale-1 pipeline limits; appended provider nodes are excluded.",
+  "rows": [
+    {
+      "pair": "irs1041",
+      "control": "old",
+      "route": "shared_text",
+      "report_sha256": "83a411caaff6455553de25f158f99d1e5af707d3893645577071c4c81162cd42",
+      "source_map_sha256": "b6e8a3ceddd5222664fad9f979f310fdc85eef3ab9e0c82ea4c31c53399478d7",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11370H4:104166:For Paperwork Reduction Act Notice, see the separate instructions."
+      },
+      "node": 131,
+      "reviewed_scalars": 99,
+      "terminal_glyphs": 100,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs1041",
+      "control": "old",
+      "route": "shared_all",
+      "report_sha256": "cd1f6b3932813fcc5774e69a6ae88ddf2986c85de3df0a9e121e2d1556cc0276",
+      "source_map_sha256": "b6e8a3ceddd5222664fad9f979f310fdc85eef3ab9e0c82ea4c31c53399478d7",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11370H4:104166:For Paperwork Reduction Act Notice, see the separate instructions."
+      },
+      "node": 131,
+      "reviewed_scalars": 99,
+      "terminal_glyphs": 100,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs1041",
+      "control": "new",
+      "route": "shared_text",
+      "report_sha256": "707c85b55915ffbc8477b54adffb35e2f52bfd44478e08a816678690835d96d1",
+      "source_map_sha256": "4d19fc28ba03e88e0ba65e4e5b03aa4a8d772c09c0032a7ed4cfd91490dbe0d1",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11370H4:104166:For Paperwork Reduction Act Notice, see the separate instructions."
+      },
+      "node": 137,
+      "reviewed_scalars": 116,
+      "terminal_glyphs": 117,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs1041",
+      "control": "new",
+      "route": "shared_all",
+      "report_sha256": "7e1480f788aaaf1b173cee88c2e81aae3b3135b1d249fa2bf33a04c6d6caa801",
+      "source_map_sha256": "4d19fc28ba03e88e0ba65e4e5b03aa4a8d772c09c0032a7ed4cfd91490dbe0d1",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11370H4:104166:For Paperwork Reduction Act Notice, see the separate instructions."
+      },
+      "node": 137,
+      "reviewed_scalars": 116,
+      "terminal_glyphs": 117,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs1042",
+      "control": "old",
+      "route": "shared_text",
+      "report_sha256": "1ff9d9ea2b1e8cd55308b03bdb940152f10e419a9908ee010ae5c3b7251d0228",
+      "source_map_sha256": "38961322f836d3b23ab1c840fcbbe0f88974dfdbbedca6dfe10220a793e5b3ab",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11384V4:104269:For Privacy Act and Paperwork Reduction Act Notice, see instructions."
+      },
+      "node": 148,
+      "reviewed_scalars": 100,
+      "terminal_glyphs": 101,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs1042",
+      "control": "old",
+      "route": "shared_all",
+      "report_sha256": "c65203b23381c0b5a11cc5e2d920be40d4660a730673fcfa93d05b91accdac9f",
+      "source_map_sha256": "38961322f836d3b23ab1c840fcbbe0f88974dfdbbedca6dfe10220a793e5b3ab",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11384V4:104269:For Privacy Act and Paperwork Reduction Act Notice, see instructions."
+      },
+      "node": 148,
+      "reviewed_scalars": 100,
+      "terminal_glyphs": 101,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs1042",
+      "control": "new",
+      "route": "shared_text",
+      "report_sha256": "c5c723a9a392ee9a926faa3f5d6ab7e34de26e65d345d89cd3609d81a12ded09",
+      "source_map_sha256": "96c871ba19c6c88614dd719bad41520e68dd29c85f8c23609135a1038d5ff00a",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11384V4:104269:For Privacy Act and Paperwork Reduction Act Notice, see instructions."
+      },
+      "node": 155,
+      "reviewed_scalars": 116,
+      "terminal_glyphs": 117,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs1042",
+      "control": "new",
+      "route": "shared_all",
+      "report_sha256": "d01d79b130b6e21014d8aa2c042109b991360f5410e88a9a174b28ce238292bd",
+      "source_map_sha256": "96c871ba19c6c88614dd719bad41520e68dd29c85f8c23609135a1038d5ff00a",
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11384V4:104269:For Privacy Act and Paperwork Reduction Act Notice, see instructions."
+      },
+      "node": 155,
+      "reviewed_scalars": 116,
+      "terminal_glyphs": 117,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "component_complete": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          }
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    }
+  ]
+}

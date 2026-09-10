@@ -1,6 +1,8 @@
 //! Native acquisition runs outside the comparison process. Stored fields and
 //! page metadata survive an independent glyph-extraction failure.
 
+mod wire;
+
 use std::{
     collections::BTreeSet,
     fmt::Write as _,
@@ -111,6 +113,7 @@ fn issue(store: &mut EvidenceStore, failure: &Failure, channels: &[Channel]) {
     store
         .issues
         .extend(channels.iter().map(|channel| EvidenceIssue {
+            boundary: None,
             page: None,
             channel: *channel,
             sources: Vec::new(),
@@ -181,15 +184,20 @@ fn combine(
             } else {
                 let fields = base.store.structured.len();
                 let inventories = base.store.inventories.len();
+                let key_inventories = base.store.key_inventories.len();
                 let issues = base.store.issues.len();
                 base.store.native = content.store.native;
                 base.store.structured.extend(content.store.structured);
                 base.store.inventories.extend(content.store.inventories);
+                base.store
+                    .key_inventories
+                    .extend(content.store.key_inventories);
                 base.store.issues.extend(content.store.issues);
                 if let Err(error) = base.store.validate(EvidenceLimits::default()) {
                     base.store.native = Document::new(Vec::new());
                     base.store.structured.truncate(fields);
                     base.store.inventories.truncate(inventories);
+                    base.store.key_inventories.truncate(key_inventories);
                     base.store.issues.truncate(issues);
                     issue(
                         &mut base.store,
@@ -273,9 +281,9 @@ fn invoke(bytes: &[u8], request: &Request, hash: &str) -> Result<Acquisition, Fa
             fatal: false,
         },
     )?;
-    let acquisition: Result<Acquisition, Failure> = serde_json::from_slice(&output)
+    let acquisition: Result<wire::Acquisition, Failure> = serde_json::from_slice(&output)
         .map_err(|error| Failure::backend(format!("invalid native response: {error}")))?;
-    let acquisition = acquisition?;
+    let acquisition = acquisition?.decode()?;
     validate_response(&acquisition, request.job, hash)?;
     Ok(acquisition)
 }
@@ -373,7 +381,7 @@ pub fn worker() -> Result<(), u8> {
     if bytes.len() > limit {
         return Err(3);
     }
-    let response = acquire(Arc::from(bytes), request);
+    let response = acquire(Arc::from(bytes), request).map(wire::Acquisition::from);
     let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
     let mut bounded = CeilingWriter::new(&mut stdout, MAX_RESPONSE);
     if serde_json::to_writer(&mut bounded, &response).is_err() {
@@ -473,6 +481,7 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
                         store.structured = forms.fields;
                         store.issues.extend(forms.issues);
                         store.inventories.push(forms.inventory);
+                        store.key_inventories.push(forms.key_inventory);
                     }
                     Err(error) => issue(&mut store, &Failure::core(error), &[Channel::Forms]),
                 }
@@ -494,6 +503,7 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
                         store.structured = structure.elements;
                         store.issues.extend(structure.issues);
                         store.inventories.push(structure.inventory);
+                        store.key_inventories.push(structure.key_inventory);
                     }
                     Err(error) => issue(&mut store, &Failure::core(error), &[Channel::Relations]),
                 }
@@ -507,6 +517,10 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pdfdelta_core::model::{
+        DecodedText, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+        GlyphProvenance, MarkedContent, Rect, TextRenderMode, Vec2, VectorLine, VectorLineId,
+    };
 
     fn metadata() -> Acquisition {
         let mut store = EvidenceStore::from_native(
@@ -528,6 +542,115 @@ mod tests {
                 generation: 0,
             }],
         }
+    }
+
+    #[test]
+    fn compact_transport_preserves_raw_glyphs_and_auxiliary_evidence_within_byte_budget() {
+        let mut acquisition = metadata();
+        let provenance = GlyphProvenance {
+            content_stream: ObjectRef {
+                object_number: 93,
+                generation: 7,
+            },
+            operator_index: 27,
+        };
+        let glyphs = [
+            TextRenderMode::Fill,
+            TextRenderMode::Stroke,
+            TextRenderMode::FillAndStroke,
+            TextRenderMode::Invisible,
+            TextRenderMode::FillAndClip,
+            TextRenderMode::StrokeAndClip,
+            TextRenderMode::FillStrokeAndClip,
+            TextRenderMode::Clip,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, render_mode)| Glyph {
+            id: GlyphId(index as u64 * 3),
+            text: if index % 2 == 0 {
+                DecodedText::Mapped("fiλ".into())
+            } else {
+                DecodedText::Unmapped {
+                    font_hash: FontProgramHash(vec![4, 8, 255]),
+                    glyph_id: 513,
+                }
+            },
+            raw_code: vec![0, 255, 3],
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: -1.25, y: 8.5 },
+                max: Vec2 { x: 3.5, y: 12.75 },
+            },
+            baseline: Vec2 { x: 4.25, y: -3.5 },
+            direction: Vec2 { x: 0.0, y: -1.0 },
+            font_id: FontId(7),
+            font_size: 8.25,
+            render_order: 31 - index as u32,
+            render_mode,
+            crop_status: GlyphCropStatus::PartiallyOutside,
+            path_clip_status: GlyphPathClipStatus::Outside,
+            provenance,
+        })
+        .collect();
+        acquisition.store.native = Document::with_vector_lines(
+            glyphs,
+            vec![VectorLine {
+                id: VectorLineId(8),
+                page: PageId(0),
+                from: Vec2 { x: 2.0, y: 3.0 },
+                to: Vec2 { x: 4.0, y: 5.0 },
+                width: 0.25,
+                render_order: 10,
+                provenance,
+            }],
+        )
+        .with_marked_content(vec![MarkedContent {
+            page: PageId(0),
+            form: Some(provenance.content_stream),
+            mcid: 4,
+            glyph_range: 1..7,
+            complete: false,
+        }])
+        .with_last_non_text_paint([(PageId(0), 41)].into());
+        issue(
+            &mut acquisition.store,
+            &Failure::backend("retained source uncertainty"),
+            &[Channel::Text],
+        );
+        let expected = serde_json::to_value(&acquisition).expect("named acquisition");
+        let named_size = serde_json::to_vec(&acquisition).expect("named bytes").len();
+        let wire = wire::Acquisition::from(acquisition);
+        let encoded = serde_json::to_vec(&wire).expect("compact bytes");
+        assert!(encoded.len() < named_size);
+        let mut retained = Vec::new();
+        let mut bounded = CeilingWriter::new(&mut retained, encoded.len());
+        serde_json::to_writer(&mut bounded, &wire).expect("compact response fits");
+        let restored: wire::Acquisition = serde_json::from_slice(&retained).expect("wire response");
+        let restored = restored.decode().expect("supported version");
+        assert_eq!(
+            serde_json::to_value(&restored).expect("restored evidence"),
+            expected
+        );
+        assert!(
+            serde_json::to_writer(
+                &mut CeilingWriter::new(Vec::new(), encoded.len()),
+                &restored
+            )
+            .is_err()
+        );
+
+        let mut unsupported = serde_json::to_value(wire).expect("wire fields");
+        unsupported["version"] = serde_json::json!(255);
+        assert!(
+            serde_json::from_value::<wire::Acquisition>(unsupported)
+                .expect("version field")
+                .decode()
+                .is_err()
+        );
+        assert!(
+            serde_json::from_slice::<wire::Acquisition>(&encoded[..encoded.len() - 1]).is_err()
+        );
     }
 
     #[test]

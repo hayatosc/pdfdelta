@@ -494,6 +494,52 @@ pub struct BlockText {
 }
 
 impl BlockText {
+    /// Returns retained discretionary hyphens in the requested comparable-token
+    /// interval. Every issue is source-projected before its local context is used;
+    /// unsupported issues overlapping the interval leave the whole set unknown.
+    pub(crate) fn checked_optional_hyphens(
+        &self,
+        tokens: &[ComparableToken],
+        interval: std::ops::Range<usize>,
+    ) -> Result<Option<Vec<usize>>> {
+        let ranges = self.checked_normalization_issue_ranges()?;
+        let mut positions = Vec::new();
+        for (issue, range) in self.issues.iter().zip(ranges) {
+            let start = range.start
+                + self
+                    .canonical
+                    .unmapped
+                    .partition_point(|token| token.scalar_index <= range.start);
+            let issue_start = start.saturating_sub(usize::from(range.start == range.end));
+            let issue_end = start.saturating_add((range.end - range.start).max(1));
+            if issue_start >= interval.end || issue_end <= interval.start {
+                continue;
+            }
+            let raw_index = issue.raw_range.start;
+            if raw_index == 0 {
+                return Ok(None);
+            }
+            let mut context = self.raw.text.chars().skip(raw_index - 1);
+            let [preceding, hyphen, line_break, following] =
+                std::array::from_fn(|_| context.next());
+            if range.end != range.start + 1
+                || issue.raw_range.end != raw_index + 1
+                || !matches!(hyphen, Some('-' | '\u{2010}'))
+                || line_break != Some('\n')
+                || !preceding.is_some_and(char::is_alphabetic)
+                || !following.is_some_and(char::is_lowercase)
+                || tokens.get(start) != hyphen.map(ComparableToken::Scalar).as_ref()
+                || start < interval.start
+            {
+                return Ok(None);
+            }
+            positions.push(start);
+        }
+        positions.sort_unstable();
+        positions.dedup();
+        Ok(Some(positions))
+    }
+
     /// Projects every normalization issue to a verified canonical range.
     ///
     /// Unlike [`Self::raw_to_canonical_range`], this method has no positional

@@ -1,0 +1,16 @@
+{
+  "profile": "release",
+  "command": "target/release/deps/document_matching_fixture-b539ab935d8de937 independent_dense_assignments_bypass_subset_and_pairwise_caps --exact --nocapture",
+  "maximum_assignment_work_per_component": 32000000,
+  "maximum_subset_states": 0,
+  "maximum_pairwise_conflict_checks": 0,
+  "measurements": [
+    {"size": 5, "proposals": 25, "mandatory": 5, "assignment_work": 1686, "ownership_visits": 200},
+    {"size": 20, "proposals": 400, "mandatory": 20, "assignment_work": 98541, "ownership_visits": 3200},
+    {"size": 100, "proposals": 10000, "mandatory": 100, "assignment_work": 12060701, "ownership_visits": 80000}
+  ],
+  "combined_process_elapsed_seconds": 0.22,
+  "combined_process_peak_rss_kib": 19584,
+  "exit_code": 0,
+  "interpretation": "These are inferred candidate fixtures. Mandatory optimizer edges are not source-backed semantic identity claims. Timing and RSS cover the combined three-size test process, not each size separately."
+}

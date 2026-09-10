@@ -1,0 +1,77 @@
+{
+  "status": "control_scope_uncompared_due_to_incomplete_conflict_component",
+  "rows": [
+    {
+      "pair": "irs2441",
+      "route": "shared_text",
+      "node": 112,
+      "proposal": 0,
+      "component_proposals": 953,
+      "component_exhaustive": false,
+      "mandatory": [],
+      "algorithm": "subset_search",
+      "explored_states": 6,
+      "candidate_exhaustive": true,
+      "incomplete_nodes": {
+        "old": [],
+        "new": []
+      },
+      "conflict_search_complete": true,
+      "local_comparison_present": false
+    },
+    {
+      "pair": "irs2441",
+      "route": "shared_all",
+      "node": 112,
+      "proposal": 0,
+      "component_proposals": 953,
+      "component_exhaustive": false,
+      "mandatory": [],
+      "algorithm": "subset_search",
+      "explored_states": 6,
+      "candidate_exhaustive": true,
+      "incomplete_nodes": {
+        "old": [],
+        "new": []
+      },
+      "conflict_search_complete": true,
+      "local_comparison_present": false
+    },
+    {
+      "pair": "irs8863",
+      "route": "shared_text",
+      "node": 115,
+      "proposal": 0,
+      "component_proposals": 840,
+      "component_exhaustive": false,
+      "mandatory": [],
+      "algorithm": "subset_search",
+      "explored_states": 6,
+      "candidate_exhaustive": true,
+      "incomplete_nodes": {
+        "old": [],
+        "new": []
+      },
+      "conflict_search_complete": true,
+      "local_comparison_present": false
+    },
+    {
+      "pair": "irs8863",
+      "route": "shared_all",
+      "node": 115,
+      "proposal": 0,
+      "component_proposals": 840,
+      "component_exhaustive": false,
+      "mandatory": [],
+      "algorithm": "subset_search",
+      "explored_states": 6,
+      "candidate_exhaustive": true,
+      "incomplete_nodes": {
+        "old": [],
+        "new": []
+      },
+      "conflict_search_complete": true,
+      "local_comparison_present": false
+    }
+  ]
+}

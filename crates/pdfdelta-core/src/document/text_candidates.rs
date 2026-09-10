@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     CorrespondenceProposal, CorrespondenceScope, DocumentGraph, GraphNode, MatchingLimits,
-    NodeContent, NodeKind, ProposalBasis, ScopeProposals, TextNormalization,
-    matching::selected_children,
+    NodeContent, NodeKind, ProposalBasis, ScopeProposals, matching::selected_children,
 };
 use crate::{Result, normalize::ComparableToken};
 
@@ -52,12 +51,13 @@ pub(super) fn eligible(node: &GraphNode) -> bool {
                 | NodeKind::Code
                 | NodeKind::Formula
         )
-        && matches!(&node.content, NodeContent::Text { view } if !view.tokens.is_empty() && view.normalization == TextNormalization::Exact)
+        && matches!(&node.content, NodeContent::Text { view } if !view.tokens.is_empty() && view.has_validated_normalization())
 }
 
 struct Features<'a> {
     node: &'a GraphNode,
     tokens: &'a [ComparableToken],
+    normalization_exact: bool,
     grams: BTreeMap<&'a [ComparableToken], usize>,
     count: usize,
 }
@@ -91,6 +91,7 @@ fn features<'a>(
         output.push(Features {
             node,
             tokens: &view.tokens,
+            normalization_exact: view.normalization == super::TextNormalization::Exact,
             grams,
             count: view.tokens.len() - width + 1,
         });
@@ -121,16 +122,14 @@ pub(super) fn append_text_candidates(
         new_nodes: BTreeSet::new(),
         token_visits: 0,
         feature_entries: 0,
-        exhaustive: candidates.exhaustive,
+        exhaustive: true,
     };
-    if !search.exhaustive {
-        return Ok(search);
-    }
     let mut left = selected_children(old, scope.old, matching.channels)?;
     let mut right = selected_children(new, scope.new, matching.channels)?;
     if !left.iter().any(|node| eligible(node)) || !right.iter().any(|node| eligible(node)) {
         return Ok(search);
     }
+    search.exhaustive = candidates.exhaustive;
     search.old_nodes.extend(
         left.iter()
             .filter(|node| eligible(node))
@@ -166,6 +165,9 @@ pub(super) fn append_text_candidates(
         super::dependencies::occupied_conflicts(new, |node| protected_new.contains(&node.id));
     search.old_nodes.retain(|node| !blocked_old.contains(node));
     search.new_nodes.retain(|node| !blocked_new.contains(node));
+    if !search.exhaustive {
+        return Ok(search);
+    }
     left.retain(|node| search.old_nodes.contains(&node.id));
     right.retain(|node| search.new_nodes.contains(&node.id));
     if left.is_empty() || right.is_empty() {
@@ -186,6 +188,19 @@ pub(super) fn append_text_candidates(
             search.exhaustive = false;
             return Ok(search);
         }
+    }
+    super::groups::append_nonexact_groups(
+        old,
+        new,
+        scope,
+        candidates,
+        matching,
+        (&search.old_nodes, &search.new_nodes),
+    )?;
+    if !candidates.exhaustive {
+        candidates.proposals.truncate(start);
+        search.exhaustive = false;
+        return Ok(search);
     }
     let (Some(left), Some(right)) = (
         features(&left, &mut search, limits),
@@ -235,21 +250,22 @@ pub(super) fn append_text_candidates(
                 .sum::<usize>();
             let weight =
                 1 + ((common as u128 * 2_000_000) / (a.count as u128 + b.count as u128)) as u32;
+            let literal = a.normalization_exact && b.normalization_exact && a.tokens == b.tokens;
             candidates.proposals.push(CorrespondenceProposal {
                 old: vec![a.node.id],
                 new: vec![b.node.id],
-                basis: if a.tokens == b.tokens {
+                basis: if literal {
                     ProposalBasis::LiteralContent
                 } else {
                     ProposalBasis::TextSimilarity
                 },
-                supplier: if a.tokens == b.tokens {
+                supplier: if literal {
                     "literal-view-equality-v1"
                 } else {
                     "literal-trigram-dice-v1"
                 }
                 .into(),
-                weight: if a.tokens == b.tokens { 1 } else { weight },
+                weight: if literal { 1 } else { weight },
             });
         }
     }
@@ -288,10 +304,22 @@ fn protect_source_correspondences(
     let matching =
         super::solve_correspondence_scope(old, new, scope, &candidates.proposals, limits)?;
     record_source_work(search, &matching);
-    if matching.conflict_search_complete {
-        search
-            .protected_correspondences
-            .extend(matching.source_only_mandatory);
-    }
+    let pending = if candidates.exhaustive {
+        BTreeSet::new()
+    } else {
+        super::dependencies::pending_source_proposals(
+            old,
+            new,
+            &matching,
+            &candidates.proposals,
+            candidates.incomplete_nodes.as_ref(),
+        )
+    };
+    search.protected_correspondences.extend(
+        matching
+            .source_only_mandatory
+            .into_iter()
+            .filter(|index| !pending.contains(index)),
+    );
     Ok(())
 }

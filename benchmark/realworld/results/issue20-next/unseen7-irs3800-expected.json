@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "pair": "irs-form-3800-2023-to-2024",
+  "reviewed_on": "2026-09-11",
+  "annotation": "partial",
+  "notes": "Complete first-page terminal footer independently reviewed in both rendered sources before comparison. Notice, catalog 12392F, and form identifier 3800 are unchanged. The final year digit changes from 3 to 4 and one literal trailing source space is deleted. Preserve this source space even though it has no ink. Other page changes are outside this complete footer scope.",
+  "scopes": [
+    {
+      "id": "first-page-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2023) ",
+        "end_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2023) "
+      },
+      "new": {
+        "start_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2024)",
+        "end_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2024)"
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "footer-revision-and-trailing-space",
+      "kind": "replacement",
+      "scope": "first-page-footer",
+      "occurrence_count": 1,
+      "old_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2023) ",
+      "new_quote": "For Paperwork Reduction Act Notice, see separate instructions. Cat. No. 12392F Form 3800 (2024)",
+      "old_changed_ranges": [
+        {
+          "start": 93,
+          "end": 94
+        },
+        {
+          "start": 95,
+          "end": 96
+        }
+      ],
+      "new_changed_ranges": [
+        {
+          "start": 93,
+          "end": 94
+        }
+      ],
+      "note": "One complete footer replacement with all three changed source scalars localized, including the removed literal trailing space."
+    }
+  ]
+}

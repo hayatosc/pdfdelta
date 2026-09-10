@@ -135,7 +135,7 @@ pub(super) fn discover(
             .saturating_add(matching.ownership_visits),
         |total, component| total.saturating_add(component.explored_states),
     );
-    if !charge_work(remaining, work) || !matching.conflict_search_complete {
+    if !charge_work(remaining, work) {
         result.complete = false;
         result.work_limited = true;
         return Ok(result);

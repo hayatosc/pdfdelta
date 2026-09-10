@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "pair": "irs-form-8889-old-identical-control",
+  "reviewed_on": "2026-09-11",
+  "annotation": "partial",
+  "notes": "Complete literal first-page terminal scope of identical old input; all reviewed source scalars must be compared without change.",
+  "scopes": [
+    {
+      "id": "first-page-footer",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "For Paperwork Reduction Act Notice, see your tax return instructions. Cat. No. 37621P Form 8889 (2024)",
+        "end_quote": "For Paperwork Reduction Act Notice, see your tax return instructions. Cat. No. 37621P Form 8889 (2024)"
+      },
+      "new": {
+        "start_quote": "For Paperwork Reduction Act Notice, see your tax return instructions. Cat. No. 37621P Form 8889 (2024)",
+        "end_quote": "For Paperwork Reduction Act Notice, see your tax return instructions. Cat. No. 37621P Form 8889 (2024)"
+      }
+    }
+  ],
+  "changes": []
+}

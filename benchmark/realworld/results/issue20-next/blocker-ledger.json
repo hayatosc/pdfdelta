@@ -1,0 +1,3653 @@
+{
+  "schema_version": 1,
+  "expectations": [
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "id": "arxiv-version-date-stamp",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "arxiv-version-date-stamp",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "arxiv-version-date-stamp",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 2988,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "arxiv-version-date-stamp",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 2988,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "arxiv-version-date-stamp",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "id": "change-management-scope-broadened",
+      "source_selector": {
+        "old": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+        "new": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate",
+        "changed_range_error": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate"
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": null
+          },
+          "quality_skipped_reason": "scoped-complete scope \"change-management-opening-sentence\" old start anchor is indeterminate"
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "id": "edition-date",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "edition-date",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "edition-date",
+              "reason": "reading_order_unresolved",
+              "side": "both"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "edition-date",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "edition-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "edition-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "id": "copyright-year",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "ambiguous",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "copyright-year",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "copyright-year",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "copyright-year",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "copyright-year",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "copyright-year",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "id": "copyright-notice-updated",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "copyright-notice-updated",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "copyright-notice-updated",
+              "reason": "reading_order_unresolved",
+              "side": "both"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "copyright-notice-updated",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "copyright-notice-updated",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "copyright-notice-updated",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "id": "consultation-watermark-removed",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "not_required",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "consultation-watermark-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "consultation-watermark-removed",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "consultation-watermark-removed",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "consultation-watermark-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "consultation-watermark-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "id": "completeness-of-copy-clarified",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "completeness-of-copy-clarified",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "completeness-of-copy-clarified",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "completeness-of-copy-clarified",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "completeness-of-copy-clarified",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "completeness-of-copy-clarified",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "id": "exception-effect-qualified",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "exception-effect-qualified",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "exception-effect-qualified",
+              "reason": "reading_order_unresolved",
+              "side": "both"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "exception-effect-qualified",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "exception-effect-qualified",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "exception-effect-qualified",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "id": "rijkeboer-citation-reflow",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "rijkeboer-citation-reflow",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "rijkeboer-citation-reflow",
+              "reason": "reading_order_unresolved",
+              "side": "both"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "rijkeboer-citation-reflow",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "rijkeboer-citation-reflow",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": false,
+              "optimization_complete": false,
+              "candidate_count": 10000,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "rijkeboer-citation-reflow",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "id": "age-cutoff-1961-primary",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "age-cutoff-1961-primary",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "age-cutoff-1961-primary",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "age-cutoff-1961-primary",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "id": "age-cutoff-1961-spouse",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "age-cutoff-1961-spouse",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "age-cutoff-1961-spouse",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "age-cutoff-1961-spouse",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "id": "mfs-checkbox-restructured",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "not_required",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "mfs-checkbox-restructured",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "mfs-checkbox-restructured",
+              "reason": "reading_order_unresolved",
+              "side": "old"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "mfs-checkbox-restructured",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "id": "combat-zone-deceased-checkbox-added",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "combat-zone-deceased-checkbox-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "combat-zone-deceased-checkbox-added",
+              "reason": "reading_order_unresolved",
+              "side": "new"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "combat-zone-deceased-checkbox-added",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "id": "footer-form-year-stamp",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "footer-form-year-stamp",
+            "matched": true,
+            "actual_index": 6,
+            "actual_kind": "replacement",
+            "kind_agrees": true
+          },
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "footer-form-year-stamp",
+              "matched": true,
+              "actual_index": 6,
+              "actual_kind": "replacement",
+              "kind_agrees": true
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "id": "form-year-footer",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "form-year-footer",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "form-year-footer",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "form-year-footer",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 62,
+              "accepted_correspondences": 24,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 80,
+              "unresolved": [
+                "a correspondence conflict component exceeded its search budget"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "form-year-footer",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 107,
+              "accepted_correspondences": 57,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1088,
+              "unresolved": [
+                "a correspondence conflict component exceeded its search budget"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "form-year-footer",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "id": "all-sector-scope-emphasized",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "all-sector-scope-emphasized",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "all-sector-scope-emphasized",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "all-sector-scope-emphasized",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "id": "core-expanded-from-five-to-six-functions",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "core-expanded-from-five-to-six-functions",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "core-expanded-from-five-to-six-functions",
+              "reason": "expectation_outside_alignment_objective",
+              "expected_mask_is_valid_edit_witness": true,
+              "expected_mask_cost": 178,
+              "optimal_cost_under_declared_policy": 158,
+              "expected_mask_in_policy_solution_set": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "core-expanded-from-five-to-six-functions",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "id": "governance-and-supply-chain-emphasis-added",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "governance-and-supply-chain-emphasis-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "governance-and-supply-chain-emphasis-added",
+              "reason": "reading_order_unresolved",
+              "side": "new"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "governance-and-supply-chain-emphasis-added",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "id": "dsa-specification-removed",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "not_required",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "dsa-specification-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "dsa-specification-removed",
+              "reason": "reading_order_unresolved",
+              "side": "old"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "dsa-specification-removed",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "id": "edsa-added",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "edsa-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "edsa-added",
+              "reason": "reading_order_unresolved",
+              "side": "new"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "edsa-added",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "id": "dsa-legacy-verification-note",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "dsa-legacy-verification-note",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "dsa-legacy-verification-note",
+              "reason": "reading_order_unresolved",
+              "side": "new"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "dsa-legacy-verification-note",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "id": "deterministic-ecdsa-rfc6979",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "deterministic-ecdsa-rfc6979",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "deterministic-ecdsa-rfc6979",
+              "reason": "reading_order_unresolved",
+              "side": "new"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "deterministic-ecdsa-rfc6979",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "id": "security-level-glossary-note-removed",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "not_required",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "security-level-glossary-note-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "security-level-glossary-note-removed",
+              "reason": "reading_order_unresolved",
+              "side": "old"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "security-level-glossary-note-removed",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "id": "domain-parameter-requirement-moved",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "domain-parameter-requirement-moved",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "domain-parameter-requirement-moved",
+              "reason": "reading_order_unresolved",
+              "side": "both"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "domain-parameter-requirement-moved",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "id": "per-message-secret-number-scope-generalized",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "per-message-secret-number-scope-generalized",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "per-message-secret-number-scope-generalized",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "per-message-secret-number-scope-generalized",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 2,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "unavailable",
+            "reason": "shared route did not produce a report"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "footer-rev-branding-removed",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "not_required",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "footer-rev-branding-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "footer-rev-branding-removed",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "footer-rev-branding-removed",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "footer-rev-branding-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "footer-rev-branding-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "keying-material-definition-added",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "keying-material-definition-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "keying-material-definition-added",
+              "reason": "reading_order_unresolved",
+              "side": "new"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "keying-material-definition-added",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "keying-material-definition-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "keying-material-definition-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "toolkit-footnote-comma-removed",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "toolkit-footnote-comma-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "toolkit-footnote-comma-removed",
+              "reason": "reading_order_unresolved",
+              "side": "both"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "toolkit-footnote-comma-removed",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "toolkit-footnote-comma-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "toolkit-footnote-comma-removed",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "cryptanalysis-review-window-added",
+      "source_selector": {
+        "old": "not_required",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "cryptanalysis-review-window-added",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "cryptanalysis-review-window-added",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "cryptanalysis-review-window-added",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "cryptanalysis-review-window-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "cryptanalysis-review-window-added",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "toolkit-footnote-renumbered",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "toolkit-footnote-renumbered",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "toolkit-footnote-renumbered",
+              "reason": "reading_order_unresolved",
+              "side": "both"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "toolkit-footnote-renumbered",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "toolkit-footnote-renumbered",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "toolkit-footnote-renumbered",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "standards-reference-comma-removed",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "standards-reference-comma-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "standards-reference-comma-removed",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "standards-reference-comma-removed",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "standards-reference-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "standards-reference-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "approved-definition-comma-removed",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "approved-definition-comma-removed",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "approved-definition-comma-removed",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "approved-definition-comma-removed",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "approved-definition-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "approved-definition-comma-removed",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "id": "association-definition-punctuation",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "association-definition-punctuation",
+            "matched": true,
+            "actual_index": 761,
+            "actual_kind": "replacement",
+            "kind_agrees": true
+          },
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "association-definition-punctuation",
+              "matched": true,
+              "actual_index": 761,
+              "actual_kind": "replacement",
+              "kind_agrees": true
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "association-definition-punctuation",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "association-definition-punctuation",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "id": "publication-stage",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "publication-stage",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "publication-stage",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "publication-stage",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "publication-stage",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "publication-stage",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "id": "publication-date",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "publication-date",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "publication-date",
+              "reason": "alignment_or_candidate",
+              "diagnostic_limited": false
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "publication-date",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "id": "cs01-url-moved-to-previous-stage",
+      "source_selector": {
+        "old": "indeterminate",
+        "new": "indeterminate",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "cs01-url-moved-to-previous-stage",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [
+            {
+              "expected_id": "cs01-url-moved-to-previous-stage",
+              "reason": "alignment_span_mismatch"
+            }
+          ],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "cs01-url-moved-to-previous-stage",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": true,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": []
+            }
+          ],
+          "mask_projection": {
+            "id": "cs01-url-moved-to-previous-stage",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": true,
+              "candidate_count": 0,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 0,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 0,
+              "unresolved": [
+                "visual candidate enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "cs01-url-moved-to-previous-stage",
+            "matched": null,
+            "operation": null,
+            "unavailable": "unscoped event projection is unavailable"
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "id": "publication-date",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "publication-date",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "publication-date",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "publication-date",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "id": "current-version-url",
+      "source_selector": {
+        "old": "not_required",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "current-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "current-version-url",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "id": "former-current-version-url",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "unique_source_selector",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "former-current-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "former-current-version-url",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "former-current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "former-current-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "id": "previous-version-url",
+      "source_selector": {
+        "old": "unique_source_selector",
+        "new": "not_required",
+        "changed_range_error": null
+      },
+      "routes": [
+        {
+          "route": "native",
+          "process_status": "finished",
+          "exit_code": 0,
+          "native_match": {
+            "expected_id": "previous-version-url",
+            "matched": false,
+            "actual_index": null,
+            "actual_kind": null,
+            "kind_agrees": null
+          },
+          "native_blockers": [],
+          "shared_search": null,
+          "mask_projection": {
+            "status": "native_original_projection",
+            "match": {
+              "expected_id": "previous-version-url",
+              "matched": false,
+              "actual_index": null,
+              "actual_kind": null,
+              "kind_agrees": null
+            }
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_text",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "previous-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        },
+        {
+          "route": "shared_all",
+          "process_status": "finished",
+          "exit_code": 3,
+          "native_match": null,
+          "native_blockers": [],
+          "shared_search": [
+            {
+              "scope": {
+                "old": 0,
+                "new": 0
+              },
+              "enumeration_complete": false,
+              "conflict_search_complete": true,
+              "optimization_complete": false,
+              "candidate_count": 463,
+              "accepted_correspondences": 0,
+              "components_without_mandatory_edges": 36,
+              "assignment_components": 0,
+              "assignment_work": 0,
+              "subset_states": 1807,
+              "unresolved": [
+                "scope candidate or conflict enumeration is incomplete"
+              ]
+            }
+          ],
+          "mask_projection": {
+            "id": "previous-version-url",
+            "matched": false,
+            "operation": null,
+            "unavailable": null
+          },
+          "quality_skipped_reason": null
+        }
+      ]
+    }
+  ]
+}

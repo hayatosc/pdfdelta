@@ -1,0 +1,47 @@
+{
+  "status": "frozen_before_full_replay_and_new_series_selection",
+  "frozen_at_utc": "2026-09-10T15:06:26.741707+00:00",
+  "source_revision": "356b7f518da651649bb2db745bdf8139139d2576",
+  "source_changes_at_build": true,
+  "directory": "/tmp/pdfdelta-issue20-candidate5",
+  "build_command": "cargo build --release -p pdfdelta-cli -p pdfdelta-bench",
+  "pdfdelta_sha256": "518ac2030975f8cd8c36530371d3bc6c888e80343a52e60ca5d9a1296b95578d",
+  "pdfbench_sha256": "0fab355400f63667769825b0b188890a85dc0f7a615dc9fb6f16f33ce4a32aff",
+  "source_archive_sha256": "9d0c8e9f242bb91e00a0133495bcf452b7c0f0f13a6f2bb655700e2f3f6c68cb",
+  "tracked_patch_sha256": "210e1984e7bfa2540f9833285e74cfdd00f0e6abc0f6331c8b13e23a63e359de",
+  "source_archive_contents": "Cargo.toml, Cargo.lock, crates, and ISSUE20_GOAL_PLAN.md, including untracked source files.",
+  "configuration": {
+    "path": "candidate4-limits.txt",
+    "sha256": "08a4cce8fad678987173bd068e3cb6928a0a0b123113eabd3abb95caf8d47c1c"
+  },
+  "inventory_sha256": "5bafe80fa0af3764255f3f13c2186ca00400afdfea68e6c61c313ea90b8c56cb",
+  "tasks_sha256": "9f7c94d74d1fb20ae0b4922f46f21c2eec14e4d18edc1b4420b43082399ae203",
+  "matching_objective": "scoped_identity_then_literal_then_inferred_structure_v3",
+  "counterpart_decision_policy": "preserve_unmatched_alternatives_v1",
+  "native_key_policy": "native_document_keys_v1",
+  "scoped_key_policy": "native_key_membership_v1",
+  "source_contract": "audited-source-contract.json",
+  "routes": [
+    "native",
+    "shared_text",
+    "shared_all"
+  ],
+  "changes_since_prior_candidate": [
+    "Require whole-event changed-count bounds to equal the fully localized source mask.",
+    "Retain independently certified priority prefixes when residual general matching search reaches its existing budget."
+  ],
+  "checks": {
+    "fmt": "passed",
+    "clippy_workspace_all_targets_deny_warnings": "passed",
+    "workspace_tests": "2293 passed in 42 suites",
+    "generated_verification": "48/48 policy cells passed, 42/48 strict author-intent cells; six ambiguous cells retained"
+  },
+  "excluded_consumed_series": [
+    "All existing corpus and prior trial series, including ECMA-404, ECMA-367, HTTP Problem Details RFC 7807/9457, and language tags RFC 1766/3066.",
+    "IRS 941, 1065, and 1120: inspected source inventories informed the terminal-band correction; no unseen acceptance claim.",
+    "IRS 940, 990, 1041, 1042, 943, 945, 1045, 1066, 5227, 8027, 6251, 8960, 2441, 8863. All prior trials remain development data."
+  ],
+  "new_unseen_series_selected_at_freeze": 0,
+  "remaining": "Replay and score frozen routes; predeclare and select two new source-eligible series and freeze annotations before comparison; prove scoped controls before closure.",
+  "launch_failure": "Initial copied files lacked executable mode; all 84 launches failed with exit 126, retained under failed-launch-permissions. Restored executable mode without changing hashes and reran."
+}

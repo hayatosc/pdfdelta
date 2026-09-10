@@ -1,0 +1,389 @@
+{
+  "status": "scoped_text_source_accounting_evidence",
+  "candidate": "/tmp/pdfdelta-issue20-prefix-retention-development/freeze.json",
+  "contract": "Complete literal terminal views under accepted source-only mandatory identity proposals; no text extraction issues or extraction dependencies. Broader document completeness is separate.",
+  "mapping_configuration": {
+    "core_path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/release/deps/libpdfdelta_core-cc96bc734cad66aa.rlib",
+    "core_sha256": "59a1f22a9067f71839b8abcd887ca9f7992687b9b1ac20c0d07f14a1f17b304c",
+    "configuration": "Default parser, extraction, graph and scale-1 limits; native base nodes only."
+  },
+  "run_script_sha256": "0c39d72b41359860def888d9647ab3e617896af4c49808db35c518345f142412",
+  "rows": [
+    {
+      "pair": "irs2441",
+      "control": "old",
+      "route": "shared_text",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs2441/old-control/shared_text/report.json": "75da3cf9e2b47cdff495a7cf8fa01427cc958c36bcebb053edfa79c2ab93afad",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2024.scalar-bindings.json": "e2ed9adc3c0a1c4ca47db57d889497145458a16ff50cdf09c5f998187c71251e",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2024.native-identities.json": "ed8ea69e33b0037a92f79cdd38a9795f40c1445d7b378e38c3477967f6397d4c",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs2441-selectors.json": "b6acd8562558eb0af0d4a20e3aee0ec510986a305a70de252dd9efbfd37535ef"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11862M4:244169:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 112,
+      "reviewed_scalars": 100,
+      "terminal_glyphs": 100,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": false
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs2441",
+      "control": "old",
+      "route": "shared_all",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs2441/old-control/shared_all/report.json": "3dbc939cf89effc1a490f905933e0b26d4f0cc243c331a44a87750ba51f11702",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2024.scalar-bindings.json": "e2ed9adc3c0a1c4ca47db57d889497145458a16ff50cdf09c5f998187c71251e",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2024.native-identities.json": "ed8ea69e33b0037a92f79cdd38a9795f40c1445d7b378e38c3477967f6397d4c",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs2441-selectors.json": "b6acd8562558eb0af0d4a20e3aee0ec510986a305a70de252dd9efbfd37535ef"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11862M4:244169:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 112,
+      "reviewed_scalars": 100,
+      "terminal_glyphs": 100,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": false
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs2441",
+      "control": "new",
+      "route": "shared_text",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs2441/new-control/shared_text/report.json": "a9e1d04cc2c42f28edcd5041a8aa61da229b0c74b44c63a9117570b94ba492fb",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2025.scalar-bindings.json": "020375620a96ad913a8ed319ece74eeb5385f6d7983cc9a0f71ec7ebd8b32526",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2025.native-identities.json": "68ff7a7e9b300ed1d341095eb5a87c352652a8704e911d1c57222b7c4590ce21",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs2441-selectors.json": "b6acd8562558eb0af0d4a20e3aee0ec510986a305a70de252dd9efbfd37535ef"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11862M4:244169:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 113,
+      "reviewed_scalars": 116,
+      "terminal_glyphs": 116,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs2441",
+      "control": "new",
+      "route": "shared_all",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs2441/new-control/shared_all/report.json": "eac62b79d51c0816411ba3b498bea885b31f6f32abc5298677c455bb6f40b76a",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2025.scalar-bindings.json": "020375620a96ad913a8ed319ece74eeb5385f6d7983cc9a0f71ec7ebd8b32526",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f2441--2025.native-identities.json": "68ff7a7e9b300ed1d341095eb5a87c352652a8704e911d1c57222b7c4590ce21",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs2441-selectors.json": "b6acd8562558eb0af0d4a20e3aee0ec510986a305a70de252dd9efbfd37535ef"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:11862M4:244169:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 113,
+      "reviewed_scalars": 116,
+      "terminal_glyphs": 116,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs8863",
+      "control": "old",
+      "route": "shared_text",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs8863/old-control/shared_text/report.json": "dd860d2568a6067c99fe408412a7fb0ff5d7e533ae6e113e66ebfbef830f1195",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2024.scalar-bindings.json": "908578ad1a535804afde1bf477e453057caa9a5f1cf18584c06469e918d7e764",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2024.native-identities.json": "5aff9a552154acd25c147f3f13685722a4cc58397227a6cdd625352daf929a72",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs8863-selectors.json": "f28b8e5815c6133c7f39ba7d0b983af1271744c5c0f28e32045354013d175084"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:25379M4:886369:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 115,
+      "reviewed_scalars": 101,
+      "terminal_glyphs": 101,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": false
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs8863",
+      "control": "old",
+      "route": "shared_all",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs8863/old-control/shared_all/report.json": "b695e404c87a4722e94d44e0dd3714478a816f00debf174904923f6afe25d431",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2024.scalar-bindings.json": "908578ad1a535804afde1bf477e453057caa9a5f1cf18584c06469e918d7e764",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2024.native-identities.json": "5aff9a552154acd25c147f3f13685722a4cc58397227a6cdd625352daf929a72",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs8863-selectors.json": "f28b8e5815c6133c7f39ba7d0b983af1271744c5c0f28e32045354013d175084"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:25379M4:886369:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 115,
+      "reviewed_scalars": 101,
+      "terminal_glyphs": 101,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": false
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs8863",
+      "control": "new",
+      "route": "shared_text",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs8863/new-control/shared_text/report.json": "0e1d3d8b71e28e3291f2ee58dd0431f433dfeb17dae3c4d643c5021db7101c34",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2025.scalar-bindings.json": "85a0a89136158494d85a4f271217cd34b4768039269384b8c21b5c3cb1a10f99",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2025.native-identities.json": "75b9b0bcfe17d6983ce6c331f9eb3f72f63cb0fbf69d531039e4b2612718fe99",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs8863-selectors.json": "f28b8e5815c6133c7f39ba7d0b983af1271744c5c0f28e32045354013d175084"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:25379M4:886369:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 117,
+      "reviewed_scalars": 117,
+      "terminal_glyphs": 117,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    },
+    {
+      "pair": "irs8863",
+      "control": "new",
+      "route": "shared_all",
+      "inputs": {
+        "/tmp/pdfdelta-issue20-prefix-retention-development/trials/irs8863/new-control/shared_all/report.json": "4fae36dc073a55a447a5aaebbb57b8252aec990092c632d1d21fff98894605ad",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2025.scalar-bindings.json": "85a0a89136158494d85a4f271217cd34b4768039269384b8c21b5c3cb1a10f99",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/f8863--2025.native-identities.json": "75b9b0bcfe17d6983ce6c331f9eb3f72f63cb0fbf69d531039e4b2612718fe99",
+        "/tmp/pdfdelta-issue20-prefix-retention-development/irs8863-selectors.json": "f28b8e5815c6133c7f39ba7d0b983af1271744c5c0f28e32045354013d175084"
+      },
+      "identity": {
+        "namespace": "terminal-catalog-form-v1/Body",
+        "value": "6:25379M4:886369:For Paperwork Reduction Act Notice, see your tax return instructions."
+      },
+      "node": 117,
+      "reviewed_scalars": 117,
+      "terminal_glyphs": 117,
+      "source_checks": {
+        "frozen_binary_hash": true,
+        "input_hashes": true,
+        "all_reviewed_scalars": true,
+        "no_text_extraction_issues": true,
+        "all_terminal_glyphs_bound": true,
+        "zero_established_changes": true
+      },
+      "witnesses": [
+        {
+          "scope": 0,
+          "proposal": 0,
+          "comparison": 0,
+          "checks": {
+            "accepted": true,
+            "source_only_mandatory": true,
+            "certified_mandatory": true,
+            "non_inferred": true,
+            "compared": true,
+            "no_local_unresolved": true,
+            "zero_change_bound": true,
+            "full_view_lengths": true,
+            "no_extraction_dependencies": true
+          },
+          "residual_search_complete": true
+        }
+      ],
+      "scoped_source_accounting_supported": true,
+      "document_complete": false
+    }
+  ]
+}

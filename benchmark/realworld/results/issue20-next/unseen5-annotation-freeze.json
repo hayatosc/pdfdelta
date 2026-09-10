@@ -1,0 +1,83 @@
+{
+  "status": "source_annotations_frozen_before_any_comparison",
+  "frozen_at_utc": "2026-09-10T14:20:12.977220+00:00",
+  "candidate": "candidate4-freeze.json",
+  "protocol": "unseen5-protocol.json",
+  "source_view": "native_page_paint_order_scalars_v1",
+  "required_events": 2,
+  "images": [
+    {
+      "path": "unseen5-f1045--2025-review.png",
+      "sha256": "e47bfbfc722ad943054826a9d794cccf2dce5f09f8cf5846a004ee70794f961c"
+    },
+    {
+      "path": "unseen5-f1045--2024-review.png",
+      "sha256": "8d1a311dbfcb1020427a4474c16a61571338ef6c758129ce2460282425a7cad3"
+    },
+    {
+      "path": "unseen5-f1066--2024-review.png",
+      "sha256": "d11d8979235c2e6b2e5dcc9bb152764c5fa86ece489f6ba21f11056492d665e6"
+    },
+    {
+      "path": "unseen5-f1066--2025-review.png",
+      "sha256": "3abf260c4eed47f2e3a7742471c119207e652b4144352d5d63bd805764cb8dce"
+    }
+  ],
+  "annotations": [
+    {
+      "path": "unseen5-irs1045-new-control-expected.json",
+      "sha256": "9a6de7e2c8a587b9c09da3cdb0f2ab92af9cfc10efeb2b45bb41105c3de171f9"
+    },
+    {
+      "path": "unseen5-irs1045-old-control-expected.json",
+      "sha256": "ef7d2b4cbacd733161412ed0c2a1676f0dbe5da3f03167aa485512f2a407dd99"
+    },
+    {
+      "path": "unseen5-irs1045-expected.json",
+      "sha256": "a27d512f33e376e12ee97aed16c0606b22360fd82be713f894c5cab31df8c0b0"
+    },
+    {
+      "path": "unseen5-irs1066-old-control-expected.json",
+      "sha256": "83c584dd3d4fbc54a8bbe7672e2396c2ae8aee6afd148ad817f854279ae756c6"
+    },
+    {
+      "path": "unseen5-irs1066-new-control-expected.json",
+      "sha256": "cd4b9d61285ec2628c32d97ed995c5d11f5b7c41ed0df61ff9e74c5828727b41"
+    },
+    {
+      "path": "unseen5-irs1066-expected.json",
+      "sha256": "d065072559a2abaec94277123badea951aaa91862cd304723283151536801916"
+    }
+  ],
+  "selection": {
+    "path": "unseen5-selection.json",
+    "sha256": "1b1e8ce3c0a6b3da2c4915456dc51b83af53cab0cd42908d6b10ed0a96177e24"
+  },
+  "source_identities": {
+    "path": "unseen5-terminal-source-identities.json",
+    "sha256": "65cffdd884943d1ed8d24ec1f35377a66971b5d5740ba40737920c3fa0f80c8d"
+  },
+  "mask_check": {
+    "path": "unseen5-mask-identifiability.json",
+    "sha256": "172d8a4cadf7b5a27d73d701c55d7ed9a643c86c8deac6ca0469946a458238a7"
+  },
+  "selectors": [
+    {
+      "path": "unseen5-irs1045-selectors.json",
+      "sha256": "7de45a3159a2da03b9cdbcc189b9363938d8457b6a7c1a9b3c465e54cb11d99a"
+    },
+    {
+      "path": "unseen5-irs1066-selectors.json",
+      "sha256": "3c91d3dc19c1e4769b2ad5f45741cb52825a4cd64836e8898f207f6fb81a84b4"
+    }
+  ],
+  "tasks": {
+    "path": "tasks.txt",
+    "sha256": "d7d15dbe9298091f8b67388c98be8f87c0db99f9a434ab2a21b10eb75cf59cb0"
+  },
+  "limitations": [
+    "Two distinct form series from one publisher; only the reviewed text scopes are eligible for acceptance.",
+    "Invalid Form 943 identity and Form 945 mask trials remain retained without comparison.",
+    "Literal selected annotation scalar sets equal the independently determined unique masks; selected whitespace is not silently filtered."
+  ]
+}

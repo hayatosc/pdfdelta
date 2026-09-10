@@ -1,0 +1,29 @@
+{
+  "status": "development_regression_passed_not_unseen",
+  "root": "crates/pdfdelta-core/src/document/matching.rs:solve_component/search_component",
+  "source_evidence": "unseen6-control-search-diagnostic.json",
+  "change": "Retain only the already certified forced priority-prefix choices when residual subset search truncates. Keep component exhaustive=false and retain the search-budget unresolved reason. Common comparison and counterpart-decision consumers honor those certified choices.",
+  "safety": "No truncated search derives new mandatory choices from a partial best solution. Incomplete initial prefix proofs and incomplete conflict checks still yield no certificate. Source-premise and candidate-enumeration guards remain intact.",
+  "regression": "certified_priority_prefix_survives_an_unfinished_residual_component failed before the fix ([] versus [0]), then passed. A one-proposal cap agrees on the certified choice with the complete 24-proposal-cap reference; a one-state prefix budget certifies nothing.",
+  "verification": {
+    "matching_fixture_tests": "18 passed",
+    "clippy": "passed",
+    "workspace_tests": "2293 passed in 42 suites",
+    "release_build": "passed",
+    "fmt": "passed",
+    "pdf_replay": "18 trials completed; both 18-scalar revision events recovered exactly on both shared routes, zero annotated false positives",
+    "source_accounting": "All eight shared identical-input control scopes passed exact scalar binding and source-only mandatory correspondence checks."
+  },
+  "unseen_boundary": "The sixth experiment is now consumed development data. Keep its failed controls and original frozen results unchanged; any final holdout must use new series after freezing the corrected implementation.",
+  "binaries": {
+    "status": "development_replay_not_unseen",
+    "directory": "/tmp/pdfdelta-issue20-prefix-retention-development",
+    "pdfdelta_sha256": "518ac2030975f8cd8c36530371d3bc6c888e80343a52e60ca5d9a1296b95578d",
+    "pdfbench_sha256": "0fab355400f63667769825b0b188890a85dc0f7a615dc9fb6f16f33ce4a32aff",
+    "mapping_configuration": {
+      "core_path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/release/deps/libpdfdelta_core-cc96bc734cad66aa.rlib",
+      "core_sha256": "59a1f22a9067f71839b8abcd887ca9f7992687b9b1ac20c0d07f14a1f17b304c",
+      "configuration": "Default parser, extraction, graph and scale-1 limits; native base nodes only."
+    }
+  }
+}

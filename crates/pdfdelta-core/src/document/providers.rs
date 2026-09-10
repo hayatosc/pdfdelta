@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{Result, normalize::ComparableToken, pipeline::PipelineOptions};
 
@@ -197,10 +197,23 @@ impl DocumentGraph {
                     structured_text(text.as_deref(), source, &mut tokens_used, graph_limits)?,
                 ),
             };
+            // Acquisition leaves the element's page unset when its memberships
+            // span pages or /Pg is absent. The retained glyphs still establish
+            // every contributing page of the graph view.
+            let pages = element
+                .page
+                .into_iter()
+                .chain(sources.iter().filter_map(|source| match source {
+                    SourceRef::Native { glyph } => native.get(*glyph).map(|glyph| glyph.page),
+                    _ => None,
+                }))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect();
             graph.nodes.push(GraphNode {
                 id,
                 kind,
-                pages: element.page.into_iter().collect(),
+                pages,
                 sources,
                 identity,
                 basis,
@@ -308,7 +321,7 @@ fn tagged_text(
     Ok(NodeContent::Text { view })
 }
 
-fn role_kind(role: &str) -> NodeKind {
+pub(super) fn role_kind(role: &str) -> NodeKind {
     match role.to_ascii_lowercase().as_str() {
         "document" => NodeKind::Document,
         "sect" | "section" | "h" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => NodeKind::Section,

@@ -1,0 +1,18 @@
+{
+  "status": "development_contract_corrected_after_physical_source_review",
+  "default_source_view": "default_native_layout_canonical_scalars_v1",
+  "overrides": [
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "source_view": "native_page_paint_order_scalars_v1",
+      "reason": "The frozen layout quote resolves to a different physical page than the reviewed footer. Raw page paint order resolves the unchanged quote and unchanged scalar ranges to the physically reviewed first-page footer.",
+      "evidence": "source-selector-anomalies.json",
+      "annotation_sha256": "e886872234289fec682dc4e695dca7930217516baaf1d460e4f25bda18288f24"
+    }
+  ],
+  "eligibility": "An event must have a declared scope, valid changed ranges, and unique source selectors on each required side. Eligibility uses source validation only; it does not inspect an engine's matches, masks, or success status.",
+  "process_failures": "A source-eligible event with no engine report remains in the recovery denominator with zero recovered events. This does not fabricate a comparison result, source mask, precision measurement, or complete/no-change claim.",
+  "matching": "The existing exact whole-event predicate is unchanged: one non-inferred operation must have exactly the expected old and new changed-source positions. Fragmented reports and inferred operations cannot be combined into success.",
+  "scope": "Apply the same source contract to baseline and current reports. Retain all 40 annotation entries, including unscorable entries and failed processes. This corrected development contract does not replace the historical 0/14 layout-source report subset and is not unseen-validation evidence.",
+  "production_isolation": "The engine does not read this contract, annotation IDs, quotes, changed ranges, or pair names. The source-view option belongs only to benchmark extraction and evaluation."
+}
