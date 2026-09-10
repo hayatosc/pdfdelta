@@ -17,8 +17,3 @@ benchmark/realworld/cache/
 # Keep evaluation documents, measurements, and cited validation evidence.
 # Omit uncited raw execution logs and new temporary captures.
 benchmark/realworld/results/**/*.log
-!benchmark/realworld/results/issue20-order-experiment/**/generated.log
-!benchmark/realworld/results/issue20-order-experiment/**/checksums.log
-!benchmark/realworld/results/issue20-order-experiment/**/inputs-rechecked.log
-!benchmark/realworld/results/issue20-order-experiment/**/clippy.log
-!benchmark/realworld/results/issue20-order-experiment/**/workspace-tests.log
