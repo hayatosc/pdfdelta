@@ -1,0 +1,23 @@
+{
+  "universe_version": "independent-coefficients-v1",
+  "contract": "P2-pricing-contract.md",
+  "work_limit": 32000000,
+  "cases": [
+    {"id": "near-equal-32", "size": 32, "pattern": "near_equal"},
+    {"id": "rewrite-32", "size": 32, "pattern": "rewrite"},
+    {"id": "repeated-32", "size": 32, "pattern": "repeated"},
+    {"id": "mixed-keys-32", "size": 32, "pattern": "mixed_keys"},
+    {"id": "near-equal-128", "size": 128, "pattern": "near_equal"},
+    {"id": "rewrite-128", "size": 128, "pattern": "rewrite"},
+    {"id": "repeated-128", "size": 128, "pattern": "repeated"},
+    {"id": "mixed-keys-128", "size": 128, "pattern": "mixed_keys"},
+    {"id": "near-equal-512", "size": 512, "pattern": "near_equal"},
+    {"id": "rewrite-512", "size": 512, "pattern": "rewrite"},
+    {"id": "repeated-512", "size": 512, "pattern": "repeated"},
+    {"id": "mixed-keys-512", "size": 512, "pattern": "mixed_keys"},
+    {"id": "near-equal-2048", "size": 2048, "pattern": "near_equal"},
+    {"id": "rewrite-2048", "size": 2048, "pattern": "rewrite"},
+    {"id": "repeated-2048", "size": 2048, "pattern": "repeated"},
+    {"id": "mixed-keys-2048", "size": 2048, "pattern": "mixed_keys"}
+  ]
+}

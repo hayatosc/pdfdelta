@@ -10,6 +10,9 @@ use super::{
     CorrespondenceProposal, MatchingAlgorithm, MatchingComponent, NodeId, objective_class,
 };
 
+#[cfg(test)]
+mod pricing;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Score([i128; 5]);
 
@@ -31,6 +34,7 @@ impl Score {
     }
 }
 
+#[cfg_attr(test, derive(Clone, Copy))]
 struct Edge {
     proposal: usize,
     cost: Score,
@@ -44,6 +48,10 @@ struct Assignment {
 struct Optimum {
     cost: Score,
     selected: Vec<usize>,
+    #[cfg(test)]
+    row_potential: Vec<Score>,
+    #[cfg(test)]
+    column_potential: Vec<Score>,
 }
 
 struct Budget {
@@ -188,6 +196,10 @@ impl Assignment {
         let mut result = Optimum {
             cost: Score::default(),
             selected: Vec::new(),
+            #[cfg(test)]
+            row_potential,
+            #[cfg(test)]
+            column_potential,
         };
         for (column, row) in matched_row
             .iter()
@@ -271,6 +283,8 @@ mod tests {
                         *best = Some(Optimum {
                             cost,
                             selected: selected.iter().copied().collect(),
+                            row_potential: Vec::new(),
+                            column_potential: Vec::new(),
                         });
                     }
                 }
@@ -351,6 +365,14 @@ mod tests {
         let result = solve(indices, &proposals, &source, 1_000_000);
         assert!(result.exhaustive, "{matrix:?}");
         assert_eq!(expected.selected, result.mandatory, "{matrix:?}");
+        let priced = pricing::trial(&problem, 1_000_000);
+        assert!(priced.complete, "{matrix:?}");
+        assert_eq!(priced.cost, Some(expected.cost), "{matrix:?}");
+        assert_eq!(priced.mandatory, expected.selected, "{matrix:?}");
+        let dense = pricing::dense_trial(&problem, 1_000_000);
+        assert!(dense.complete, "{matrix:?}");
+        assert_eq!(dense.cost, Some(expected.cost), "{matrix:?}");
+        assert_eq!(dense.mandatory, expected.selected, "{matrix:?}");
     }
 
     #[test]

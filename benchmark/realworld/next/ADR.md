@@ -72,6 +72,14 @@ Use exhaustive small oracles and the 32/128/512/2048-element performance matrix.
 Keep P1 with existing fallback as default if measured P2 cost or completion fails;
 retain the implemented experiment and measured rejection evidence.
 
+The first P2 implementation remains test-only: see
+`P2-pricing-contract.md` and `p2-results/README.md`. It reuses the existing
+optimizer and reprices every forbidden-edge problem over a fixed independent
+coefficient universe. The same-budget size experiment reduces retained edges
+but loses completed necessity certificates at 128 elements. P1 and the existing
+assignment fallback remain the production default. This decision does not waive
+the separate text-retrieval matrix, real-document, or source-recovery requirements.
+
 P3/P4 use bounded existing scopes and relations, with repetition, moves, copies,
 gaps and split competitors. New source-traceable A or B recovery on independent
 ID-free prose is required; C growth alone does not satisfy it. Evaluate positive
