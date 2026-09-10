@@ -8,6 +8,7 @@ pub mod extraction_conformance;
 pub mod generalization;
 pub mod generalization_matrix;
 pub mod generalization_report;
+pub mod literal_selectors;
 pub mod mutation;
 pub mod renderers;
 pub mod revisions;

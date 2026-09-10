@@ -44,7 +44,7 @@ evaluation. Stages may overlap. An unobserved stage is unknown, not successful.
 Counts of acquisition issues include their channels, including unselected ones;
 they do not independently decide selected-channel completeness.
 
-Literal annotations will use a distinct version, hash-bound side and locator,
+Literal annotations use version 2, hash-bound side and locator,
 uncompressed quote, declared normalization and position units. Resolve source
 coordinates before observing comparison output. Keep scalar/UTF-8 byte offsets,
 real/synthetic spaces and glyph/character multiplicity distinct. Ambiguous matches

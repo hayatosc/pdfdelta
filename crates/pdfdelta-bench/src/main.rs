@@ -61,6 +61,15 @@ enum Command {
         #[arg(long)]
         report: PathBuf,
     },
+    /// Resolve version-2 literal annotations without running comparison.
+    ValidateLiteralSelectors {
+        #[arg(long)]
+        annotation: PathBuf,
+        #[arg(long)]
+        old: PathBuf,
+        #[arg(long)]
+        new: PathBuf,
+    },
     /// Freeze source selectors without running alignment or comparison.
     ValidateRevisionSelectors {
         #[arg(long)]
@@ -521,6 +530,44 @@ fn main() -> ExitCode {
                 .map_err(|error| error.to_string())?;
             writeln!(stdout).map_err(|error| error.to_string())?;
             Ok(0)
+        })(),
+        Some(Command::ValidateLiteralSelectors {
+            annotation,
+            old,
+            new,
+        }) => (|| {
+            use pdfdelta_bench::{
+                literal_selectors::{LiteralAnnotation, MAX_ANNOTATION_BYTES, ResolutionStatus},
+                revisions::revision_selectors::prepare_with_view,
+            };
+            let annotation = LiteralAnnotation::from_json(&read_bounded_file(
+                &annotation,
+                MAX_ANNOTATION_BYTES,
+                "literal annotation",
+            )?)?;
+            let old = prepare_with_view(
+                read_bounded_file(&old, ParseLimits::default().max_input_bytes, "old PDF")?,
+                annotation.preparation(),
+            )?;
+            let new = prepare_with_view(
+                read_bounded_file(&new, ParseLimits::default().max_input_bytes, "new PDF")?,
+                annotation.preparation(),
+            )?;
+            let selectors = annotation.resolve(&old, &new);
+            let complete = selectors
+                .iter()
+                .all(|selector| selector.status == ResolutionStatus::Unique);
+            serde_json::to_writer_pretty(
+                &mut stdout,
+                &serde_json::json!({
+                    "schema_version": 2, "annotation": annotation,
+                    "old": old.metadata, "new": new.metadata, "selectors": selectors,
+                    "selector_resolution_complete": complete,
+                }),
+            )
+            .map_err(|error| error.to_string())?;
+            writeln!(stdout).map_err(|error| error.to_string())?;
+            Ok(if complete { 0 } else { 3 })
         })(),
         Some(Command::ValidateRevisionSelectors {
             expected,

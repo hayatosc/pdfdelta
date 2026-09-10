@@ -54,6 +54,28 @@ pub enum SelectorAtom {
     LineBreak { preceding: u64, following: u64 },
 }
 
+impl From<TextSourceAtom> for SelectorAtom {
+    fn from(atom: TextSourceAtom) -> Self {
+        match atom {
+            TextSourceAtom::Glyph(id) => Self::Glyph { id: id.0 },
+            TextSourceAtom::SyntheticSpace {
+                preceding,
+                following,
+            } => Self::SyntheticSpace {
+                preceding: preceding.0,
+                following: following.0,
+            },
+            TextSourceAtom::LineBreak {
+                preceding,
+                following,
+            } => Self::LineBreak {
+                preceding: preceding.0,
+                following: following.0,
+            },
+        }
+    }
+}
+
 /// Resolves each expectation independently using only normalized source blocks.
 /// Missing or uncertain selectors remain explicit. No comparison result is an
 /// input, and a unique selector alone does not certify extraction completeness.
@@ -173,28 +195,7 @@ pub fn validate(
                                     scalar,
                                     value,
                                     block_pages: block.pages.clone(),
-                                    atoms: atoms
-                                        .into_iter()
-                                        .map(|atom| match atom {
-                                            TextSourceAtom::Glyph(id) => {
-                                                SelectorAtom::Glyph { id: id.0 }
-                                            }
-                                            TextSourceAtom::SyntheticSpace {
-                                                preceding,
-                                                following,
-                                            } => SelectorAtom::SyntheticSpace {
-                                                preceding: preceding.0,
-                                                following: following.0,
-                                            },
-                                            TextSourceAtom::LineBreak {
-                                                preceding,
-                                                following,
-                                            } => SelectorAtom::LineBreak {
-                                                preceding: preceding.0,
-                                                following: following.0,
-                                            },
-                                        })
-                                        .collect(),
+                                    atoms: atoms.into_iter().map(SelectorAtom::from).collect(),
                                 });
                             }
                         }
