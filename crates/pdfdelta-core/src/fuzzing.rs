@@ -3,7 +3,7 @@
 use crate::document::{
     BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
     DocumentView, EvidenceLimits, EvidenceStore, GraphLimits, HierarchyLimits, NodeId,
-    PageEvidence, Raster, RenderedEvidence,
+    PageEvidence, Raster, RenderedEvidence, StructuredEvidence, StructuredValue,
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
@@ -782,6 +782,37 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
                 Vec2 { x: 0.0, y: 10.0 },
             ],
         });
+    }
+    let page_zero_glyphs = store
+        .native
+        .items()
+        .iter()
+        .filter(|glyph| glyph.page == PageId(0))
+        .map(|glyph| glyph.id)
+        .collect::<Vec<_>>();
+    let mut previous_structure = None;
+    for index in 0..usize::from(seed % 3) {
+        if page_zero_glyphs.is_empty() {
+            break;
+        }
+        let count = 1 + (usize::from(seed) + index) % page_zero_glyphs.len();
+        let id = store.structured.len() as u64;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::StructureElement {
+                role: "P".into(),
+                identifier: None,
+                text: None,
+                glyphs: page_zero_glyphs[..count].to_vec(),
+                parent: previous_structure,
+                order: None,
+            },
+        });
+        previous_structure = Some(id);
     }
     let Ok(graph) = DocumentGraph::from_evidence(
         &store,
