@@ -4,8 +4,8 @@ use crate::diff::Confidence;
 use crate::document::{
     BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
     DocumentView, EvidenceLimits, EvidenceStore, FieldValue, FormWidget, GraphLimits,
-    HierarchyLimits, NodeId, PageEvidence, Raster, RenderedEvidence, StructuredEvidence,
-    StructuredValue,
+    HierarchyLimits, NodeId, PageEvidence, Raster, RecognizedWord, RenderedEvidence,
+    StructuredEvidence, StructuredValue,
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
@@ -835,6 +835,43 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
                 Vec2 { x: 10.0, y: 10.0 },
                 Vec2 { x: 0.0, y: 10.0 },
             ],
+        });
+    }
+    if seed % 4 == 0
+        && let Some(region) = store.rendered.first()
+    {
+        let width = region.raster.width;
+        let height = region.raster.height;
+        let pixel_bounds = [0, 0, width, height];
+        let region_id = region.id;
+        let Ok(bounds) = region.pixel_bounds_in_page(pixel_bounds) else {
+            return false;
+        };
+        let ocr_backend = store.backends.len();
+        store.backends.push(BackendIdentity {
+            kind: BackendKind::Ocr,
+            name: "pdfdelta-fuzz-ocr".into(),
+            version: "0".into(),
+            profile: "layout-pipeline-v1".into(),
+            model: Some("pdfdelta-fuzz-model".into()),
+        });
+        let id = store.structured.len() as u64;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: Some(bounds),
+            object: None,
+            backend: ocr_backend,
+            value: StructuredValue::RecognizedText {
+                text: "ocr".into(),
+                region: region_id,
+                pixel_bounds,
+                words: vec![RecognizedWord {
+                    text: "w".into(),
+                    pixel_bounds: [0, 0, 1, 1],
+                    confidence: Some(50.0),
+                }],
+            },
         });
     }
     let page_zero_glyphs = store
