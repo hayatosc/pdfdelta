@@ -451,9 +451,10 @@ pub fn verify_recovery_ownership_partition(
 ///
 /// # Errors
 ///
-/// Returns [`RecoveryOwnershipError`] under the same conditions as
-/// [`verify_recovery_ownership_partition`]. No aggregate or sample is returned
-/// for a partial partition.
+/// Returns [`RecoveryOwnershipError`] when a configured resource bound is
+/// exceeded, allocation or checked arithmetic fails, coordinate evidence is
+/// invalid, or either token space is not covered exactly. No aggregate or
+/// sample is returned for a partial partition.
 pub fn analyze_recovery_ownership_partition(
     blocks: &[RecoveryEligibleBlock<'_>],
     ranges: &[RecoveryOwnershipRange],

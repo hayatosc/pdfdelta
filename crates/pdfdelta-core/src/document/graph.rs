@@ -296,11 +296,12 @@ impl DocumentGraph {
                     "recognized text cannot claim a direct-source view basis",
                 ));
             }
-            if node
-                .sources
-                .iter()
-                .any(|source| sources[source].is_some_and(|page| !node_pages.contains(&page)))
-            {
+            if node.sources.iter().any(|source| {
+                sources
+                    .get(source)
+                    .and_then(|page| *page)
+                    .is_some_and(|page| !node_pages.contains(&page))
+            }) {
                 return Err(invalid("graph node omits a contributing source page"));
             }
             if let Some(key) = &node.identity {
@@ -485,9 +486,9 @@ impl DocumentGraph {
         while let Some(node) = queue.pop_front() {
             visited += 1;
             for child in adjacency.get(&node).into_iter().flatten() {
-                let count = incoming
-                    .get_mut(child)
-                    .expect("hierarchy child has an incoming edge");
+                let Some(count) = incoming.get_mut(child) else {
+                    return Err(invalid("graph containment child has no incoming edge"));
+                };
                 *count -= 1;
                 if *count == 0 {
                     queue.push_back(*child);
