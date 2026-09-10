@@ -9,8 +9,9 @@ use crate::document::{
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
-    DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
-    GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine, VectorLineId,
+    DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphEvidence, GlyphId,
+    GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine,
+    VectorLineId,
 };
 use crate::pdf::LopdfParser;
 use crate::pdf::ParseLimits;
@@ -22,8 +23,8 @@ use crate::pdf::font::{FontDecoder, FontDecoderLimits, WritingMode};
 use crate::pdf::{
     DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfVersion, RawStream,
 };
-use crate::pipeline::{PipelineOptions, compare_glyph_documents};
-use crate::report::{ExtractionStatus, summarize};
+use crate::pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents};
+use crate::report::{TextReportOptions, render_text, summarize, write_json};
 use crate::source::{
     ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
 };
@@ -726,11 +727,16 @@ pub fn fuzz_text_comparison(input: &[u8]) {
 }
 
 fn check_text_comparison(old: &Document<Glyph>, new: &Document<Glyph>) -> bool {
-    let Ok(comparison) = compare_glyph_documents(old, new, PipelineOptions::default()) else {
+    let Ok(outcome) = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old.clone()),
+        ExtractionOutcome::complete(new.clone()),
+        PipelineOptions::default(),
+    ) else {
         return false;
     };
-    let summary = summarize(&comparison, &ExtractionStatus::complete())
-        .expect("a successful comparison must summarize");
+    let comparison = &outcome.comparison;
+    let summary =
+        summarize(comparison, &outcome.extraction).expect("a successful comparison must summarize");
     assert_eq!(summary.content_changes, comparison.changes.len());
     assert_eq!(
         summary.uncertain_changes,
@@ -749,6 +755,46 @@ fn check_text_comparison(old: &Document<Glyph>, new: &Document<Glyph>) -> bool {
     for region in &comparison.unresolved_regions {
         assert!(region.old_span.is_some() || region.new_span.is_some());
     }
+    // A pipeline-produced comparison must satisfy the public report contracts.
+    let text = render_text(
+        &outcome.old_blocks,
+        &outcome.new_blocks,
+        comparison,
+        &outcome.extraction,
+        &TextReportOptions {
+            old_label: "old",
+            new_label: "new",
+            color: false,
+        },
+    )
+    .expect("a successful comparison must render as text");
+    assert!(!text.is_empty());
+    let old_evidence = old
+        .items()
+        .iter()
+        .map(GlyphEvidence::from)
+        .collect::<Vec<_>>();
+    let new_evidence = new
+        .items()
+        .iter()
+        .map(GlyphEvidence::from)
+        .collect::<Vec<_>>();
+    let mut json = Vec::new();
+    write_json(
+        &mut json,
+        &outcome.old_blocks,
+        &outcome.new_blocks,
+        &old_evidence,
+        &new_evidence,
+        comparison,
+        &outcome.extraction,
+    )
+    .expect("a successful comparison must serialize as JSON");
+    assert!(json.starts_with(b"{"));
+    assert!(
+        serde_json::from_slice::<serde_json::Value>(&json).is_ok(),
+        "the JSON report must parse"
+    );
     true
 }
 
