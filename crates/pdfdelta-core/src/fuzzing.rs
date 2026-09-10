@@ -3,8 +3,9 @@
 use crate::diff::Confidence;
 use crate::document::{
     BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
-    DocumentView, EvidenceLimits, EvidenceStore, GraphLimits, HierarchyLimits, NodeId,
-    PageEvidence, Raster, RenderedEvidence, StructuredEvidence, StructuredValue,
+    DocumentView, EvidenceLimits, EvidenceStore, FieldValue, FormWidget, GraphLimits,
+    HierarchyLimits, NodeId, PageEvidence, Raster, RenderedEvidence, StructuredEvidence,
+    StructuredValue,
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
@@ -774,11 +775,12 @@ pub fn fuzz_graph_pipeline(input: &[u8]) {
 /// Exercises the multichannel evidence graph and shared solver over an
 /// arbitrary native document and reports whether the comparison completed.
 ///
-/// The store also retains up to three synthetic renderer regions so visual
-/// candidate search runs under the same identity comparison. The comparison
-/// uses the same store and graph for both sides, so a successful comparison
-/// must not report any typed operation. Evidence, graph, or comparison errors
-/// are accepted outcomes.
+/// The store also retains up to three synthetic renderer regions, overlapping
+/// structure elements, and text form fields so visual candidate search,
+/// structure import, and form validation run under the same identity
+/// comparison. The comparison uses the same store and graph for both sides, so
+/// a successful comparison must not report any typed operation. Evidence,
+/// graph, or comparison errors are accepted outcomes.
 fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool {
     let mut page_ids: BTreeSet<PageId> = document.items().iter().map(|glyph| glyph.page).collect();
     page_ids.insert(PageId(0));
@@ -866,6 +868,36 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
         });
         previous_structure = Some(id);
     }
+    for index in 0..usize::from(seed % 2) {
+        let id = store.structured.len() as u64;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::FormField {
+                name: format!("field{index}"),
+                field_type: Some(b"Tx".to_vec()),
+                value: FieldValue::Text(format!("value{index}")),
+                widgets: vec![FormWidget {
+                    object: None,
+                    page: Some(PageId(0)),
+                    bounds: Some(Rect {
+                        min: Vec2 { x: 0.0, y: 0.0 },
+                        max: Vec2 {
+                            x: 10.0 + f64::from(seed),
+                            y: 10.0,
+                        },
+                    }),
+                    normal_appearance: None,
+                    crop: None,
+                    unresolved: None,
+                }],
+                button_states: Vec::new(),
+            },
+        });
+    }
     let Ok(graph) = DocumentGraph::from_evidence(
         &store,
         PipelineOptions::default(),
@@ -874,6 +906,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
     ) else {
         return false;
     };
+    let _ = crate::document::assess_form_appearances(&store, Default::default());
     let Ok(comparison) = crate::document::compare_document_views(
         DocumentView {
             evidence: &store,
