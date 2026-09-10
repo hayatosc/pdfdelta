@@ -4,8 +4,9 @@ use crate::diff::Confidence;
 use crate::document::{
     BackendIdentity, BackendKind, ButtonAppearanceState, CorrespondenceScope,
     DocumentComparisonLimits, DocumentGraph, DocumentView, EvidenceLimits, EvidenceStore,
-    FieldValue, FormWidget, GraphLimits, HierarchyLimits, NodeId, PageEvidence, Raster,
-    RecognizedWord, RenderedEvidence, StructuredEvidence, StructuredValue,
+    FieldValue, FormLimits, FormWidget, GraphLimits, HierarchyLimits, NodeId, PageEvidence, Raster,
+    RecognizedWord, RenderedEvidence, StructureLimits, StructuredEvidence, StructuredValue,
+    extract_form_evidence, extract_structure_evidence,
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
@@ -21,7 +22,8 @@ use crate::pdf::font::cmap::{
 };
 use crate::pdf::font::{FontDecoder, FontDecoderLimits, WritingMode};
 use crate::pdf::{
-    DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfVersion, RawStream,
+    DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfParser, PdfVersion,
+    RawStream,
 };
 use crate::pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents};
 use crate::report::{TextReportOptions, render_text, summarize, write_json};
@@ -895,6 +897,94 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
     true
 }
 
+/// Exercises native form and structure evidence extraction on one PDF.
+///
+/// Inputs larger than 64 KiB are ignored. The parser and glyph extraction use
+/// the tight fuzzing budgets. A successful store build, form extraction, or
+/// structure extraction must validate as evidence, and structure IDs continue
+/// after any extracted form fields. Malformed, unsupported, unresolved, and
+/// resource-limit outcomes are accepted.
+///
+/// # Panics
+///
+/// Panics if evidence produced by form or structure extraction fails validation.
+#[doc(hidden)]
+pub fn fuzz_native_evidence(input: &[u8]) -> bool {
+    if input.len() > MAX_INPUT_BYTES {
+        return false;
+    }
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+    let Ok(outcome) = source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS)
+    else {
+        return false;
+    };
+    let (document, issues) = outcome.into_parts();
+    let Ok(extraction) = ExtractionOutcome::new(document, issues) else {
+        return false;
+    };
+    let Ok(pdf) = LopdfParser.parse(Arc::from(input), PARSE_LIMITS) else {
+        return false;
+    };
+    let limits = EvidenceLimits::default();
+    let Ok(pages) = pdf.pages() else {
+        return false;
+    };
+    let page_evidence = pages
+        .iter()
+        .enumerate()
+        .filter_map(|(index, _)| u32::try_from(index).ok())
+        .map(|index| PageEvidence {
+            page: PageId(index),
+            bounds: None,
+        })
+        .collect();
+    let backend = BackendIdentity {
+        kind: BackendKind::NativeParser,
+        name: "pdfdelta-fuzz".into(),
+        version: "0".into(),
+        profile: "native-evidence-v1".into(),
+        model: None,
+    };
+    let Ok(mut store) = EvidenceStore::from_native(
+        "pdfdelta-fuzz".into(),
+        backend,
+        page_evidence,
+        extraction,
+        limits,
+    ) else {
+        return false;
+    };
+    let mut reached = false;
+    if let Ok(forms) = extract_form_evidence(pdf.as_ref(), 0, 0, FormLimits::default()) {
+        store.structured = forms.fields;
+        store.issues.extend(forms.issues);
+        store.inventories.push(forms.inventory);
+        assert!(
+            store.validate(limits).is_ok(),
+            "form evidence must validate"
+        );
+        reached = true;
+    }
+    let first_structure_id = store.structured.len() as u64;
+    if let Ok(structure) = extract_structure_evidence(
+        pdf.as_ref(),
+        &store.native,
+        0,
+        first_structure_id,
+        StructureLimits::default(),
+    ) {
+        store.structured.extend(structure.elements);
+        store.issues.extend(structure.issues);
+        store.inventories.push(structure.inventory);
+        assert!(
+            store.validate(limits).is_ok(),
+            "structure evidence must validate"
+        );
+        reached = true;
+    }
+    reached
+}
+
 /// Exercises the multichannel evidence graph and shared solver over an
 /// arbitrary native document and reports whether the comparison completed.
 ///
@@ -1738,6 +1828,15 @@ mod tests {
         assert!(
             reached >= 16,
             "only {reached} of 33 seeds reached and summarized the comparison"
+        );
+    }
+
+    #[test]
+    fn curated_native_evidence_seed_reaches_validation() {
+        fuzz_native_evidence(GLYPH_EXTRACTION_SEED);
+        assert!(
+            fuzz_native_evidence(GLYPH_EXTRACTION_SEED),
+            "the curated PDF should reach form or structure evidence"
         );
     }
 
