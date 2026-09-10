@@ -487,17 +487,21 @@ fn separator_only_block_merge_stays_unresolved() {
             .collect(),
     );
 
-    let comparison = compare_glyph_documents(&fixture.document, &moved, PipelineOptions::default())
-        .expect("page-shifted documents should compare");
-    assert!(
-        comparison.changes.is_empty(),
-        "separator-only structural merge fabricated content changes: {:?}",
-        comparison.changes
-    );
-    assert!(
-        !comparison.unresolved_regions.is_empty(),
-        "the structural difference must remain visible as an unresolved region"
-    );
+    // Compare both directions so a separator deletion and a separator
+    // insertion are both rejected as established content changes.
+    for (old, new) in [(&fixture.document, &moved), (&moved, &fixture.document)] {
+        let comparison = compare_glyph_documents(old, new, PipelineOptions::default())
+            .expect("page-shifted documents should compare");
+        assert!(
+            comparison.changes.is_empty(),
+            "separator-only structural merge fabricated content changes: {:?}",
+            comparison.changes
+        );
+        assert!(
+            !comparison.unresolved_regions.is_empty(),
+            "the structural difference must remain visible as an unresolved region"
+        );
+    }
 }
 
 fn arb_block_words() -> impl Strategy<Value = Vec<Vec<Vec<String>>>> {
