@@ -3,7 +3,7 @@
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
     DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
-    GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+    GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine, VectorLineId,
 };
 use crate::pdf::LopdfParser;
 use crate::pdf::ParseLimits;
@@ -623,6 +623,7 @@ pub fn fuzz_glyph_extraction(input: &[u8]) {
 }
 
 const MAX_LAYOUT_GLYPHS: usize = 32;
+const MAX_LAYOUT_VECTOR_LINES: usize = 8;
 const MAX_LAYOUT_PAGES: u32 = 3;
 const LAYOUT_FONT_SIZE_MIN: f64 = 4.0;
 const LAYOUT_FONT_SIZE_STEP: f64 = 1.5;
@@ -637,7 +638,8 @@ const LAYOUT_POSITION_CELLS: u8 = 24;
 /// fuzzed bytes but kept finite, axis-consistent, and within small page bounds,
 /// so layout code sees degenerate-but-valid geometry rather than being
 /// short-circuited by validation. Glyph text mixes mapped, multi-scalar, CJK,
-/// and unmapped values. Parser errors are accepted outcomes.
+/// and unmapped values, and up to [`MAX_LAYOUT_VECTOR_LINES`] straight vector
+/// lines are retained as layout evidence. Parser errors are accepted outcomes.
 ///
 /// # Panics
 ///
@@ -750,7 +752,46 @@ fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
             },
         });
     }
-    Document::new(glyphs)
+
+    let vector_base = glyph_count.saturating_mul(8);
+    // Derive the vector count from the count byte so most inputs retain at
+    // least one straight line instead of depending on one window byte.
+    let vector_count = (usize::from(input[0]) * 7 + 3) % (MAX_LAYOUT_VECTOR_LINES + 1);
+    let mut vector_lines = Vec::with_capacity(vector_count);
+    for index in 0..vector_count {
+        let base = vector_base.saturating_add(index.saturating_mul(6));
+        let byte = |offset: usize| -> u8 {
+            bytes
+                .get(base.saturating_add(offset) % bytes.len().max(1))
+                .copied()
+                .unwrap_or(0)
+        };
+        let x = f64::from(byte(0) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let y = f64::from(byte(1) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let length = 6.0 + f64::from(byte(3) % 12) * LAYOUT_POSITION_CELL / 4.0;
+        let (to_x, to_y) = if byte(2) % 2 == 0 {
+            (x + length, y)
+        } else {
+            (x, y + length)
+        };
+        let render_order = glyph_count as u32 + index as u32;
+        vector_lines.push(VectorLine {
+            id: VectorLineId(index as u64),
+            page: PageId(u32::from(byte(5)) % MAX_LAYOUT_PAGES),
+            from: Vec2 { x, y },
+            to: Vec2 { x: to_x, y: to_y },
+            width: 0.2 + f64::from(byte(4) % 5) * 0.2,
+            render_order,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: render_order,
+            },
+        });
+    }
+    Document::with_vector_lines(glyphs, vector_lines)
 }
 
 const SYNTHETIC_TEXTS: [&str; 10] = [
@@ -1158,6 +1199,7 @@ mod tests {
         let mut reconstruction_reached = 0;
         let mut comparison_reached = 0;
         let mut svg_reached = 0;
+        let mut vector_lines_seen = 0;
         for seed in 0u8..=64 {
             let mut input = vec![seed];
             input.extend((0..128u16).map(|index| {
@@ -1166,6 +1208,9 @@ mod tests {
                     .wrapping_add(seed)
             }));
             let document = synthetic_glyph_document(&input);
+            if !document.vector_lines().is_empty() {
+                vector_lines_seen += 1;
+            }
             assert!(
                 reconstruct_lines(&document, LineOptions::default()).is_ok(),
                 "seed {seed} produced a document that line reconstruction rejects"
@@ -1189,6 +1234,10 @@ mod tests {
         assert!(
             svg_reached >= 32,
             "only {svg_reached} of 65 seeds reached the SVG renderer"
+        );
+        assert!(
+            vector_lines_seen >= 32,
+            "only {vector_lines_seen} of 65 seeds carried vector-line evidence"
         );
         // Degenerate inputs must not panic or fabricate identity changes.
         fuzz_layout_pipeline(&[0]);
