@@ -35,7 +35,9 @@ mise run fuzz-smoke
 The `Fuzz smoke` GitHub Actions workflow runs the same session on a schedule and
 on pull requests that touch fuzzed code; it installs nightly Rust and the pinned
 `cargo-fuzz` release itself, so local runs remain the only place where those
-prerequisites are manual.
+prerequisites are manual. Before pushing changes under `fuzz/`, run
+`mise run fuzz-check` to format-check and lint this workspace on stable Rust; the
+workflow runs those checks too.
 
 An existing fixture directory can be supplied as an additional corpus without copying its PDFs into this workspace:
 

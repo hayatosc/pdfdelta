@@ -105,6 +105,13 @@ run = "benchmark/realworld/compare-summary-parity.sh"
 description = "Build all fuzz targets, or one target passed after --"
 run = "cargo +nightly fuzz build"
 
+[tasks.fuzz-check]
+description = "Check formatting and lints of the fuzz workspace on stable Rust"
+run = [
+  "cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check",
+  "cargo clippy --manifest-path fuzz/Cargo.toml --all-targets --locked -- -D warnings",
+]
+
 [tasks.fuzz-run]
 description = "Run a fuzz target (usage: mise run fuzz-run -- <target> [args])"
 run = "cargo +nightly fuzz run"

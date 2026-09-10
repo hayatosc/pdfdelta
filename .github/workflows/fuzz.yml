@@ -34,6 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
+      - name: Install stable lint components
+        run: mise exec -- rustup component add clippy rustfmt
       - name: Install nightly Rust
         run: mise exec -- rustup toolchain install nightly --profile minimal
       - uses: taiki-e/install-action@v2
@@ -42,5 +44,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: fuzz
+      - name: Fuzz workspace checks
+        run: mise run fuzz-check
       - name: Fuzz smoke
         run: mise run fuzz-smoke
