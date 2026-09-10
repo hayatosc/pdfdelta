@@ -837,7 +837,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> bool
             ],
         });
     }
-    if seed % 4 == 0
+    if seed.is_multiple_of(4)
         && let Some(region) = store.rendered.first()
     {
         let width = region.raster.width;
