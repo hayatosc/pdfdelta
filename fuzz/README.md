@@ -11,6 +11,12 @@ rustup toolchain install nightly
 cargo install cargo-fuzz
 ```
 
+`cargo fuzz`'s default build enables AddressSanitizer and sancov coverage
+through nightly-only `-Zsanitizer` flags, so the documented tasks and the
+`Fuzz smoke` workflow build with `cargo +nightly`. A sanitizer-free
+`cargo fuzz build --sanitizer none` also builds on stable Rust, but it drops
+sanitizer findings and is not the supported configuration.
+
 ## Build and run
 
 Build every target, or pass one target after `--` to build it alone:

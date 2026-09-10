@@ -437,6 +437,69 @@ proptest! {
     }
 }
 
+/// A page gap that merges a trailing paragraph into the preceding block is a
+/// structural difference. The lost inter-block separator must remain an
+/// unresolved region rather than becoming an established content deletion.
+#[test]
+fn separator_only_block_merge_stays_unresolved() {
+    let words = vec![
+        vec![
+            vec!["alpha0".to_string()],
+            vec!["\u{8a2d}\u{5b9a}".to_string()],
+        ],
+        vec![vec!["alpha1".to_string()], vec!["10".to_string()]],
+    ];
+    let fixture = fixture_from(1, words);
+    let moved_glyphs = fixture
+        .blocks
+        .last()
+        .expect("fixture has a block")
+        .lines
+        .iter()
+        .flat_map(|line_id| {
+            fixture
+                .lines
+                .iter()
+                .find(|line| line.id == *line_id)
+                .expect("fixture block line must exist")
+                .glyphs
+                .iter()
+                .copied()
+        })
+        .collect::<HashSet<_>>();
+    let moved = Document::new(
+        fixture
+            .document
+            .items()
+            .iter()
+            .cloned()
+            .map(|mut glyph| {
+                if moved_glyphs.contains(&glyph.id) {
+                    // A new page has its own coordinate space; place the moved
+                    // block near the top of the new page.
+                    glyph.page = PageId(1);
+                    glyph.bbox.min.y += PAGE_BREAK_Y_OFFSET;
+                    glyph.bbox.max.y += PAGE_BREAK_Y_OFFSET;
+                    glyph.baseline.y += PAGE_BREAK_Y_OFFSET;
+                }
+                glyph
+            })
+            .collect(),
+    );
+
+    let comparison = compare_glyph_documents(&fixture.document, &moved, PipelineOptions::default())
+        .expect("page-shifted documents should compare");
+    assert!(
+        comparison.changes.is_empty(),
+        "separator-only structural merge fabricated content changes: {:?}",
+        comparison.changes
+    );
+    assert!(
+        !comparison.unresolved_regions.is_empty(),
+        "the structural difference must remain visible as an unresolved region"
+    );
+}
+
 fn arb_block_words() -> impl Strategy<Value = Vec<Vec<Vec<String>>>> {
     proptest::collection::vec(
         proptest::collection::vec(proptest::collection::vec(any_word(), 1..=3), 1..=3),
@@ -563,6 +626,9 @@ const FIXTURE_GLYPH_WIDTH: f64 = 8.0;
 const FIXTURE_GLYPH_HEIGHT: f64 = 10.0;
 const FIXTURE_LINE_STEP: f64 = 12.0;
 const FIXTURE_BLOCK_GAP: f64 = 18.0;
+/// Vertical placement of a block moved to a later page. Pages have independent
+/// coordinate spaces, so the moved block restarts near the top of its page.
+const PAGE_BREAK_Y_OFFSET: f64 = 200.0;
 
 fn positioned_line(id: u64, glyphs: Vec<GlyphId>, width: f64, baseline_y: f64) -> Line {
     Line {
