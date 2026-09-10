@@ -48,6 +48,11 @@ Run these commands before every commit:
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo test --workspace --all-features --lib
 ```
+
+The `--all-features` clippy and library-test runs compile the fuzzing-only
+entry points and run their curated-seed tests on stable Rust. They do not run
+libFuzzer; the nightly fuzz workflow is described in `fuzz/README.md`.

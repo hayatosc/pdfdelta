@@ -1,5 +1,10 @@
 //! Fuzzing-only entry points for internal parsers.
 
+use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
+use crate::model::{
+    DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+    GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+};
 use crate::pdf::LopdfParser;
 use crate::pdf::ParseLimits;
 use crate::pdf::content::{ContentBudget, ContentLimits, ContentParser, Operation};
@@ -10,6 +15,7 @@ use crate::pdf::font::{FontDecoder, FontDecoderLimits, WritingMode};
 use crate::pdf::{
     DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfVersion, RawStream,
 };
+use crate::pipeline::{PipelineOptions, compare_glyph_documents};
 use crate::source::{
     ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
 };
@@ -616,6 +622,173 @@ pub fn fuzz_glyph_extraction(input: &[u8]) {
     drop(issues);
 }
 
+const MAX_LAYOUT_GLYPHS: usize = 32;
+const MAX_LAYOUT_PAGES: u32 = 3;
+const LAYOUT_FONT_SIZE_MIN: f64 = 4.0;
+const LAYOUT_FONT_SIZE_STEP: f64 = 1.5;
+const LAYOUT_POSITION_CELL: f64 = 12.0;
+const LAYOUT_POSITION_CELLS: u8 = 24;
+
+/// Exercises line, block, and region reconstruction plus the full comparison
+/// pipeline over an arbitrary synthetic [`Document<Glyph>`].
+///
+/// Inputs larger than 64 KiB are ignored. The first byte selects the glyph
+/// count (at most [`MAX_LAYOUT_GLYPHS`]); every remaining field is derived from
+/// fuzzed bytes but kept finite, axis-consistent, and within small page bounds,
+/// so layout code sees degenerate-but-valid geometry rather than being
+/// short-circuited by validation. Glyph text mixes mapped, multi-scalar, CJK,
+/// and unmapped values. Parser errors are accepted outcomes.
+///
+/// # Panics
+///
+/// Panics if comparing the constructed document with itself reports any exact
+/// or formatting change, because identity input must never produce a change,
+/// or if a successful glyph-overlay render does not start with `<svg`.
+#[doc(hidden)]
+pub fn fuzz_layout_pipeline(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES {
+        return;
+    }
+    if input.is_empty() {
+        return;
+    }
+    let document = synthetic_glyph_document(input);
+
+    if let Ok(lines) = reconstruct_lines(&document, LineOptions::default()) {
+        let mut pages = lines.iter().map(|line| line.page).collect::<Vec<_>>();
+        pages.sort_unstable();
+        pages.dedup();
+        for page in pages.into_iter().take(MAX_LAYOUT_PAGES as usize) {
+            let page_lines = lines
+                .iter()
+                .filter(|line| line.page == page)
+                .cloned()
+                .collect::<Vec<Line>>();
+            let _ = partition_regions(page, &page_lines, RegionOptions::default());
+        }
+    }
+
+    let Ok(comparison) = compare_glyph_documents(&document, &document, PipelineOptions::default())
+    else {
+        return;
+    };
+    assert!(
+        comparison.changes.is_empty(),
+        "identity comparison reported {} exact changes",
+        comparison.changes.len()
+    );
+    assert!(
+        comparison.formatting_changes.is_empty(),
+        "identity comparison reported {} formatting changes",
+        comparison.formatting_changes.len()
+    );
+
+    if let Ok(svg) = crate::report::render_glyph_overlay_svg(&document) {
+        assert!(svg.starts_with("<svg"));
+    }
+}
+
+fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
+    let glyph_count = usize::from(input[0]) % MAX_LAYOUT_GLYPHS + 1;
+    let bytes = &input[1..];
+    let mut glyphs = Vec::with_capacity(glyph_count);
+    for index in 0..glyph_count {
+        let field = |offset: usize| -> u8 {
+            bytes
+                .get(index.saturating_mul(8).saturating_add(offset) % bytes.len().max(1))
+                .copied()
+                .unwrap_or(0)
+        };
+        let font_size = LAYOUT_FONT_SIZE_MIN + f64::from(field(0) % 16) * LAYOUT_FONT_SIZE_STEP;
+        let x = f64::from(field(1) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let y = f64::from(field(2) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let width = font_size * (0.4 + f64::from(field(3) % 8) * 0.1);
+        let height = font_size * (0.6 + f64::from(field(4) % 8) * 0.1);
+        let direction = SYNTHETIC_DIRECTIONS[usize::from(field(5) % 6)];
+        let page = PageId(u32::from(field(6)) % MAX_LAYOUT_PAGES);
+        let text = if field(7) % 8 == 0 {
+            DecodedText::Unmapped {
+                font_hash: crate::model::FontProgramHash(vec![field(7); 8]),
+                glyph_id: u16::from(field(0)) | u16::from(field(7)) << 8,
+            }
+        } else {
+            DecodedText::Mapped(
+                SYNTHETIC_TEXTS[usize::from(field(7)) % SYNTHETIC_TEXTS.len()].to_owned(),
+            )
+        };
+        let raw_code = match &text {
+            DecodedText::Mapped(value) => value.as_bytes().to_vec(),
+            DecodedText::Unmapped { glyph_id, .. } => glyph_id.to_be_bytes().to_vec(),
+        };
+        glyphs.push(Glyph {
+            id: GlyphId(index as u64),
+            text,
+            raw_code,
+            page,
+            bbox: Rect {
+                min: Vec2 { x, y },
+                max: Vec2 {
+                    x: x + width,
+                    y: y + height,
+                },
+            },
+            baseline: Vec2 { x, y },
+            direction,
+            font_id: FontId(u32::from(field(0) % 3)),
+            font_size,
+            render_order: index as u32,
+            render_mode: SYNTHETIC_RENDER_MODES
+                [usize::from(field(3)) % SYNTHETIC_RENDER_MODES.len()],
+            crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: index as u32,
+            },
+        });
+    }
+    Document::new(glyphs)
+}
+
+const SYNTHETIC_TEXTS: [&str; 10] = [
+    "a",
+    "b",
+    " ",
+    "ab",
+    "1",
+    "10",
+    "status:",
+    "\u{8a2d}\u{5b9a}",
+    "e\u{301}",
+    "-\n",
+];
+
+const SYNTHETIC_RENDER_MODES: [TextRenderMode; 4] = [
+    TextRenderMode::Fill,
+    TextRenderMode::Stroke,
+    TextRenderMode::Invisible,
+    TextRenderMode::FillAndStroke,
+];
+
+/// Unit writing directions covering horizontal, vertical, and diagonal text.
+const SYNTHETIC_DIRECTIONS: [Vec2; 6] = [
+    Vec2 { x: 1.0, y: 0.0 },
+    Vec2 { x: -1.0, y: 0.0 },
+    Vec2 { x: 0.0, y: 1.0 },
+    Vec2 { x: 0.0, y: -1.0 },
+    Vec2 {
+        x: core::f64::consts::FRAC_1_SQRT_2,
+        y: core::f64::consts::FRAC_1_SQRT_2,
+    },
+    Vec2 {
+        x: -core::f64::consts::FRAC_1_SQRT_2,
+        y: core::f64::consts::FRAC_1_SQRT_2,
+    },
+];
+
 #[derive(Default)]
 struct FuzzPdf {
     objects: HashMap<ObjectRef, PdfObject>,
@@ -978,6 +1151,48 @@ mod tests {
     #[test]
     fn oversized_glyph_extraction_input_is_ignored() {
         fuzz_glyph_extraction(&vec![b'A'; MAX_INPUT_BYTES + 1]);
+    }
+
+    #[test]
+    fn synthetic_layout_seeds_reach_the_pipeline_without_changes() {
+        let mut reconstruction_reached = 0;
+        let mut comparison_reached = 0;
+        let mut svg_reached = 0;
+        for seed in 0u8..=64 {
+            let mut input = vec![seed];
+            input.extend((0..128u16).map(|index| {
+                (index as u8)
+                    .wrapping_mul(seed.wrapping_add(3))
+                    .wrapping_add(seed)
+            }));
+            let document = synthetic_glyph_document(&input);
+            assert!(
+                reconstruct_lines(&document, LineOptions::default()).is_ok(),
+                "seed {seed} produced a document that line reconstruction rejects"
+            );
+            reconstruction_reached += 1;
+            if compare_glyph_documents(&document, &document, PipelineOptions::default()).is_ok() {
+                comparison_reached += 1;
+            }
+            if crate::report::render_glyph_overlay_svg(&document).is_ok() {
+                svg_reached += 1;
+            }
+            fuzz_layout_pipeline(&input);
+        }
+        // The generator must keep producing documents that flow through the
+        // whole exercised pipeline instead of stopping at validation.
+        assert_eq!(reconstruction_reached, 65);
+        assert!(
+            comparison_reached >= 32,
+            "only {comparison_reached} of 65 seeds reached the comparison pipeline"
+        );
+        assert!(
+            svg_reached >= 32,
+            "only {svg_reached} of 65 seeds reached the SVG renderer"
+        );
+        // Degenerate inputs must not panic or fabricate identity changes.
+        fuzz_layout_pipeline(&[0]);
+        fuzz_layout_pipeline(&[255]);
     }
 
     #[test]

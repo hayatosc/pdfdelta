@@ -6,8 +6,9 @@ rust = "1.98.0"
 description = "Run the CI quality gate"
 run = [
   "cargo fmt --all -- --check",
-  "cargo clippy --workspace --all-targets --locked -- -D warnings",
+  "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
   "cargo test --workspace --locked",
+  "cargo test --workspace --locked --all-features --lib",
   "cargo run -p pdfdelta-bench --locked -- verify",
 ]
 
@@ -22,6 +23,10 @@ run = "cargo clippy --workspace --all-targets --locked -- -D warnings"
 [tasks.test]
 description = "Run the workspace test suite"
 run = "cargo test --workspace --locked"
+
+[tasks.test-fuzzing]
+description = "Compile the fuzzing entry points and run their curated-seed library tests"
+run = "cargo test --workspace --locked --all-features --lib"
 
 [tasks.pdfdelta]
 description = "Run the pdfdelta CLI (usage: mise run pdfdelta -- <args>)"
@@ -108,4 +113,5 @@ run = [
   "cargo +nightly fuzz run font_decoder -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run canonical_yaml -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run glyph_extraction -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run layout_pipeline -- -max_total_time=30 -max_len=65536",
 ]

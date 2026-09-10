@@ -1,6 +1,6 @@
 //! Property tests over programmatically constructed `Document<Glyph>` fixtures.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use proptest::prelude::*;
 
@@ -12,7 +12,10 @@ use pdfdelta_core::{
         select_monotone_anchor_chain,
     },
     diff::{ChangeKind, Confidence},
-    layout::{Block, BlockId, BlockRole, Line, LineId},
+    layout::{
+        Block, BlockId, BlockOptions, BlockRole, Line, LineId, LineOptions, reconstruct_blocks,
+        reconstruct_lines,
+    },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
         GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
@@ -64,6 +67,104 @@ proptest! {
     }
 
     #[test]
+    fn line_reconstruction_partitions_every_glyph(block_words in arb_block_words()) {
+        let fixture = fixture_from(1, block_words);
+        let render_orders = fixture
+            .document
+            .items()
+            .iter()
+            .map(|glyph| (glyph.id, glyph.render_order))
+            .collect::<HashMap<_, _>>();
+        let lines = reconstruct_lines(&fixture.document, LineOptions::default())
+            .expect("valid synthetic geometry should reconstruct");
+
+        let mut line_ids = HashSet::new();
+        let mut assigned = HashSet::new();
+        for line in &lines {
+            prop_assert!(line_ids.insert(line.id), "duplicate line id {}", line.id.0);
+            prop_assert!(!line.glyphs.is_empty(), "line {} has no glyphs", line.id.0);
+            for glyph_id in &line.glyphs {
+                prop_assert!(
+                    assigned.insert(*glyph_id),
+                    "glyph {:?} is assigned to more than one line",
+                    glyph_id
+                );
+                let render_order = render_orders[glyph_id];
+                prop_assert!(
+                    line.render_order.contains(&render_order),
+                    "line {} range {:?} excludes glyph {} render order {}",
+                    line.id.0,
+                    line.render_order,
+                    glyph_id.0,
+                    render_order
+                );
+            }
+        }
+        prop_assert_eq!(assigned.len(), fixture.document.items().len());
+    }
+
+    #[test]
+    fn block_reconstruction_covers_every_line_and_keeps_normalization_order(
+        block_words in arb_block_words(),
+    ) {
+        let fixture = fixture_from(1, block_words);
+        let lines = reconstruct_lines(&fixture.document, LineOptions::default())
+            .expect("valid synthetic geometry should reconstruct");
+        let blocks = reconstruct_blocks(&fixture.document, &lines, BlockOptions::default())
+            .expect("every glyph is assigned to a line");
+
+        let expected = lines.iter().map(|line| line.id).collect::<HashSet<_>>();
+        let actual = blocks
+            .iter()
+            .flat_map(|block| block.lines.iter().copied())
+            .collect::<HashSet<_>>();
+        prop_assert_eq!(actual, expected, "block reconstruction changed line coverage");
+        prop_assert_eq!(
+            blocks
+                .iter()
+                .flat_map(|block| block.lines.iter())
+                .count(),
+            lines.len(),
+            "a line must belong to exactly one block"
+        );
+        let mut block_ids = HashSet::new();
+        for block in &blocks {
+            prop_assert!(block_ids.insert(block.id), "duplicate block id {}", block.id.0);
+        }
+
+        let normalized = normalize_blocks(&fixture.document, &lines, &blocks)
+            .expect("reconstructed blocks should normalize");
+        prop_assert_eq!(normalized.len(), blocks.len());
+        for (text, block) in normalized.iter().zip(&blocks) {
+            prop_assert_eq!(text.block, block.id);
+        }
+    }
+
+    #[test]
+    fn uniform_translation_preserves_comparison(block_words in arb_block_words()) {
+        let fixture = fixture_from(1, block_words);
+        let shifted = translate_document(&fixture.document, 37.0, -11.0);
+
+        let comparison =
+            compare_glyph_documents(&fixture.document, &shifted, PipelineOptions::default())
+                .expect("translated documents should compare");
+        prop_assert!(
+            comparison.changes.is_empty(),
+            "uniform translation fabricated {} exact changes: {:?}",
+            comparison.changes.len(),
+            comparison.changes
+        );
+        // Moving every glyph together is a presentation change only.
+        for change in &comparison.formatting_changes {
+            prop_assert_eq!(
+                change.reasons.as_slice(),
+                [pdfdelta_core::diff::FormattingReason::Position],
+                "uniform translation reported non-position formatting reasons"
+            );
+        }
+    }
+
+    #[test]
     fn diff_of_identical_documents_is_empty(block_words in arb_block_words()) {
         let fixture = fixture_from(1, block_words);
 
@@ -76,7 +177,15 @@ proptest! {
 
         prop_assert!(comparison.changes.is_empty());
         prop_assert!(comparison.formatting_changes.is_empty());
-        prop_assert!(comparison.unresolved_regions.is_empty());
+        // Unresolved regions remain allowed: a reconstructed multi-line block
+        // whose reading order is not independently trusted is reported rather
+        // than assumed, even when both sides are identical.
+        for region in &comparison.unresolved_regions {
+            prop_assert!(
+                region.old_span.is_some() || region.new_span.is_some(),
+                "unresolved region carries no side evidence"
+            );
+        }
     }
 
     #[test]
@@ -381,26 +490,60 @@ fn normalize_canonical_text(text: &str) -> Result<BlockText, TestCaseError> {
     Ok(blocks.into_iter().next().expect("one block"))
 }
 
+fn translate_document(document: &Document<Glyph>, dx: f64, dy: f64) -> Document<Glyph> {
+    Document::new(
+        document
+            .items()
+            .iter()
+            .cloned()
+            .map(|mut glyph| {
+                glyph.bbox.min.x += dx;
+                glyph.bbox.min.y += dy;
+                glyph.bbox.max.x += dx;
+                glyph.bbox.max.y += dy;
+                glyph.baseline.x += dx;
+                glyph.baseline.y += dy;
+                glyph
+            })
+            .collect(),
+    )
+}
+
 fn fixture_from(id_base: u64, block_words: Vec<Vec<Vec<String>>>) -> GlyphFixture {
     let mut glyphs = Vec::new();
     let mut lines = Vec::new();
     let mut blocks = Vec::new();
     let mut next_glyph_id = id_base;
     let mut next_line_id = id_base;
+    let mut baseline_y = 0.0;
 
     for (block_index, line_words) in block_words.into_iter().enumerate() {
         let mut block_lines = Vec::new();
         for words in line_words {
             let mut line_glyphs = Vec::new();
+            let mut x = 0.0;
             for word in words {
-                glyphs.push(glyph(next_glyph_id, &word));
+                glyphs.push(positioned_glyph(next_glyph_id, &word, x, baseline_y));
                 line_glyphs.push(GlyphId(next_glyph_id));
                 next_glyph_id += 1;
+                x += FIXTURE_ADVANCE;
             }
+            let width = if line_glyphs.is_empty() {
+                0.0
+            } else {
+                x - FIXTURE_ADVANCE + FIXTURE_GLYPH_WIDTH
+            };
             block_lines.push(LineId(next_line_id));
-            lines.push(line(next_line_id, line_glyphs));
+            lines.push(positioned_line(
+                next_line_id,
+                line_glyphs,
+                width,
+                baseline_y,
+            ));
             next_line_id += 1;
+            baseline_y -= FIXTURE_LINE_STEP;
         }
+        baseline_y -= FIXTURE_BLOCK_GAP;
         blocks.push(Block {
             id: BlockId(id_base + block_index as u64),
             lines: block_lines,
@@ -415,43 +558,52 @@ fn fixture_from(id_base: u64, block_words: Vec<Vec<Vec<String>>>) -> GlyphFixtur
     }
 }
 
-fn line(id: u64, glyphs: Vec<GlyphId>) -> Line {
+const FIXTURE_ADVANCE: f64 = 10.0;
+const FIXTURE_GLYPH_WIDTH: f64 = 8.0;
+const FIXTURE_GLYPH_HEIGHT: f64 = 10.0;
+const FIXTURE_LINE_STEP: f64 = 12.0;
+const FIXTURE_BLOCK_GAP: f64 = 18.0;
+
+fn positioned_line(id: u64, glyphs: Vec<GlyphId>, width: f64, baseline_y: f64) -> Line {
     Line {
         id: LineId(id),
         page: PageId(0),
         glyphs,
         synthetic_spaces: Vec::new(),
         bbox: Rect {
-            min: Vec2 { x: 0.0, y: 0.0 },
-            max: Vec2 { x: 100.0, y: 10.0 },
+            min: Vec2 {
+                x: 0.0,
+                y: baseline_y,
+            },
+            max: Vec2 {
+                x: width,
+                y: baseline_y + FIXTURE_GLYPH_HEIGHT,
+            },
         },
-        baseline: Vec2 { x: 0.0, y: 0.0 },
+        baseline: Vec2 {
+            x: 0.0,
+            y: baseline_y,
+        },
         direction: Vec2 { x: 1.0, y: 0.0 },
         text_direction: pdfdelta_core::layout::LineTextDirection::LeftToRight,
         render_order: id as u32..=id as u32,
     }
 }
 
-fn glyph(id: u64, text: &str) -> Glyph {
+fn positioned_glyph(id: u64, text: &str, x: f64, baseline_y: f64) -> Glyph {
     Glyph {
         id: GlyphId(id),
         raw_code: text.as_bytes().to_vec(),
         text: DecodedText::Mapped(text.to_owned()),
         page: PageId(0),
         bbox: Rect {
-            min: Vec2 {
-                x: id as f64 * 10.0,
-                y: 0.0,
-            },
+            min: Vec2 { x, y: baseline_y },
             max: Vec2 {
-                x: id as f64 * 10.0 + 8.0,
-                y: 10.0,
+                x: x + FIXTURE_GLYPH_WIDTH,
+                y: baseline_y + FIXTURE_GLYPH_HEIGHT,
             },
         },
-        baseline: Vec2 {
-            x: id as f64 * 10.0,
-            y: 0.0,
-        },
+        baseline: Vec2 { x, y: baseline_y },
         direction: Vec2 { x: 1.0, y: 0.0 },
         font_id: FontId(1),
         font_size: 10.0,

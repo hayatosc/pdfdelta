@@ -54,6 +54,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "layout_pipeline"
+path = "fuzz_targets/layout_pipeline.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]
 resolver = "3"
