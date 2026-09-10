@@ -61,6 +61,11 @@ enum Command {
         #[arg(long)]
         report: PathBuf,
     },
+    /// Attribute retained native/shared report diagnostics to comparison stages.
+    DiagnoseReport {
+        #[arg(long)]
+        report: PathBuf,
+    },
     /// Resolve version-2 literal annotations without running comparison.
     ValidateLiteralSelectors {
         #[arg(long)]
@@ -530,6 +535,22 @@ fn main() -> ExitCode {
                 .map_err(|error| error.to_string())?;
             writeln!(stdout).map_err(|error| error.to_string())?;
             Ok(0)
+        })(),
+        Some(Command::DiagnoseReport { report }) => (|| {
+            use pdfdelta_bench::generalization_report::{
+                MAX_DIAGNOSTIC_REPORT_BYTES, StageDiagnostics, diagnose_report,
+            };
+            let result =
+                read_bounded_file(&report, MAX_DIAGNOSTIC_REPORT_BYTES, "diagnostic report")
+                    .and_then(|bytes| diagnose_report(&bytes).map_err(|error| error.to_string()));
+            let (diagnostics, exit_code) = match result {
+                Ok(diagnostics) => (diagnostics, 0),
+                Err(error) => (StageDiagnostics::reporting_failure(error), 2),
+            };
+            serde_json::to_writer_pretty(&mut stdout, &diagnostics)
+                .map_err(|error| error.to_string())?;
+            writeln!(stdout).map_err(|error| error.to_string())?;
+            Ok(exit_code)
         })(),
         Some(Command::ValidateLiteralSelectors {
             annotation,

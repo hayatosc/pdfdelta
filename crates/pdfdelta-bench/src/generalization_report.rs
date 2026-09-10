@@ -15,6 +15,10 @@ use crate::{
 pub const MAX_DOCUMENT_ANNOTATION_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_DOCUMENT_REPORT_BYTES: usize = 64 * 1024 * 1024;
 
+#[path = "report_diagnostics.rs"]
+mod report_diagnostics;
+pub use report_diagnostics::{MAX_DIAGNOSTIC_REPORT_BYTES, StageDiagnostics, diagnose_report};
+
 /// Provenance describes the pair; producer changes should name both producers.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DocumentAnnotation {
@@ -412,7 +416,7 @@ mod tests {
     use super::*;
     use serde_json::{Value, json};
 
-    fn fixture() -> (Value, Value) {
+    pub(super) fn fixture() -> (Value, Value) {
         let hash = "a".repeat(64);
         let annotation = json!({
             "old_sha256": hash, "new_sha256": hash,

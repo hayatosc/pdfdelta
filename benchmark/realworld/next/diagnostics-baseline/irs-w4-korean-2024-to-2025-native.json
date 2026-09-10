@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "report_sha256": "ab23d7871c6db1fe5ffd695d153b59c0f516e2efb8a990db6dc815d67ba6009b",
+  "report_schema_version": 11,
+  "findings": [
+    {
+      "stage": null,
+      "reason": "exact_canonical",
+      "observations": 3,
+      "example_locations": [
+        "/unresolved_regions/6/evidence/0",
+        "/unresolved_regions/11/evidence/0",
+        "/unresolved_regions/17/evidence/0"
+      ]
+    },
+    {
+      "stage": null,
+      "reason": "text_similarity",
+      "observations": 2,
+      "example_locations": [
+        "/unresolved_regions/5/evidence/0",
+        "/unresolved_regions/7/evidence/0"
+      ]
+    },
+    {
+      "stage": "normalization",
+      "reason": "normalization_issue",
+      "observations": 2,
+      "example_locations": [
+        "/unresolved_regions/12/evidence/0",
+        "/unresolved_regions/18/evidence/0"
+      ]
+    },
+    {
+      "stage": "normalization",
+      "reason": "normalization_uncertainty",
+      "observations": 15,
+      "example_locations": [
+        "/assessment/relations/0/reasons/1",
+        "/assessment/relations/27/reasons/1",
+        "/assessment/relations/28/reasons/1",
+        "/assessment/relations/29/reasons/1"
+      ]
+    },
+    {
+      "stage": "scope",
+      "reason": "domain_not_closed",
+      "observations": 14,
+      "example_locations": [
+        "/assessment/relations/27/reasons/2",
+        "/assessment/relations/28/reasons/2",
+        "/assessment/relations/29/reasons/2",
+        "/assessment/relations/40/reasons/2"
+      ]
+    },
+    {
+      "stage": "scope",
+      "reason": "reading_order_unknown",
+      "observations": 12,
+      "example_locations": [
+        "/unresolved_regions/0/evidence/0",
+        "/unresolved_regions/1/evidence/0",
+        "/unresolved_regions/2/evidence/0",
+        "/unresolved_regions/3/evidence/0"
+      ]
+    },
+    {
+      "stage": "scope",
+      "reason": "unknown_reading_order",
+      "observations": 15,
+      "example_locations": [
+        "/assessment/relations/0/reasons/0",
+        "/assessment/relations/27/reasons/0",
+        "/assessment/relations/28/reasons/0",
+        "/assessment/relations/29/reasons/0"
+      ]
+    },
+    {
+      "stage": "localization",
+      "reason": "ambiguous_edit_location",
+      "observations": 90,
+      "example_locations": [
+        "/assessment/relations/12/reasons/0",
+        "/assessment/relations/50/reasons/0",
+        "/assessment/relations/51/reasons/0",
+        "/assessment/relations/52/reasons/0"
+      ]
+    }
+  ]
+}

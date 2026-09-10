@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "report_sha256": null,
+  "report_schema_version": null,
+  "findings": [
+    {
+      "stage": "reporting_evaluation",
+      "reason": "cannot read diagnostic report /tmp/pdfdelta-next-capture/raw/edpb-right-of-access-v1-to-final-native.json: diagnostic report must not exceed 134217728 bytes",
+      "observations": 1,
+      "example_locations": []
+    }
+  ]
+}
