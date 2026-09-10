@@ -1,0 +1,21 @@
+{
+  "pair": "arxiv-attention-v6-to-v7",
+  "set": "dev",
+  "annotation": "scoped_complete",
+  "tuning_use": "used_for_fix",
+  "seconds": 9.59,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "arxiv-attention-v6-to-v7",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/arxiv-attention-v6-to-v7.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/arxiv-attention-v6-to-v7.summary.json"
+  ],
+  "exit_code": 0
+}

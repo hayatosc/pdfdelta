@@ -1,0 +1,16 @@
+{
+  "pair": "edpb-right-of-access-v1-to-final",
+  "seconds": 21.706139334011823,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/compare_order_hypotheses_source_fixed",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/edpb-right-of-access-v1-to-final-old.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/edpb-right-of-access-v1-to-final-new.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/expected/edpb-right-of-access-v1-to-final.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/edpb-right-of-access-v1-to-final-old.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/edpb-right-of-access-v1-to-final-new.json",
+    "--limit-scale",
+    "64.0"
+  ],
+  "exit_code": 0
+}

@@ -1,0 +1,21 @@
+{
+  "pair": "oasis-mqtt-311-to-50",
+  "set": "dev",
+  "annotation": "scoped_complete",
+  "tuning_use": "used_for_fix",
+  "seconds": 410.569,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "oasis-mqtt-311-to-50",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-mqtt-311-to-50.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/oasis-mqtt-311-to-50.summary.json"
+  ],
+  "exit_code": 1
+}

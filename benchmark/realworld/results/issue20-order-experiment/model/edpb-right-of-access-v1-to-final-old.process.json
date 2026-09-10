@@ -1,0 +1,14 @@
+{
+  "input": "edpb-right-of-access-v1-to-final-old",
+  "timeout_seconds": 900,
+  "seconds": 142.66170457900444,
+  "command": [
+    "/tmp/pdfdelta-issue20-ml-env/bin/python",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/issue20_model_order.py",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/edpb-right-of-access-v1-to-final-old.pdf",
+    "benchmark/realworld/results/issue20-order-experiment/model/edpb-right-of-access-v1-to-final-old.json",
+    "--model",
+    "/tmp/pdfdelta-issue20-model.json"
+  ],
+  "exit_code": 0
+}

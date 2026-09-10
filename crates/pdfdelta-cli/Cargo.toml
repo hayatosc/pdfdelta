@@ -15,9 +15,6 @@ path = "src/main.rs"
 clap.workspace = true
 clap_complete.workspace = true
 hayro = "=0.7.1"
-ocrs = { version = "=0.13.0", default-features = false, features = ["rten"] }
-rten = { version = "=0.26.0", default-features = false, features = ["rten_format"] }
-rten-imageproc = "=0.26.0"
 pdfdelta-core = { path = "../pdfdelta-core" }
 rayon.workspace = true
 serde.workspace = true

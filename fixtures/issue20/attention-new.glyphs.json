@@ -1,0 +1,1375 @@
+{
+  "glyphs": [
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4642542712749293568
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4642542712749293568,
+        4630311217636332012,
+        4642855149973442396
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2425,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        97
+      ],
+      "render_mode": "Fill",
+      "render_order": 2427,
+      "text": {
+        "mapped": "a"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4642855149973442396
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4642855149973442396,
+        4630311217636332012,
+        4643089477891554017
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2426,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        114
+      ],
+      "render_mode": "Fill",
+      "render_order": 2428,
+      "text": {
+        "mapped": "r"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4643089477891554017
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4643089477891554017,
+        4630311217636332012,
+        4643404378021749064
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2427,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        88
+      ],
+      "render_mode": "Fill",
+      "render_order": 2429,
+      "text": {
+        "mapped": "X"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4643404378021749064
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4643404378021749064,
+        4630311217636332012,
+        4643502190576156017
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2428,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        105
+      ],
+      "render_mode": "Fill",
+      "render_order": 2430,
+      "text": {
+        "mapped": "i"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4643502190576156017
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4643502190576156017,
+        4630311217636332012,
+        4643678112436600177
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2429,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        118
+      ],
+      "render_mode": "Fill",
+      "render_order": 2431,
+      "text": {
+        "mapped": "v"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4643678112436600177
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4643678112436600177,
+        4630311217636332012,
+        4643775924991007130
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2430,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        58
+      ],
+      "render_mode": "Fill",
+      "render_order": 2432,
+      "text": {
+        "mapped": ":"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4643775924991007130
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4643775924991007130,
+        4630311217636332012,
+        4643951846851451290
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2431,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        49
+      ],
+      "render_mode": "Fill",
+      "render_order": 2433,
+      "text": {
+        "mapped": "1"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4643951846851451290
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4643951846851451290,
+        4630311217636332012,
+        4644127768711895450
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2432,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        55
+      ],
+      "render_mode": "Fill",
+      "render_order": 2434,
+      "text": {
+        "mapped": "7"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4644127768711895450
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4644127768711895450,
+        4630311217636332012,
+        4644303690572339610
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2433,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        48
+      ],
+      "render_mode": "Fill",
+      "render_order": 2435,
+      "text": {
+        "mapped": "0"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4644303690572339610
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4644303690572339610,
+        4630311217636332012,
+        4644479612432783770
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2434,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        54
+      ],
+      "render_mode": "Fill",
+      "render_order": 2436,
+      "text": {
+        "mapped": "6"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4644479612432783770
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4644479612432783770,
+        4630311217636332012,
+        4644567573363005850
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2435,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        46
+      ],
+      "render_mode": "Fill",
+      "render_order": 2437,
+      "text": {
+        "mapped": "."
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4644567573363005850
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4644567573363005850,
+        4630311217636332012,
+        4644743495223450010
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2436,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        48
+      ],
+      "render_mode": "Fill",
+      "render_order": 2438,
+      "text": {
+        "mapped": "0"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4644743495223450010
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4644743495223450010,
+        4630311217636332012,
+        4644919417083894170
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2437,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        51
+      ],
+      "render_mode": "Fill",
+      "render_order": 2439,
+      "text": {
+        "mapped": "3"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4644919417083894170
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4644919417083894170,
+        4630311217636332012,
+        4645095338944338330
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2438,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        55
+      ],
+      "render_mode": "Fill",
+      "render_order": 2440,
+      "text": {
+        "mapped": "7"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4645095338944338330
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4645095338944338330,
+        4630311217636332012,
+        4645271260804782490
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2439,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        54
+      ],
+      "render_mode": "Fill",
+      "render_order": 2441,
+      "text": {
+        "mapped": "6"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4645271260804782490
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4645271260804782490,
+        4630311217636332012,
+        4645447182665226650
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2440,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        50
+      ],
+      "render_mode": "Fill",
+      "render_order": 2442,
+      "text": {
+        "mapped": "2"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4645447182665226650
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4645447182665226650,
+        4630311217636332012,
+        4645623104525670810
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2441,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        118
+      ],
+      "render_mode": "Fill",
+      "render_order": 2443,
+      "text": {
+        "mapped": "v"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4645623104525670810
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4645623104525670810,
+        4630311217636332012,
+        4645799026386114970
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2442,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        55
+      ],
+      "render_mode": "Fill",
+      "render_order": 2444,
+      "text": {
+        "mapped": "7"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4645799026386114970
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4645799026386114970,
+        4630311217636332012,
+        4645886987316337050
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2443,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        32
+      ],
+      "render_mode": "Fill",
+      "render_order": 2445,
+      "text": {
+        "mapped": " "
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4645886987316337050
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4645886987316337050,
+        4630311217636332012,
+        4645974948246559130
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2444,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        32
+      ],
+      "render_mode": "Fill",
+      "render_order": 2446,
+      "text": {
+        "mapped": " "
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4645974948246559130
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4645974948246559130,
+        4630311217636332012,
+        4646092112205614941
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2445,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        91
+      ],
+      "render_mode": "Fill",
+      "render_order": 2447,
+      "text": {
+        "mapped": "["
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4646092112205614941
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4646092112205614941,
+        4630311217636332012,
+        4646248330817689355
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2446,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        99
+      ],
+      "render_mode": "Fill",
+      "render_order": 2448,
+      "text": {
+        "mapped": "c"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4646248330817689355
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4646248330817689355,
+        4630311217636332012,
+        4646385198025114911
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2447,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        115
+      ],
+      "render_mode": "Fill",
+      "render_order": 2449,
+      "text": {
+        "mapped": "s"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4646385198025114911
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4646385198025114911,
+        4630311217636332012,
+        4646473158955336991
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2448,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        46
+      ],
+      "render_mode": "Fill",
+      "render_order": 2450,
+      "text": {
+        "mapped": "."
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4646473158955336991
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4646473158955336991,
+        4630311217636332012,
+        4646707838717169500
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2449,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        67
+      ],
+      "render_mode": "Fill",
+      "render_order": 2451,
+      "text": {
+        "mapped": "C"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4646707838717169500
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4646707838717169500,
+        4630311217636332012,
+        4646922815230632264
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2450,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        76
+      ],
+      "render_mode": "Fill",
+      "render_order": 2452,
+      "text": {
+        "mapped": "L"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4646922815230632264
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4646922815230632264,
+        4630311217636332012,
+        4647039979189688075
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2451,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        93
+      ],
+      "render_mode": "Fill",
+      "render_order": 2453,
+      "text": {
+        "mapped": "]"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647039979189688075
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647039979189688075,
+        4630311217636332012,
+        4647127940119910155
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2452,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        32
+      ],
+      "render_mode": "Fill",
+      "render_order": 2454,
+      "text": {
+        "mapped": " "
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647127940119910155
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647127940119910155,
+        4630311217636332012,
+        4647215901050132235
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2453,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        32
+      ],
+      "render_mode": "Fill",
+      "render_order": 2455,
+      "text": {
+        "mapped": " "
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647215901050132235
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647215901050132235,
+        4630311217636332012,
+        4647391822910576395
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2454,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        50
+      ],
+      "render_mode": "Fill",
+      "render_order": 2456,
+      "text": {
+        "mapped": "2"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647391822910576395
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647391822910576395,
+        4630311217636332012,
+        4647479783840798475
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2455,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        32
+      ],
+      "render_mode": "Fill",
+      "render_order": 2457,
+      "text": {
+        "mapped": " "
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647479783840798475
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647479783840798475,
+        4630311217636332012,
+        4647724315226815857
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2456,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        65
+      ],
+      "render_mode": "Fill",
+      "render_order": 2458,
+      "text": {
+        "mapped": "A"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647724315226815857
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647724315226815857,
+        4630311217636332012,
+        4647812276157037937
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2457,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        117
+      ],
+      "render_mode": "Fill",
+      "render_order": 2459,
+      "text": {
+        "mapped": "u"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647812276157037937
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647812276157037937,
+        4630311217636332012,
+        4647900237087260017
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2458,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        103
+      ],
+      "render_mode": "Fill",
+      "render_order": 2460,
+      "text": {
+        "mapped": "g"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647900237087260017
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647900237087260017,
+        4630311217636332012,
+        4647944217552371057
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2459,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        32
+      ],
+      "render_mode": "Fill",
+      "render_order": 2461,
+      "text": {
+        "mapped": " "
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4647944217552371057
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4647944217552371057,
+        4630311217636332012,
+        4648032178482593137
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2460,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        50
+      ],
+      "render_mode": "Fill",
+      "render_order": 2462,
+      "text": {
+        "mapped": "2"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4648032178482593137
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4648032178482593137,
+        4630311217636332012,
+        4648120139412815217
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2461,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        48
+      ],
+      "render_mode": "Fill",
+      "render_order": 2463,
+      "text": {
+        "mapped": "0"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4648120139412815217
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4648120139412815217,
+        4630311217636332012,
+        4648208100343037297
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2462,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        50
+      ],
+      "render_mode": "Fill",
+      "render_order": 2464,
+      "text": {
+        "mapped": "2"
+      }
+    },
+    {
+      "baseline_bits": [
+        4629700416936869888,
+        4648208100343037297
+      ],
+      "bbox_bits": [
+        4625855468755002327,
+        4648208100343037297,
+        4630311217636332012,
+        4648296061273259377
+      ],
+      "crop_status": "Inside",
+      "direction_bits": [
+        0,
+        4607182418800017408
+      ],
+      "font_id": 5,
+      "font_size_bits": 4626322717216342016,
+      "id": 2463,
+      "page": 0,
+      "path_clip_status": "Unclipped",
+      "provenance": [
+        5956,
+        0,
+        6
+      ],
+      "raw_code": [
+        51
+      ],
+      "render_mode": "Fill",
+      "render_order": 2465,
+      "text": {
+        "mapped": "3"
+      }
+    }
+  ],
+  "schema_version": 1,
+  "source_pages": [
+    0
+  ],
+  "source_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+  "vector_lines": []
+}

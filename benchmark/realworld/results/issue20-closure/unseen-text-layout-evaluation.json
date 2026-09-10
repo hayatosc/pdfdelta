@@ -1,0 +1,540 @@
+{
+  "schema_version": 5,
+  "records": [
+    {
+      "pair_id": "rfc5988-to-rfc8288",
+      "document_series_id": "rfc-web-linking",
+      "derivation_group": "rfc-web-linking",
+      "producer_family": "unknown",
+      "producer_version": "unknown",
+      "split": "holdout",
+      "trial_status": "limit",
+      "compared": true,
+      "extraction_complete": true,
+      "comparison_complete": false,
+      "coverage_old": 0.0,
+      "coverage_new": 0.0,
+      "coverage_comparison": 0.0,
+      "unresolved_old_token_share": 1.0000244893960915,
+      "unresolved_new_token_share": 1.0,
+      "accepted_changes": 0,
+      "candidate_changes": 205,
+      "formatting_only_changes": 0,
+      "uncertain_changes": 0,
+      "unresolved_regions": 125,
+      "unlocalized_changed_regions": 2,
+      "quality_skipped_reason": "scoped-complete scope \"html-version-qualifier\" old start anchor is ambiguous",
+      "trial_runtime_ms": 1011,
+      "peak_memory_bytes": 121614336,
+      "limit_scale_used": 1.0,
+      "resolved_old_tokens": 0,
+      "resolved_new_tokens": 0,
+      "old_token_resolution": {
+        "total": 40834,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 40834
+      },
+      "new_token_resolution": {
+        "total": 44135,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 44135
+      },
+      "assessment": {
+        "policy_version": 1,
+        "work_limit": 32000000,
+        "work_used": 5285205,
+        "work_by_stage": {
+          "anchor_verification": 1530638,
+          "local_views": 1588938,
+          "localization": 0,
+          "emission": 2165629
+        },
+        "candidates_truncated": false,
+        "claim_diagnostics": {
+          "review_unit_count": 3,
+          "complete_review_unit_count": 0,
+          "positive_lower_bound_unit_count": 0,
+          "mandatory_old_span_count": 0,
+          "mandatory_new_span_count": 0,
+          "normalization_hypothesis_unit_count": 0
+        }
+      },
+      "expected_matches": null,
+      "quality": {
+        "annotation": null,
+        "expected_changes": null,
+        "reported_changes": null,
+        "matched_changes": null,
+        "kind_correct": null,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null,
+        "candidate_recall": null,
+        "generator_candidate_recall_at_k": null,
+        "reported_hunks_per_matched_change": null,
+        "review_hunks_per_expected_change": null,
+        "unmatched_tiny_changes": null,
+        "unresolvable_reported_spans": null
+      },
+      "candidate": {
+        "top_k": 0,
+        "annotated_counterparts": 0,
+        "evaluable_counterparts": 0,
+        "recalled_counterparts": 0,
+        "unavailable_counterparts": 0,
+        "recall_at_k": null,
+        "candidate_groups": 205,
+        "candidate_tokens": 5850,
+        "precision": null,
+        "final_event": {
+          "expected_changes": 1,
+          "reported_changes": 205,
+          "matched_changes": 0,
+          "recall": 0.0,
+          "precision": null
+        }
+      },
+      "proven": {
+        "reported_regions": 2,
+        "expected_regions": null,
+        "matched_regions": null,
+        "precision": null,
+        "recall": null,
+        "unlocalized_regions": 2
+      },
+      "scoped_event": null,
+      "scoped_tokens": null,
+      "reviewed_recall": null
+    }
+  ],
+  "document_totals": [
+    {
+      "group_id": "rfc5988-to-rfc8288",
+      "operational": {
+        "trials": 1,
+        "ok": 0,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 1,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 1011,
+          "p50_ms": 1011,
+          "p95_ms": 1011,
+          "max_ms": 1011
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 121614336,
+          "p50_bytes": 121614336,
+          "p95_bytes": 121614336,
+          "max_bytes": 121614336
+        }
+      },
+      "accepted_changes": 0,
+      "candidate_changes": 205,
+      "formatting_only_changes": 0,
+      "uncertain_changes": 0,
+      "unresolved_regions": 125,
+      "unlocalized_changed_regions": 2,
+      "quality_skip_reasons": {
+        "scoped-complete scope \"html-version-qualifier\" old start anchor is ambiguous": 1
+      },
+      "old_token_resolution": {
+        "total": 40834,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 40834
+      },
+      "new_token_resolution": {
+        "total": 44135,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 44135
+      },
+      "proven": {
+        "reported_regions": 2,
+        "expected_regions": null,
+        "matched_regions": null,
+        "precision": null,
+        "recall": null,
+        "unlocalized_regions": 2
+      },
+      "quality": {
+        "evaluable_trials": 0,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 0,
+        "expected_changes": 0,
+        "reported_changes": 0,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 0,
+        "candidate_evaluable_counterparts": 0,
+        "candidate_recalled_counterparts": 0,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 205,
+        "candidate_tokens": 5850,
+        "candidate_precision": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "candidate_event_expected_changes": 1,
+        "candidate_event_matched_changes": 0,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "series_totals": [
+    {
+      "group_id": "rfc-web-linking",
+      "operational": {
+        "trials": 1,
+        "ok": 0,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 1,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 1011,
+          "p50_ms": 1011,
+          "p95_ms": 1011,
+          "max_ms": 1011
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 121614336,
+          "p50_bytes": 121614336,
+          "p95_bytes": 121614336,
+          "max_bytes": 121614336
+        }
+      },
+      "accepted_changes": 0,
+      "candidate_changes": 205,
+      "formatting_only_changes": 0,
+      "uncertain_changes": 0,
+      "unresolved_regions": 125,
+      "unlocalized_changed_regions": 2,
+      "quality_skip_reasons": {
+        "scoped-complete scope \"html-version-qualifier\" old start anchor is ambiguous": 1
+      },
+      "old_token_resolution": {
+        "total": 40834,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 40834
+      },
+      "new_token_resolution": {
+        "total": 44135,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 44135
+      },
+      "proven": {
+        "reported_regions": 2,
+        "expected_regions": null,
+        "matched_regions": null,
+        "precision": null,
+        "recall": null,
+        "unlocalized_regions": 2
+      },
+      "quality": {
+        "evaluable_trials": 0,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 0,
+        "expected_changes": 0,
+        "reported_changes": 0,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 0,
+        "candidate_evaluable_counterparts": 0,
+        "candidate_recalled_counterparts": 0,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 205,
+        "candidate_tokens": 5850,
+        "candidate_precision": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "candidate_event_expected_changes": 1,
+        "candidate_event_matched_changes": 0,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "producer_totals": [
+    {
+      "group_id": "unknown",
+      "operational": {
+        "trials": 1,
+        "ok": 0,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 1,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 1011,
+          "p50_ms": 1011,
+          "p95_ms": 1011,
+          "max_ms": 1011
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 121614336,
+          "p50_bytes": 121614336,
+          "p95_bytes": 121614336,
+          "max_bytes": 121614336
+        }
+      },
+      "accepted_changes": 0,
+      "candidate_changes": 205,
+      "formatting_only_changes": 0,
+      "uncertain_changes": 0,
+      "unresolved_regions": 125,
+      "unlocalized_changed_regions": 2,
+      "quality_skip_reasons": {
+        "scoped-complete scope \"html-version-qualifier\" old start anchor is ambiguous": 1
+      },
+      "old_token_resolution": {
+        "total": 40834,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 40834
+      },
+      "new_token_resolution": {
+        "total": 44135,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 44135
+      },
+      "proven": {
+        "reported_regions": 2,
+        "expected_regions": null,
+        "matched_regions": null,
+        "precision": null,
+        "recall": null,
+        "unlocalized_regions": 2
+      },
+      "quality": {
+        "evaluable_trials": 0,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 0,
+        "expected_changes": 0,
+        "reported_changes": 0,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 0,
+        "candidate_evaluable_counterparts": 0,
+        "candidate_recalled_counterparts": 0,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 205,
+        "candidate_tokens": 5850,
+        "candidate_precision": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "candidate_event_expected_changes": 1,
+        "candidate_event_matched_changes": 0,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "split_totals": [
+    {
+      "group_id": "holdout",
+      "operational": {
+        "trials": 1,
+        "ok": 0,
+        "skipped": 0,
+        "unsupported": 0,
+        "unresolved": 0,
+        "limit": 1,
+        "fatal": 0,
+        "runtime": {
+          "samples": 1,
+          "min_ms": 1011,
+          "p50_ms": 1011,
+          "p95_ms": 1011,
+          "max_ms": 1011
+        },
+        "peak_memory": {
+          "samples": 1,
+          "min_bytes": 121614336,
+          "p50_bytes": 121614336,
+          "p95_bytes": 121614336,
+          "max_bytes": 121614336
+        }
+      },
+      "accepted_changes": 0,
+      "candidate_changes": 205,
+      "formatting_only_changes": 0,
+      "uncertain_changes": 0,
+      "unresolved_regions": 125,
+      "unlocalized_changed_regions": 2,
+      "quality_skip_reasons": {
+        "scoped-complete scope \"html-version-qualifier\" old start anchor is ambiguous": 1
+      },
+      "old_token_resolution": {
+        "total": 40834,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 40834
+      },
+      "new_token_resolution": {
+        "total": 44135,
+        "same": 0,
+        "changed": 0,
+        "unresolved": 44135
+      },
+      "proven": {
+        "reported_regions": 2,
+        "expected_regions": null,
+        "matched_regions": null,
+        "precision": null,
+        "recall": null,
+        "unlocalized_regions": 2
+      },
+      "quality": {
+        "evaluable_trials": 0,
+        "complete_trials": 0,
+        "scoped_complete_trials": 0,
+        "partial_trials": 0,
+        "expected_changes": 0,
+        "reported_changes": 0,
+        "matched_changes": 0,
+        "kind_correct": 0,
+        "candidate_annotated_counterparts": 0,
+        "candidate_evaluable_counterparts": 0,
+        "candidate_recalled_counterparts": 0,
+        "candidate_unavailable_counterparts": 0,
+        "candidate_groups": 205,
+        "candidate_tokens": 5850,
+        "candidate_precision": null,
+        "candidate_recall": 0.0,
+        "generator_candidate_recall_at_k": null,
+        "candidate_event_expected_changes": 1,
+        "candidate_event_matched_changes": 0,
+        "precision": null,
+        "recall": null,
+        "document_recall": null,
+        "kind_accuracy": null
+      }
+    }
+  ],
+  "totals": {
+    "group_id": "all",
+    "operational": {
+      "trials": 1,
+      "ok": 0,
+      "skipped": 0,
+      "unsupported": 0,
+      "unresolved": 0,
+      "limit": 1,
+      "fatal": 0,
+      "runtime": {
+        "samples": 1,
+        "min_ms": 1011,
+        "p50_ms": 1011,
+        "p95_ms": 1011,
+        "max_ms": 1011
+      },
+      "peak_memory": {
+        "samples": 1,
+        "min_bytes": 121614336,
+        "p50_bytes": 121614336,
+        "p95_bytes": 121614336,
+        "max_bytes": 121614336
+      }
+    },
+    "accepted_changes": 0,
+    "candidate_changes": 205,
+    "formatting_only_changes": 0,
+    "uncertain_changes": 0,
+    "unresolved_regions": 125,
+    "unlocalized_changed_regions": 2,
+    "quality_skip_reasons": {
+      "scoped-complete scope \"html-version-qualifier\" old start anchor is ambiguous": 1
+    },
+    "old_token_resolution": {
+      "total": 40834,
+      "same": 0,
+      "changed": 0,
+      "unresolved": 40834
+    },
+    "new_token_resolution": {
+      "total": 44135,
+      "same": 0,
+      "changed": 0,
+      "unresolved": 44135
+    },
+    "proven": {
+      "reported_regions": 2,
+      "expected_regions": null,
+      "matched_regions": null,
+      "precision": null,
+      "recall": null,
+      "unlocalized_regions": 2
+    },
+    "quality": {
+      "evaluable_trials": 0,
+      "complete_trials": 0,
+      "scoped_complete_trials": 0,
+      "partial_trials": 0,
+      "expected_changes": 0,
+      "reported_changes": 0,
+      "matched_changes": 0,
+      "kind_correct": 0,
+      "candidate_annotated_counterparts": 0,
+      "candidate_evaluable_counterparts": 0,
+      "candidate_recalled_counterparts": 0,
+      "candidate_unavailable_counterparts": 0,
+      "candidate_groups": 205,
+      "candidate_tokens": 5850,
+      "candidate_precision": null,
+      "candidate_recall": 0.0,
+      "generator_candidate_recall_at_k": null,
+      "candidate_event_expected_changes": 1,
+      "candidate_event_matched_changes": 0,
+      "precision": null,
+      "recall": null,
+      "document_recall": null,
+      "kind_accuracy": null
+    }
+  },
+  "lineage_macro": {
+    "groups": 1,
+    "precision": null,
+    "recall": null,
+    "document_recall": null,
+    "kind_accuracy": null,
+    "candidate_recall": 0.0,
+    "generator_candidate_recall_at_k": null
+  },
+  "producer_macro": {
+    "groups": 0,
+    "precision": null,
+    "recall": null,
+    "document_recall": null,
+    "kind_accuracy": null,
+    "candidate_recall": null,
+    "generator_candidate_recall_at_k": null
+  },
+  "baselines": []
+}

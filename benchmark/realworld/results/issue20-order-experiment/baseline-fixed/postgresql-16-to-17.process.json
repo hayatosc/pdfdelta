@@ -1,0 +1,21 @@
+{
+  "pair": "postgresql-16-to-17",
+  "set": "holdout",
+  "annotation": "none",
+  "tuning_use": "unused",
+  "seconds": 3.222,
+  "timeout_seconds": 180,
+  "command": [
+    "/tmp/pdfdelta-issue20-baseline/target-fixed/release/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "postgresql-16-to-17",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline-fixed/postgresql-16-to-17.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline-fixed/postgresql-16-to-17.summary.json"
+  ],
+  "exit_code": 0
+}

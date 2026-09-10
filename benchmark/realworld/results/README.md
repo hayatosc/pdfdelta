@@ -1,12 +1,24 @@
 # Real-World Revision Benchmark Results
 
+The [Issue 20 closure evidence](issue20-closure/README.md) records the latest
+source-backed correspondence change, its frozen expectations, and a new holdout
+failure. It does not declare the issue or practical release complete.
+
+The Latin-only OCR runtime and its integration tests have since been removed.
+OCR commands and results in dated captures below describe that historical
+implementation; they are not instructions for the current CLI.
+
 This directory contains immutable, dated, machine-readable summaries for the real-world revision benchmark. Each capture records the engine and corpus state at that date; later captures never overwrite historical metrics.
 
 Evaluation documents, result data, annotations, and provenance are retained.
-Raw execution logs, process records, downloaded caches, and Python experiment
-runners were removed during cleanup. Historical commands referring to those
-runners describe the original experiment and are no longer executable from
-this checkout; they remain available in Git history.
+The cleanup incorrectly removed 131 process-measurement records and ten cited
+validation logs alongside disposable files. They have been restored byte-for-byte
+from the pre-cleanup revision, including exact commands, elapsed time, exit status,
+and available resource measurements. The root README's historical evaluation
+paragraphs have also been restored. Uncited raw logs, downloaded caches, and
+Python experiment runners remain excluded. Historical commands referring to
+those runners describe the original experiment and are no longer executable from
+this checkout; the removed runners remain available in Git history.
 
 ## Migration completion audit: local workers and frozen regression
 

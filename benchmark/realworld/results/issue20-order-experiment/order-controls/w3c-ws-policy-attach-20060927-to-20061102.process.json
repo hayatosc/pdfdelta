@@ -1,0 +1,16 @@
+{
+  "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+  "seconds": 4.574125468003331,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/compare_order_hypotheses",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/w3c-ws-policy-attach-20060927-to-20061102-old.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/w3c-ws-policy-attach-20060927-to-20061102-new.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/expected/w3c-ws-policy-attach-20060927-to-20061102.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/w3c-ws-policy-attach-20060927-to-20061102-old.json",
+    "benchmark/realworld/results/issue20-order-experiment/model/w3c-ws-policy-attach-20060927-to-20061102-new.json",
+    "--limit-scale",
+    "16.0"
+  ],
+  "exit_code": 0
+}

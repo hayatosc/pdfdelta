@@ -4,7 +4,7 @@ use crate::{
     Error, Result,
     alignment::BlockSeparator,
     layout::{BlockRole, TrustedRunDescriptor, TrustedRunId, TrustedRunInterval},
-    normalize::ComparableToken,
+    normalize::{BlockText, ComparableToken, NormalizationKind},
 };
 
 use super::super::{GroupText, SentenceRecoveryInput, Side, TextSpan};
@@ -35,6 +35,7 @@ struct View {
     source_order: usize,
     block_indices: Vec<usize>,
     group: GroupText,
+    source_bounded: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -129,7 +130,6 @@ pub(super) fn discover(
     if old_views.is_empty() || new_views.is_empty() {
         return Ok(Discovery::default());
     }
-
     let mut pair_anchors = BTreeMap::<(usize, usize), Vec<AnchorHit>>::new();
     let Some(seeds) = anchors::discover(
         [&old_views, &new_views],
@@ -141,12 +141,11 @@ pub(super) fn discover(
         return Ok(Discovery::default());
     };
     for anchor in seeds {
-        let (ViewKind::Trusted(_), ViewKind::Trusted(_)) = (
-            old_views[anchor.old_view].kind,
-            new_views[anchor.new_view].kind,
-        ) else {
+        if !view_is_anchorable(&old_views[anchor.old_view])
+            || !view_is_anchorable(&new_views[anchor.new_view])
+        {
             continue;
-        };
+        }
         let old_span = old_views[anchor.old_view]
             .group
             .span(anchor.old_start, anchor.old_end);
@@ -199,12 +198,11 @@ pub(super) fn discover(
         ) else {
             continue;
         };
-        let (ViewKind::Trusted(_), ViewKind::Trusted(_)) = (
-            old_views[old_occurrence.view_index].kind,
-            new_views[new_occurrence.view_index].kind,
-        ) else {
+        if !view_is_anchorable(&old_views[old_occurrence.view_index])
+            || !view_is_anchorable(&new_views[new_occurrence.view_index])
+        {
             continue;
-        };
+        }
         let old_span = old_views[old_occurrence.view_index]
             .group
             .span(old_occurrence.start, old_occurrence.end);
@@ -228,6 +226,10 @@ pub(super) fn discover(
             });
     }
 
+    if !add_source_end_anchors([&old_views, &new_views], &mut pair_anchors, remaining_work)? {
+        return Ok(Discovery::default());
+    }
+
     let mut exact_domains = Vec::new();
     for anchor in pair_anchors
         .values()
@@ -236,6 +238,9 @@ pub(super) fn discover(
     {
         let old = &old_views[anchor.old_view];
         let new = &new_views[anchor.new_view];
+        if old.source_bounded || new.source_bounded {
+            continue;
+        }
         if !charge(
             remaining_work,
             old.group
@@ -464,6 +469,7 @@ fn build_views(
             source_order: block_indices.iter().copied().min().unwrap_or(usize::MAX),
             block_indices,
             group,
+            source_bounded: false,
         });
     }
 
@@ -481,6 +487,7 @@ fn build_views(
             source_order: block_index,
             block_indices: vec![block_index],
             group,
+            source_bounded: source_bounded_block(&side.blocks[block_index], remaining_work),
         });
     }
     views.sort_unstable_by_key(|view| {
@@ -502,6 +509,131 @@ fn complete_run(members: &[RunMember]) -> bool {
             pair[0].interval.end == pair[1].interval.start
                 && pair[0].interval.end > pair[0].interval.start
         })
+}
+
+fn view_is_anchorable(view: &View) -> bool {
+    matches!(view.kind, ViewKind::Trusted(_)) || view.source_bounded
+}
+
+/// A complete single line can propose its common ending as a second anchor.
+/// The line boundary alone never closes a domain: the ending must occur exactly
+/// once across the available views on each side, just like the initial anchor.
+fn add_source_end_anchors(
+    views: [&[View]; 2],
+    pairs: &mut BTreeMap<(usize, usize), Vec<AnchorHit>>,
+    remaining: &mut usize,
+) -> Result<bool> {
+    for (&(old_view, new_view), hits) in pairs.iter_mut() {
+        let old = &views[0][old_view];
+        let new = &views[1][new_view];
+        if !old.source_bounded || !new.source_bounded {
+            continue;
+        }
+        let mut length = 0;
+        for (old_token, new_token) in old
+            .group
+            .tokens
+            .iter()
+            .rev()
+            .zip(new.group.tokens.iter().rev())
+        {
+            if !charge(remaining, 1) {
+                return Ok(false);
+            }
+            if old_token != new_token {
+                break;
+            }
+            length += 1;
+        }
+        if length == 0 {
+            continue;
+        }
+        let old_start = old.group.tokens.len() - length;
+        let new_start = new.group.tokens.len() - length;
+        if !hits
+            .iter()
+            .any(|hit| hit.old_end <= old_start && hit.new_end <= new_start)
+        {
+            continue;
+        }
+        let tokens = &old.group.tokens[old_start..];
+        let mut occurrences = [None, None];
+        for side in 0..2 {
+            occurrences[side] = match search_views(views[side], tokens, remaining)? {
+                SearchResult::Complete(summary) => unique_occurrence(summary),
+                SearchResult::BudgetExceeded => return Ok(false),
+            };
+        }
+        let [Some(old_end), Some(new_end)] = occurrences else {
+            continue;
+        };
+        if old_end.view_index != old_view
+            || old_end.start != old_start
+            || new_end.view_index != new_view
+            || new_end.start != new_start
+        {
+            continue;
+        }
+        hits.try_reserve(1)
+            .map_err(|_| super::allocation_error("source ending anchors"))?;
+        hits.push(AnchorHit {
+            input_index: usize::MAX,
+            old_view,
+            new_view,
+            old_start,
+            old_end: old.group.tokens.len(),
+            new_start,
+            new_end: new.group.tokens.len(),
+        });
+    }
+    Ok(true)
+}
+
+fn source_bounded_block(block: &BlockText, remaining: &mut usize) -> bool {
+    if !block.issues.is_empty()
+        || block
+            .normalization_events
+            .iter()
+            .any(|event| event.kind != NormalizationKind::WhitespaceCollapse)
+        || !block.canonical.unmapped.is_empty()
+        || !block.line_breaks.as_ref().is_some_and(Vec::is_empty)
+        || !block.page_breaks.as_ref().is_some_and(Vec::is_empty)
+        || block.pages.len() != 1
+        || block.font_size_signatures.is_none()
+        || block.position_signatures.is_none()
+    {
+        return false;
+    }
+    let scalar_count = block.canonical.text.chars().count();
+    let source_count = block
+        .canonical
+        .source_map
+        .iter()
+        .fold(0usize, |total, entry| {
+            total.saturating_add(entry.source.atoms.len())
+        });
+    let mut sources = HashSet::new();
+    if !charge(remaining, source_count) || sources.try_reserve(source_count).is_err() {
+        *remaining = 0;
+        return false;
+    }
+    let mut next_start = 0usize;
+    for entry in &block.canonical.source_map {
+        if entry.output_range.start != next_start
+            || entry
+                .output_range
+                .end
+                .saturating_sub(entry.output_range.start)
+                != 1
+            || entry.output_range.end > scalar_count
+            || entry.source.atoms.is_empty()
+            || entry.source.atoms.iter().any(|atom| !sources.insert(atom))
+        {
+            return false;
+        }
+        next_start = entry.output_range.end;
+    }
+    next_start == scalar_count
 }
 
 fn descriptor_allows(
@@ -862,6 +994,9 @@ fn close_domain(
     let new_view = new_views.get(first.new_view)?;
     if anchors.len() == 1 {
         let anchor = anchors[0];
+        if old_view.source_bounded || new_view.source_bounded {
+            return None;
+        }
         // One independently unique anchor proves only its own equal source
         // range. It cannot close either adjacent gap or the rest of the run.
         return Some(LocalDomain {
@@ -926,7 +1061,11 @@ mod tests {
     use super::*;
     use crate::{
         layout::{BlockId, BlockRole},
-        normalize::{MappedText, ScalarRange},
+        model::{GlyphId, Vec2},
+        normalize::{
+            FontSizeSignature, MappedText, PositionSignature, ScalarRange, SourceMapEntry,
+            TextSource, TextSourceAtom,
+        },
     };
 
     fn discover(
@@ -969,6 +1108,50 @@ mod tests {
         }
     }
 
+    fn sourced_block(id: u64, text: &str) -> crate::normalize::BlockText {
+        let source_map = text
+            .chars()
+            .enumerate()
+            .map(|(index, _)| SourceMapEntry {
+                output_range: ScalarRange {
+                    start: index,
+                    end: index + 1,
+                },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(id * 1000 + index as u64 + 1))]
+                        .into(),
+                },
+            })
+            .collect::<Vec<_>>();
+        let canonical = MappedText {
+            text: text.to_owned(),
+            source_map,
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens");
+        let font_size = FontSizeSignature::new(&[10.0]).expect("valid font size");
+        let position = PositionSignature::new(Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("valid position");
+        crate::normalize::BlockText {
+            block: BlockId(id),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: text.to_owned(),
+            matching_tokens: tokens.clone(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: Some(vec![font_size; tokens.len()]),
+            position_signatures: Some(vec![position; tokens.len()]),
+            line_breaks: Some(Vec::new()),
+            page_breaks: Some(Vec::new()),
+        }
+    }
+
     fn side<'a>(blocks: &'a [crate::normalize::BlockText]) -> Side<'a> {
         super::super::super::SidePlan::inspect("test", blocks)
             .expect("test blocks are valid")
@@ -998,6 +1181,102 @@ mod tests {
             enable_known_span_sentence_shadow: false,
             enable_sentence_edge_gate_shadow: false,
         }
+    }
+
+    #[test]
+    fn source_bounded_block_accepts_complete_single_line_evidence() {
+        assert!(source_bounded_block(
+            &sourced_block(1, "source"),
+            &mut 10_000
+        ));
+    }
+
+    #[test]
+    fn source_bounded_block_rejects_incomplete_source_evidence() {
+        let mut block = sourced_block(1, "source");
+        block.canonical.source_map.pop();
+        assert!(!source_bounded_block(&block, &mut 10_000));
+
+        let mut block = sourced_block(2, "source");
+        block.line_breaks = Some(vec![3]);
+        assert!(!source_bounded_block(&block, &mut 10_000));
+    }
+
+    #[test]
+    fn source_bounded_block_rejects_shared_scalar_sources() {
+        let mut block = sourced_block(1, "AfiB");
+        block.canonical.source_map[2].source = block.canonical.source_map[1].source.clone();
+        assert!(!source_bounded_block(&block, &mut 10_000));
+
+        let mut block = sourced_block(1, "AfiB");
+        block.canonical.source_map[1].output_range.end = 3;
+        block.canonical.source_map.remove(2);
+        assert!(!source_bounded_block(&block, &mut 10_000));
+    }
+
+    #[test]
+    fn source_bounded_views_need_an_independent_unique_ending() {
+        for repeated_ending in [false, true] {
+            let mut old_blocks = vec![sourced_block(1, "Unique header alpha FIN.")];
+            let mut new_blocks = vec![sourced_block(101, "Unique header beta FIN.")];
+            if repeated_ending {
+                old_blocks.push(sourced_block(2, "Gamma FIN."));
+                new_blocks.push(sourced_block(102, "Gamma FIN."));
+            }
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let old_intervals = vec![None; old_blocks.len()];
+            let new_intervals = vec![None; new_blocks.len()];
+            let mut input = recovery(&old_intervals, &new_intervals);
+            input.min_tokens = 12;
+            let domains = discover([&old, &new], input, &[], &mut 100_000, 100)
+                .expect("bounded source ending search");
+            if repeated_ending {
+                assert!(
+                    domains.is_empty(),
+                    "a repeated ending cannot close the changed line"
+                );
+            } else {
+                assert_eq!(domains.len(), 1);
+                assert_eq!(
+                    super::super::span_tokens(&old, &domains[0].old_span).expect("old tokens"),
+                    old_blocks[0]
+                        .canonical
+                        .comparable_tokens()
+                        .expect("old source")
+                );
+                assert_eq!(
+                    super::super::span_tokens(&new, &domains[0].new_span).expect("new tokens"),
+                    new_blocks[0]
+                        .canonical
+                        .comparable_tokens()
+                        .expect("new source")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn source_bounded_views_do_not_bridge_a_line_wrap() {
+        let old_blocks = [sourced_block(1, "stable"), sourced_block(2, "suffix")];
+        let new_blocks = [sourced_block(101, "stable suffix")];
+        assert!(source_bounded_block(&old_blocks[0], &mut 10_000));
+        assert!(source_bounded_block(&old_blocks[1], &mut 10_000));
+        assert!(source_bounded_block(&new_blocks[0], &mut 10_000));
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [None, None];
+        let new_intervals = [None];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 1;
+
+        let domains = discover([&old, &new], input, &[], &mut 10_000, 10)
+            .expect("line-wrap fixture remains within the local discovery budget");
+
+        assert!(domains.iter().all(|domain| {
+            super::super::span_tokens(&old, &domain.old_span).expect("old range")
+                == super::super::span_tokens(&new, &domain.new_span).expect("new range")
+        }));
     }
 
     fn interval(run_id: u64, start: usize, end: usize) -> Option<TrustedRunInterval> {

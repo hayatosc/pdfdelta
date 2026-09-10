@@ -1,5 +1,10 @@
 # pdfdelta comparison contract v5
 
+The current application has no OCR provider or model-loading options. Recognition
+contracts below describe evidence supplied by a provider, not an implemented
+acquisition capability. Scanned text remains unresolved; rendered pixels remain
+available for visual comparison.
+
 ## Purpose and status
 
 Compare the content and relationships selected by the user independently of

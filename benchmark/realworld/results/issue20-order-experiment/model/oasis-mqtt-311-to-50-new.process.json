@@ -1,0 +1,14 @@
+{
+  "input": "oasis-mqtt-311-to-50-new",
+  "timeout_seconds": 900,
+  "seconds": 361.218653007003,
+  "command": [
+    "/tmp/pdfdelta-issue20-ml-env/bin/python",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/issue20_model_order.py",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/oasis-mqtt-311-to-50-new.pdf",
+    "benchmark/realworld/results/issue20-order-experiment/model/oasis-mqtt-311-to-50-new.json",
+    "--model",
+    "/tmp/pdfdelta-issue20-model.json"
+  ],
+  "exit_code": 0
+}

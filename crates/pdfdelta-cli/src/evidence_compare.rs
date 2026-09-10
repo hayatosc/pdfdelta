@@ -25,7 +25,6 @@ use crate::{
 
 pub struct EvidenceOptions {
     pub channels: BTreeSet<Channel>,
-    pub ocr_models: Option<crate::ocr::Models>,
 }
 
 #[derive(Serialize)]
@@ -35,9 +34,7 @@ struct EvidenceSummary<'a> {
     native_glyphs: usize,
     rendered_regions: usize,
     structured_elements: usize,
-    recognized_regions: Vec<&'a pdfdelta_core::document::StructuredEvidence>,
     form_fields: Vec<&'a pdfdelta_core::document::StructuredEvidence>,
-    form_appearance_readings: &'a pdfdelta_core::document::FormAppearanceAnalysis,
     rendered_sources: Vec<RenderedSource<'a>>,
     backends: &'a [BackendIdentity],
     issues: &'a [EvidenceIssue],
@@ -54,12 +51,8 @@ struct RenderedSource<'a> {
 }
 
 impl<'a> EvidenceSummary<'a> {
-    fn new(
-        store: &'a EvidenceStore,
-        form_appearance_readings: &'a pdfdelta_core::document::FormAppearanceAnalysis,
-    ) -> Self {
+    fn new(store: &'a EvidenceStore) -> Self {
         Self {
-            form_appearance_readings,
             revision: &store.revision,
             pages: store.pages.len(),
             native_glyphs: store.native.items().len(),
@@ -72,16 +65,6 @@ impl<'a> EvidenceSummary<'a> {
                     matches!(
                         element.value,
                         pdfdelta_core::document::StructuredValue::FormField { .. }
-                    )
-                })
-                .collect(),
-            recognized_regions: store
-                .structured
-                .iter()
-                .filter(|element| {
-                    matches!(
-                        element.value,
-                        pdfdelta_core::document::StructuredValue::RecognizedText { .. }
                     )
                 })
                 .collect(),
@@ -129,10 +112,8 @@ pub fn compare(
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
     let started = std::time::Instant::now();
-    let mut old = collect(old_input, cache_dir, options)?;
-    let mut new = collect(new_input, cache_dir, options)?;
-    let old_appearance = crate::widgets::assess_readings(&mut old)?;
-    let new_appearance = crate::widgets::assess_readings(&mut new)?;
+    let old = collect(old_input, cache_dir, options)?;
+    let new = collect(new_input, cache_dir, options)?;
     let limits = DocumentComparisonLimits {
         matching: MatchingLimits {
             channels: MatchingChannels::from(&options.channels),
@@ -248,8 +229,8 @@ pub fn compare(
         typed_changes: changes,
         inferred_changes,
         coverage,
-        old: EvidenceSummary::new(&old, &old_appearance),
-        new: EvidenceSummary::new(&new, &new_appearance),
+        old: EvidenceSummary::new(&old),
+        new: EvidenceSummary::new(&new),
         table_refinements,
         comparison,
     };
@@ -322,12 +303,6 @@ fn collect(
     cache_dir: Option<&Path>,
     options: &EvidenceOptions,
 ) -> Result<EvidenceStore, String> {
-    if options.ocr_models.is_some()
-        && !options.channels.contains(&Channel::Text)
-        && !options.channels.contains(&Channel::Forms)
-    {
-        return Err("OCR requires the text or forms comparison channel".into());
-    }
     let parse_limits = ParseLimits::default();
     let limits = EvidenceLimits::default();
     let bytes = read_limited_typed(input.path, parse_limits.max_input_bytes)
@@ -343,13 +318,9 @@ fn collect(
     if options.channels.contains(&Channel::Text)
         || options.channels.contains(&Channel::Visual)
         || options.channels.contains(&Channel::Presentation)
-        || options.ocr_models.is_some()
         || store.structured.iter().any(|field| matches!(&field.value, pdfdelta_core::document::StructuredValue::FormField { widgets, .. } if !widgets.is_empty()))
     {
         crate::render::collect(&mut store, &bytes, &page_refs, password.is_some());
-    }
-    if let Some(models) = &options.ocr_models {
-        crate::ocr::collect(&mut store, models);
     }
     crate::widgets::collect(&mut store);
     for channel in [Channel::Presentation] {

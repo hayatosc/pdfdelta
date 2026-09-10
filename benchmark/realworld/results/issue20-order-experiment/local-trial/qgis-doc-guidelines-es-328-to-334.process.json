@@ -1,0 +1,21 @@
+{
+  "pair": "qgis-doc-guidelines-es-328-to-334",
+  "set": "holdout",
+  "annotation": "none",
+  "tuning_use": "unused",
+  "seconds": 1.416,
+  "timeout_seconds": 180,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "qgis-doc-guidelines-es-328-to-334",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-doc-guidelines-es-328-to-334.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/qgis-doc-guidelines-es-328-to-334.summary.json"
+  ],
+  "exit_code": 1
+}

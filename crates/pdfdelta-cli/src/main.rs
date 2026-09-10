@@ -13,7 +13,6 @@ mod extraction_cache;
 mod fs;
 mod inspect;
 mod native_worker;
-mod ocr;
 mod render;
 mod trace;
 mod widgets;
@@ -33,18 +32,6 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => ExitCode::from(code),
         },
-        Some(Command::RecognizeRegion {
-            detection_model,
-            recognition_model,
-        }) => {
-            match ocr::worker(&ocr::Models {
-                detection: detection_model,
-                recognition: recognition_model,
-            }) {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(code) => ExitCode::from(code),
-            }
-        }
         Some(Command::RenderPage {
             page,
             pages,
@@ -114,12 +101,6 @@ fn main() -> ExitCode {
                     command,
                     &evidence_compare::EvidenceOptions {
                         channels: cli.channels.iter().copied().map(Into::into).collect(),
-                        ocr_models: cli.ocr_detection_model.zip(cli.ocr_recognition_model).map(
-                            |(detection, recognition)| ocr::Models {
-                                detection,
-                                recognition,
-                            },
-                        ),
                     },
                     &mut stderr,
                 )

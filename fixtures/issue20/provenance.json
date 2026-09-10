@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "pair": "arxiv-attention-v6-to-v7",
+  "source_manifest": "benchmark/realworld/manifest.tsv",
+  "capture_tool": "crates/pdfdelta-bench/examples/capture_glyph_fixture.rs",
+  "fixtures": [
+    {
+      "file": "attention-old.glyphs.json",
+      "sha256": "bfc231ad3228cb9c5c9a184d11d812b66567fedab2dc8f8ca9ab00fb31c46fa5",
+      "source_sha256": "3c3ac946023fe79165ffcc4fb0696a6281da5f8ee32cbbc0a7c0677400891a41",
+      "source_pages": [
+        0
+      ],
+      "glyph_count": 40,
+      "selection": "All page-zero glyphs whose direction.x is exactly zero; preserve complete source records and IDs.",
+      "scope": "Reduced stamp-only document; not a proof of full-PDF correspondence or uniqueness."
+    },
+    {
+      "file": "attention-new.glyphs.json",
+      "sha256": "d825cc704786cce90e505ff55c69bd9755c210f68739ade522a98252d246f283",
+      "source_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+      "source_pages": [
+        0
+      ],
+      "glyph_count": 39,
+      "selection": "All page-zero glyphs whose direction.x is exactly zero; preserve complete source records and IDs.",
+      "scope": "Reduced stamp-only document; not a proof of full-PDF correspondence or uniqueness."
+    }
+  ]
+}

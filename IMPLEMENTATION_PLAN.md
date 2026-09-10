@@ -5,6 +5,16 @@ and forms over one evidence store and one correspondence foundation. This is not
 complete when only data structures or a new design document exist. The previous
 29-pair/39-expectation evaluation remains a frozen regression contract.
 
+## Current acquisition scope
+
+The Latin-only OCR implementation has been removed, including model options,
+recognition workers, runtime dependencies, and OCR-specific CLI report fields.
+Image comparison retains rendered pixels; image text and saved-value/display-text
+agreement remain unresolved. The core can still represent externally supplied
+recognition evidence, but the application has no recognition provider.
+The OCR execution results below are historical migration evidence and do not
+represent current functionality or runnable integration tests.
+
 ## Decisions and boundaries
 
 - Preserve the native glyph extractor, its raw codes, geometry, rendering modes,

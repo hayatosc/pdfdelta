@@ -38,16 +38,8 @@ pub struct Cli {
     pub channels: Vec<ComparisonChannel>,
 
     /// Compare only extracted native glyphs using the legacy report contract.
-    #[arg(long, conflicts_with_all = ["channels", "ocr_detection_model", "ocr_recognition_model"])]
+    #[arg(long, conflicts_with = "channels")]
     pub native_text_only: bool,
-
-    /// Local RTen text-detection model; enables image-backed OCR for the text channel.
-    #[arg(long, requires_all = ["ocr_recognition_model", "new"])]
-    pub ocr_detection_model: Option<PathBuf>,
-
-    /// Local RTen text-recognition model using the default Latin alphabet.
-    #[arg(long, requires_all = ["ocr_detection_model", "new"])]
-    pub ocr_recognition_model: Option<PathBuf>,
 
     /// Write a machine-readable JSON comparison report to a file.
     #[arg(short = 'j', long, value_name = "PATH", requires = "new")]
@@ -145,12 +137,6 @@ pub enum Command {
     /// Internal bounded native acquisition process; consumes framed PDF bytes.
     #[command(hide = true)]
     AcquireNative,
-    /// Internal bounded recognition process; consumes framed RGB evidence.
-    #[command(hide = true)]
-    RecognizeRegion {
-        detection_model: PathBuf,
-        recognition_model: PathBuf,
-    },
     /// Internal bounded rendering process; consumes PDF bytes on standard input.
     #[command(hide = true)]
     RenderPage {

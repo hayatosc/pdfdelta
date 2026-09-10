@@ -7,34 +7,6 @@ use pdfdelta_core::{
 };
 use std::collections::BTreeMap;
 
-pub fn assess_readings(
-    store: &mut EvidenceStore,
-) -> Result<pdfdelta_core::document::FormAppearanceAnalysis, String> {
-    use pdfdelta_core::document::{FormReadingLimits, FormReadingStatus, assess_form_appearances};
-    let analysis = assess_form_appearances(store, FormReadingLimits::default())
-        .map_err(|error| error.to_string())?;
-    for observation in &analysis.observations {
-        if observation.status == FormReadingStatus::DifferentLiteralReading {
-            store.issues.push(EvidenceIssue { page: None, channel: Channel::Forms, sources: observation.sources.clone(), kind: EvidenceFailure::Unresolved,
-                reason: format!("OCR reading differs from the saved text of field {}; the reading remains inferred and neither value was substituted", observation.field) });
-        }
-    }
-    if !analysis.exhaustive {
-        store.issues.push(EvidenceIssue {
-            page: None,
-            channel: Channel::Forms,
-            sources: analysis
-                .unexamined_regions
-                .iter()
-                .map(|region| SourceRef::Rendered { region: *region })
-                .collect(),
-            kind: EvidenceFailure::ResourceLimit,
-            reason: "form appearance reading analysis exceeded its work budget".into(),
-        });
-    }
-    Ok(analysis)
-}
-
 /// Retains source-checked crops without treating rendered pixels as field values.
 pub fn collect(store: &mut EvidenceStore) {
     let pages: BTreeMap<_, _> = store

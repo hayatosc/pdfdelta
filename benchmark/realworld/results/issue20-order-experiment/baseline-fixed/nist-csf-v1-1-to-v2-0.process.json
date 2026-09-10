@@ -1,0 +1,21 @@
+{
+  "pair": "nist-csf-v1-1-to-v2-0",
+  "set": "dev",
+  "annotation": "partial",
+  "tuning_use": "used_for_fix",
+  "seconds": 26.139,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-baseline/target-fixed/release/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "nist-csf-v1-1-to-v2-0",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline-fixed/nist-csf-v1-1-to-v2-0.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/baseline-fixed/nist-csf-v1-1-to-v2-0.summary.json"
+  ],
+  "exit_code": 1
+}

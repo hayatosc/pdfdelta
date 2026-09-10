@@ -1,0 +1,14 @@
+{
+  "input": "bis-operational-risk-2011-to-2021-new",
+  "timeout_seconds": 900,
+  "seconds": 62.81603542699304,
+  "command": [
+    "/tmp/pdfdelta-issue20-ml-env/bin/python",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/issue20_model_order.py",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/bis-operational-risk-2011-to-2021-new.pdf",
+    "benchmark/realworld/results/issue20-order-experiment/model/bis-operational-risk-2011-to-2021-new.json",
+    "--model",
+    "/tmp/pdfdelta-issue20-model.json"
+  ],
+  "exit_code": 0
+}

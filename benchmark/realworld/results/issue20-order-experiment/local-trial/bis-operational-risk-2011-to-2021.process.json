@@ -1,0 +1,21 @@
+{
+  "pair": "bis-operational-risk-2011-to-2021",
+  "set": "dev",
+  "annotation": "scoped_complete",
+  "tuning_use": "used_for_fix",
+  "seconds": 24.58,
+  "timeout_seconds": 900,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "bis-operational-risk-2011-to-2021",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/bis-operational-risk-2011-to-2021.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/bis-operational-risk-2011-to-2021.summary.json"
+  ],
+  "exit_code": 1
+}

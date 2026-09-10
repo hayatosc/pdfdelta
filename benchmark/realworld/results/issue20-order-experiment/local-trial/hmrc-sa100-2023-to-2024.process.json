@@ -1,0 +1,21 @@
+{
+  "pair": "hmrc-sa100-2023-to-2024",
+  "set": "holdout",
+  "annotation": "none",
+  "tuning_use": "unused",
+  "seconds": 0.164,
+  "timeout_seconds": 180,
+  "command": [
+    "/tmp/pdfdelta-issue20-local-trial/pdfbench",
+    "revisions",
+    "--cache-dir",
+    "benchmark/realworld/cache",
+    "--pair",
+    "hmrc-sa100-2023-to-2024",
+    "--evaluation-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/hmrc-sa100-2023-to-2024.evaluation.json",
+    "--summary-json-output",
+    "benchmark/realworld/results/issue20-order-experiment/local-trial/hmrc-sa100-2023-to-2024.summary.json"
+  ],
+  "exit_code": 0
+}
