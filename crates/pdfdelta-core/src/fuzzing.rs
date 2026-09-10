@@ -1834,7 +1834,7 @@ mod tests {
 
     #[test]
     fn curated_native_evidence_seed_reaches_validation() {
-        fuzz_native_evidence(GLYPH_EXTRACTION_SEED);
+        let _ = fuzz_native_evidence(GLYPH_EXTRACTION_SEED);
         assert!(
             fuzz_native_evidence(GLYPH_EXTRACTION_SEED),
             "the curated PDF should reach form or structure evidence"
