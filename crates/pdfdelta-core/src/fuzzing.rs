@@ -1190,9 +1190,27 @@ fn synthetic_evidence_pdf(input: &[u8]) -> Vec<u8> {
             "K" => row,
         }),
     );
+    let root_k = if byte(32).is_multiple_of(2) {
+        // A second root child whose parent reference points to itself must
+        // stay a reported failure, never a hang.
+        let cyclic = pdf.new_object_id();
+        pdf.objects.insert(
+            cyclic,
+            Object::Dictionary(dictionary! {
+                "Type" => "StructElem",
+                "S" => "P",
+                "P" => cyclic,
+                "Pg" => page,
+                "K" => Object::Array(vec![Object::Integer(0)]),
+            }),
+        );
+        Object::Array(vec![Object::Reference(table), Object::Reference(cyclic)])
+    } else {
+        Object::Reference(table)
+    };
     pdf.objects.insert(
         root,
-        Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => table }),
+        Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => root_k }),
     );
 
     let catalog = pdf.add_object(dictionary! {
