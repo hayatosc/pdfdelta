@@ -897,7 +897,8 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
     true
 }
 
-/// Exercises native form and structure evidence extraction on one PDF.
+/// Exercises native form and structure evidence extraction on the input PDF and
+/// on a synthetic form/tag PDF derived from the same bytes.
 ///
 /// Inputs larger than 64 KiB are ignored. The parser and glyph extraction use
 /// the tight fuzzing budgets. A successful store build, form extraction, or
@@ -914,6 +915,15 @@ pub fn fuzz_native_evidence(input: &[u8]) -> bool {
     if input.len() > MAX_INPUT_BYTES {
         return false;
     }
+    let mut reached = native_evidence_for_pdf(input);
+    let synthetic = synthetic_evidence_pdf(input);
+    if !synthetic.is_empty() {
+        reached |= native_evidence_for_pdf(&synthetic);
+    }
+    reached
+}
+
+fn native_evidence_for_pdf(input: &[u8]) -> bool {
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let Ok(outcome) = source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS)
     else {
@@ -1014,6 +1024,172 @@ pub fn fuzz_native_evidence(input: &[u8]) -> bool {
         reached = true;
     }
     reached
+}
+
+/// Builds a small PDF with one font, a marked-content run, a structure tree,
+/// and up to three AcroForm fields whose names, types, values, and widget
+/// states derive from the fuzz bytes.
+fn synthetic_evidence_pdf(input: &[u8]) -> Vec<u8> {
+    use lopdf::{Document, Object, Stream, dictionary};
+
+    let byte = |index: usize| input.get(index).copied().unwrap_or(0);
+    let mut pdf = Document::with_version("1.7");
+    let pages = pdf.new_object_id();
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/P <</MCID 0>> BDC BT /F1 10 Tf 1 0 0 1 20 30 Tm (Tagged note) Tj ET EMC".to_vec(),
+    ));
+    let page = pdf.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages,
+        "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(200), Object::from(200)],
+        "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } },
+        "Contents" => content,
+        "StructParents" => 0,
+    });
+    pdf.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page)],
+            "Count" => 1,
+        }),
+    );
+
+    let mut fields = Vec::new();
+    for index in 0..usize::from(byte(0) % 4) {
+        let base = 1 + index * 8;
+        let name = format!("field{}", byte(base + 1) % 10);
+        let mut field = dictionary! { "T" => Object::string_literal(name) };
+        match byte(base) % 3 {
+            0 => {
+                field.set("FT", "Tx");
+                match byte(base + 2) % 4 {
+                    0 => field.set(
+                        "V",
+                        Object::string_literal(format!("value{}", byte(base + 3))),
+                    ),
+                    1 => field.set(
+                        "V",
+                        Object::String(
+                            vec![0xfe, 0xff, byte(base + 3)],
+                            lopdf::StringFormat::Literal,
+                        ),
+                    ),
+                    2 => field.set("V", Object::Integer(i64::from(byte(base + 3)))),
+                    _ => {}
+                }
+            }
+            1 => {
+                field.set("FT", "Btn");
+                let saved = if byte(base + 2).is_multiple_of(2) {
+                    b"Yes".to_vec()
+                } else {
+                    b"Off".to_vec()
+                };
+                field.set("V", Object::Name(saved));
+                if byte(base + 3).is_multiple_of(2) {
+                    field.set("Subtype", "Widget");
+                    let state = match byte(base + 4) % 3 {
+                        0 => b"Off".to_vec(),
+                        1 => b"Yes".to_vec(),
+                        _ => b"Other".to_vec(),
+                    };
+                    field.set("AS", Object::Name(state));
+                } else {
+                    let kids = (0..=usize::from(byte(base + 4) % 3))
+                        .map(|kid| {
+                            let state = match byte(base + 5 + kid) % 3 {
+                                0 => b"Off".to_vec(),
+                                1 => b"Yes".to_vec(),
+                                _ => b"Other".to_vec(),
+                            };
+                            Object::Reference(pdf.add_object(dictionary! {
+                                "Subtype" => "Widget",
+                                "AS" => Object::Name(state),
+                            }))
+                        })
+                        .collect::<Vec<_>>();
+                    field.set("Kids", kids);
+                }
+            }
+            _ => {
+                field.set("FT", "Ch");
+                match byte(base + 2) % 3 {
+                    0 => field.set(
+                        "V",
+                        Object::string_literal(format!("choice{}", byte(base + 3))),
+                    ),
+                    1 => {
+                        let values = (0..=usize::from(byte(base + 3) % 3))
+                            .map(|value| {
+                                Object::string_literal(format!("c{}", byte(base + 4 + value)))
+                            })
+                            .collect::<Vec<_>>();
+                        field.set("V", Object::Array(values));
+                    }
+                    _ => {
+                        field.set("Opt", Object::Array(vec![Object::string_literal("option")]));
+                        field.set("V", Object::Name(b"Off".to_vec()));
+                    }
+                }
+            }
+        }
+        fields.push(Object::Reference(pdf.add_object(field)));
+    }
+
+    let root = pdf.new_object_id();
+    let table = pdf.new_object_id();
+    let row = pdf.new_object_id();
+    let cell = pdf.add_object(dictionary! {
+        "Type" => "StructElem",
+        "S" => "TD",
+        "P" => row,
+        "Pg" => page,
+        "K" => i64::from(byte(31) % 3),
+    });
+    pdf.objects.insert(
+        row,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructElem",
+            "S" => "TR",
+            "P" => table,
+            "K" => cell,
+        }),
+    );
+    pdf.objects.insert(
+        table,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructElem",
+            "S" => "Table",
+            "P" => root,
+            "K" => row,
+        }),
+    );
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => table }),
+    );
+
+    let catalog = pdf.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages,
+        "AcroForm" => dictionary! { "Fields" => fields },
+        "StructTreeRoot" => root,
+        "MarkInfo" => dictionary! { "Marked" => true },
+    });
+    pdf.trailer.set("Root", catalog);
+
+    let mut bytes = Vec::new();
+    if pdf.save_to(&mut bytes).is_err() {
+        return Vec::new();
+    }
+    bytes
 }
 
 /// Exercises the multichannel evidence graph and shared solver over an
@@ -1868,6 +2044,52 @@ mod tests {
         assert!(
             fuzz_native_evidence(GLYPH_EXTRACTION_SEED),
             "the curated PDF should reach form or structure evidence"
+        );
+    }
+
+    #[test]
+    fn synthetic_evidence_pdf_reaches_form_and_structure_extraction() {
+        let mut field_seeds = 0;
+        for seed in 0u8..=32 {
+            let input = std::iter::once(seed)
+                .chain((0..64u16).map(|index| {
+                    (index as u8)
+                        .wrapping_mul(seed.wrapping_add(11))
+                        .wrapping_add(seed)
+                }))
+                .collect::<Vec<u8>>();
+            let bytes = synthetic_evidence_pdf(&input);
+            assert!(!bytes.is_empty(), "seed {seed} failed to serialize");
+            let pdf = LopdfParser
+                .parse(Arc::from(bytes.as_slice()), PARSE_LIMITS)
+                .expect("synthetic evidence PDF should parse");
+
+            let forms = extract_form_evidence(pdf.as_ref(), 0, 0, FormLimits::default())
+                .expect("synthetic form extraction should succeed");
+            if !forms.fields.is_empty() {
+                field_seeds += 1;
+            }
+
+            let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+            let outcome = source
+                .extract_outcome(Arc::from(bytes.as_slice()), PARSE_LIMITS, EXTRACTION_LIMITS)
+                .expect("synthetic tagged content should extract");
+            let structure = extract_structure_evidence(
+                pdf.as_ref(),
+                outcome.document(),
+                0,
+                0,
+                StructureLimits::default(),
+            )
+            .expect("synthetic structure extraction should succeed");
+            assert!(
+                !structure.elements.is_empty(),
+                "seed {seed} produced no structure elements"
+            );
+        }
+        assert!(
+            field_seeds >= 8,
+            "only {field_seeds} of 33 seeds produced form fields"
         );
     }
 
