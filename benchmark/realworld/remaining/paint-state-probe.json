@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "capture": {
+    "path": "benchmark/realworld/cache/remaining-paint-state/runs.json",
+    "sha256": "cd1c4797f4ced6cb18ca44bd9e2a952ce065c02dfb359028288880c743653098"
+  },
+  "observed_differences": [
+    "Schedule C and SE contain changed stroke operands and line widths, not only redundant state or marked-content changes.",
+    "Examples retain line lengths -12.624 versus -12.499 and -36.625 versus -36.5; SE second-page translation changes from 588.252 to 588.249."
+  ],
+  "interpretation": "These exact projected programs differ. Similar geometry cannot certify text identity; this rejects exact-program equality for these inputs, not all additional proof methods."
+}

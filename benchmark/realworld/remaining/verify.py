@@ -2,10 +2,12 @@
 """Verify the remaining recovery contract from hash-bound observations."""
 
 import argparse
+from collections import Counter
 import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 
@@ -75,6 +77,7 @@ def observations(index, panel, binary):
         require(run["wall_seconds"] >= 0 and run["peak_rss_kib"] >= 0,
                 "missing or negative process cost")
         report = None
+        path = None
         if run["status"] == "captured":
             path = historical.checked_path(observation["report"])
             require(run["report_sha256"] == observation["report"]["sha256"]
@@ -86,7 +89,7 @@ def observations(index, panel, binary):
             require(run["status"] == "failed" and run.get("exit_code") not in (0, 1),
                     "missing report is not an explicit failed attempt")
         observed[key] = {"complete": report is not None and complete(report, run),
-                         "run": run, "report": report, "reference": observation.get("report")}
+                         "run": run, "report_path": path, "reference": observation.get("report")}
     require(observed.keys() == {(name, repeat) for name in pairs for repeat in (1, 2)},
             "panel does not contain exactly two observations per pair")
     require(all(observed[name, 1]["complete"] == observed[name, 2]["complete"] for name in pairs),
@@ -104,6 +107,271 @@ def gate_summary(development_pairs, blind_pairs, development_producers, blind_pr
         "G4": {"passed": correctness},
         "G5": {"passed": evidence},
     }
+
+
+def events(report):
+    """Keep masks (A), finite review ranges (B), and inferred outputs separate."""
+    if report is None:
+        return []
+    rows = []
+    for scope_index, scope in enumerate(report["comparison"]["scopes"]):
+        prefix = f"/comparison/scopes/{scope_index}/result"
+        result = scope["result"]
+        for index, comparison in enumerate(result["comparisons"]):
+            if comparison["operation"] is None:
+                continue
+            sources = set()
+            mask = comparison["text_mask"]
+            if mask is not None:
+                sources = {atom for side in ("old", "new") for token in mask[side]
+                           for atom in historical.native_sources(token["sources"], side)}
+            category = "A" if comparison["interpretation"] == "conditional_on_correspondence" else "C"
+            if category == "A":
+                require(comparison["compared"] and not comparison["unresolved"] and sources,
+                        "strict common-text operation lacks compared nonempty source masks")
+            rows.append({"category": category, "sources": sources,
+                         "operation": comparison["operation"],
+                         "source_projection": mask,
+                         "pointer": f"{prefix}/comparisons/{index}"})
+        for index, review in enumerate(result.get("text_scope_reviews", [])):
+            comparison = review["comparison"]
+            if comparison["operation"] is None:
+                continue
+            category = "B" if comparison["interpretation"] == "conditional_on_correspondence" else "C"
+            if category == "B":
+                require(comparison["compared"] and not comparison["unresolved"],
+                        "B operation retains unresolved comparison")
+            sources = set().union(*(historical.native_sources(review[side + "_sources"], side)
+                                    for side in ("old", "new")))
+            rows.append({"category": category, "sources": sources,
+                         "operation": comparison["operation"], "review": review,
+                         "source_projection": {key: review[key] for key in (
+                             "old_sources", "new_sources", "old_boundaries", "new_boundaries", "convention")},
+                         "pointer": f"{prefix}/text_scope_reviews/{index}"})
+    counts = Counter(row["category"] for row in rows)
+    require(counts["A"] == report["typed_changes"],
+            "strict report contains an unhandled nonlocal event; extend the source adapter")
+    require(counts["B"] == report.get("scope_content_changes", 0), "B event denominator mismatch")
+    return rows
+
+
+def event_digest(event):
+    # Include the complete operation and source multiplicity in identity. Pointer
+    # movement alone is not a newly recovered event.
+    payload = {"category": event["category"], "sources": sorted(event["sources"]),
+               "operation": event["operation"], "source_projection": event["source_projection"]}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def pair_recovery(before, after, core, extent, controls, adjudications, strict_gold=None):
+    previous, current = events(before), events(after)
+    previous_counts = Counter(event_digest(event) for event in previous)
+    reviews = historical.unique_by(adjudications, "pointer")
+    expected_reviews = set()
+    correct = True
+    categories = Counter()
+    for event in current:
+        categories[event["category"]] += 1
+        if event["category"] == "C":
+            continue
+        signature = event_digest(event)
+        if previous_counts[signature]:
+            previous_counts[signature] -= 1
+            continue
+        expected_reviews.add(event["pointer"])
+        review = reviews.get(event["pointer"])
+        correct &= bool(review and review["event_sha256"] == signature
+                        and review["verdict"] == "source_supported"
+                        and review["source_content_rationale"] and review["correspondence_rationale"])
+    require(reviews.keys() <= expected_reviews, "adjudication points to a non-new or absent A/B event")
+    correct &= reviews.keys() == expected_reviews
+    strict_atoms = set().union(*(event["sources"] for event in current if event["category"] == "A"))
+    false_control_atoms = len(strict_atoms & controls)
+    correct &= false_control_atoms == 0
+
+    def hits(rows):
+        found = set()
+        for event in rows:
+            if event["category"] == "B" and historical.range_recovery(
+                    event["review"], core, extent)["source_range_hit"]:
+                found.add("B")
+            if (event["category"] == "A" and strict_gold is not None
+                    and event["sources"] == strict_gold["sources"]
+                    and event["operation"] == strict_gold["operation"]):
+                found.add("A")
+        return found
+
+    old_hits, new_hits = hits(previous), hits(current)
+    # Recovery is additional only if neither accepted route already hit the target.
+    recovered = sorted(new_hits) if correct and not old_hits else []
+    result = {"additional_categories": recovered, "correct": correct,
+            "A": categories["A"], "B": categories["B"], "C": categories["C"],
+            "new_AB_outputs": len(expected_reviews), "adjudicated_AB_outputs": len(reviews),
+            "strict_control_atoms_claimed": false_control_atoms,
+            "strict_event_precision": None, "strict_event_recall": None,
+            "strict_source_precision": None, "strict_source_recall": None}
+    if strict_gold is not None:
+        require(strict_gold["sources"] and strict_gold["sources"] <= extent,
+                "strict gold is empty or outside the frozen finite extent")
+        scored = [event for event in current if event["category"] == "A" and event["sources"] & extent]
+        hits = sum(event["sources"] == strict_gold["sources"]
+                   and event["operation"] == strict_gold["operation"] for event in scored)
+        predicted = set().union(*(event["sources"] for event in scored))
+        result.update(strict_event_precision=min(hits, 1) / len(scored) if scored else None,
+                      strict_event_recall=int(bool(hits)),
+                      strict_source_precision=len(predicted & strict_gold["sources"]) / len(predicted)
+                      if predicted else None,
+                      strict_source_recall=len(predicted & strict_gold["sources"]) / len(strict_gold["sources"]))
+    return result
+
+
+def source_fingerprint(include_bench=False):
+    crates = ("pdfdelta-core", "pdfdelta-cli", "pdfdelta-bench") if include_bench else ("pdfdelta-core", "pdfdelta-cli")
+    paths = [ROOT / "Cargo.toml", ROOT / "Cargo.lock"]
+    for crate in crates:
+        directory = ROOT / "crates" / crate
+        paths.extend(directory.rglob("*.rs"))
+        paths.append(directory / "Cargo.toml")
+    digest = hashlib.sha256()
+    for path in sorted(paths):
+        content = path.read_bytes()
+        digest.update(str(path.relative_to(ROOT)).encode() + b"\0")
+        digest.update(str(len(content)).encode() + b"\0" + content)
+    return digest.hexdigest()
+
+
+def phase(record, panel, targets, baseline_index, baseline_binary):
+    require(record["production_sha256"] == source_fingerprint(), "phase production source is stale")
+    baseline = observations(baseline_index, panel, baseline_binary)
+    current = observations(read_reference(record["observations"]), panel, record["binary"])
+    adjudication = read_reference(record["adjudications"])
+    adjudicated = {}
+    for row in adjudication["observations"]:
+        key = row["pair"], row["repetition"]
+        require(key not in adjudicated and key in current, "duplicate/unknown adjudicated observation")
+        require(row["report"] == current[key]["reference"], "adjudication belongs to another report")
+        adjudicated[key] = row
+    target_by_pair = historical.unique_by(targets["targets"], "pair")
+    rows = []
+    for pair in panel["pairs"]:
+        target = target_by_pair[pair["id"]]
+        core, extent, controls = historical.target_sources(target)
+        scores = []
+        for repetition in (1, 2):
+            key = pair["id"], repetition
+            before, after = baseline[key], current[key]
+            review = adjudicated.get(key, {"events": []})
+            for event in review["events"]:
+                references = event["source_evidence"]
+                require(target["references"]["annotation"] in references
+                        and target["references"]["resolution"] in references,
+                        "source review is not bound to the frozen annotation and resolution")
+                for reference in references:
+                    historical.checked_path(reference)
+            gold = None
+            if target["strict_event_gold"] is not None or target["strict_changed_position_gold"] is not None:
+                require(target["strict_event_gold"] is not None and target["strict_changed_position_gold"] is not None,
+                        "strict gold requires both event and changed-source annotations")
+                gold = {"operation": target["strict_event_gold"],
+                        "sources": {tuple(atom) for atom in target["strict_changed_position_gold"]}}
+            score = pair_recovery(
+                historical.read(before["report_path"]) if before["report_path"] else None,
+                historical.read(after["report_path"]) if after["report_path"] else None,
+                core, extent, controls, review["events"], gold)
+            if not target["body_eligible"] or not target["source_resolution_complete"]:
+                score["additional_categories"] = []
+            scores.append(score)
+        require(scores[0] == scores[1], f"recovery or correctness is not repeatable: {pair['id']}")
+        rows.append(dict(scores[0], pair=pair["id"], family=pair["family"],
+                         producer=target["independent_producer"],
+                         baseline_complete=baseline[pair["id"], 1]["complete"],
+                         current_complete=current[pair["id"], 1]["complete"],
+                         costs=[{field: current[pair["id"], repeat]["run"].get(field)
+                                 for field in ("wall_seconds", "peak_rss_kib", "report_bytes", "exit_code")}
+                                for repeat in (1, 2)]))
+    return rows
+
+
+def family_metrics(rows):
+    result = {}
+    for family in sorted({row["family"] for row in rows}):
+        selected = [row for row in rows if row["family"] == family]
+        result[family] = {
+            "attempted_pairs": len(selected),
+            "additional_A_pairs": sum("A" in row["additional_categories"] for row in selected),
+            "additional_B_pairs": sum("B" in row["additional_categories"] for row in selected),
+            "C_outputs": sum(row["C"] for row in selected),
+            "complete_pairs": sum(row["current_complete"] for row in selected),
+            "new_AB_outputs": sum(row["new_AB_outputs"] for row in selected),
+            "adjudicated_AB_outputs": sum(row["adjudicated_AB_outputs"] for row in selected),
+            "wall_seconds": sum(cost["wall_seconds"] for row in selected for cost in row["costs"]),
+            "peak_rss_kib_max": max(cost["peak_rss_kib"] for row in selected for cost in row["costs"]),
+            "report_bytes": sum(cost["report_bytes"] or 0 for row in selected for cost in row["costs"]),
+            "pair_metrics": [{key: row[key] for key in ("pair", "strict_event_precision", "strict_event_recall",
+                                                       "strict_source_precision", "strict_source_recall")}
+                             for row in selected],
+        }
+    return result
+
+
+def blind_freeze(development, sources):
+    freeze = historical.read(DIRECTORY / "blind-freeze.json")
+    require(freeze["production_sha256"] == source_fingerprint()
+            and freeze["binary"] == development["binary"], "blind executable/source freeze changed")
+    historical.checked_path(freeze["binary"])
+    panel = read_reference(freeze["panel"])
+    targets = read_reference(freeze["targets"])
+    pairs = historical.unique_by(panel["pairs"], "id")
+    target_rows = historical.unique_by(targets["targets"], "pair")
+    require(len(pairs) == 12 and pairs.keys() == target_rows.keys(), "blind denominator must be exactly 12")
+    require(len({row["family"] for row in pairs.values()}) >= 6
+            and {"en", "ja"} <= {row["language"] for row in pairs.values()}
+            and len({row["independent_producer"] for row in target_rows.values()}) >= 3,
+            "blind families, languages or producers missing")
+    exposed = {pair["id"] for pair in sources["panel"]["pairs"]}
+    exposed_hashes = {pair[side]["sha256"] for pair in sources["panel"]["pairs"] for side in ("old", "new")}
+    series = set()
+    for name, pair in pairs.items():
+        require(name not in exposed and pair["series"] not in series, "exposed or duplicate blind series")
+        series.add(pair["series"])
+        require(pair["novelty_review"] and pair["primary_source_evidence"], "missing series novelty evidence")
+        for reference in pair["primary_source_evidence"]:
+            historical.checked_path(reference)
+        for side in ("old", "new"):
+            historical.checked_path(pair[side])
+            require(pair[side]["sha256"] not in exposed_hashes, "blind input bytes were already exposed")
+        target = target_rows[name]
+        annotation = read_reference(target["references"]["annotation"])
+        for side in ("old", "new"):
+            require(annotation[side + "_sha256"] == pair[side]["sha256"], "blind annotation input mismatch")
+        core, extent, _ = historical.target_sources(target)
+        require(core and core <= extent and target["source_resolution_complete"], "blind source target unresolved")
+    # A committed pre-comparison manifest binds the entire target registration.
+    # Novelty reviews additionally identify series, since new URLs alone do not.
+    for reference in (freeze["panel"], freeze["targets"]):
+        content = subprocess.check_output(["git", "show", f"{freeze['registration_commit']}:{reference['path']}"], cwd=ROOT)
+        require(hashlib.sha256(content).hexdigest() == reference["sha256"], "blind registration commit mismatch")
+    require(freeze["freeze_utc"] < freeze["selection_started_utc"] <= freeze["annotation_completed_utc"],
+            "blind selection/annotation chronology is invalid")
+    return freeze, panel, targets
+
+
+def quality():
+    record = historical.read(DIRECTORY / "quality-checks.json")
+    require(record["source_sha256"] == source_fingerprint(include_bench=True), "quality checks are stale")
+    required = {
+        ("cargo", "fmt", "--all", "--", "--check"),
+        ("cargo", "clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"),
+        ("cargo", "test", "--workspace", "--locked"),
+        ("cargo", "run", "-p", "pdfdelta-bench", "--locked", "--", "verify"),
+    }
+    passed = set()
+    for check in record["checks"]:
+        historical.checked_path(check["log"])
+        if check["exit_code"] == 0:
+            passed.add(tuple(check["command"]))
+    require(required <= passed, "mandatory workspace/generated verification is missing or failed")
+    return True
 
 
 def diagnosis(sources):

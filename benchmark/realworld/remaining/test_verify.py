@@ -7,6 +7,43 @@ import verify
 
 
 class EvidenceTests(unittest.TestCase):
+    @staticmethod
+    def report(category="B", extra=False):
+        review = {
+            "old_sources": [{"origin": "native", "glyph": 1}],
+            "new_sources": [{"origin": "native", "glyph": 2}],
+            "old_boundaries": [[], []], "new_boundaries": [[], []], "convention": "fixture",
+            "comparison": {"interpretation": "conditional_on_correspondence" if category == "B" else "inferred",
+                           "compared": True, "unresolved": [],
+                           "operation": {"kind": "text_changed", "old": "old", "new": "new"}},
+        }
+        if extra:
+            review["new_sources"].append({"origin": "native", "glyph": 3})
+        return {"typed_changes": 0, "scope_content_changes": int(category == "B"),
+                "comparison": {"scopes": [{"result": {"comparisons": [], "text_scope_reviews": [review]}}]}}
+
+    @staticmethod
+    def adjudication(report):
+        event = verify.events(report)[0]
+        return [{"pointer": event["pointer"], "event_sha256": verify.event_digest(event),
+                 "verdict": "source_supported", "source_content_rationale": "Synthetic source match",
+                 "correspondence_rationale": "Synthetic closed boundary match"}]
+
+    def test_range_recovery_needs_a_new_finite_adjudicated_b(self):
+        core = {("old", 1), ("new", 2)}
+        report = self.report()
+        reviews = self.adjudication(report)
+        score = verify.pair_recovery(None, report, core, core, set(), reviews)
+        self.assertEqual(score["additional_categories"], ["B"])
+        self.assertIsNone(score["strict_event_precision"])
+        self.assertFalse(verify.pair_recovery(None, report, core, core, set(), [])["correct"])
+        self.assertEqual(verify.pair_recovery(report, report, core, core, set(), [])["additional_categories"], [])
+        oversized = self.report(extra=True)
+        self.assertEqual(verify.pair_recovery(None, oversized, core, core, set(),
+                                            self.adjudication(oversized))["additional_categories"], [])
+        inferred = self.report(category="C")
+        self.assertEqual(verify.pair_recovery(None, inferred, core, core, set(), [])["additional_categories"], [])
+
     def test_gate_reduction_can_pass_without_counting_c_or_duplicate_pairs(self):
         development = {f"dev-{i}": f"publisher-{i % 3}" for i in range(6)}
         blind = {f"blind-{i}": f"publisher-{i % 2}" for i in range(3)}

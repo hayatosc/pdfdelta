@@ -1,0 +1,1013 @@
+{
+  "version": 1,
+  "interpretation": "Render-order feasibility diagnostics only. Earlier opaque paint may still contain text in the visual band; these observations do not prove visual-region closure or correspondence.",
+  "initial_attempt": "Reader initially assumed map-form glyphs; frozen worker serializes 14-field glyph tuples. Corrected the diagnostic reader without changing evidence.",
+  "rows": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-controller-processor-v1-to-v2-1-old.json",
+        "sha256": "11d0987064e3cfb792830c271a112563459032d8a3b6569d17c74b67704bccf2"
+      },
+      "source_atom_count": 964,
+      "located_glyph_count": 964,
+      "observations": [
+        {
+          "page": 8,
+          "first_selected_render_order": 18070,
+          "last_non_text_paint": 20453,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-controller-processor-v1-to-v2-1-new.json",
+        "sha256": "c53c0526356533461a81528bd2a939886043ecfd8ef870531c6d117faf70ec54"
+      },
+      "source_atom_count": 1316,
+      "located_glyph_count": 1316,
+      "observations": [
+        {
+          "page": 8,
+          "first_selected_render_order": 20582,
+          "last_non_text_paint": 23692,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-restrictions-v1-to-final-old.json",
+        "sha256": "6802390284ead5b3490cae48adcd27b0c6ceafa525a8224a41aa4418ada0c13e"
+      },
+      "source_atom_count": 993,
+      "located_glyph_count": 993,
+      "observations": [
+        {
+          "page": 3,
+          "first_selected_render_order": 5669,
+          "last_non_text_paint": 7849,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-restrictions-v1-to-final-new.json",
+        "sha256": "ee06cdc7520679eee55648694d8c50d4b6b146703d29ea73aaa2c23eb95bce4d"
+      },
+      "source_atom_count": 997,
+      "located_glyph_count": 997,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 5752,
+          "last_non_text_paint": 7719,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 5,
+          "first_selected_render_order": 8373,
+          "last_non_text_paint": 11305,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-design-default-v1-to-v2-old.json",
+        "sha256": "5daad38cd8ca5af65add9385041373fa6f19a7613f2fe24cd1019496d03fb927"
+      },
+      "source_atom_count": 339,
+      "located_glyph_count": 339,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 6073,
+          "last_non_text_paint": 9168,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-design-default-v1-to-v2-new.json",
+        "sha256": "e35b4eeff348a27fb4404ee89ba9200d15e1e7772c1064b8ad15774f14a23583"
+      },
+      "source_atom_count": 518,
+      "located_glyph_count": 518,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 6526,
+          "last_non_text_paint": 9322,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-social-targeting-v1-to-v2-old.json",
+        "sha256": "5a942d2b3c2a35e43115087d3ed6ea733208f86674ec08a2f89f8d19c5171951"
+      },
+      "source_atom_count": 885,
+      "located_glyph_count": 885,
+      "observations": [
+        {
+          "page": 2,
+          "first_selected_render_order": 7180,
+          "last_non_text_paint": 8370,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 3,
+          "first_selected_render_order": 8410,
+          "last_non_text_paint": 12183,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/edpb-social-targeting-v1-to-v2-new.json",
+        "sha256": "6b41af0f4308ec84b442e51a8ab1b36f95768792fa0a215a530213418759ef2f"
+      },
+      "source_atom_count": 1199,
+      "located_glyph_count": 1199,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 8343,
+          "last_non_text_paint": 11792,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 5,
+          "first_selected_render_order": 12174,
+          "last_non_text_paint": 15314,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-incident-handling-r2-to-r3-old.json",
+        "sha256": "c64002f671f5a043872076d087e088dd15197d60ef5ab74c79ff4e39cd54ca8c"
+      },
+      "source_atom_count": 743,
+      "located_glyph_count": 743,
+      "observations": [
+        {
+          "page": 5,
+          "first_selected_render_order": 6557,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-incident-handling-r2-to-r3-new.json",
+        "sha256": "cfd012c4437016ba97ccb7f7e8741560426060260829cbcc940a6f2c09bfcd97"
+      },
+      "source_atom_count": 661,
+      "located_glyph_count": 661,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 5149,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-ssdf-draft-to-final-old.json",
+        "sha256": "07347d3bad6ad15edfb8d8eb2588f9cfe4b65d1dce94ec7324d2abe6daf5f453"
+      },
+      "source_atom_count": 1014,
+      "located_glyph_count": 1014,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 9925,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-ssdf-draft-to-final-new.json",
+        "sha256": "7669845b47698c2c0304224f17bf2c36e76bfd9e0773d5fec07519656a9faa6c"
+      },
+      "source_atom_count": 948,
+      "located_glyph_count": 948,
+      "observations": [
+        {
+          "page": 3,
+          "first_selected_render_order": 5973,
+          "last_non_text_paint": 5040,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-ai-rmf-draft2-to-v1-old.json",
+        "sha256": "ce5dc9395897027fac5592179f3d4c66e5253cb59b531bcca404c2c6f4235874"
+      },
+      "source_atom_count": 692,
+      "located_glyph_count": 692,
+      "observations": [
+        {
+          "page": 3,
+          "first_selected_render_order": 6789,
+          "last_non_text_paint": 7635,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-ai-rmf-draft2-to-v1-new.json",
+        "sha256": "996551878ee5a7f0e0be0574f0f801bd721a0ffd38789ebc7e2437beb98b52bf"
+      },
+      "source_atom_count": 297,
+      "located_glyph_count": 297,
+      "observations": [
+        {
+          "page": 2,
+          "first_selected_render_order": 1163,
+          "last_non_text_paint": 391,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-authentication-63b-to-63b4-old.json",
+        "sha256": "7e97020d00117c6f49d8634a4c8b09c09ea6ebef67c334bdc14f3631f3f4ea19"
+      },
+      "source_atom_count": 772,
+      "located_glyph_count": 772,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 10894,
+          "last_non_text_paint": 9961,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-authentication-63b-to-63b4-new.json",
+        "sha256": "fa88507c936b958178bb9876e852e3ea6e13909bf23273743e7eac973da53573"
+      },
+      "source_atom_count": 649,
+      "located_glyph_count": 649,
+      "observations": [
+        {
+          "page": 4,
+          "first_selected_render_order": 5158,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/irs-w9-2018-to-2024-old.json",
+        "sha256": "fda7f72ef908597b57f1b2d05e9b4a4573637c66a004ae6fb3a8181953872a1d"
+      },
+      "source_atom_count": 163,
+      "located_glyph_count": 163,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 86,
+          "last_non_text_paint": 5619,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/irs-w9-2018-to-2024-new.json",
+        "sha256": "b087e27778120d37cc8accc8ae19dc0093a39ea6f8dd717d667d5ac4a5d78f90"
+      },
+      "source_atom_count": 249,
+      "located_glyph_count": 249,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 28,
+          "last_non_text_paint": 5745,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-bert-v1-to-v2-old.json",
+        "sha256": "aca1a089158f4b8a6ec30410fa4735a2823c3778314d6f3e4b5405ec1ca3bc72"
+      },
+      "source_atom_count": 463,
+      "located_glyph_count": 463,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 200,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-bert-v1-to-v2-new.json",
+        "sha256": "0461f2c96897204f19e73da5ab238b43b4f90e0de1b4fa3c8a9a1669746a8cb3"
+      },
+      "source_atom_count": 480,
+      "located_glyph_count": 480,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 200,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-gpt3-v1-to-v4-old.json",
+        "sha256": "c7685249d7d086ada14dabb6e69b11bf9c649299e747109a22b765b989595b77"
+      },
+      "source_atom_count": 256,
+      "located_glyph_count": 256,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 437,
+          "last_non_text_paint": 1955,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 13,
+          "first_selected_render_order": 38613,
+          "last_non_text_paint": 37089,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-gpt3-v1-to-v4-new.json",
+        "sha256": "9ca88718faf869a3123281b3736c8f5e265063f810adb6a54508d9473f59dd84"
+      },
+      "source_atom_count": 243,
+      "located_glyph_count": 243,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 437,
+          "last_non_text_paint": 1955,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 13,
+          "first_selected_render_order": 38996,
+          "last_non_text_paint": 37089,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/mext-primary-japanese-2008-to-2017-old.json",
+        "sha256": "16314f9e26f8370de3977340a0c2b59e376a30f2d76fa74599b03e895acd49d1"
+      },
+      "source_atom_count": 100,
+      "located_glyph_count": 100,
+      "observations": [
+        {
+          "page": 10,
+          "first_selected_render_order": 5013,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/mext-primary-japanese-2008-to-2017-new.json",
+        "sha256": "a8daf3e78f49ffa04ecdaac92cd2f9457aafe6fffc986e75776a2dd55369ff2b"
+      },
+      "source_atom_count": 128,
+      "located_glyph_count": 128,
+      "observations": [
+        {
+          "page": 10,
+          "first_selected_render_order": 6705,
+          "last_non_text_paint": 7265,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/mext-lower-secondary-japanese-2008-to-2017-old.json",
+        "sha256": "cf3158b4cd51e00c0f0219b04600ecbca674c0ea0386d465892c40f6e1409e6c"
+      },
+      "source_atom_count": 100,
+      "located_glyph_count": 100,
+      "observations": [
+        {
+          "page": 10,
+          "first_selected_render_order": 4802,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/mext-lower-secondary-japanese-2008-to-2017-new.json",
+        "sha256": "76ba874377dc29669bec29d1d67656efb88a9923b0102e6a9fcb8cf49d667672"
+      },
+      "source_atom_count": 128,
+      "located_glyph_count": 128,
+      "observations": [
+        {
+          "page": 10,
+          "first_selected_render_order": 6709,
+          "last_non_text_paint": 7282,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/mhlw-care-skills-original-to-revised-old.json",
+        "sha256": "52d0767885c9504c88f004b485871acd66575deccd543b6e5cce04f5cd2df971"
+      },
+      "source_atom_count": 61,
+      "located_glyph_count": 61,
+      "observations": [
+        {
+          "page": 13,
+          "first_selected_render_order": 3384,
+          "last_non_text_paint": 3709,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 1
+        }
+      ]
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/mhlw-care-skills-original-to-revised-new.json",
+        "sha256": "5063bd93f1de792924e3feca41e544f6cadcd5c644fe9068c1aeb6dd25204271"
+      },
+      "source_atom_count": 93,
+      "located_glyph_count": 93,
+      "observations": [
+        {
+          "page": 13,
+          "first_selected_render_order": 3654,
+          "last_non_text_paint": 4043,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nasa-buckling-8007-1968-to-2020-old.json",
+        "sha256": "86ab97d4385a9e271c95fd56e3c62e4e25ccbd15abea35cf12280552cee3be79"
+      },
+      "source_atom_count": 203,
+      "located_glyph_count": 203,
+      "observations": [
+        {
+          "page": 10,
+          "first_selected_render_order": 8485,
+          "last_non_text_paint": 10467,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nasa-buckling-8007-1968-to-2020-new.json",
+        "sha256": "697773ddeace060035b212c53200b9c4f6993aa32fa541ff48a784629167dd36"
+      },
+      "source_atom_count": 210,
+      "located_glyph_count": 210,
+      "observations": [
+        {
+          "page": 18,
+          "first_selected_render_order": 38616,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/ipcc-synthesis-ar5-to-ar6-new.json",
+        "sha256": "25746ca5be745bacafbf807d16b07a38f153efaf703b027ac76b335ce4d9a3a5"
+      },
+      "source_atom_count": 530,
+      "located_glyph_count": 530,
+      "observations": [
+        {
+          "page": 3,
+          "first_selected_render_order": 2600,
+          "last_non_text_paint": 6325,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 19,
+          "first_selected_render_order": 36175,
+          "last_non_text_paint": 39140,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-sha-1803-to-1804-old.json",
+        "sha256": "3f75fcd43e0b7a2431d9dd2bbfe5dd305c06589d7d55051823ce6199930d93fc"
+      },
+      "source_atom_count": 356,
+      "located_glyph_count": 356,
+      "observations": [
+        {
+          "page": 3,
+          "first_selected_render_order": 1440,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-sha-1803-to-1804-new.json",
+        "sha256": "a6534ad3abd004dc7a4f891b9439bb4feb11b80451a1e11374d78bab28210331"
+      },
+      "source_atom_count": 351,
+      "located_glyph_count": 351,
+      "observations": [
+        {
+          "page": 2,
+          "first_selected_render_order": 1170,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-llama2-v1-to-v2-old.json",
+        "sha256": "d5834d79d7f4b981583f28f64e8fcf7b1eee5082279a2305b4e87175aaa658b5"
+      },
+      "source_atom_count": 371,
+      "located_glyph_count": 371,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 886,
+          "last_non_text_paint": 1441,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 6,
+          "first_selected_render_order": 16612,
+          "last_non_text_paint": 19294,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-llama2-v1-to-v2-new.json",
+        "sha256": "445521a17633c9f80a1ff826edcb993114ccf568928f8ea0640d9a90cef351d0"
+      },
+      "source_atom_count": 242,
+      "located_glyph_count": 242,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 886,
+          "last_non_text_paint": 1441,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        },
+        {
+          "page": 6,
+          "first_selected_render_order": 16611,
+          "last_non_text_paint": 19274,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-risk-management-37-r1-to-r2-old.json",
+        "sha256": "f4a3f45fc2a63a87686198233af451c44548d6a23147c25f67987320a7eced2a"
+      },
+      "source_atom_count": 314,
+      "located_glyph_count": 314,
+      "observations": [
+        {
+          "page": 18,
+          "first_selected_render_order": 57792,
+          "last_non_text_paint": 61812,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-mask-rcnn-v1-to-v3-old.json",
+        "sha256": "dc076a26dcb50944dec401789d0ab3b2eade2faed681674b2a2b51c04b36258e"
+      },
+      "source_atom_count": 1004,
+      "located_glyph_count": 1004,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 0,
+          "last_non_text_paint": 3183,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 1
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-mask-rcnn-v1-to-v3-new.json",
+        "sha256": "dabbaf122a1f1778c0bac80b96f47ce8b6afd255c592cb4cfb7cf0dd0d171aaf"
+      },
+      "source_atom_count": 1065,
+      "located_glyph_count": 1065,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 0,
+          "last_non_text_paint": 3240,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 1
+        }
+      ]
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/bunka-official-writing-1952-to-2022-old.json",
+        "sha256": "97991e82c6cc41269a083ccbe12a34e7a7bee724269a0e3c4d0db1a525bfa376"
+      },
+      "source_atom_count": 55,
+      "located_glyph_count": 55,
+      "observations": [
+        {
+          "page": 1,
+          "first_selected_render_order": 666,
+          "last_non_text_paint": null,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/bunka-official-writing-1952-to-2022-new.json",
+        "sha256": "7f1d0ccee1cab477fe80c9abfcfb5f3e4db71be328e1e5d0fcfc80dfaff0a62c"
+      },
+      "source_atom_count": 35,
+      "located_glyph_count": 35,
+      "observations": [
+        {
+          "page": 3,
+          "first_selected_render_order": 1594,
+          "last_non_text_paint": 2138,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/faa-thunderstorms-b-to-c-old.json",
+        "sha256": "68dd939e1d61472017073715870cb4483b8adc0cb8ba2552c801fc32eacee9dd"
+      },
+      "source_atom_count": 591,
+      "located_glyph_count": 591,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 431,
+          "last_non_text_paint": 0,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/faa-thunderstorms-b-to-c-new.json",
+        "sha256": "ffcf0015a9b0332cac78a6135b7dc608a92a30f20cf7f65cc3c9b7088c297211"
+      },
+      "source_atom_count": 788,
+      "located_glyph_count": 788,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 1827,
+          "last_non_text_paint": 2615,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/faa-maintenance-records-c-to-d-old.json",
+        "sha256": "89db81713a2a13bbb1513632599bd7e301f00caf039a770891a6459649817b67"
+      },
+      "source_atom_count": 570,
+      "located_glyph_count": 570,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 169,
+          "last_non_text_paint": 0,
+          "selected_after_all_non_text_paint": true,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/faa-maintenance-records-c-to-d-new.json",
+        "sha256": "40f074a824bfb9ec9c94ce20875f70ca4fa87b5e802118b10d63786f43a50f19"
+      },
+      "source_atom_count": 400,
+      "located_glyph_count": 400,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 2567,
+          "last_non_text_paint": 4718,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-faster-rcnn-v1-to-v3-old.json",
+        "sha256": "7179015ad78d0aaf3b2c0ee378cc53ecf5144dae982115476e6a49eb83b31607"
+      },
+      "source_atom_count": 575,
+      "located_glyph_count": 575,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 0,
+          "last_non_text_paint": 2746,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/arxiv-faster-rcnn-v1-to-v3-new.json",
+        "sha256": "6cb0da5721b3ef45fca3a8f1235c4c670dc35806c86e8b1b44084a51dda3fb27"
+      },
+      "source_atom_count": 586,
+      "located_glyph_count": 586,
+      "observations": [
+        {
+          "page": 0,
+          "first_selected_render_order": 1,
+          "last_non_text_paint": 2384,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-risk-assessment-30-to-r1-old.json",
+        "sha256": "11d4a7d7da67a2dab67c3a28b85057148201732bc0368c577ded1dc04b0a2785"
+      },
+      "source_atom_count": 269,
+      "located_glyph_count": 269,
+      "observations": [
+        {
+          "page": 9,
+          "first_selected_render_order": 10820,
+          "last_non_text_paint": 11352,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-risk-assessment-30-to-r1-new.json",
+        "sha256": "997ecb4ee062dd535439bdc4fb5c1dd018f4f5a8bb7ce47b0870c9fe496fd435"
+      },
+      "source_atom_count": 471,
+      "located_glyph_count": 471,
+      "observations": [
+        {
+          "page": 10,
+          "first_selected_render_order": 29669,
+          "last_non_text_paint": 32933,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "old",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-contingency-34-to-r1-old.json",
+        "sha256": "f392536e05a9d5b2d48b9d3af3a39bf413efb1de98f3a63312ea8d4cd789dbbc"
+      },
+      "source_atom_count": 457,
+      "located_glyph_count": 457,
+      "observations": [
+        {
+          "page": 11,
+          "first_selected_render_order": 13369,
+          "last_non_text_paint": 15656,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "new",
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/nist-contingency-34-to-r1-new.json",
+        "sha256": "2bcb0d9848daae2406029531a7cd101c1884a070d64db7955e36d77d9f2e44bd"
+      },
+      "source_atom_count": 777,
+      "located_glyph_count": 777,
+      "observations": [
+        {
+          "page": 14,
+          "first_selected_render_order": 23703,
+          "last_non_text_paint": 24901,
+          "selected_after_all_non_text_paint": false,
+          "text_issues": 0
+        }
+      ]
+    }
+  ]
+}
