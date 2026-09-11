@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "production_patch_sha256": "1c9e6f7ebf800350f8a28d52a47a89d61e774d6f42c28cb528ebba6a688da2e5",
+  "observations": [
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-column-bert/runs.json",
+        "sha256": "830306c05c57c1b828c17f5aac5917ff8adc45dc824fd72c22c35bed8b836644"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-column-bert/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "86563bdb558decffc9b740903bcabfd7e21d72b80fb8b20c066251b47857868d"
+      },
+      "score": {
+        "pair": "arxiv-bert-v1-to-v2",
+        "core_atoms": 703,
+        "extent_atoms": 703,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-column-rcnn/runs.json",
+        "sha256": "1e089d9fe5d39e3193c96514002e835d87a1b9b5dcd6f57acbffb2e33dc14f3b"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-column-rcnn/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "8bb8df0be39df3eeda71d98df024596d836a9bcdd32df527a06c6d0a4ce4bad2"
+      },
+      "score": {
+        "pair": "arxiv-faster-rcnn-v1-to-v3",
+        "core_atoms": 1023,
+        "extent_atoms": 1023,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-column-rcnn/runs.json",
+        "sha256": "1e089d9fe5d39e3193c96514002e835d87a1b9b5dcd6f57acbffb2e33dc14f3b"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-column-rcnn/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "692f23d6356e9232bc45ca67b4ec8a6d3fdacb420d50c503340d7e8674212e81"
+      },
+      "score": {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "core_atoms": 1907,
+        "extent_atoms": 1907,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      }
+    }
+  ],
+  "bert_source_diagnosis": [
+    {
+      "source_graph": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/arxiv-bert-v1-to-v2/sources.json",
+        "sha256": "4839ef40484d5dbc585b18e719ad480ccc97be1bc1702605134574516b95c62b"
+      },
+      "observations": {
+        "old": {
+          "target_nodes": 10,
+          "core_atoms": 343,
+          "extra_atoms": 317
+        },
+        "new": {
+          "target_nodes": 10,
+          "core_atoms": 360,
+          "extra_atoms": 298
+        }
+      }
+    },
+    {
+      "source_graph": {
+        "path": "benchmark/realworld/cache/remaining-column-bert/review/sources.json",
+        "sha256": "2627af016d5ad7a197136ea43abbf3d2c489cdb7e22770016a7d3cb154d6b96b"
+      },
+      "observations": {
+        "old": {
+          "target_nodes": 9,
+          "core_atoms": 343,
+          "extra_atoms": 0
+        },
+        "new": {
+          "target_nodes": 9,
+          "core_atoms": 360,
+          "extra_atoms": 0
+        }
+      }
+    }
+  ],
+  "validation": {
+    "workspace_passed": 2338,
+    "workspace_ignored": 2,
+    "fmt": "passed",
+    "clippy": "passed",
+    "generated_fixtures": "48/48 passed"
+  },
+  "interpretation": "Single-pass diagnostic only. Narrow gutters now separate target glyphs from adjacent-column glyphs. Reading-order and paragraph-fragment premises still fail; no fixed-target A/B gain or completion gain is claimed."
+}

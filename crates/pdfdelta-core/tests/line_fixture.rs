@@ -124,6 +124,56 @@ fn default_spacing_retains_sub_half_advance_word_gaps_at_multiple_scales() {
 }
 
 #[test]
+fn default_line_gap_separates_narrow_columns_without_splitting_wide_word_spaces() {
+    for scale in [0.5, 1.0, 3.0] {
+        for (gap, expected_lines) in [(15.0, 1), (22.58, 2), (31.18, 2)] {
+            let document = Document::new(
+                [
+                    (1, "A", 0.0, 0.0),
+                    (2, "B", 5.5, 0.0),
+                    (3, "C", 10.5 + gap, 2.0),
+                    (4, "D", 16.0 + gap, 2.0),
+                ]
+                .into_iter()
+                .map(|(id, text, x, y)| {
+                    glyph(
+                        id,
+                        text,
+                        0,
+                        x * scale,
+                        y * scale,
+                        5.0 * scale,
+                        10.0 * scale,
+                        10.0 * scale,
+                        y * scale,
+                    )
+                })
+                .collect(),
+            );
+            let lines =
+                reconstruct_lines(&document, LineOptions::default()).expect("source column gap");
+            assert_eq!(lines.len(), expected_lines, "gap={gap}, scale={scale}");
+            let mut groups = lines
+                .iter()
+                .map(|line| line.glyphs.clone())
+                .collect::<Vec<_>>();
+            groups.sort();
+            if expected_lines == 2 {
+                assert_eq!(
+                    groups,
+                    vec![vec![GlyphId(1), GlyphId(2)], vec![GlyphId(3), GlyphId(4)]]
+                );
+            } else {
+                assert_eq!(
+                    groups,
+                    vec![vec![GlyphId(1), GlyphId(2), GlyphId(3), GlyphId(4)]]
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn default_spacing_preserves_cjk_latin_typographic_gaps() {
     for scale in [0.5, 1.0, 3.0] {
         for (left, right, gap) in [

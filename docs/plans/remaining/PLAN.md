@@ -345,3 +345,17 @@ and never mark success before all gates pass. Do not publish externally.
 - Elapsed 3h; remaining 9h. Next: a reversible layout fix for measured narrow
   column gutters. Target text gaps stay below 0.83 font sizes, while observed
   cross-column gaps are 2.26–3.12; the current four-font-size ceiling merges them.
+
+### 2026-09-11 17:35 UTC — separate measured narrow column gutters
+
+- Reduced the default inline line-joining gap from four to two font sizes.
+  A scale-invariant fixture rejects the measured 2.258/3.118-font-size gutters
+  while preserving a 1.5-font-size word gap and every glyph assignment.
+- `column-gap-pilot.json` binds three same-budget captures and BERT source
+  graphs. The BERT target now occupies nine source-exclusive fragments on each
+  side (343/360 glyphs, no adjacent-column glyphs). Reading-order links still
+  fail to connect these fragments; all three fixed-target B counts remain zero.
+  No document completion or recovery gate gain is claimed.
+- Format, Clippy and workspace tests pass (2338 passed, two ignored); generated
+  fixtures pass 48/48. Elapsed 3h12m; remaining 8h48m. Next: inspect the shared
+  region partition that leaves source-exclusive column lines interleaved.
