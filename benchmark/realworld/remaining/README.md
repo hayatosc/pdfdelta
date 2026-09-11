@@ -74,3 +74,10 @@ observations. `blind.json` uses the development observation schema.
 workspace/generated commands with hash-bound logs. Missing records fail closed.
 Native unresolved regions and tentative candidates are retained under C and
 never counted as A/B recovery.
+
+`diagnosis.json` records every frozen target and its source-linked first blocker.
+`bucket-locality-pilot.json` documents independent comparisons recovered within
+the unchanged token budget and a page-break false B rejected by exact external
+continuation evidence. `locality-panel-pilot.json` retains the 36-pair follow-up:
+one target range hit, zero complete documents, and no fixed strict-control masks.
+These remain single-pass diagnostics, not achieved G1/G2/G3 gates.

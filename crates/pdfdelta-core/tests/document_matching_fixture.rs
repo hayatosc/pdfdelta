@@ -780,6 +780,70 @@ fn candidate_truncation_is_distinct_from_solver_exhaustion() {
 }
 
 #[test]
+fn literal_verification_exhaustion_retains_all_omitted_bucket_endpoints() {
+    use pdfdelta_core::document::{TextNormalization, TextView};
+
+    let repeated = "r".repeat(100);
+    let parts = ["anchor", repeated.as_str(), repeated.as_str()];
+    let mut document = graph(&[("", ""), ("", ""), ("", "")], 0);
+    for (node, part) in document.nodes.iter_mut().skip(1).zip(parts) {
+        node.kind = NodeKind::Paragraph;
+        node.identity = None;
+        node.content = NodeContent::Text {
+            view: TextView {
+                tokens: part
+                    .chars()
+                    .map(pdfdelta_core::normalize::ComparableToken::Scalar)
+                    .collect(),
+                origins: vec![node.sources.clone(); part.len()],
+                source_backed: vec![true; part.len()],
+                normalization: TextNormalization::Exact,
+            },
+        };
+    }
+    let full =
+        propose_scope_correspondences(&document, &document, SCOPE, MatchingLimits::default())
+            .expect("full literal population");
+    assert!(full.exhaustive);
+    assert_eq!(full.proposals.len(), 5);
+    // Complete both key indexes and the anchor, then stop after one repeated
+    // pair. The remaining three rivals must prevent apparent uniqueness.
+    let limits = MatchingLimits {
+        max_index_work: 2 * (6 + 100 + 100) + 2 * 6 + 2 * 100,
+        ..MatchingLimits::default()
+    };
+    let partial = propose_scope_correspondences(&document, &document, SCOPE, limits)
+        .expect("bounded literal population");
+    assert!(!partial.exhaustive);
+    assert_eq!(partial.index_work, limits.max_index_work);
+    assert_eq!(partial.proposals.len(), 2);
+    let pending = partial.incomplete_nodes.expect("known omitted population");
+    let expected = [NodeId(2), NodeId(3)].into_iter().collect();
+    assert_eq!(pending.old, expected);
+    assert_eq!(pending.new, expected);
+    for omitted in full
+        .proposals
+        .iter()
+        .filter(|proposal| !partial.proposals.contains(proposal))
+    {
+        assert!(omitted.old.iter().all(|node| pending.old.contains(node)));
+        assert!(omitted.new.iter().all(|node| pending.new.contains(node)));
+    }
+    let unindexed = propose_scope_correspondences(
+        &document,
+        &document,
+        SCOPE,
+        MatchingLimits {
+            max_index_work: 1,
+            ..MatchingLimits::default()
+        },
+    )
+    .expect("unfinished key population");
+    assert!(!unindexed.exhaustive);
+    assert!(unindexed.incomplete_nodes.is_none());
+}
+
+#[test]
 fn split_merge_preserves_tokens_sources_and_declared_local_order() {
     use pdfdelta_core::{
         document::{TextNormalization, TextView},

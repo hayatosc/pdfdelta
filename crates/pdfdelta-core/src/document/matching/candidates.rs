@@ -11,6 +11,16 @@ pub(super) enum Key<'a> {
     PaddingBody(NodeKind, u64),
 }
 
+pub(super) fn defer_bucket(result: &mut ScopeProposals, old: &[&GraphNode], new: &[&GraphNode]) {
+    result.exhaustive = false;
+    let pending = result
+        .incomplete_nodes
+        .as_mut()
+        .expect("completed key index");
+    pending.old.extend(old.iter().map(|node| node.id));
+    pending.new.extend(new.iter().map(|node| node.id));
+}
+
 /// Fingerprints only exclude unequal literals. Callers must verify the original
 /// tokens for every retrieved pair, including hash collisions.
 pub(super) fn keys<'a>(

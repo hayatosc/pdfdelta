@@ -233,6 +233,94 @@ fn native_interval_survives_unrelated_pages_storage_order_and_reversal() {
 }
 
 #[test]
+fn native_interval_does_not_turn_an_external_continuation_into_a_content_change() {
+    let old = fixture("Shared prefix. Additional sentence.");
+    let short = fixture("Shared prefix.");
+    assert_eq!(
+        compare(&old, &short).scopes[0]
+            .result
+            .text_scope_reviews
+            .len(),
+        1
+    );
+
+    for (continuation, expected_reviews) in
+        [("Additional sentence.", 0), ("Unrelated sentence.", 1)]
+    {
+        let mut new = short.clone();
+        let source = fixture(continuation);
+        let mut node = source.1.nodes[2].clone();
+        let mut glyphs = new.0.native.items().to_vec();
+        let mut origins = Vec::new();
+        for atom in &node.sources {
+            let SourceRef::Native { glyph } = atom else {
+                unreachable!()
+            };
+            let mut glyph = source
+                .0
+                .native
+                .items()
+                .iter()
+                .find(|item| item.id == *glyph)
+                .expect("continuation glyph belongs to the fixture")
+                .clone();
+            glyph.id = GlyphId(glyphs.len() as u64);
+            glyph.page = PageId(1);
+            glyph.render_order = glyphs.len() as u32;
+            origins.push(vec![SourceRef::Native { glyph: glyph.id }]);
+            glyphs.push(glyph);
+        }
+        node.id = NodeId(4);
+        node.pages = vec![PageId(1)];
+        node.sources = origins.iter().flatten().copied().collect();
+        let NodeContent::Text { view } = &mut node.content else {
+            unreachable!()
+        };
+        view.origins = origins;
+        new.0.native = Document::new(glyphs);
+        new.0.pages.push(PageEvidence {
+            page: PageId(1),
+            bounds: None,
+        });
+        new.0.inventories.push(ChannelInventory {
+            page: Some(PageId(1)),
+            channel: Channel::Text,
+            backend: 0,
+            sources: node.sources.clone(),
+            complete: true,
+        });
+        new.1.nodes.push(node);
+        new.1.edges.push(GraphEdge {
+            from: NodeId(0),
+            to: NodeId(4),
+            kind: EdgeKind::Contains,
+            sources: vec![],
+            basis: ViewBasis::NativeLayout,
+        });
+        for (left, right) in [(&old, &new), (&new, &old)] {
+            let result = compare(left, right);
+            assert_eq!(
+                result.scopes[0].result.text_scope_reviews.len(),
+                expected_reviews
+            );
+            let coverage = pdfdelta_core::document::document_coverage(
+                DocumentView {
+                    evidence: &left.0,
+                    graph: &left.1,
+                },
+                DocumentView {
+                    evidence: &right.0,
+                    graph: &right.1,
+                },
+                &result,
+                &[Channel::Text].into(),
+            );
+            assert!(!coverage[0].complete);
+        }
+    }
+}
+
+#[test]
 fn native_interval_does_not_report_ascii_spacing_alone_as_content() {
     for (a, b) in [("ab", "a b"), ("ab", "ab "), ("ab", " ac")] {
         let old = fixture(a);

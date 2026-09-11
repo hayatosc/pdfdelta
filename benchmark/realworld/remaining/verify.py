@@ -553,6 +553,9 @@ def diagnosis(sources):
                 "diagnosis lacks an observation or next action")
         for reference in row["evidence"]:
             historical.checked_path(reference)
+        if row["stage"] != "reporting":
+            require(row["counterexample"]["case"], "diagnosis lacks a minimal counterexample")
+            historical.checked_path(row["counterexample"]["reference"])
     return data
 
 

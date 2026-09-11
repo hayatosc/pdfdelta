@@ -171,7 +171,9 @@ class StageTests(unittest.TestCase):
                 "completion_contract": {"channels": ["text"], "timeout_seconds": 180, "limit_scale": 1, "repetitions": 2}})
             write(remaining / "diagnosis.json", {"registration": registration, "targets": [
                 {"pair": pair["id"], "stage": "normalization", "reason": "Constructed blocker",
-                 "next_action": "Exercise stage validation", "evidence": [target_reference]} for pair in panel["pairs"]]})
+                 "next_action": "Exercise stage validation", "evidence": [target_reference],
+                 "counterexample": {"reference": target_reference, "case": "Constructed source target"}}
+                for pair in panel["pairs"]]})
             write(remaining / "development.json", development)
             write(remaining / "blind.json", blind)
             blind_panel_reference = write(remaining / "blind-panel.json", blind_panel)

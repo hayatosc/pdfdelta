@@ -678,7 +678,7 @@ it and at final integration. Do not repeatedly run an unchanged whole corpus.
   and false empty completion. Synthetic fixtures never count toward G1/G2/G3.
   Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage registration`
   and checker self-tests; final remains nonzero until real evidence exists.
-- [ ] C2: Record the earliest demonstrated blocker for every frozen target, with a
+- [x] C2: Record the earliest demonstrated blocker for every frozen target, with a
   source-linked observation and the smallest counterexample for each shared cause.
   Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage diagnosis`.
 - [ ] C3: Experiment with additional non-OCR source proofs for whole-text inventory
@@ -794,6 +794,34 @@ and never mark success before all gates pass. Do not publish externally.
   These source mismatches cannot be removed by widening frozen extents.
 - Elapsed 2h30m; remaining 9h30m. Next: source-linked target diagnosis and the
   smallest shared proof or acquisition change supported by those observations.
+
+### 2026-09-11 17:23 UTC — localize verification stops and reject page-break B
+
+- C2 now records all 36 frozen targets with hash-bound source evidence and
+  minimal counterexample references. Observed first missing premises: 15 scope,
+  six normalization, six acquisition; nine reporting cases cover eight non-body
+  targets and the recovered controller/processor pilot. Diagnosis verification
+  passes. Missing native sources are never an empty successful comparison.
+- Exact-key buckets now preserve every omitted endpoint when token verification
+  exhausts its budget. Previously this late stop discarded the known dependency
+  bounds and suppressed independent comparisons. Key-index exhaustion still
+  retains an unknown population; partial repeated buckets cannot manufacture
+  uniqueness. The full candidate universe, weights and budgets are unchanged.
+- GPT-3 local comparisons increase from 0 to 1547, covering 121901 native source
+  atoms per side. An exposed B was a known false page-break truncation: its exact
+  continuation remained on the next page. A bounded native external-continuation
+  check declines this B without asserting a move or adding coverage.
+- `bucket-locality-pilot.json` retains the before/unsafe-probe/corrected reports
+  and source diagnosis. `locality-panel-pilot.json` retains all 36 attempts: 35
+  reports, one resource failure, one fixed target B hit, zero document completions,
+  88 B outputs and zero fixed strict-control atoms claimed. No new gate passes.
+- Required format, Clippy and workspace tests pass (2337 passed, two ignored);
+  generated fixtures pass 48/48; seven evaluator tests pass. Clippy initially
+  rejected one test unwrap, replaced with a contextual expect. A rebuild proved
+  executable byte identity after that test-only edit; no corpus rerun was needed.
+- Elapsed 3h; remaining 9h. Next: a reversible layout fix for measured narrow
+  column gutters. Target text gaps stay below 0.83 font sizes, while observed
+  cross-column gaps are 2.26–3.12; the current four-font-size ceiling merges them.
 </pre></section>
 <section aria-labelledby="reference"><h2 id="reference">Complete operational reference</h2><p>The approved Markdown below retains every contract, checkpoint, verification command, baseline rule, risk and log entry. <a href="PLAN.md">Open the execution plan (Markdown)</a>.</p><details class="dads-details" open><summary>Read the full plan and append-only log</summary><pre><code># Complete the remaining source-backed recovery gates
 

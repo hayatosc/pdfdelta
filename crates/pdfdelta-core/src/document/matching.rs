@@ -328,21 +328,15 @@ pub fn propose_scope_correspondences(
     buckets.sort_by_key(|(a, b)| a.len().saturating_mul(b.len()));
     result.incomplete_nodes = Some(IncompleteCandidateNodes::default());
     let mut emitted = BTreeSet::new();
-    for (left, right) in buckets {
+    'buckets: for (left, right) in buckets {
         let pairs = left.len().saturating_mul(right.len());
         if pairs > limits.max_proposals.saturating_sub(result.proposals.len())
             || pairs > limits.max_pair_checks.saturating_sub(result.examined_pairs)
         {
-            result.exhaustive = false;
-            let pending = result
-                .incomplete_nodes
-                .as_mut()
-                .expect("completed key index");
-            pending.old.extend(left.iter().map(|node| node.id));
-            pending.new.extend(right.iter().map(|node| node.id));
+            candidates::defer_bucket(&mut result, &left, &right);
             continue;
         }
-        for a in left {
+        for a in &left {
             for b in &right {
                 if !emitted.insert((a.id, b.id)) {
                     continue;
@@ -368,9 +362,8 @@ pub fn propose_scope_correspondences(
                             .max_group_token_checks
                             .saturating_sub(result.group_token_checks)
                     {
-                        result.exhaustive = false;
-                        result.incomplete_nodes = None;
-                        return Ok(result);
+                        candidates::defer_bucket(&mut result, &left, &right);
+                        continue 'buckets;
                     }
                     result.group_token_checks += work;
                     if old_key.identity != new_key.identity {
@@ -379,9 +372,13 @@ pub fn propose_scope_correspondences(
                     ProposalBasis::TableCellIdentity
                 } else if a.identity.is_none() && b.identity.is_none() {
                     let work = text_tokens(a).len().saturating_add(text_tokens(b).len());
-                    if candidates::charge(&mut result, work, limits).is_none() {
-                        return Ok(result);
+                    if work > limits.max_index_work.saturating_sub(result.index_work) {
+                        // The key population is complete. All omitted rivals
+                        // remain inside this bucket even when verification stops.
+                        candidates::defer_bucket(&mut result, &left, &right);
+                        continue 'buckets;
                     }
+                    result.index_work += work;
                     if literal_equal(a, b) {
                         ProposalBasis::LiteralContent
                     } else if let (Some(a), Some(b)) = (padding_body(a), padding_body(b))

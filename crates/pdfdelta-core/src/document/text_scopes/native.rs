@@ -21,6 +21,47 @@ pub(super) enum Closure {
     BoundedPaint,
 }
 
+/// An exact external continuation defeats an interval's apparent truncation.
+/// This only declines a review; it does not establish a move or own its sources.
+pub(super) fn external_continuation(
+    view: DocumentView<'_>,
+    interior: &[&GraphNode],
+    shorter: &str,
+    longer: &str,
+    remaining: &mut usize,
+) -> Option<bool> {
+    spend(
+        remaining,
+        shorter.len().saturating_mul(2).saturating_add(longer.len()),
+    )?;
+    let remainder = longer
+        .strip_prefix(shorter)
+        .or_else(|| longer.strip_suffix(shorter));
+    let Some(remainder) = remainder
+        .map(|text| text.trim_matches(' '))
+        .filter(|text| !text.is_empty())
+    else {
+        return Some(false);
+    };
+    for node in &view.graph.nodes {
+        spend(remaining, interior.len().saturating_add(1))?;
+        if interior.iter().any(|member| member.id == node.id) {
+            continue;
+        }
+        let NodeContent::Text { view } = &node.content else {
+            continue;
+        };
+        spend(remaining, view.tokens.len().saturating_mul(4))?;
+        if view
+            .display_text()
+            .is_some_and(|text| text.trim_matches(' ') == remainder)
+        {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
 /// Runs are discovery paths only. A path becomes a closed interval only after
 /// its complete native source band has been checked by [`Sources::closed`].
 pub(super) fn runs<'a>(

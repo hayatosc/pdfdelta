@@ -312,13 +312,27 @@ pub(super) fn append(
                 // without changing its text, masks, or strict source coverage.
                 if native
                     && let Some(TypedOperation::TextChanged {
-                        old: Some(old),
-                        new: Some(new),
+                        old: Some(old_text),
+                        new: Some(new_text),
                     }) = &comparison.operation
-                    && old
+                    && (old_text
                         .chars()
                         .filter(|scalar| *scalar != ' ')
-                        .eq(new.chars().filter(|scalar| *scalar != ' '))
+                        .eq(new_text.chars().filter(|scalar| *scalar != ' '))
+                        || native::external_continuation(
+                            new,
+                            b,
+                            new_text,
+                            old_text,
+                            &mut remaining,
+                        ) != Some(false)
+                        || native::external_continuation(
+                            old,
+                            a,
+                            old_text,
+                            new_text,
+                            &mut remaining,
+                        ) != Some(false))
                 {
                     continue;
                 }
