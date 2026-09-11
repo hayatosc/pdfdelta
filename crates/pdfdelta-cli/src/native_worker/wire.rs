@@ -1,5 +1,5 @@
-//! Private worker transport. Positional glyphs avoid repeating field names for
-//! every source atom while preserving the same response-byte ceiling.
+//! Private worker transport. Positional glyphs share identical consecutive
+//! source context while preserving every atom and the response-byte ceiling.
 
 use pdfdelta_core::{
     document::{
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 // A version change is required when reordering positional fields. This format
 // is internal to one executable; public reports retain their named fields.
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Acquisition {
@@ -43,21 +43,28 @@ struct CompactGlyph(
     GlyphId,
     DecodedText,
     Vec<u8>,
-    PageId,
-    [f64; 4],
     [f64; 2],
-    [f64; 2],
-    FontId,
     f64,
     u32,
+    u32,
+    Option<GlyphContext>,
+);
+
+// Bit patterns distinguish signed zero and preserve coordinates without
+// quantization. Context is reused only when every field is identical.
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct GlyphContext(
+    PageId,
+    [u64; 6],
+    FontId,
     TextRenderMode,
     GlyphCropStatus,
     GlyphPathClipStatus,
-    (u32, u16, u32),
+    (u32, u16),
 );
 
-impl From<Glyph> for CompactGlyph {
-    fn from(glyph: Glyph) -> Self {
+impl CompactGlyph {
+    fn encode(glyph: Glyph, previous: &mut Option<GlyphContext>) -> Self {
         let Glyph {
             id,
             text,
@@ -74,48 +81,68 @@ impl From<Glyph> for CompactGlyph {
             path_clip_status,
             provenance,
         } = glyph;
-        Self(
-            id,
-            text,
-            raw_code,
+        let context = GlyphContext(
             page,
-            [bbox.min.x, bbox.min.y, bbox.max.x, bbox.max.y],
-            [baseline.x, baseline.y],
-            [direction.x, direction.y],
+            [
+                bbox.min.y,
+                bbox.max.y,
+                baseline.y,
+                direction.x,
+                direction.y,
+                font_size,
+            ]
+            .map(f64::to_bits),
             font_id,
-            font_size,
-            render_order,
             render_mode,
             crop_status,
             path_clip_status,
             (
                 provenance.content_stream.object_number,
                 provenance.content_stream.generation,
-                provenance.operator_index,
             ),
-        )
-    }
-}
-
-impl From<CompactGlyph> for Glyph {
-    fn from(glyph: CompactGlyph) -> Self {
-        let CompactGlyph(
+        );
+        let context = if previous.as_ref() == Some(&context) {
+            None
+        } else {
+            *previous = Some(context);
+            Some(context)
+        };
+        Self(
             id,
             text,
             raw_code,
-            page,
-            bbox,
-            baseline,
-            direction,
-            font_id,
-            font_size,
+            [bbox.min.x, bbox.max.x],
+            baseline.x,
             render_order,
+            provenance.operator_index,
+            context,
+        )
+    }
+
+    fn decode(self, previous: &mut Option<GlyphContext>) -> Glyph {
+        let CompactGlyph(id, text, raw_code, bbox, baseline, render_order, operator_index, context) =
+            self;
+        if let Some(context) = context {
+            *previous = Some(context);
+        }
+        let GlyphContext(
+            page,
+            coordinates,
+            font_id,
             render_mode,
             crop_status,
             path_clip_status,
-            (object_number, generation, operator_index),
-        ) = glyph;
-        Self {
+            (object_number, generation),
+        ) = previous.expect("the first glyph context was validated before decoding");
+        let [
+            min_y,
+            max_y,
+            baseline_y,
+            direction_x,
+            direction_y,
+            font_size,
+        ] = coordinates.map(f64::from_bits);
+        Glyph {
             id,
             text,
             raw_code,
@@ -123,20 +150,20 @@ impl From<CompactGlyph> for Glyph {
             bbox: Rect {
                 min: Vec2 {
                     x: bbox[0],
-                    y: bbox[1],
+                    y: min_y,
                 },
                 max: Vec2 {
-                    x: bbox[2],
-                    y: bbox[3],
+                    x: bbox[1],
+                    y: max_y,
                 },
             },
             baseline: Vec2 {
-                x: baseline[0],
-                y: baseline[1],
+                x: baseline,
+                y: baseline_y,
             },
             direction: Vec2 {
-                x: direction[0],
-                y: direction[1],
+                x: direction_x,
+                y: direction_y,
             },
             font_id,
             font_size,
@@ -168,13 +195,14 @@ impl From<super::Acquisition> for Acquisition {
             key_inventories,
             issues,
         } = value.store;
+        let mut context = None;
         Self {
             version: VERSION,
             store: Store {
                 revision,
                 backends,
                 pages,
-                native: native.map_items(CompactGlyph::from),
+                native: native.map_items(|glyph| CompactGlyph::encode(glyph, &mut context)),
                 rendered,
                 structured,
                 inventories,
@@ -204,12 +232,22 @@ impl Acquisition {
             key_inventories,
             issues,
         } = self.store;
+        if native
+            .items()
+            .first()
+            .is_some_and(|glyph| glyph.7.is_none())
+        {
+            return Err(super::Failure::backend(
+                "native response starts with an absent glyph context",
+            ));
+        }
+        let mut context = None;
         Ok(super::Acquisition {
             store: EvidenceStore {
                 revision,
                 backends,
                 pages,
-                native: native.map_items(Glyph::from),
+                native: native.map_items(|glyph| glyph.decode(&mut context)),
                 rendered,
                 structured,
                 inventories,

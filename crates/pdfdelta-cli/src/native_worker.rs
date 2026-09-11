@@ -566,31 +566,36 @@ mod tests {
         ]
         .into_iter()
         .enumerate()
-        .map(|(index, render_mode)| Glyph {
-            id: GlyphId(index as u64 * 3),
-            text: if index % 2 == 0 {
-                DecodedText::Mapped("fiλ".into())
-            } else {
-                DecodedText::Unmapped {
-                    font_hash: FontProgramHash(vec![4, 8, 255]),
-                    glyph_id: 513,
-                }
-            },
-            raw_code: vec![0, 255, 3],
-            page: PageId(0),
-            bbox: Rect {
-                min: Vec2 { x: -1.25, y: 8.5 },
-                max: Vec2 { x: 3.5, y: 12.75 },
-            },
-            baseline: Vec2 { x: 4.25, y: -3.5 },
-            direction: Vec2 { x: 0.0, y: -1.0 },
-            font_id: FontId(7),
-            font_size: 8.25,
-            render_order: 31 - index as u32,
-            render_mode,
-            crop_status: GlyphCropStatus::PartiallyOutside,
-            path_clip_status: GlyphPathClipStatus::Outside,
-            provenance,
+        .flat_map(|(index, render_mode)| {
+            (0..32).map(move |offset| Glyph {
+                id: GlyphId((index as u64 * 32 + offset) * 3),
+                text: if index % 2 == 0 {
+                    DecodedText::Mapped("fiλ".into())
+                } else {
+                    DecodedText::Unmapped {
+                        font_hash: FontProgramHash(vec![4, 8, 255]),
+                        glyph_id: 513,
+                    }
+                },
+                raw_code: vec![0, 255, 3],
+                page: PageId(0),
+                bbox: Rect {
+                    min: Vec2 { x: -1.25, y: 8.5 },
+                    max: Vec2 { x: 3.5, y: 12.75 },
+                },
+                baseline: Vec2 {
+                    x: 4.25,
+                    y: if offset < 16 { 0.0 } else { -0.0 },
+                },
+                direction: Vec2 { x: 0.0, y: -1.0 },
+                font_id: FontId(7),
+                font_size: 8.25,
+                render_order: 31 - index as u32,
+                render_mode,
+                crop_status: GlyphCropStatus::PartiallyOutside,
+                path_clip_status: GlyphPathClipStatus::Outside,
+                provenance,
+            })
         })
         .collect();
         acquisition.store.native = Document::with_vector_lines(
@@ -619,15 +624,35 @@ mod tests {
             &[Channel::Text],
         );
         let expected = serde_json::to_value(&acquisition).expect("named acquisition");
+        let expected_baselines = acquisition
+            .store
+            .native
+            .items()
+            .iter()
+            .map(|glyph| glyph.baseline.y.to_bits())
+            .collect::<Vec<_>>();
         let named_size = serde_json::to_vec(&acquisition).expect("named bytes").len();
         let wire = wire::Acquisition::from(acquisition);
         let encoded = serde_json::to_vec(&wire).expect("compact bytes");
-        assert!(encoded.len() < named_size);
+        assert!(
+            encoded.len() < named_size / 3,
+            "repeated source context must fit the existing byte ceiling more efficiently"
+        );
         let mut retained = Vec::new();
         let mut bounded = CeilingWriter::new(&mut retained, encoded.len());
         serde_json::to_writer(&mut bounded, &wire).expect("compact response fits");
         let restored: wire::Acquisition = serde_json::from_slice(&retained).expect("wire response");
         let restored = restored.decode().expect("supported version");
+        assert_eq!(
+            restored
+                .store
+                .native
+                .items()
+                .iter()
+                .map(|glyph| glyph.baseline.y.to_bits())
+                .collect::<Vec<_>>(),
+            expected_baselines
+        );
         assert_eq!(
             serde_json::to_value(&restored).expect("restored evidence"),
             expected
@@ -641,6 +666,14 @@ mod tests {
         );
 
         let mut unsupported = serde_json::to_value(wire).expect("wire fields");
+        let mut missing_context = unsupported.clone();
+        missing_context["store"]["native"]["items"][0][7] = serde_json::Value::Null;
+        assert!(
+            serde_json::from_value::<wire::Acquisition>(missing_context)
+                .expect("absent initial context is structurally valid")
+                .decode()
+                .is_err()
+        );
         unsupported["version"] = serde_json::json!(255);
         assert!(
             serde_json::from_value::<wire::Acquisition>(unsupported)

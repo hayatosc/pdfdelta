@@ -383,3 +383,25 @@ and never mark success before all gates pass. Do not publish externally.
   response ceiling in 3.10 seconds, still serializing native glyphs. Next: test
   lossless transport redundancy removal at unchanged time/byte/item limits.
   Elapsed 3h27m; remaining 8h33m.
+
+### 2026-09-11 17:57 UTC — retain repeated worker context once
+
+- Private worker transport now reuses exactly equal consecutive glyph context:
+  page, vertical bounds/baseline, direction, font, rendering/clip state and source
+  object. Floating context values use their full bit patterns, including signed
+  zero. Text, raw codes, horizontal geometry, paint order and operator provenance
+  remain per glyph. A missing initial context and unknown versions fail decoding.
+- The expanded round-trip fixture retains mapped/unmapped glyphs, every render
+  mode, signed zero and auxiliary evidence. The previous transport failed its
+  response-size assertion; the new encoding fits below one third of named JSON.
+  No worker, parser, extraction or evidence ceiling changes. Required format,
+  Clippy and workspace tests pass (2339 passed, two ignored); generated 48/48 pass.
+- `worker-context-pilot.json` binds two comparison attempts and direct worker
+  probes. NIST risk-management revision 2 now retains 643987 new-side sources,
+  previously zero. Candidate indexing still suppresses local comparison. The
+  larger controls catalog advances from about 703000 to 1310000 serialized glyphs
+  before the same 128 MiB ceiling, but still cannot return a complete acquisition.
+  No fixed-target A/B or document-completion gain is claimed.
+- Elapsed 3h34m; remaining 8h26m. Next: use the recovered source evidence to
+  identify duplicate indexing work, and measure remaining wire-size components
+  before choosing another transport change.
