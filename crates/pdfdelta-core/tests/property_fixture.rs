@@ -870,3 +870,43 @@ fn positioned_glyph(id: u64, text: &str, x: f64, baseline_y: f64) -> Glyph {
         },
     }
 }
+
+#[test]
+fn extreme_finite_geometry_never_panics_the_pipeline() {
+    // Extraction enforces finite geometry but not a magnitude bound, so the
+    // pipeline must stay panic-free for huge, tiny, and near-degenerate values.
+    let cases = [
+        (1.0, f64::MAX / 4.0, 0.0, 1.0, 0.0),
+        (1.0, f64::MIN / 4.0, 0.0, 1.0, 0.0),
+        (f64::MAX, 0.0, 0.0, 1.0, 0.0),
+        (f64::MIN_POSITIVE, 0.0, 0.0, 1.0, 0.0),
+        (1.0, 0.0, 0.0, f64::MIN_POSITIVE, 0.0),
+        (1.0, -1e308, 0.0, 1.0, 0.0),
+        (1.0, 0.0, -1e308, 0.0, 1.0),
+    ];
+    for (font_size, x, y, direction_x, direction_y) in cases {
+        let glyphs = (0..4)
+            .map(|index| {
+                let mut glyph = positioned_glyph(index, &format!("w{index}"), x, y);
+                glyph.font_size = font_size;
+                glyph.direction = Vec2 {
+                    x: direction_x,
+                    y: direction_y,
+                };
+                glyph
+            })
+            .collect::<Vec<_>>();
+        let document = Document::new(glyphs);
+        if let Ok(lines) = reconstruct_lines(&document, LineOptions::default()) {
+            let _ = reconstruct_blocks(&document, &lines, BlockOptions::default());
+        }
+        if let Ok(comparison) =
+            compare_glyph_documents(&document, &document, PipelineOptions::default())
+        {
+            assert!(
+                comparison.changes.is_empty(),
+                "identity comparison of extreme geometry reported changes"
+            );
+        }
+    }
+}
