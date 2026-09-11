@@ -13,7 +13,9 @@ use super::{
     DocumentComparisonLimits, DocumentView, EdgeKind, GraphNode, NodeContent, NodeId, SourceRef,
     source_children, spend,
 };
-use crate::document::{BackendKind, Channel, NodeKind, ViewBasis};
+use crate::document::{
+    BackendKind, Channel, EvidenceBoundary, EvidenceFailure, NodeKind, ViewBasis,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Closure {
@@ -303,7 +305,21 @@ impl<'a> Sources<'a> {
         let paints = evidence.native.non_text_paint_bounds()?;
         if !evidence.native.last_non_text_paint().contains_key(&page)
             || evidence.issues.iter().any(|issue| {
-                issue.channel == Channel::Text && (issue.page.is_none() || issue.page == Some(page))
+                if issue.channel != Channel::Text
+                    || (issue.page.is_some() && issue.page != Some(page))
+                {
+                    return false;
+                }
+                // A failed invocation remains an incomplete inventory. Only an
+                // explicit finite bound can make its missing ink local; the
+                // paint loop below must still prove separation from this band.
+                !(issue.page == Some(page)
+                    && issue.sources.is_empty()
+                    && matches!(issue.kind, EvidenceFailure::Unsupported | EvidenceFailure::Unresolved)
+                    && matches!(issue.boundary,
+                        Some(EvidenceBoundary::PageGlyphGap { page: failed_page, paint_index: Some(index), .. })
+                            if failed_page == page && paints.get(index)
+                                .is_some_and(|paint| paint.page == page && paint.bounds.is_some())))
             })
         {
             return None;
@@ -321,7 +337,7 @@ impl<'a> Sources<'a> {
             {
                 continue;
             }
-            // Only a complete native acquisition with explicit opaque paint can
+            // Only a native acquisition with explicitly bounded opaque paint can
             // explain this local exception. Other incomplete providers or a
             // missing native glyph remain uncertainty, even outside the band.
             if inventory.page != Some(page)

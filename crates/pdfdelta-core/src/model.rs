@@ -155,7 +155,7 @@ pub struct MarkedContent {
     pub complete: bool,
 }
 
-/// A non-text painting operation with a conservative bound in native page
+/// An opaque or non-text painting operation with a conservative bound in native page
 /// coordinates. An unknown bound remains an obstruction to local text closure;
 /// neither a known bound nor its absence identifies the painted content.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]

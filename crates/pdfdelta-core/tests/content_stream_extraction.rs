@@ -1289,6 +1289,85 @@ fn keeps_form_graphics_stack_underflow_unresolved() {
 }
 
 #[test]
+fn failed_form_bounds_use_the_declared_box_and_full_transform() -> Result<()> {
+    for bbox in [Some([10, 20, 30, 40]), None, Some([30, 20, 10, 40])] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let mut dictionary = dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "Matrix" => vec![2.into(), 1.into(), 1.into(), 3.into(), 4.into(), 5.into()],
+        };
+        if let Some(bbox) = bbox {
+            dictionary.set(
+                "BBox",
+                bbox.into_iter().map(Object::Integer).collect::<Vec<_>>(),
+            );
+        }
+        let form = pdf.add_object(Stream::new(
+            dictionary,
+            b"0 0 1 1 re f UnsupportedOperator".to_vec(),
+        ));
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"0 0 2 2 re f BT /F1 10 Tf 10 20 Td (A) Tj ET \
+              q 0 1 -1 0 100 50 cm /X Do Q BT /F1 10 Tf 20 20 Td (B) Tj ET"
+                .to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font },
+                "XObject" => dictionary! { "X" => form },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert_eq!(mapped_text(outcome.document().items()), "AB");
+        let bounded = bbox == Some([10, 20, 30, 40]);
+        assert_eq!(
+            outcome.issues()[0].scope(),
+            ExtractionScope::PageGlyphGap {
+                page: PageId(0),
+                retained_before: 1,
+                paint_index: bounded.then_some(1),
+            }
+        );
+        let paints = outcome
+            .document()
+            .non_text_paint_bounds()
+            .expect("paint inventory");
+        assert_eq!(
+            paints.len(),
+            2,
+            "partial Form paints are replaced by the opaque invocation"
+        );
+        assert_eq!(paints[1].content_stream.object_number, content.0);
+        assert_eq!(paints[1].render_order, 1);
+        if bounded {
+            let bounds = paints[1].bounds.expect("finite transformed Form box");
+            for (actual, expected, lower) in [
+                (bounds.min.x, -55.0, true),
+                (bounds.min.y, 94.0, true),
+                (bounds.max.x, 25.0, false),
+                (bounds.max.y, 154.0, false),
+            ] {
+                assert!((actual - expected).abs() < 1e-9);
+                assert!(if lower {
+                    actual <= expected
+                } else {
+                    actual >= expected
+                });
+            }
+        } else {
+            assert!(paints[1].bounds.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);
@@ -1324,7 +1403,8 @@ fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<(
         outcome.issues()[0].scope(),
         ExtractionScope::PageGlyphGap {
             page: PageId(0),
-            retained_before: 1
+            retained_before: 1,
+            paint_index: Some(0),
         }
     );
     assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unresolved);
@@ -1353,6 +1433,7 @@ fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<(
             retained_before: 1,
             before: Some(before),
             after: Some(after),
+            paint_index: Some(0),
         })
     );
     Ok(())
@@ -1396,6 +1477,7 @@ fn failed_form_at_a_page_edge_does_not_poison_other_page_inventories() -> Result
             ExtractionScope::PageGlyphGap {
                 page: PageId(0),
                 retained_before,
+                paint_index: Some(0),
             }
         );
         let before = retained_before
@@ -1431,6 +1513,7 @@ fn failed_form_at_a_page_edge_does_not_poison_other_page_inventories() -> Result
                 retained_before,
                 before,
                 after,
+                paint_index: Some(0),
             })
         );
         assert!(!store.inventory_complete(None, Channel::Text));
@@ -1560,7 +1643,8 @@ fn enclosing_form_failure_discards_nested_gap_and_preserves_page_suffix() -> Res
         outcome.issues()[0].scope(),
         ExtractionScope::PageGlyphGap {
             page: PageId(0),
-            retained_before: 1
+            retained_before: 1,
+            paint_index: Some(0),
         }
     );
     assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);

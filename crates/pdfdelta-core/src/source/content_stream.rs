@@ -873,6 +873,7 @@ impl<'a> Extraction<'a> {
                 let vector_line_start = self.vector_lines.len();
                 let marked_start = self.marked_content.len();
                 let issue_start = self.issues.len();
+                let paint_start = self.non_text_paint_bounds.len();
                 let render_order = self.render_order;
                 let result = self.invoke_xobject(
                     name,
@@ -886,7 +887,10 @@ impl<'a> Extraction<'a> {
                 );
                 match result {
                     Ok(()) => {}
-                    Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
+                    Err(XObjectFailure {
+                        error: error @ (Error::Unsupported(_) | Error::Unresolved(_)),
+                        bounds,
+                    }) => {
                         self.glyphs.truncate(glyph_start);
                         self.vector_lines.truncate(vector_line_start);
                         self.marked_content.truncate(marked_start);
@@ -895,15 +899,20 @@ impl<'a> Extraction<'a> {
                         }
                         self.issues.truncate(issue_start);
                         self.render_order = render_order;
+                        // Partial effects of a failed invocation are replaced by
+                        // one opaque operation, retaining its caller provenance.
+                        self.non_text_paint_bounds.truncate(paint_start);
+                        self.record_non_text_paint(page, stream, operation, bounds);
                         self.issues.push(ExtractionIssue::from_error(
                             ExtractionScope::PageGlyphGap {
                                 page,
                                 retained_before: glyph_start,
+                                paint_index: bounds.map(|_| paint_start),
                             },
                             error,
                         )?);
                     }
-                    Err(error) => return Err(error),
+                    Err(failure) => return Err(failure.error),
                 }
             }
             b"BX" => {
@@ -1603,7 +1612,7 @@ impl Extraction<'_> {
         resources: &Resources,
         state: &InterpreterState,
         form_depth: usize,
-    ) -> Result<()> {
+    ) -> std::result::Result<(), XObjectFailure> {
         let object = resources.xobjects.entries.get(name).ok_or_else(|| {
             operation_error(
                 operation,
@@ -1618,13 +1627,15 @@ impl Extraction<'_> {
             PdfObject::Stream(_) => {
                 return Err(Error::Unsupported(
                     "direct Form XObject streams cannot retain object provenance".into(),
-                ));
+                )
+                .into());
             }
             _ => {
                 return Err(operation_error(
                     operation,
                     "XObject resource is not a stream reference",
-                ));
+                )
+                .into());
             }
         };
         let xobject = self.cached_xobject(reference)?;
@@ -1639,6 +1650,7 @@ impl Extraction<'_> {
         let CachedXObjectKind::Form {
             matrix: form_matrix,
             resources: local_resources,
+            bbox,
         } = &xobject.kind
         else {
             return Ok(());
@@ -1648,14 +1660,27 @@ impl Extraction<'_> {
             return Err(Error::LimitExceeded {
                 resource: "Form XObject recursion depth",
                 limit: self.limits.max_form_depth,
-            });
+            }
+            .into());
         }
         if !self.active_forms.insert(reference) {
             return Err(Error::Unresolved(format!(
                 "cyclic Form XObject reference {} {}",
                 reference.object_number, reference.generation
-            )));
+            ))
+            .into());
         }
+
+        let bounds = bbox.and_then(|bbox| {
+            paint_bounds::form_paint_bounds(
+                page_geometry,
+                state
+                    .graphics
+                    .paint_ctm
+                    .then(MatrixBounds::from(*form_matrix)),
+                bbox,
+            )
+        });
 
         let result = (|| {
             let form_resources = local_resources.clone().unwrap_or_else(|| resources.clone());
@@ -1706,7 +1731,7 @@ impl Extraction<'_> {
             Ok(())
         })();
         self.active_forms.remove(&reference);
-        result
+        result.map_err(|error| XObjectFailure { error, bounds })
     }
 
     fn cached_xobject(&mut self, reference: ObjectRef) -> Result<Arc<CachedXObject>> {
@@ -1737,7 +1762,15 @@ impl Extraction<'_> {
                     .get(b"Resources".as_slice())
                     .map(|value| self.resources(Some(value), None))
                     .transpose()?;
-                CachedXObjectKind::Form { matrix, resources }
+                let bbox = dictionary
+                    .get(b"BBox".as_slice())
+                    .map(|value| self.rectangle_value(value, "Form BBox"))
+                    .transpose()?;
+                CachedXObjectKind::Form {
+                    matrix,
+                    resources,
+                    bbox,
+                }
             }
             subtype => {
                 return Err(Error::Unsupported(format!(
@@ -2496,7 +2529,22 @@ enum CachedXObjectKind {
     Form {
         matrix: Matrix,
         resources: Option<Resources>,
+        bbox: Option<[f64; 4]>,
     },
+}
+
+struct XObjectFailure {
+    error: Error,
+    bounds: Option<Rect>,
+}
+
+impl From<Error> for XObjectFailure {
+    fn from(error: Error) -> Self {
+        Self {
+            error,
+            bounds: None,
+        }
+    }
 }
 
 struct BoundFont {

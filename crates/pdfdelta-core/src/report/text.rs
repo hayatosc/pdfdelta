@@ -129,6 +129,7 @@ pub(super) fn render(
                 ExtractionScope::PageGlyphGap {
                     page,
                     retained_before,
+                    ..
                 } => {
                     format!(
                         "scope=glyph-gap, page={}, retained-glyphs-before={retained_before}",

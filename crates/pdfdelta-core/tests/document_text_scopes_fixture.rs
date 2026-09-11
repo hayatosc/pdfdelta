@@ -2,9 +2,9 @@ use pdfdelta_core::{
     document::{
         BackendIdentity, BackendKind, Channel, ChannelInventory, CorrespondenceScope,
         DocumentComparisonLimits, DocumentGraph, DocumentView, DocumentViewComparison, EdgeKind,
-        EvidenceFailure, EvidenceIssue, EvidenceStore, GraphEdge, GraphNode, HierarchyLimits,
-        NodeContent, NodeId, NodeKind, PageEvidence, SourceRef, TextNormalization, TextView,
-        ViewBasis, compare_document_views,
+        EvidenceBoundary, EvidenceFailure, EvidenceIssue, EvidenceStore, GraphEdge, GraphNode,
+        HierarchyLimits, NodeContent, NodeId, NodeKind, PageEvidence, SourceRef, TextNormalization,
+        TextView, ViewBasis, compare_document_views,
     },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
@@ -423,6 +423,59 @@ fn with_paint(fixture: &mut Fixture, bounds: Option<Rect>) {
             operator_index: 0,
         }]);
     fixture.0.inventories[0].complete = false;
+}
+
+#[test]
+fn bounded_failed_invocation_closes_no_more_than_its_disjoint_local_band() {
+    for mutation in 0..5 {
+        let old = fixture("a");
+        let mut new = fixture("aa");
+        with_paint(
+            &mut new,
+            Some(Rect {
+                min: Vec2 {
+                    x: 0.0,
+                    y: if mutation == 1 { 80.0 } else { 120.0 },
+                },
+                max: Vec2 { x: 200.0, y: 140.0 },
+            }),
+        );
+        new.0.issues.push(EvidenceIssue {
+            page: Some(PageId(0)),
+            channel: Channel::Text,
+            sources: vec![],
+            boundary: Some(EvidenceBoundary::PageGlyphGap {
+                page: PageId(0),
+                retained_before: 0,
+                before: None,
+                after: Some(new.0.native.items()[0].id),
+                paint_index: (mutation != 2).then_some(if mutation == 3 { 1 } else { 0 }),
+            }),
+            kind: EvidenceFailure::Unsupported,
+            reason: "failed Form invocation with declared clipping bounds".into(),
+        });
+        if mutation == 4 {
+            new.0.issues[0].boundary = None;
+        }
+        if mutation == 3 {
+            assert!(new.0.validate(Default::default()).is_err());
+            continue;
+        }
+        let result = compare(&old, &new);
+        let scope = &result.scopes[0].result;
+        assert_eq!(
+            scope.text_scope_reviews.len(),
+            usize::from(mutation == 0),
+            "mutation {mutation}"
+        );
+        assert!(!new.0.inventory_complete(Some(PageId(0)), Channel::Text));
+        assert!(
+            scope
+                .text_scope_reviews
+                .iter()
+                .all(|review| review.convention == "closed-native-paint-bounds-interval-v1")
+        );
+    }
 }
 
 #[test]

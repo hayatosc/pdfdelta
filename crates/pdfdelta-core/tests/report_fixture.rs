@@ -603,6 +603,7 @@ fn reports_localized_glyph_gap_scope() -> Result<()> {
     extraction.issues[0].scope = ExtractionScope::PageGlyphGap {
         page: PageId(2),
         retained_before: 3,
+        paint_index: None,
     };
     output.clear();
     write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;

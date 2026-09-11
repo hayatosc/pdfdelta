@@ -228,6 +228,9 @@ pub enum EvidenceBoundary {
         retained_before: usize,
         before: Option<GlyphId>,
         after: Option<GlyphId>,
+        /// Index of a finite opaque invocation bound in the native document.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        paint_index: Option<usize>,
     },
     PageGap {
         retained_before: usize,
@@ -286,7 +289,16 @@ impl EvidenceBoundary {
         native: &Document<Glyph>,
         page: PageId,
         retained_before: usize,
+        paint_index: Option<usize>,
     ) -> Result<Self> {
+        if let Some(index) = paint_index
+            && !native
+                .non_text_paint_bounds()
+                .and_then(|paints| paints.get(index))
+                .is_some_and(|paint| paint.page == page && paint.bounds.is_some())
+        {
+            return Err(invalid("extraction gap has no matching finite paint bound"));
+        }
         let Self::GlyphGap { before, after, .. } = Self::glyph_gap(native, retained_before)? else {
             unreachable!()
         };
@@ -295,6 +307,7 @@ impl EvidenceBoundary {
             retained_before,
             before,
             after,
+            paint_index,
         })
     }
 }
@@ -852,8 +865,14 @@ impl EvidenceStore {
                     EvidenceBoundary::PageGlyphGap {
                         page,
                         retained_before,
+                        paint_index,
                         ..
-                    } => EvidenceBoundary::page_glyph_gap(&self.native, *page, *retained_before)?,
+                    } => EvidenceBoundary::page_glyph_gap(
+                        &self.native,
+                        *page,
+                        *retained_before,
+                        *paint_index,
+                    )?,
                     EvidenceBoundary::PageGap {
                         retained_before, ..
                     } => EvidenceBoundary::page_gap(&self.pages, *retained_before)?,

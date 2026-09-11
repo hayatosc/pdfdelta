@@ -422,7 +422,7 @@ and never mark success before all gates pass. Do not publish externally.
   source-local closure for the fixed Mask R-CNN abstract, whose page retains an
   unsupported nested form invocation and disconnected column fragments.
 
-### 2026-09-11 18:42 UTC: recover columns behind terminal lines and headers
+### 2026-09-11 18:37 UTC: recover columns behind terminal lines and headers
 
 - The fixed Mask R-CNN page has a centered terminal line splitting an otherwise
   usable column gutter. When ordinary cuts fail, isolate a supported terminal
@@ -443,3 +443,28 @@ and never mark success before all gates pass. Do not publish externally.
   and passes after it, including wide and insufficiently separated terminals.
   Next: retain the sidebar's uncertainty while recovering independent body order,
   then investigate the failed Form's explicit bounding box.
+
+### 2026-09-11 18:53 UTC: retain failed Form invocation bounds
+
+- Failed Form invocations retain an outward-rounded bound derived from their
+  explicit clipping box and the complete Form/caller/page transform. Missing,
+  reversed, non-finite or unresolvable bounds remain opaque. Partial paints are
+  rolled back with the failed invocation's other effects, then represented by
+  one opaque operation with caller stream/operator provenance.
+- A checked paint-index reference links the retained extraction gap to that
+  bound. Only disjoint local native bands may use it for non-owning B review;
+  the extraction issue and incomplete page/document inventories remain. Invalid
+  references and touching paint do not establish closure. Cache version 7 and
+  the updated backend profile prevent reuse of older extraction results.
+- `form-bounds-pilot.json` binds the final build and two fixed RCNN captures.
+  The Mask figure occupies the right column while its abstract occupies the
+  left. Both fixed target hits and pair completion counts remain zero; one
+  extra out-of-target B output needs adjudication and is not counted.
+- A separate margin-isolation attempt was rejected: it recovered the new
+  abstract's leading adjacency but exposed a horizontal split that lost the
+  trailing adjacency. Its patch and source graphs are retained. No margin
+  exception is present in the committed layout algorithm.
+- Format, Clippy and workspace tests pass (2343 passed, two ignored), including
+  transformed Form bounds, opaque fallback, invalid-reference and local-closure
+  tests. Generated fixtures pass 48/48. Next: investigate first-line paragraph
+  fragmentation and recover source-closed discovery paths across layout gaps.

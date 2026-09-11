@@ -146,6 +146,10 @@ pub enum ExtractionScope {
     PageGlyphGap {
         page: PageId,
         retained_before: usize,
+        /// Index of the opaque invocation's finite paint bound, when available.
+        /// This local bound does not make the page inventory complete.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        paint_index: Option<usize>,
     },
 }
 
@@ -249,6 +253,20 @@ impl ExtractionOutcome {
     pub fn new(document: Document<Glyph>, issues: Vec<ExtractionIssue>) -> Result<Self> {
         let mut pages = HashSet::with_capacity(issues.len());
         for issue in &issues {
+            if let ExtractionScope::PageGlyphGap {
+                page,
+                paint_index: Some(index),
+                ..
+            } = issue.scope()
+                && !document
+                    .non_text_paint_bounds()
+                    .and_then(|paints| paints.get(index))
+                    .is_some_and(|paint| paint.page == page && paint.bounds.is_some())
+            {
+                return Err(Error::InvalidConfiguration(
+                    "extraction gap references a missing or unbounded paint operation".into(),
+                ));
+            }
             match issue.scope() {
                 ExtractionScope::Document => {}
                 ExtractionScope::Page(page) if !pages.insert(page) => {

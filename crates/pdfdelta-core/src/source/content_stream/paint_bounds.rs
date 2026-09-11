@@ -171,6 +171,22 @@ pub(super) fn image_paint_bounds(frame: PageGeometry, state: &InterpreterState) 
     rectangle_bounds(frame, state.graphics.paint_ctm, 0.0, 0.0, 1.0, 1.0)
 }
 
+pub(super) fn form_paint_bounds(
+    frame: PageGeometry,
+    ctm: MatrixBounds,
+    [x0, y0, x1, y1]: [f64; 4],
+) -> Option<Rect> {
+    if ![x0, y0, x1, y1].into_iter().all(f64::is_finite) || x0 >= x1 || y0 >= y1 {
+        return None;
+    }
+    // Direct endpoint intervals avoid a rounded width subtraction. The Form's
+    // implicit clipping boundary contains all its possible painted evidence.
+    MatrixBounds::from(frame.transform).then(ctm).transform(
+        Interval::point(x0).hull(Interval::point(x1)),
+        Interval::point(y0).hull(Interval::point(y1)),
+    )
+}
+
 pub(super) fn path_paint_bounds(
     frame: PageGeometry,
     state: &InterpreterState,
