@@ -4,9 +4,9 @@ use crate::diff::Confidence;
 use crate::document::{
     BackendIdentity, BackendKind, ButtonAppearanceState, CorrespondenceScope,
     DocumentComparisonLimits, DocumentGraph, DocumentView, EvidenceLimits, EvidenceStore,
-    FieldValue, FormLimits, FormWidget, GraphLimits, HierarchyLimits, NodeId, PageEvidence, Raster,
-    RecognizedWord, RenderedEvidence, StructureLimits, StructuredEvidence, StructuredValue,
-    extract_form_evidence, extract_structure_evidence,
+    FieldValue, FormLimits, FormWidget, GraphLimits, HierarchyLimits, NodeId, NodeKind,
+    PageEvidence, Raster, RecognizedWord, RenderedEvidence, StructureLimits, StructuredEvidence,
+    StructuredValue, extract_form_evidence, extract_structure_evidence, refine_table_views,
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
@@ -841,7 +841,7 @@ pub fn fuzz_graph_pipeline(input: &[u8]) {
 
 fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> bool {
     let limits = EvidenceLimits::default();
-    let Ok(old_graph) = DocumentGraph::from_evidence(
+    let Ok(mut old_graph) = DocumentGraph::from_evidence(
         old_store,
         PipelineOptions::default(),
         limits,
@@ -849,7 +849,7 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
     ) else {
         return false;
     };
-    let Ok(new_graph) = DocumentGraph::from_evidence(
+    let Ok(mut new_graph) = DocumentGraph::from_evidence(
         new_store,
         PipelineOptions::default(),
         limits,
@@ -857,45 +857,118 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
     ) else {
         return false;
     };
-    let old_view = DocumentView {
-        evidence: old_store,
-        graph: &old_graph,
-    };
-    let new_view = DocumentView {
-        evidence: new_store,
-        graph: &new_graph,
-    };
-    let Ok(comparison) = crate::document::compare_document_views(
-        old_view,
-        new_view,
-        CorrespondenceScope {
-            old: NodeId(0),
-            new: NodeId(0),
-        },
+    {
+        let old_view = DocumentView {
+            evidence: old_store,
+            graph: &old_graph,
+        };
+        let new_view = DocumentView {
+            evidence: new_store,
+            graph: &new_graph,
+        };
+        let Ok(comparison) = crate::document::compare_document_views(
+            old_view,
+            new_view,
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            DocumentComparisonLimits::default(),
+            HierarchyLimits::default(),
+        ) else {
+            return false;
+        };
+        assert!(
+            serde_json::to_vec(&comparison).is_ok(),
+            "a successful document comparison must serialize"
+        );
+        let channels = [
+            crate::document::Channel::Text,
+            crate::document::Channel::Visual,
+            crate::document::Channel::Forms,
+            crate::document::Channel::Relations,
+        ]
+        .into_iter()
+        .collect();
+        for entry in crate::document::document_coverage(old_view, new_view, &comparison, &channels)
+        {
+            assert!(entry.old_compared_sources <= entry.old_discovered_sources);
+            assert!(entry.new_compared_sources <= entry.new_discovered_sources);
+            if entry.complete {
+                assert!(entry.old_inventory_complete && entry.new_inventory_complete);
+                assert_eq!(entry.old_uncompared_sources, 0);
+                assert_eq!(entry.new_uncompared_sources, 0);
+            }
+        }
+    }
+
+    let old_nodes = old_graph
+        .nodes
+        .iter()
+        .map(|node| node.id)
+        .collect::<BTreeSet<_>>();
+    let new_nodes = new_graph
+        .nodes
+        .iter()
+        .map(|node| node.id)
+        .collect::<BTreeSet<_>>();
+    let Ok(refinements) = refine_table_views(
+        &mut old_graph,
+        &mut new_graph,
+        old_store,
+        new_store,
+        PipelineOptions::default(),
         DocumentComparisonLimits::default(),
-        HierarchyLimits::default(),
     ) else {
         return false;
     };
-    assert!(
-        serde_json::to_vec(&comparison).is_ok(),
-        "a successful document comparison must serialize"
-    );
-    let channels = [
-        crate::document::Channel::Text,
-        crate::document::Channel::Visual,
-        crate::document::Channel::Forms,
-        crate::document::Channel::Relations,
-    ]
-    .into_iter()
-    .collect();
-    for entry in crate::document::document_coverage(old_view, new_view, &comparison, &channels) {
-        assert!(entry.old_compared_sources <= entry.old_discovered_sources);
-        assert!(entry.new_compared_sources <= entry.new_discovered_sources);
-        if entry.complete {
-            assert!(entry.old_inventory_complete && entry.new_inventory_complete);
-            assert_eq!(entry.old_uncompared_sources, 0);
-            assert_eq!(entry.new_uncompared_sources, 0);
+    for (graph, store, views, counterpart, before) in [
+        (
+            &old_graph,
+            old_store,
+            &refinements.old,
+            &new_graph,
+            &old_nodes,
+        ),
+        (
+            &new_graph,
+            new_store,
+            &refinements.new,
+            &old_graph,
+            &new_nodes,
+        ),
+    ] {
+        assert!(
+            graph
+                .validate(store, EvidenceLimits::default(), GraphLimits::default())
+                .is_ok(),
+            "a refined graph must stay valid against its evidence"
+        );
+        for node in before {
+            assert!(
+                graph.nodes.iter().any(|candidate| candidate.id == *node),
+                "table refinement removed original node {node:?}"
+            );
+        }
+        for view in views {
+            assert!(
+                graph
+                    .nodes
+                    .iter()
+                    .any(|node| node.id == view.target_table && node.kind == NodeKind::Table),
+                "an installed table must be a real table node"
+            );
+            assert!(
+                counterpart
+                    .nodes
+                    .iter()
+                    .any(|node| node.id == view.counterpart_table && node.kind == NodeKind::Table),
+                "a counterpart view must reference a real table node"
+            );
+            assert!(
+                !view.anchor_sources.is_empty() && !view.counterpart_sources.is_empty(),
+                "installed counterpart views must carry their source evidence"
+            );
         }
     }
     true
