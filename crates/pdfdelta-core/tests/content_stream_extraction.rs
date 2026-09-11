@@ -476,6 +476,40 @@ fn extracts_rotated_simple_font_glyphs_with_provenance() -> Result<()> {
 }
 
 #[test]
+fn negative_and_oversized_page_rotations_normalize_modulo_360() -> Result<()> {
+    let snapshot = |rotation: i64| -> Result<PrimitiveExtractionSnapshot> {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 30 40 Tm (AB) Tj ET".to_vec(),
+        ));
+        let resources = dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        };
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(resources),
+            Some([10, 20, 210, 120]),
+            Some(rotation),
+        );
+        let document = extract(pdf, ExtractionLimits::default())?;
+        Ok(PrimitiveExtractionSnapshot::from(&document))
+    };
+
+    let quarter_turn = snapshot(90)?;
+    for equivalent in [450, -270, 90 + 360, 90 - 360] {
+        assert_eq!(
+            snapshot(equivalent)?,
+            quarter_turn,
+            "rotation {equivalent} must normalize like 90 degrees"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn normalizes_reversed_page_box_coordinates_before_rotation() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);
