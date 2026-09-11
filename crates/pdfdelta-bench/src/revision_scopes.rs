@@ -3034,6 +3034,180 @@ mod tests {
         );
     }
 
+    fn assert_containing_scope_boundaries(
+        scopes: &[ResolvedScope],
+        coordinates: &[ScopeCoordinate],
+    ) {
+        let limits = ClassificationLimits::default();
+        for (start_index, start) in coordinates.iter().enumerate() {
+            for end in coordinates.iter().skip(start_index) {
+                let range = ResolvedScopeRange {
+                    start: *start,
+                    end: *end,
+                };
+                let mut budget = ClassificationBudget::default();
+                let result = containing_scope(range, scopes, "old", &mut budget, limits);
+                let containing = scopes
+                    .iter()
+                    .find(|scope| range.start >= scope.old.start && range.end <= scope.old.end);
+                let overlapping = scopes
+                    .iter()
+                    .any(|scope| range.start <= scope.old.end && range.end >= scope.old.start);
+                match containing {
+                    Some(scope) => assert_eq!(
+                        result,
+                        Ok(Some(scope.id.as_str())),
+                        "range {range:?} must be contained by {:?}",
+                        scope.id
+                    ),
+                    None if overlapping => assert_eq!(
+                        result,
+                        Err(SCOPED_CHANGE_INDETERMINATE.to_owned()),
+                        "range {range:?} partially overlaps a scope"
+                    ),
+                    None => {
+                        assert_eq!(result, Ok(None), "range {range:?} lies outside every scope");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn containing_scope_boundaries_are_inclusive_and_fail_closed() {
+        // Two blocks with three scalars each give every boundary combination.
+        let coordinates: Vec<_> = (0..2)
+            .flat_map(|block_order| {
+                (0..3).map(move |scalar| ScopeCoordinate {
+                    block_order,
+                    scalar,
+                })
+            })
+            .collect();
+        let range = |start: usize, end: usize| ResolvedScopeRange {
+            start: coordinates[start],
+            end: coordinates[end],
+        };
+        for start in 0..coordinates.len() {
+            for end in start..coordinates.len() {
+                let scope = ResolvedScope {
+                    id: "first".to_owned(),
+                    old: range(start, end),
+                    new: range(start, end),
+                };
+                assert_containing_scope_boundaries(std::slice::from_ref(&scope), &coordinates);
+            }
+        }
+        for first_start in 0..coordinates.len() {
+            for first_end in first_start..coordinates.len() {
+                for second_start in first_end + 1..coordinates.len() {
+                    for second_end in second_start..coordinates.len() {
+                        let scopes = [
+                            ResolvedScope {
+                                id: "first".to_owned(),
+                                old: range(first_start, first_end),
+                                new: range(first_start, first_end),
+                            },
+                            ResolvedScope {
+                                id: "second".to_owned(),
+                                old: range(second_start, second_end),
+                                new: range(second_start, second_end),
+                            },
+                        ];
+                        assert_containing_scope_boundaries(&scopes, &coordinates);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn classify_scoped_changes_obeys_inclusive_scope_boundaries() {
+        // Scalars: 0 a, 1 a, 2 space, 3 b, 4 b, 5 space, 6 c, 7 c, 8 space, 9 d, 10 d.
+        let old = [block(1, "aa bb cc dd")];
+        let new = [block(2, "aa bb cc dd")];
+        let scope = |id: &str, start: usize, end: usize| ResolvedScope {
+            id: id.to_owned(),
+            old: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: start,
+                },
+                end: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: end,
+                },
+            },
+            new: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: start,
+                },
+                end: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: end,
+                },
+            },
+        };
+        let scopes = [scope("first", 0, 4), scope("second", 6, 10)];
+
+        let classified = [
+            (span(1, 0, 5), span(2, 0, 5), "first"),
+            (span(1, 4, 5), span(2, 4, 5), "first"),
+            // A zero-width side prefers the preceding scalar, so the gap before
+            // a scope is attributed outside while the last scope scalar is not.
+            (span(1, 5, 5), span(2, 5, 5), "first"),
+            (span(1, 6, 11), span(2, 6, 11), "second"),
+            (span(1, 9, 11), span(2, 9, 11), "second"),
+        ];
+        for (old_span, new_span, scope_id) in classified {
+            let actual = change(Some(old_span), Some(new_span));
+            assert_eq!(
+                classify_scoped_changes(std::slice::from_ref(&actual), &scopes, &old, &new)
+                    .expect("contained change classifies"),
+                [ScopedChange {
+                    scope_id: scope_id.to_owned(),
+                    change_index: 0,
+                }],
+                "span must classify into {scope_id}"
+            );
+        }
+
+        let outside = [
+            (Some(span(1, 5, 6)), None),
+            (None, Some(span(2, 5, 6))),
+            (Some(span(1, 5, 6)), Some(span(2, 5, 6))),
+            // Zero-width at a scope start falls back to the preceding separator
+            // and is therefore reported outside the reviewed scope.
+            (Some(span(1, 6, 6)), Some(span(2, 6, 6))),
+        ];
+        for (old_span, new_span) in outside {
+            let actual = change(old_span, new_span);
+            assert!(
+                classify_scoped_changes(std::slice::from_ref(&actual), &scopes, &old, &new)
+                    .expect("outside changes classify")
+                    .is_empty(),
+                "a change outside every scope must not be classified"
+            );
+        }
+
+        let rejected = [
+            (span(1, 0, 6), span(2, 0, 6)),
+            (span(1, 0, 11), span(2, 0, 11)),
+            (span(1, 0, 5), span(2, 6, 11)),
+            (span(1, 0, 5), span(2, 5, 6)),
+            (span(1, 5, 6), span(2, 0, 5)),
+        ];
+        for (old_span, new_span) in rejected {
+            let actual = change(Some(old_span), Some(new_span));
+            assert_eq!(
+                classify_scoped_changes(std::slice::from_ref(&actual), &scopes, &old, &new),
+                Err(SCOPED_CHANGE_INDETERMINATE.to_owned()),
+                "partial or cross-scope changes must fail closed"
+            );
+        }
+    }
+
     #[test]
     fn projects_reordered_context_only_when_selected_coordinates_are_contiguous() {
         let old = [block(1, "a"), block(2, "b"), block(3, "c")];
