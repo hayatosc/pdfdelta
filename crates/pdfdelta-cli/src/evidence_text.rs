@@ -195,6 +195,12 @@ pub(super) fn append_details(
                 review.boundaries,
                 preview(&review.convention)
             );
+            if review.candidate_search_exhaustive == Some(false) {
+                let _ = writeln!(
+                    text,
+                    "  Interior correspondence search is incomplete; this content review relies on accepted source boundaries and assigns no interior identity."
+                );
+            }
             if let Some(TypedOperation::TextChanged { old, new }) = &pair.operation {
                 let _ = writeln!(
                     text,

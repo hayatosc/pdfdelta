@@ -9,19 +9,35 @@ relations, local group comparison and normalization proof. It does not establish
 semantic paragraph identity or recover the author's editing history.
 
 The selected parent children must form one complete, source-backed precedence
-chain on each side. Every member has text content, non-inferred provenance,
+chain on each side. Every member has text content, explicit source-structure provenance,
 nonempty disjoint source references and complete text acquisition inventory.
 Detached members, incomplete relations, acquisition issues, intersecting source
-conflicts and alternative partitions prevent this closure. Both candidate
-enumeration and component optimization must be exhaustive. Two low-frequency
-anchors alone do not meet these requirements.
+conflicts and alternative partitions prevent this closure. Boundary proposals
+must already have accepted source-only mandatory decisions; optional interior
+candidate enumeration may remain incomplete. The review records that search
+status and does not resolve interior identities. Two low-frequency anchors alone
+do not meet these requirements.
+
+`closed-native-baseline-interval-v1` additionally admits separate native order
+runs when the complete parent order is unavailable. Discovery follows unbranched
+native paragraph precedence edges. On each side, the inclusive path must lie on
+one page with complete text acquisition, strictly descending nonoverlapping
+horizontal baseline ranges, disjoint native sources, and no intersecting source
+conflicts or alternative partitions. Every native glyph whose baseline lies in
+the inclusive vertical interval and whose box overlaps the path's horizontal
+extent must belong to the path. This source scan catches omitted or detached
+material; unrelated pages do not invalidate it. Path glyphs must be inside the
+CropBox, unclipped or inside the explicit path clip, and use fill/stroke paint
+modes. This is a retained-text convention, not a claim about transparency or
+later overpainting. It does not admit rotated text or a native cross-page range.
 
 Adjacent old boundaries must preserve new order without another accepted boundary
 inside the new interval. Both interiors must be nonempty, within the existing
 group-node bound, and share a declared text kind. A bounded local group comparison
 must establish a content change. The initial implementation deliberately leaves
-one-sided ranges, multiple order runs and cross-kind comparisons unresolved.
-All-channel parents containing non-text siblings also fail this initial closure.
+one-sided ranges and cross-kind comparisons unresolved. The complete-parent
+convention rejects non-text siblings; the native convention checks its own finite
+source band without requiring unrelated channels to form the same chain.
 
 Each `text_scope_reviews` entry preserves the parent scope, boundary proposal
 indexes, complete interior and boundary source references, member node IDs,

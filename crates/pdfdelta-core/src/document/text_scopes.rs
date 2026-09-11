@@ -8,10 +8,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     Channel, DocumentComparisonLimits, DocumentView, EdgeKind, GraphNode, InterpretationStatus,
-    LocalViewComparison, NodeContent, NodeId, ScopeViewComparison, SourceRef,
+    LocalViewComparison, NodeContent, NodeId, ScopeViewComparison, SourceRef, ViewBasis,
     compare_text_group_views, matching::source_children,
 };
 use crate::Result;
+
+mod native;
 
 /// Content of corresponding intervals under the stated comparison convention.
 /// The enclosing scope retains the parent correspondence. Boundary indexes
@@ -28,6 +30,11 @@ pub struct TextScopeReview {
     pub new_sources: Vec<SourceRef>,
     pub old_boundaries: [Vec<SourceRef>; 2],
     pub new_boundaries: [Vec<SourceRef>; 2],
+    /// Search status of the enclosing supplier universe, including optional
+    /// interior correspondence hypotheses. It does not replace the accepted
+    /// source-boundary decisions. Older reports leave this observation unknown.
+    #[serde(default)]
+    pub candidate_search_exhaustive: Option<bool>,
     pub comparison: LocalViewComparison,
 }
 
@@ -64,7 +71,7 @@ fn closed_order<'a>(
     let mut sources = BTreeSet::new();
     let mut pages = BTreeSet::new();
     for node in &members {
-        if node.basis.is_inferred()
+        if node.basis != ViewBasis::SourceStructure
             || !matches!(node.content, NodeContent::Text { .. })
             || node.sources.is_empty()
             || spend(
@@ -162,30 +169,31 @@ pub(super) fn append(
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
 ) -> Result<()> {
-    if !limits.matching.channels.text
-        || !result.candidates.exhaustive
-        || !result.matching.conflict_search_complete
-        || result
-            .matching
-            .components
-            .iter()
-            .any(|component| !component.exhaustive)
-    {
+    if !limits.matching.channels.text {
         return Ok(());
     }
     let mut remaining = limits.matching.max_ownership_visits;
     let scope = result.matching.scope;
-    let Some(left) = closed_order(old, scope.old, limits, &mut remaining)? else {
-        return Ok(());
+    let (left, right, native) = match (
+        closed_order(old, scope.old, limits, &mut remaining)?,
+        closed_order(new, scope.new, limits, &mut remaining)?,
+    ) {
+        (Some(left), Some(right)) => (vec![left], vec![right], false),
+        _ => (
+            native::runs(old, scope.old, limits, &mut remaining)?,
+            native::runs(new, scope.new, limits, &mut remaining)?,
+            true,
+        ),
     };
-    let Some(right) = closed_order(new, scope.new, limits, &mut remaining)? else {
-        return Ok(());
-    };
-    let positions = |nodes: &[&GraphNode]| {
-        nodes
-            .iter()
+    let positions = |runs: &[Vec<&GraphNode>]| {
+        runs.iter()
             .enumerate()
-            .map(|(i, node)| (node.id, i))
+            .flat_map(|(run, nodes)| {
+                nodes
+                    .iter()
+                    .enumerate()
+                    .map(move |(i, node)| (node.id, (run, i)))
+            })
             .collect::<BTreeMap<_, _>>()
     };
     let old_positions = positions(&left);
@@ -204,6 +212,9 @@ pub(super) fn append(
         )
         .collect();
     let mut anchors = Vec::new();
+    // Accepted comparisons have already discharged their own source-candidate
+    // dependencies. Optional interior hypotheses cannot invalidate protected
+    // higher-priority boundaries and do not identify edits inside this range.
     for &index in &result.accepted_correspondences {
         let proposal = &result.candidates.proposals[index];
         let ([a], [b]) = (proposal.old.as_slice(), proposal.new.as_slice()) else {
@@ -220,14 +231,38 @@ pub(super) fn append(
         }
     }
     anchors.sort_unstable();
+    if anchors.len() < 2 {
+        return Ok(());
+    }
+    let sources = if native {
+        let (Some(left), Some(right)) = (
+            native::Sources::new(old, &mut remaining),
+            native::Sources::new(new, &mut remaining),
+        ) else {
+            return Ok(());
+        };
+        Some((left, right))
+    } else {
+        None
+    };
     let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
     for pair in anchors.windows(2) {
-        let [(a0, b0, first), (a1, b1, last)] = pair else {
+        let [((ar0, a0), (br0, b0), first), ((ar1, a1), (br1, b1), last)] = pair else {
             unreachable!()
         };
-        if a1 <= &(a0 + 1) || b1 <= &(b0 + 1) || new_anchors.range((b0 + 1)..*b1).next().is_some() {
+        if ar0 != ar1
+            || br0 != br1
+            || a1 <= &(a0 + 1)
+            || b1 <= &(b0 + 1)
+            || new_anchors
+                .range((*br0, b0 + 1)..(*br1, *b1))
+                .next()
+                .is_some()
+        {
             continue;
         }
+        let left = &left[*ar0];
+        let right = &right[*br0];
         let a = &left[(a0 + 1)..*a1];
         let b = &right[(b0 + 1)..*b1];
         if a.len() > limits.matching.max_group_nodes || b.len() > limits.matching.max_group_nodes {
@@ -238,13 +273,24 @@ pub(super) fn append(
         if a.iter().chain(b).any(|node| node.kind != a[0].kind) {
             continue;
         }
+        if let Some((old_sources, new_sources)) = &sources
+            && (!old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
+                || !new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining))
+        {
+            continue;
+        }
         match compare_text_group_views(a, b, limits.local) {
             Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
                 if parent == InterpretationStatus::Inferred {
                     comparison.interpretation = InterpretationStatus::Inferred;
                 }
                 result.text_scope_reviews.push(TextScopeReview {
-                    convention: "closed-retained-order-interval-v1".into(),
+                    convention: if native {
+                        "closed-native-baseline-interval-v1"
+                    } else {
+                        "closed-retained-order-interval-v1"
+                    }
+                    .into(),
                     boundaries: [*first, *last],
                     old_sources: a
                         .iter()
@@ -256,6 +302,7 @@ pub(super) fn append(
                         .collect(),
                     old_boundaries: [left[*a0].sources.clone(), left[*a1].sources.clone()],
                     new_boundaries: [right[*b0].sources.clone(), right[*b1].sources.clone()],
+                    candidate_search_exhaustive: Some(result.candidates.exhaustive),
                     comparison,
                 });
             }

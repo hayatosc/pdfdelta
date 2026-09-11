@@ -300,10 +300,34 @@ fn anchors_do_not_close_detached_incomplete_or_repeated_scopes() {
         let result = compare(&old, new, DocumentComparisonLimits::default());
         assert!(result.scopes[0].result.text_scope_reviews.is_empty());
     }
+}
+
+#[test]
+fn closed_scope_content_does_not_require_interior_correspondence_enumeration() {
+    let old = inventoried_fixture(&["Start boundary.", "a", "End boundary."]);
+    let new = inventoried_fixture(&["Start boundary.", "aa", "End boundary."]);
     let mut limits = DocumentComparisonLimits::default();
     limits.text.max_token_visits = 0;
-    let result = compare(&old, &clean, limits);
-    assert!(result.scopes[0].result.text_scope_reviews.is_empty());
+    let result = compare(&old, &new, limits);
+    let scope = &result.scopes[0].result;
+    assert!(!scope.candidates.exhaustive);
+    assert_eq!(scope.text_scope_reviews.len(), 1);
+    let review = &scope.text_scope_reviews[0];
+    assert_eq!(review.candidate_search_exhaustive, Some(false));
+    let mask = review
+        .comparison
+        .text_mask
+        .as_ref()
+        .expect("conditional mask");
+    assert!(mask.old.is_empty() && mask.new.is_empty());
+    assert!(!scope.unresolved.is_empty());
+
+    limits.matching.max_group_token_checks = 0;
+    let result = compare(&old, &new, limits);
+    assert!(
+        result.scopes[0].result.text_scope_reviews.is_empty(),
+        "unsearched source competitors still prevent boundary certification"
+    );
 }
 
 #[test]

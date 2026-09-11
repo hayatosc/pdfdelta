@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "implementation_commit": "3ab78ea+native-closure-working-tree",
+  "binary_sha256": "bcfe1415283b66fbcb8a33853162698306ce46d2c17983aa3eb24cf1c1f18044",
+  "inputs_sha256": "ccfc3fab3fe4659f90259c1a05f29e05a1f20ee48b677db63de25958a84d2f60",
+  "timeout_seconds": 180,
+  "limit_scale": 1,
+  "annotation_scoring": false,
+  "provenance_note": "Caller identifies the build commit; the driver binds the executable hash but does not independently prove its build provenance.",
+  "runs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "native",
+      "old_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "new_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "reference_sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f",
+      "exit_code": 3,
+      "wall_seconds": 30.32,
+      "peak_rss_kib": 640252,
+      "status": "captured",
+      "report_bytes": 791109475,
+      "report_sha256": "9b16b12b10535e73e33488d042c487149571ee7295420d99c06ed49dd0407381",
+      "stderr": ""
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "text",
+      "old_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "new_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "reference_sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f",
+      "exit_code": 3,
+      "wall_seconds": 7.21,
+      "peak_rss_kib": 349244,
+      "status": "captured",
+      "report_bytes": 522584,
+      "report_sha256": "6f41049f9a055ed2879cefdc4ef3b8050e56fd39f484da31ed281a86629848c2",
+      "stderr": ""
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "all",
+      "old_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "new_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "reference_sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f",
+      "exit_code": 3,
+      "wall_seconds": 8.2,
+      "peak_rss_kib": 348312,
+      "status": "captured",
+      "report_bytes": 524449,
+      "report_sha256": "d65be8e3cdf492fa482b265de4ab41b78ac87056bd8fe421cd3c5f1e41808b11",
+      "stderr": ""
+    }
+  ],
+  "source_file_sha256": {
+    "crates/pdfdelta-core/src/document/text_scopes.rs": "fbd9a1868ac66429748001ba3a7291e4ac0c12aacd3ff393923813c2dac8ff7f",
+    "crates/pdfdelta-core/src/document/text_scopes/native.rs": "a0c2fdb4ff8550d766f835791f72c75972fd89dd0807abc70d332a77f547c85e",
+    "crates/pdfdelta-cli/src/evidence_text.rs": "f54737b53e322d106b9aaf39cf778620a60fd1d14fa0c6bb6ea5ee0c73d676ea",
+    "Cargo.lock": "9a839b70becc0788c62904352c7702230b07fc038f38684b24860ca00af962b1"
+  }
+}
