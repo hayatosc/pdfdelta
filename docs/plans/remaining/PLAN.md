@@ -359,3 +359,27 @@ and never mark success before all gates pass. Do not publish externally.
 - Format, Clippy and workspace tests pass (2338 passed, two ignored); generated
   fixtures pass 48/48. Elapsed 3h12m; remaining 8h48m. Next: inspect the shared
   region partition that leaves source-exclusive column lines interleaved.
+
+### 2026-09-11 17:50 UTC — admit valid column cuts behind an isolated margin
+
+- Whole-page BERT evidence reveals a narrower 1.559-font-size body gutter.
+  The line ceiling is now 1.5; the fixture still retains a 1.5-font-size word gap.
+  Column partitioning now selects the largest gap that leaves the required line
+  count on both sides. An isolated margin previously made the largest gap
+  inadmissible and hid the smaller valid column gutter.
+- Applying the same selection change to horizontal bands altered an existing
+  staggered-column contract. That extension was removed; all 94 targeted layout
+  and text-scope tests pass. Required format, Clippy and workspace tests pass
+  (2339 passed, two ignored), and generated fixtures pass 48/48.
+- `column-partition-panel-pilot.json` binds the rebuilt executable, all 36
+  same-budget captures, and BERT source graphs. Its fixed old/new target is now
+  one paragraph per side, retaining all 343/360 source glyphs and no extra glyphs.
+  The preceding paragraph also changes, so two unchanged boundaries remain absent.
+  The panel yields 36 reports, 90 B outputs, the existing one controller/processor
+  target hit, zero document completions, and zero strict-control atoms claimed.
+  New out-of-target reviews are not adjudicated gate recovery.
+- After two gutter iterations, reassess rather than further lower thresholds.
+  A direct NIST control-catalog worker probe exits at the unchanged 128 MiB
+  response ceiling in 3.10 seconds, still serializing native glyphs. Next: test
+  lossless transport redundancy removal at unchanged time/byte/item limits.
+  Elapsed 3h27m; remaining 8h33m.

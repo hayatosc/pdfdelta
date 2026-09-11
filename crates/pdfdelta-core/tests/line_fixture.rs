@@ -126,7 +126,7 @@ fn default_spacing_retains_sub_half_advance_word_gaps_at_multiple_scales() {
 #[test]
 fn default_line_gap_separates_narrow_columns_without_splitting_wide_word_spaces() {
     for scale in [0.5, 1.0, 3.0] {
-        for (gap, expected_lines) in [(15.0, 1), (22.58, 2), (31.18, 2)] {
+        for (gap, expected_lines) in [(15.0, 1), (15.59, 2), (22.58, 2), (31.18, 2)] {
             let document = Document::new(
                 [
                     (1, "A", 0.0, 0.0),
