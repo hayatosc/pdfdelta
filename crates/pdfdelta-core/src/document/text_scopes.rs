@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     Channel, DocumentComparisonLimits, DocumentView, EdgeKind, GraphNode, InterpretationStatus,
     LocalViewComparison, NodeContent, NodeId, ProposalBasis, ScopeViewComparison, SourceRef,
-    ViewBasis, compare_text_group_views, matching::source_children,
+    TypedOperation, ViewBasis, compare_text_group_views, matching::source_children,
 };
 use crate::Result;
 
@@ -306,6 +306,22 @@ pub(super) fn append(
         });
         match compare_text_group_views(a, b, limits.local) {
             Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
+                // Native word spaces can be reconstructed from geometry on one
+                // side and explicit glyphs on the other. Such differences alone
+                // do not justify a content review; retain the uncompared interval
+                // without changing its text, masks, or strict source coverage.
+                if native
+                    && let Some(TypedOperation::TextChanged {
+                        old: Some(old),
+                        new: Some(new),
+                    }) = &comparison.operation
+                    && old
+                        .chars()
+                        .filter(|scalar| *scalar != ' ')
+                        .eq(new.chars().filter(|scalar| *scalar != ' '))
+                {
+                    continue;
+                }
                 if parent == InterpretationStatus::Inferred {
                     comparison.interpretation = InterpretationStatus::Inferred;
                 }

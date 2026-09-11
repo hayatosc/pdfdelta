@@ -233,6 +233,37 @@ fn native_interval_survives_unrelated_pages_storage_order_and_reversal() {
 }
 
 #[test]
+fn native_interval_does_not_report_ascii_spacing_alone_as_content() {
+    for (a, b) in [("ab", "a b"), ("ab", "ab "), ("ab", " ac")] {
+        let old = fixture(a);
+        let new = fixture(b);
+        let comparison = compare(&old, &new);
+        let scope = &comparison.scopes[0].result;
+        assert_eq!(scope.text_scope_reviews.len(), usize::from(b == " ac"));
+        let coverage = pdfdelta_core::document::document_coverage(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            &comparison,
+            &[Channel::Text].into(),
+        );
+        assert!(!coverage[0].complete);
+        assert_eq!(
+            compare(&new, &old).scopes[0]
+                .result
+                .text_scope_reviews
+                .len(),
+            scope.text_scope_reviews.len()
+        );
+    }
+}
+
+#[test]
 fn native_interval_rejects_omissions_unsafe_visibility_and_order_competitors() {
     for mutation in 0..8 {
         let old = fixture("a");
