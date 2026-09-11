@@ -1,0 +1,262 @@
+# Complete the remaining source-backed recovery gates
+
+Status: active; no gate achievement claimed.
+Execution started 2026-09-11 14:23:15 UTC; hard stop 2026-09-12 02:23:15 UTC.
+The user authorized this plan and its execution through the new goal contract.
+This Markdown is the execution source of truth; [PLAN.html](PLAN.html) explains it.
+Historical root plans and `benchmark/realworld/followup` records remain immutable.
+
+## What carries forward and what must change
+
+Reuse the frozen 36-pair panel, 72 common-text baseline captures, 72 native inventory
+probes, original source annotations, finite target extents and controls from
+`benchmark/realworld/followup`. Bind references by SHA-256 in the new registration.
+The panel has 28 body candidates, 27 source-resolved candidates and 13 canonical
+producers. Baseline common-text B range hits are zero; document-wide completion
+is 0/36 in both attempts. Do not shrink this denominator.
+
+The earlier stop establishes a limitation of the existing inventory proof rule,
+not the impossibility of all additional non-OCR source evidence. Test new proof
+methods before declaring a constraint blocker. Do not remove non-text uncertainty
+or change completion semantics merely to increase G3. Local B recovery alone does
+not establish document-wide completion. Preserve native acquisition defaults
+(35 seconds, 128 MiB response bound) and common-text capture timeout 180 seconds,
+budget scale 1. Retain acquisition failures as failures.
+
+## Objective and definition of done
+
+Expand source-backed comparison of ID-free prose, demonstrated on references
+fixed before implementation and on a fresh blind set, while increasing complete
+common-text document comparisons under unchanged budgets.
+
+All gates below are mandatory. Passing tests, adding modules, reducing charged
+work, generating reports, or discovering unannotated positives does not substitute
+for any gate.
+
+| Gate | Required observation |
+| --- | --- |
+| G1: development recovery | Additional A or B recovery on fixed ID-free body targets in at least six distinct natural PDF revision pairs from at least three independent publishers/producer families. A pair counts once, regardless of route or number of outputs. |
+| G2: blind recovery | After implementation/executable/configuration freeze, a new 12-pair blind set yields additional A or B on fixed ID-free body targets in at least three distinct pairs from at least two independent publishers/producer families. |
+| G3: complete comparisons | On one preregistered real-PDF panel and the common `--channels text` route, at least two additional distinct pairs become document-wide `comparison_complete: true` relative to the run baseline, with no losses of previously complete panel pairs. Same bytes, limits, channel selection and completion contract. |
+| G4: correctness | No known false A/B remains in evaluated targets or admitted new A/B results; no false strict masks on fixed unchanged controls; existing exact regression/acceptance contracts pass. Evaluate A and B separately, and never add C to either recovery count. |
+| G5: evidence | Per-family metrics, failures, complete-rate denominators, costs, source review and all mandatory quality checks are retained and printed by a fail-closed completion check. |
+
+G1/G2/G3 are the user's newly agreed thresholds, not numbers retroactively
+attributed to the original task. Full all-channel completion is measured
+separately but is not the G3 gate. General success on every PDF is not required.
+
+## Baselines and fixed evaluation
+
+- Working baseline: `31adc6a`; production source
+  currently equals `9093cab`. Preserve the original `3f318d7` history and results.
+- Verify actual HEAD, worktree and existing planning files at execution start;
+  preserve any later user changes instead of resetting the repository.
+- Keep old manifests, annotations and results immutable. The exposed blind set
+  may be used for diagnosis, but record its promotion to development before
+  using its results to change production or comparison configuration.
+- Select and freeze the development/completion panel before the first production
+  change. Reuse the 36 acquired development/exposed-blind pairs where possible.
+  Use at least 12 natural revision pairs spanning the six recorded families,
+  English/Japanese, and at least three independent publishers/producer families.
+  At least six panel pairs must contain suitable ID-free body targets. Do not
+  retrospectively shrink the panel to successes or substitute synthetic PDFs.
+- Capture the baseline on that panel. Existing exact-hash captures can be reused
+  when their input, executable, flags, limits and result contracts match; rerun
+  only missing observations. Count only baseline-missed targets as additional
+  recovery and baseline-incomplete pairs as new complete comparisons.
+- Freeze one or more independently authored source targets per eligible pair,
+  including literal quotes, hashes, both finite source extents, changed core,
+  permissible unchanged context, comparison convention and unchanged controls.
+  Invariant content and scalar/source multiplicity must remain explicit.
+- A recovery requires exact event/source gold where the positions are uniquely
+  supported. B recovery requires coverage of both target cores, all necessary
+  correspondence premises, and a range inside the predeclared permissible source
+  extents. A whole-page span cannot pass merely by containing the target.
+- Report strict event/source precision and recall separately. Mark unavailable
+  gold and zero-detection precision undefined. Do not treat a missing annotation
+  or failed acquisition as a successful empty comparison. Adjudicate every new
+  A/B output in gate-counted pairs; retain additional out-of-target findings
+  separately from frozen recall.
+- Reuse the existing 60 content/layout controls and three real-source metamorphic
+  controls. Their content and presentation axes stay independent. Include explicit
+  positive and negative cross-page, column, move/copy and acquisition-gap cases
+  for any newly admitted correspondence rule.
+
+## Scope and diagnosis
+
+The first decision is which necessary premise blocks each fixed target, not
+which algorithm to add. Trace acquisition -> normalization -> scope -> retrieval
+-> optimization -> counterpart decision -> localization -> reporting/evaluation.
+Use retained reasons and caller flows. Add only missing bounded observations.
+
+Current evidence suggests three hypotheses to test, not three predetermined fixes:
+
+1. Acquisition/resource failures can leave no eligible local comparison even when
+   candidate enumeration reports complete. Diagnose NIST zero-comparison records
+   and native/common inventory differences before touching matching scores.
+2. Existing native B closure requires a same-page horizontal source band and two
+   accepted unchanged boundaries. Identify whether the fixed body targets fail
+   source coverage, order, boundaries, local proof, or budget. Cross-page/column
+   support is justified only by a concrete failed target and a valid source proof.
+3. Candidate, descendant-ownership and conflict work can stop useful comparison.
+   Optimize the shared root cause using the same candidate universe, compatibility,
+   integer scores and source-conflict semantics. Do not raise limits to pass G3.
+
+Choose one cause per iteration by expected impact on the frozen failed targets,
+evidence strength and proof risk. Check the smallest regression first, then the
+affected real pair. Broaden to the fixed panel only when the change merits it.
+Keep performance-only changes separate from extraction/correspondence changes.
+
+## Constraints and boundaries
+
+- Production remains stable Rust, Edition 2024. Reuse the neutral parser facade,
+  Evidence Store, reversible graph/groups, shared solver, exact partial assignment,
+  dummy choices, scoped key presence, normalization proofs and local dependencies.
+- Preserve raw glyphs/codes, geometry, render state, paint order, object/operator
+  provenance and unresolved evidence. Never reinterpret similarity, an optimizer's
+  necessary edge, or nearby geometry as source identity.
+- B remains non-owning and C remains inferred. Do not promote an inferred parent,
+  use dummy selection as deletion proof, flatten full documents into another diff
+  path, or add context to strict masks/coverage.
+- No runtime OCR, external analysis API, custom PDF object parser, semantic model,
+  table-recognition expansion, pair-specific matching rule, expected-ID special
+  case or annotation-text special case.
+- Keep P2 pricing test-only and P6 strict observer binding deferred. Reopen either
+  only if a diagnosed gate blocker requires it and a small measured experiment
+  supplies new evidence; neither is a mandatory redevelopment project.
+- Allowed implementation areas: `crates/pdfdelta-core`, `crates/pdfdelta-cli`,
+  and necessary fixture/evaluation changes in `crates/pdfdelta-bench` and
+  `benchmark/realworld/remaining`. Reuse existing benchmark scripts rather than
+  building a second general measurement framework.
+- Store PDFs, rasters, raw JSON/logs and binaries under ignored
+  `benchmark/realworld/cache/remaining-*` or `/tmp`; retain minimal replay material,
+  hashes, source references and summaries in the repository.
+- Public primary-source downloads are allowed. Existing local read-only inspection
+  and rendering tools are allowed. No push, PR, external issue or messaging action.
+- Commit evaluable units with Conventional Commits and required checks. Keep
+  comments and repository documentation in English; communicate in Japanese.
+- Preserve `IMPLEMENTATION_PLAN.md`; preserve root `PLAN.md` as historical evidence; use this plan for this run.
+
+## Verification commands and result contracts
+
+The `benchmark/realworld/remaining/verify.py` checker below is a planned
+deliverable in C1, not an existing command. It must reuse current capture/scoring
+data, validate hashes and denominators, and print every gate with observed and
+required values. It must fail if required evidence is absent. Do not replace it
+with a manually edited `all_passed` flag.
+
+```sh
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage registration
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage diagnosis
+cargo test -p pdfdelta-core --test document_text_scopes_fixture
+cargo test -p pdfdelta-core --test document_groups_fixture
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage development
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage blind-freeze
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage blind
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage final
+```
+
+Every stage exits 0 only when its required evidence passes; absent evidence or
+an unmet gate exits nonzero and prints the reason. Test missing/stale evidence,
+duplicate pair counting, inferred-only recovery, oversized B context, empty-source
+completion and a genuine all-gates-pass example. Synthetic checker self-tests
+never count as document recovery.
+
+Reuse `capture-comparisons.py` for native, common text and all-channel records,
+`pdfbench validate-literal-selectors` for source resolution, and the existing
+layout-control scorer. Existing scripts may receive minimal versioned adapters
+for the new manifest, while old results and scoring semantics remain immutable.
+
+G3 counts completed pairs, not processes or scopes. Require the full common-text
+coverage and search contract plus expected process exit 0/1. A local complete
+flag, empty candidate universe, a timeout, an extraction failure, a changed
+channel set, or a raised resource limit cannot satisfy it. Run the fixed completion
+panel twice per revision with stable flags to check that completion is repeatable.
+Record process wall time, peak RSS, internal budget stops and report bytes for
+every attempt. Do not relabel peak RSS as maximum live allocator memory; collect
+bounded live-allocation telemetry only if making an allocator-memory claim.
+
+All workspace changes must pass:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+```
+
+The checked CI workflow calls `mise run ci`, which additionally runs:
+
+```sh
+cargo run -p pdfdelta-bench --locked -- verify
+```
+
+Run generated-fixture verification when implementation/fixture changes warrant
+it and at final integration. Do not repeatedly run an unchanged whole corpus.
+
+## Checkpoints and verification
+
+- [ ] C1: Bind the unchanged panel, targets, controls and baseline; finish a fail-closed
+  evaluator for every gate, including a genuine synthetic all-pass path and tests
+  for missing/stale evidence, duplicate pairs, C-only recovery, oversized B ranges
+  and false empty completion. Synthetic fixtures never count toward G1/G2/G3.
+  Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage registration`
+  and checker self-tests; final remains nonzero until real evidence exists.
+- [ ] C2: Record the earliest demonstrated blocker for every frozen target, with a
+  source-linked observation and the smallest counterexample for each shared cause.
+  Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage diagnosis`.
+- [ ] C3: Experiment with additional non-OCR source proofs for whole-text inventory
+  and local closure. Require positive and adversarial fixtures and affected real-PDF
+  replay. Absence of an existing feature alone is not a blocker. Never treat nearby
+  paint geometry or optimizer necessity as source identity.
+  Verify: `cargo test -p pdfdelta-core --test document_text_scopes_fixture` plus the
+  relevant acquisition/proof regression and retained experiment results.
+- [ ] C4: Fix demonstrated shared causes one at a time. Meet G1 (6 pairs/3 producers)
+  and G3 (gain >=2, no losses), with two fixed-panel repeats and unchanged budgets.
+  Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage development`.
+- [ ] C5: Freeze production tree, executable, lockfile and configuration, then acquire
+  12 previously unexposed revision series spanning six families, English/Japanese
+  and at least three producers. Resolve independent source annotations before
+  viewing comparison results. Preserve failed acquisitions/replacements.
+  Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage blind-freeze`.
+- [ ] C6: Demonstrate G2 (3 pairs/2 producers) on that frozen set; adjudicate every
+  new A/B output, including out-of-target findings. If tuning after exposure is
+  necessary, promote the set to development and select a fresh 12 after a new freeze.
+  Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage blind`.
+- [ ] C7: Retain source-reachable review bundles, separate A/B/C counts, per-family
+  precision/recall (undefined where gold is unavailable), completeness denominators,
+  costs, all 60 generated and three real-source controls, and all five acceptance
+  cases: wrap invariance, page-break invariance, exact single replacement, insertion,
+  and deletion. Run all quality commands above and generated-fixture verification.
+  Verify: `PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage final`.
+
+## Iteration log and stopping
+
+Append timestamp, hypothesis, changed files/commit, command, result, artifact path/hash,
+elapsed/remaining time and next action after each attempt. Commit verified units with
+Conventional Commits. No external publication. More than two unsuccessful iterations
+on a cause trigger reassessment, never weaker acceptance thresholds.
+
+Stop at the 12-hour deadline or a demonstrated external/constraint blocker after
+applicable safe alternatives are exhausted. Difficulty, incomplete implementation,
+or the old native-rule upper bound alone is not sufficient. Report attempted paths,
+missing prerequisites, achieved deltas, regressions and unmet gates. Follow the
+platform recurrence rule before marking the tracked goal blocked. The goal is
+complete only when every G1-G5 gate and required verification succeeds.
+
+| Time (UTC) | Checkpoint | Attempt and evidence | Next |
+| --- | --- | --- | --- |
+| 2026-09-11 14:23:15 | Planning approved / C1 | New goal authorizes this plan and execution; clean HEAD 31adc6a; preserve old results and test additional source proof. | Bind historical evidence and finish the evaluator. |
+
+| 2026-09-11 14:34:20 UTC | C1 registration unit | Fixed historical hashes; registration passes for 36 pairs, 27 resolved body candidates and 13 producers; common-text baseline 0/36 twice. Added independent gate reduction and complete-search checks (2 tests pass). Final source-adjudication/freeze adapters are still unfinished; C1 remains open. | All four workspace/generated checks pass; logs in `cache/remaining-registration-checks/checks.json`. actrun could not create a sandbox worktree, so the same CI commands ran directly. Continue evaluator and new-proof diagnosis. |
+
+## Goal contract
+
+Follow this plan to demonstrate additional A/B recovery on fixed body targets in
+6 pairs/3 producers, on a newly frozen blind set of 12 pairs in 3 pairs/2 producers,
+and document-wide common-text completion gains in at least two fixed-panel pairs
+with no losses, using unchanged inputs, budgets and completion contracts. Preserve
+source evidence, A/B/C separation, exact masks and the five acceptance cases. Verify
+all gates with `benchmark/realworld/remaining/verify.py --stage final`, mandatory
+workspace checks and generated-fixture verification. Append attempts and commit
+verified units. Stop at 12 hours or a proven constraint blocker, report unmet gates,
+and never mark success before all gates pass. Do not publish externally.
