@@ -453,6 +453,9 @@ fn append_dense_pairs(
 }
 
 #[cfg(test)]
+mod measurement;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::document::{
@@ -465,7 +468,7 @@ mod tests {
         new: NodeId(0),
     };
 
-    fn graph(texts: &[&str]) -> DocumentGraph {
+    pub(super) fn graph(texts: &[&str]) -> DocumentGraph {
         let mut graph = DocumentGraph::default();
         graph.nodes.push(GraphNode {
             id: NodeId(0),
@@ -506,7 +509,7 @@ mod tests {
         graph
     }
 
-    fn search() -> TextCandidateSearch {
+    pub(super) fn search() -> TextCandidateSearch {
         TextCandidateSearch {
             examined_pairs: 0,
             source_ownership_visits: 0,
@@ -522,7 +525,7 @@ mod tests {
         }
     }
 
-    fn candidates() -> ScopeProposals {
+    pub(super) fn candidates() -> ScopeProposals {
         ScopeProposals {
             proposals: Vec::new(),
             examined_pairs: 0,
