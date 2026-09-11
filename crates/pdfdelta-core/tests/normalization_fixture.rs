@@ -60,6 +60,36 @@ fn resolves_cjk_and_latin_soft_line_breaks() {
 }
 
 #[test]
+fn resolves_wrap_before_a_source_paired_directional_quoted_word() {
+    let wrapped = normalize_mapped_lines(&["either a", "“controller” or a processor"]);
+    let flat = normalize_mapped_lines(&["either a “controller” or a processor"]);
+    assert_eq!(wrapped.raw.text, "either a\n“controller” or a processor");
+    assert_eq!(wrapped.canonical.text, flat.canonical.text);
+    assert!(wrapped.issues.is_empty());
+    assert!(wrapped.normalization_events.iter().any(|event| {
+        event.kind == NormalizationKind::SoftLineBreak
+            && event
+                .source
+                .atoms
+                .iter()
+                .any(|atom| matches!(atom, TextSourceAtom::LineBreak { .. }))
+    }));
+    assert_token_source_parity(&wrapped.canonical);
+
+    for following in [
+        "“controller",
+        "\"controller\"",
+        "”controller“",
+        "“”",
+        "“two words”",
+    ] {
+        let ambiguous = normalize_mapped_lines(&["either a", following]);
+        assert_eq!(ambiguous.issues.len(), 1, "{following}");
+        assert!(ambiguous.canonical.text.contains('\n'));
+    }
+}
+
+#[test]
 fn joins_mixed_script_boundaries_without_flagging_ambiguity() {
     let latin_then_cjk = normalize_mapped_lines(&["更新されたPDF", "ファイルを開く"]);
     let wrapped = normalize_mapped_lines(&["更新されたPDFファ", "イルを開く"]);
