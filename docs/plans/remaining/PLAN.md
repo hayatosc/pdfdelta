@@ -277,3 +277,22 @@ and never mark success before all gates pass. Do not publish externally.
 | 2026-09-11 16:18 UTC | C2 source-paired quoted-word wrapping | The earliest remaining controller target blocker was two ambiguous breaks before paired directional quoted words. A source-only linear scan resolves breaks before a single paired Latin word; unmatched, ASCII, reversed and multiword cases remain unresolved. | Normalization regression, workspace format/lint/tests and 48 generated cases pass. `cache/remaining-quoted-checks/checks.json`. |
 | 2026-09-11 16:18 UTC | C2 quoted-word target pilot | One fixed B source-range hit covers exactly 986 source atoms; no whole-document completion. The interval contains the added non-negotiability sentence. Whitespace-only out-of-target reviews require further source adjudication. | `remaining/quoted-boundary-pilot.json`; not yet counted as a G1 recovery. |
 | 2026-09-11 16:25 UTC | C2 native spacing restraint | A source review found two intervals differing only in reconstructed/explicit ASCII spaces. Native B now declines space-only differences without changing canonical text, conditional masks or strict coverage. The fixed 986-source target hit remains; six retained B outputs have source-content and boundary rationales, including five out-of-target findings. | `remaining/native-spacing-pilot.json`; regression, workspace checks and 48/48 generated cases pass in `cache/remaining-native-spacing-checks`. Single-pass only; no final gate claim. |
+
+### 2026-09-11 16:38 UTC — bind stage records and reject evidence substitution
+
+- Implemented development/blind/final evidence adapters and 189-attempt control
+  scoring. Captures require distinct attempts, unchanged input hashes, executable,
+  budgets, channels and retained process costs. Known strict gold cannot be
+  overridden by a manual source adjudication. Native tentative candidates and
+  unresolved changed regions remain non-recovery observations under C.
+- Added tests for stale/missing reports, changed budgets, reused capture attempts,
+  strict-gold violations and native non-recovery outputs. Existing finite-range,
+  inferred-only, duplicate-pair and empty-completion tests remain in place.
+- Retained `native-spacing-panel-pilot.json`: one single-pass target B range hit
+  (EDPB controller/processor), zero whole-document completions among all 36
+  attempts; one resource failure remains an explicit failure. No gate is claimed.
+- Final verification currently rejects the missing `diagnosis.json`. C1 remains
+  open pending a genuine all-stage synthetic pass test; C2 requires source-linked
+  earliest-blocker diagnosis for every target, not just corpus-level counters.
+- Elapsed 2h15m; remaining 9h45m. Next: complete target-specific diagnostics and
+  continue shared-root fixes under the unchanged target and completion contracts.

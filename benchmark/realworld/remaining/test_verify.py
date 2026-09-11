@@ -1,6 +1,10 @@
 """Evaluator regressions; constructed records never count as real PDF results."""
 
 import copy
+import hashlib
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 import verify
@@ -82,6 +86,82 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify.complete(invalid, run)
         self.assertFalse(verify.complete(report, {"status": "failed", "exit_code": 124}))
+
+    def test_source_review_cannot_override_exact_strict_gold(self):
+        report = self.report()
+        scope = report["comparison"]["scopes"][0]["result"]
+        scope["text_scope_reviews"] = []
+        scope["comparisons"] = [{
+            "operation": {"kind": "text_changed", "old": "a", "new": "b"},
+            "interpretation": "conditional_on_correspondence", "compared": True, "unresolved": [],
+            "text_mask": {"old": [{"sources": [{"origin": "native", "glyph": 1}]}],
+                          "new": [{"sources": [{"origin": "native", "glyph": 2},
+                                               {"origin": "native", "glyph": 3}]}]},
+        }]
+        report.update(typed_changes=1, scope_content_changes=0)
+        core = {("old", 1), ("new", 2)}
+        score = verify.pair_recovery(None, report, core, core | {("new", 3)}, set(),
+                                     self.adjudication(report),
+                                     {"sources": core, "operation": scope["comparisons"][0]["operation"]})
+        self.assertFalse(score["correct"])
+        self.assertEqual(score["additional_categories"], [])
+
+    def test_native_candidates_and_unlocalized_regions_are_not_recovery(self):
+        span = {"sources": [{"kind": "glyph", "glyph_id": 1}]}
+        candidate = {"kind": "replacement", "occurrences": [{"old_span": span, "new_span": span}]}
+        report = {"changes": [], "change_candidates": [candidate], "proven_changed_regions": [
+            {"old_span": span, "new_span": span, "proof": "exact_token_multiset_mismatch"}]}
+        events = verify.events(report)
+        self.assertEqual([event["category"] for event in events], ["C", "C"])
+        core = {("old", 1), ("new", 1)}
+        self.assertEqual(verify.pair_recovery(None, report, core, core, set(), [])["additional_categories"], [])
+
+    def test_observations_bind_bytes_routes_budgets_and_repetitions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+
+            def save(name, value):
+                path = directory / name
+                path.write_text(json.dumps(value))
+                return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+            binary = save("binary", "synthetic executable")
+            report = self.report()
+            report.update(comparison_complete=False, contract={"version": 1, "channels": ["text"]})
+            reference = save("report.json", report)
+            pair = {"id": "fixture", "old": {"sha256": "old"}, "new": {"sha256": "new"}}
+            run = {"pair": "fixture", "route": "text", "status": "captured", "exit_code": 3,
+                   "old_sha256": "old", "new_sha256": "new", "wall_seconds": 1, "peak_rss_kib": 10,
+                   "report_sha256": reference["sha256"], "report_bytes": (directory / "report.json").stat().st_size}
+            capture = {"binary_sha256": binary["sha256"], "timeout_seconds": 180, "limit_scale": 1,
+                       "runs": [run, dict(run, wall_seconds=2)]}
+            capture_reference = save("capture.json", capture)
+            index = {"observations": [{"pair": "fixture", "repetition": repeat, "run_index": repeat - 1,
+                                       "capture": capture_reference, "report": reference} for repeat in (1, 2)]}
+            observed = verify.observations(index, {"pairs": [pair]}, binary)
+            self.assertEqual(len(observed), 2)
+            self.assertFalse(any(row["complete"] for row in observed.values()))
+            invalid = copy.deepcopy(index)
+            invalid["observations"].append(invalid["observations"][0])
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                verify.observations(invalid, {"pairs": [pair]}, binary)
+            invalid = copy.deepcopy(index)
+            invalid["observations"][1]["run_index"] = 0
+            with self.assertRaisesRegex(ValueError, "reused as a repetition"):
+                verify.observations(invalid, {"pairs": [pair]}, binary)
+            for field, value in (("limit_scale", 2), ("timeout_seconds", 181)):
+                invalid_capture = copy.deepcopy(capture)
+                invalid_capture[field] = value
+                invalid = copy.deepcopy(index)
+                invalid["observations"][0]["capture"] = save("invalid-capture.json", invalid_capture)
+                with self.subTest(field=field), self.assertRaisesRegex(ValueError, "budget changed"):
+                    verify.observations(invalid, {"pairs": [pair]}, binary)
+            (directory / "report.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "stale evidence"):
+                verify.observations(index, {"pairs": [pair]}, binary)
+            (directory / "report.json").unlink()
+            with self.assertRaises(FileNotFoundError):
+                verify.observations(index, {"pairs": [pair]}, binary)
 
 
 if __name__ == "__main__":

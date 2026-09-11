@@ -13,9 +13,11 @@ cargo test -p pdfdelta-bench --example paint_trace_probe --locked
 cargo run -p pdfdelta-bench --example paint_trace_probe --locked -- INPUT.pdf
 ```
 
-Registration succeeds. Final intentionally fails while later-stage evidence and
-adapters remain unfinished. The reducer's synthetic pass test is not yet an
-end-to-end all-stage pass test; C1 remains open.
+Registration succeeds. Final fails while diagnosis and later-stage evidence are absent. Stage adapters
+now validate repeated captures, executable builds, source adjudication and all
+189 control attempts. The synthetic tests cover missing/stale evidence, changed
+budgets, duplicate attempts and strict gold that source review cannot override.
+An end-to-end all-stage pass test is still missing; C1 remains open.
 
 ## Additional proof experiments
 
@@ -50,3 +52,22 @@ hits and zero complete comparisons; `bounded-paint-pilot.json` retains failures.
 The subsequent padding-boundary feature is not yet measured. It compares only
 unpadded native text for boundary selection and leaves every padded paragraph
 source uncompared. It cannot itself add a strict event or completion credit.
+
+## Stage evidence records
+
+`development.json` binds `production_sha256`, `binary`, `build`, `observations`,
+`adjudications`, and `controls`. Each file reference carries `path` and `sha256`.
+The build record binds the production fingerprint, binary, successful locked
+release command and log. Observations retain two distinct capture/run locations
+per pair. Adjudications bind every newly admitted A/B event to its report and
+original frozen annotation/resolution. `controls` references a record containing
+one capture, all captured report references keyed by pair/route, and source
+adjudications for strict events without exact gold. Known gold cannot be overridden.
+
+`blind-freeze.json` binds the same production/binary, the new panel and targets,
+registration commit, freeze/selection/annotation timestamps, and baseline
+observations. `blind.json` uses the development observation schema.
+`quality-checks.json` binds the production/bench fingerprint and successful
+workspace/generated commands with hash-bound logs. Missing records fail closed.
+Native unresolved regions and tentative candidates are retained under C and
+never counted as A/B recovery.

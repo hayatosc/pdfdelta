@@ -56,22 +56,27 @@ def complete(report, run):
     return True
 
 
-def observations(index, panel, binary):
+def observations(index, panel, binary, route="text"):
     """Validate repeats, identity, process costs and full common-text coverage."""
+    require(route in ("text", "native", "all"), "unknown capture route")
     historical.checked_path(binary)
     pairs = historical.unique_by(panel["pairs"], "id")
     observed = {}
+    attempts = set()
     for observation in index["observations"]:
         name, repetition = observation["pair"], observation["repetition"]
         key = name, repetition
         require(key not in observed and repetition in (1, 2), "duplicate/invalid repetition")
         pair = pairs[name]
         capture = read_reference(observation["capture"])
+        attempt = observation["capture"]["sha256"], observation["run_index"]
+        require(attempt not in attempts, "one captured attempt reused as a repetition")
+        attempts.add(attempt)
         require(capture["binary_sha256"] == binary["sha256"]
                 and capture["timeout_seconds"] == 180 and capture["limit_scale"] == 1,
                 "capture executable or budget changed")
         run = capture["runs"][observation["run_index"]]
-        require(run["pair"] == name and run["route"] == "text", "capture identity mismatch")
+        require(run["pair"] == name and run["route"] == route, "capture identity mismatch")
         for side in ("old", "new"):
             require(run[side + "_sha256"] == pair[side]["sha256"], "capture input mismatch")
         require(run["wall_seconds"] >= 0 and run["peak_rss_kib"] >= 0,
@@ -79,16 +84,19 @@ def observations(index, panel, binary):
         report = None
         path = None
         if run["status"] == "captured":
+            require(run["exit_code"] in (0, 1, 3), "captured report has a failed exit status")
             path = historical.checked_path(observation["report"])
             require(run["report_sha256"] == observation["report"]["sha256"]
                     and run["report_bytes"] == path.stat().st_size, "capture report mismatch")
             report = historical.read(path)
-            require(report["contract"] == {"version": 1, "channels": ["text"]},
-                    "common-text report contract changed")
+            if route != "native":
+                channels = ["text"] if route == "text" else ["text", "visual", "forms", "relations"]
+                require(report["contract"] == {"version": 1, "channels": channels},
+                        "report channel contract changed")
         else:
             require(run["status"] == "failed" and run.get("exit_code") not in (0, 1),
                     "missing report is not an explicit failed attempt")
-        observed[key] = {"complete": report is not None and complete(report, run),
+        observed[key] = {"complete": route == "text" and report is not None and complete(report, run),
                          "run": run, "report_path": path, "reference": observation.get("report")}
     require(observed.keys() == {(name, repeat) for name in pairs for repeat in (1, 2)},
             "panel does not contain exactly two observations per pair")
@@ -113,6 +121,30 @@ def events(report):
     """Keep masks (A), finite review ranges (B), and inferred outputs separate."""
     if report is None:
         return []
+    if "changes" in report and "comparison" not in report:
+        rows = []
+        for index, change in enumerate(report["changes"] + report.get("change_candidates", [])):
+            sources = set()
+            for occurrence in change["occurrences"]:
+                for side in ("old", "new"):
+                    span = occurrence.get(side + "_span")
+                    if span:
+                        sources.update((side, source["glyph_id"]) for source in span["sources"]
+                                       if source["kind"] == "glyph")
+            strict = index < len(report["changes"])
+            require(not strict or sources, "native strict event lacks glyph sources")
+            pointer = f"/changes/{index}" if strict else f"/change_candidates/{index - len(report['changes'])}"
+            rows.append({"category": "A" if strict else "C", "sources": sources, "operation": change["kind"],
+                         "source_projection": change, "pointer": pointer})
+        # Legacy unresolved regions do not establish the correspondence required
+        # by B. Retain them as non-recovery observations alongside candidates.
+        for index, region in enumerate(report.get("proven_changed_regions", [])):
+            sources = {(side, source["glyph_id"]) for side in ("old", "new")
+                       for source in (region.get(side + "_span") or {}).get("sources", [])
+                       if source["kind"] == "glyph"}
+            rows.append({"category": "C", "sources": sources, "operation": region["proof"],
+                         "source_projection": region, "pointer": f"/proven_changed_regions/{index}"})
+        return rows
     rows = []
     for scope_index, scope in enumerate(report["comparison"]["scopes"]):
         prefix = f"/comparison/scopes/{scope_index}/result"
@@ -188,6 +220,10 @@ def pair_recovery(before, after, core, extent, controls, adjudications, strict_g
     strict_atoms = set().union(*(event["sources"] for event in current if event["category"] == "A"))
     false_control_atoms = len(strict_atoms & controls)
     correct &= false_control_atoms == 0
+    if strict_gold is not None:
+        correct &= all(event["sources"] == strict_gold["sources"]
+                       and event["operation"] == strict_gold["operation"]
+                       for event in current if event["category"] == "A" and event["sources"] & extent)
 
     def hits(rows):
         found = set()
@@ -240,10 +276,16 @@ def source_fingerprint(include_bench=False):
     return digest.hexdigest()
 
 
-def phase(record, panel, targets, baseline_index, baseline_binary):
+def phase(record, panel, targets, baseline_index, baseline_binary, route="text"):
     require(record["production_sha256"] == source_fingerprint(), "phase production source is stale")
-    baseline = observations(baseline_index, panel, baseline_binary)
-    current = observations(read_reference(record["observations"]), panel, record["binary"])
+    build = read_reference(record["build"])
+    require(build["production_sha256"] == record["production_sha256"]
+            and build["binary"] == record["binary"] and build["exit_code"] == 0
+            and build["command"] == ["cargo", "build", "--release", "-p", "pdfdelta-cli", "--locked"],
+            "phase executable build is stale or failed")
+    historical.checked_path(build["log"])
+    baseline = observations(baseline_index, panel, baseline_binary, route)
+    current = observations(read_reference(record["observations"]), panel, record["binary"], route)
     adjudication = read_reference(record["adjudications"])
     adjudicated = {}
     for row in adjudication["observations"]:
@@ -314,6 +356,115 @@ def family_metrics(rows):
     return result
 
 
+def controls(record, registered, binary):
+    """Score the immutable 60 generated and three real-source controls on all routes."""
+    for reference in registered["references"]:
+        historical.checked_path(reference)
+    directory = DIRECTORY.parent / "next" / "layout-controls"
+    authored = historical.unique_by(historical.read(directory / "manifest.json")["generated_pairs"], "id")
+    expected = historical.unique_by(historical.read(directory / "expectations.json")["pairs"], "pair")
+    real = historical.unique_by(historical.read(directory / "source-mutation-expectations.json")["pairs"], "id")
+    require(len(authored) == 60 and len(real) == 3 and not authored.keys() & real.keys(),
+            "control denominator changed")
+    expected.update(real)
+    pairs = authored | real
+    capture = read_reference(record["capture"])
+    require(capture["binary_sha256"] == binary["sha256"] and capture["timeout_seconds"] == 180
+            and capture["limit_scale"] == 1, "control executable or budget mismatch")
+    require(set(capture["reference_hashes"]) == {
+        "manifest.json", "expectations.json", "source-mutation-expectations.json"},
+        "control capture omits frozen references")
+    for name, digest in capture["reference_hashes"].items():
+        require(hashlib.sha256((directory / name).read_bytes()).hexdigest() == digest,
+                "control capture reference changed")
+    reports = {}
+    for report in record["reports"]:
+        key = report["pair"], report["route"]
+        require(key not in reports, "duplicate control report")
+        reports[key] = report["report"]
+    adjudicated = {}
+    for review in record.get("adjudications", []):
+        key = review["pair"], review["route"], review["pointer"]
+        require(key not in adjudicated, "duplicate control adjudication")
+        require(review["report"] == reports[key[:2]], "control adjudication report changed")
+        require(review["verdict"] == "source_supported" and review["source_content_rationale"]
+                and review["correspondence_rationale"] and review["source_evidence"],
+                "control adjudication lacks source support")
+        for reference in review["source_evidence"]:
+            historical.checked_path(reference)
+        required_paths = {str((directory / "annotations" / f"{review['pair']}{suffix}").relative_to(ROOT))
+                          for suffix in (".json", ".resolved.json")}
+        require(required_paths <= {reference["path"] for reference in review["source_evidence"]},
+                "control review omits the original annotation or source resolution")
+        adjudicated[key] = review
+    rows, seen = [], set()
+    for run in capture["runs"]:
+        name, route = key = run["pair"], run["route"]
+        require(key not in seen and name in pairs and route in ("native", "text", "all"),
+                "duplicate or unknown control run")
+        seen.add(key)
+        require(all(run[side + "_sha256"] == pairs[name][side]["sha256"] for side in ("old", "new")),
+                "control source bytes changed")
+        row = {"pair": name, "route": route, "status": run["status"], "correct": False}
+        require(run["wall_seconds"] >= 0 and run["peak_rss_kib"] >= 0, "missing control process costs")
+        row["costs"] = {field: run[field] for field in
+                        ("wall_seconds", "peak_rss_kib", "report_bytes", "exit_code")}
+        if run["status"] != "captured":
+            require(run["status"] == "failed" and run["exit_code"] not in (0, 1),
+                    "control is not an explicit failed attempt")
+            rows.append(row)
+            continue
+        reference = reports[key]
+        path = historical.checked_path(reference)
+        require(reference["sha256"] == run["report_sha256"] and path.stat().st_size == run["report_bytes"],
+                "control report differs from capture")
+        require(run["exit_code"] in (0, 1, 3), "control report comes from a failed process")
+        target, unchanged = set(), set()
+        resolved = historical.read(directory / "annotations" / f"{name}.resolved.json")
+        require(resolved["selector_resolution_complete"], "unresolved control annotation")
+        for selector in resolved["selectors"]:
+            if name in authored:
+                side, _, paragraph, _, _ = selector["id"].split("-")
+                changed = int(paragraph) == expected[name]["changed_paragraph"]
+            else:
+                side = selector["id"].rsplit("-", 1)[1]
+                changed = selector["id"].startswith("body-")
+            (target if changed else unchanged).update(
+                (side, atom["id"]) for atoms in historical.source_rows(selector)
+                for atom in atoms if atom["kind"] == "glyph")
+        report = historical.read(path)
+        if route != "native":
+            channels = ["text"] if route == "text" else ["text", "visual", "forms", "relations"]
+            require(report["contract"] == {"version": 1, "channels": channels},
+                    "control report channel contract changed")
+        detected = events(report)
+        strict = set().union(*(event["sources"] for event in detected if event["category"] == "A"))
+        gold = expected[name]["strict_source_atoms"]
+        gold = None if gold is None else {(item["side"], atom["id"]) for item in gold for atom in item["atoms"]}
+        false_masks = len(strict & unchanged)
+        unproved_strict = False
+        for event in detected:
+            if event["category"] != "A" or (gold is not None and event["sources"] <= gold):
+                continue
+            if gold is not None:
+                unproved_strict = True
+                continue
+            review = adjudicated.pop((name, route, event["pointer"]), None)
+            unproved_strict |= not review or review["event_sha256"] != event_digest(event)
+        bad_ranges = sum(event["sources"] != target or not target
+                         for event in detected if event["category"] == "B")
+        row.update(correct=not false_masks and not unproved_strict and not bad_ranges,
+                   false_strict_control_atoms=false_masks, unproved_strict=unproved_strict,
+                   unsupported_B_ranges=bad_ranges, **Counter(event["category"] for event in detected))
+        rows.append(row)
+    require(seen == {(name, route) for name in pairs for route in ("native", "text", "all")},
+            "control capture does not contain all 189 attempts")
+    require(reports.keys() == {(row["pair"], row["route"]) for row in rows if row["status"] == "captured"},
+            "missing or unused control reports")
+    require(not adjudicated, "unused control adjudication")
+    return {"attempts": len(rows), "correct": all(row["correct"] for row in rows), "rows": rows}
+
+
 def blind_freeze(development, sources):
     freeze = historical.read(DIRECTORY / "blind-freeze.json")
     require(freeze["production_sha256"] == source_fingerprint()
@@ -330,10 +481,17 @@ def blind_freeze(development, sources):
             "blind families, languages or producers missing")
     exposed = {pair["id"] for pair in sources["panel"]["pairs"]}
     exposed_hashes = {pair[side]["sha256"] for pair in sources["panel"]["pairs"] for side in ("old", "new")}
+    excluded = historical.read(DIRECTORY.parent / "next" / "blind" / "excluded-series.json")["series"]
+    for filename in ("selection.json", "replacement-selection.json"):
+        excluded += historical.read(DIRECTORY.parent / "next" / "blind" / filename)["pairs"]
+    exposed.update(row.get("pair", row.get("id")) for row in excluded)
+    excluded_series = {row["series"].casefold().strip() for row in excluded}
     series = set()
     for name, pair in pairs.items():
-        require(name not in exposed and pair["series"] not in series, "exposed or duplicate blind series")
-        series.add(pair["series"])
+        canonical_series = pair["series"].casefold().strip()
+        require(name not in exposed and canonical_series not in series | excluded_series,
+                "exposed or duplicate blind series")
+        series.add(canonical_series)
         require(pair["novelty_review"] and pair["primary_source_evidence"], "missing series novelty evidence")
         for reference in pair["primary_source_evidence"]:
             historical.checked_path(reference)
@@ -398,6 +556,12 @@ def missing_gates():
     return gate_summary([], [], {}, {}, set(), set(), False, False)
 
 
+def recovery_summary(rows):
+    recovered = {row["pair"]: row["producer"] for row in rows if row["additional_categories"]}
+    return recovered, {row["pair"] for row in rows if row["baseline_complete"]}, {
+        row["pair"] for row in rows if row["current_complete"]}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=STAGES, required=True)
@@ -410,9 +574,37 @@ def main():
         diagnosis(sources)
         if args.stage == "diagnosis":
             return 0
-        # The remaining result adapters are intentionally fail-closed until their
-        # source-adjudication and fresh-freeze evidence contracts are implemented.
-        raise ValueError("development, blind and final evidence adapters remain unfinished")
+        development = historical.read(DIRECTORY / "development.json")
+        rows = phase(development, sources["panel"], sources["targets"],
+                     sources["baseline-observations"], sources["baseline"]["binary"])
+        recovered, before, after = recovery_summary(rows)
+        gates = gate_summary(recovered, [], recovered, {}, before, after, False, False)
+        print(json.dumps({"development": family_metrics(rows)}, indent=2))
+        control_results = controls(read_reference(development["controls"]), sources["controls"],
+                                   development["binary"])
+        print(json.dumps({"controls": control_results}, indent=2))
+        gates["G4"]["passed"] = control_results["correct"] and all(row["correct"] for row in rows) and quality()
+        require(all(gates[key]["passed"] for key in ("G1", "G3", "G4")),
+                "development recovery, completion or correctness gate unmet")
+        if args.stage == "development":
+            print(json.dumps(gates, indent=2))
+            return 0
+        freeze, panel, targets = blind_freeze(development, sources)
+        if args.stage == "blind-freeze":
+            print(json.dumps(gates, indent=2))
+            return 0
+        blind = historical.read(DIRECTORY / "blind.json")
+        require(blind["binary"] == freeze["binary"], "blind executable differs from freeze")
+        baseline = read_reference(freeze["baseline_observations"])
+        blind_rows = phase(blind, panel, targets, baseline, sources["baseline"]["binary"])
+        blind_recovered, _, _ = recovery_summary(blind_rows)
+        gates["G2"] = historical.recovery_gate(blind_recovered, blind_recovered, 3, 2)
+        gates["G4"]["passed"] &= all(row["correct"] for row in blind_rows)
+        print(json.dumps({"blind": family_metrics(blind_rows)}, indent=2))
+        require(gates["G2"]["passed"] and gates["G4"]["passed"], "blind recovery or correctness gate unmet")
+        gates["G5"]["passed"] = True
+        print(json.dumps(gates, indent=2))
+        return 0
     except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
         print(json.dumps(gates, indent=2))
         print(f"FAIL {args.stage}: {error}", file=sys.stderr)
