@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "selection_sha256": "aa6876382ac1633af7c854ac2b55c581e047c84c712838332456113ab4788c68",
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "ietf-tls-12-to-13",
+      "old": {
+        "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc5246.txt.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/pdfrfc/rfc5246.txt.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      },
+      "new": {
+        "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc8446.txt.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/pdfrfc/rfc8446.txt.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      }
+    },
+    {
+      "id": "ietf-http11-7230-to-9112",
+      "old": {
+        "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc7230.txt.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/pdfrfc/rfc7230.txt.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      },
+      "new": {
+        "status": "edition_url_unresolved"
+      }
+    },
+    {
+      "id": "faa-thunderstorms-b-to-c",
+      "old": {
+        "status": "edition_url_unresolved"
+      },
+      "new": {
+        "url": "https://www.faa.gov/documentlibrary/media/advisory_circular/ac%2000-24c.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.faa.gov/documentlibrary/media/advisory_circular/ac%2000-24c.pdf",
+        "stderr": "",
+        "bytes": 219358,
+        "sha256": "c46c75a25a87f078d1ae425c77c4e9937489382817c9724f1e8c6c76ccd134cc"
+      }
+    },
+    {
+      "id": "ietf-sip-2543-to-3261",
+      "old": {
+        "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc2543.txt.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/pdfrfc/rfc2543.txt.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      },
+      "new": {
+        "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc3261.txt.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/pdfrfc/rfc3261.txt.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      }
+    },
+    {
+      "id": "arxiv-faster-rcnn-v1-to-v3",
+      "old": {
+        "url": "https://arxiv.org/pdf/1506.01497v1",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://arxiv.org/pdf/1506.01497v1",
+        "stderr": "",
+        "bytes": 2368067,
+        "sha256": "9d72de197c6c8e76f32602fc447406d6a43f37b5b019933dd4d873463061a6ef"
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/1506.01497v3",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://arxiv.org/pdf/1506.01497v3",
+        "stderr": "",
+        "bytes": 6913803,
+        "sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1"
+      }
+    },
+    {
+      "id": "bunka-kana-1946-to-1986",
+      "old": {
+        "url": "https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/sisaku/enkaku/pdf/01_097.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/sisaku/enkaku/pdf/01_097.pdf",
+        "stderr": "",
+        "bytes": 758687,
+        "sha256": "3cb630da029ed53867ee7ff3e1f50aa3bb8419716b7b3864dcf2e778cd912999"
+      },
+      "new": {
+        "url": "https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/kijun/naikaku/gendaikana/pdf/94380801_01.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/kijun/naikaku/gendaikana/pdf/94380801_01.pdf",
+        "stderr": "",
+        "bytes": 1153680,
+        "sha256": "da79514967608d2c384fb72bb121e5c57951b2c1fb9a634f66e0eb2f8a98b601"
+      }
+    }
+  ]
+}

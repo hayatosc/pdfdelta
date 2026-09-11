@@ -1,0 +1,247 @@
+{
+  "version": 1,
+  "selection_sha256": "af2f0e993c4f0a1c141c8aa376f36b66f88b3040d0d0c5b90e380758349f4f3f",
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "ietf-tls-12-to-13",
+      "old": {
+        "url": "https://www.rfc-editor.org/rfc/rfc5246.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/rfc5246.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      },
+      "new": {
+        "url": "https://www.rfc-editor.org/rfc/rfc8446.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/rfc8446.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      }
+    },
+    {
+      "id": "gnu-gpl-2-to-3",
+      "old": {
+        "url": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.gnu.org/licenses/old-licenses/gpl-2.0.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      },
+      "new": {
+        "url": "https://www.gnu.org/licenses/gpl-3.0.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.gnu.org/licenses/gpl-3.0.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      }
+    },
+    {
+      "id": "ietf-http11-7230-to-9112",
+      "old": {
+        "url": "https://www.rfc-editor.org/rfc/rfc7230.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.rfc-editor.org/rfc/rfc7230.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      },
+      "new": {
+        "url": "https://www.rfc-editor.org/rfc/rfc9112.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.rfc-editor.org/rfc/rfc9112.pdf",
+        "stderr": "",
+        "bytes": 649012,
+        "sha256": "b260bba790c2da55a7e0795f356fcd9b70743686c55250f0ef1cc993c4d1abac"
+      }
+    },
+    {
+      "id": "nist-risk-management-37-r1-to-r2",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-37r1.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-37r1.pdf",
+        "stderr": "",
+        "bytes": 1591735,
+        "sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198"
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-37r2.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-37r2.pdf",
+        "stderr": "",
+        "bytes": 2270327,
+        "sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d"
+      }
+    },
+    {
+      "id": "irs-1099-misc-2024-to-2025",
+      "old": {
+        "url": "https://www.irs.gov/pub/irs-prior/f1099msc--2024.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.irs.gov/pub/irs-prior/f1099msc--2024.pdf",
+        "stderr": "",
+        "bytes": 537923,
+        "sha256": "d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08"
+      },
+      "new": {
+        "url": "https://www.irs.gov/pub/irs-prior/f1099msc--2025.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.irs.gov/pub/irs-prior/f1099msc--2025.pdf",
+        "stderr": "",
+        "bytes": 545480,
+        "sha256": "a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be"
+      }
+    },
+    {
+      "id": "irs-w2-2024-to-2025",
+      "old": {
+        "url": "https://www.irs.gov/pub/irs-prior/fw2--2024.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.irs.gov/pub/irs-prior/fw2--2024.pdf",
+        "stderr": "",
+        "bytes": 1341097,
+        "sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526"
+      },
+      "new": {
+        "url": "https://www.irs.gov/pub/irs-prior/fw2--2025.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.irs.gov/pub/irs-prior/fw2--2025.pdf",
+        "stderr": "",
+        "bytes": 1343180,
+        "sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96"
+      }
+    },
+    {
+      "id": "arxiv-resnet-v1-to-v2",
+      "old": {
+        "url": "https://arxiv.org/pdf/1512.03385v1",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://arxiv.org/pdf/1512.03385v1",
+        "stderr": "",
+        "bytes": 819383,
+        "sha256": "1e0651b6810ecba34a3dbc5b5b0209226f889004607c1f203540a48d64e5a93a"
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/1512.03385v2",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://arxiv.org/pdf/1512.03385v2",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      }
+    },
+    {
+      "id": "arxiv-mask-rcnn-v1-to-v3",
+      "old": {
+        "url": "https://arxiv.org/pdf/1703.06870v1",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://arxiv.org/pdf/1703.06870v1",
+        "stderr": "",
+        "bytes": 6639424,
+        "sha256": "7de5bdd6997c513e42645d8fd6c6cc69928ff6b6eabafe11a7c1673f79739602"
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/1703.06870v3",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://arxiv.org/pdf/1703.06870v3",
+        "stderr": "",
+        "bytes": 7723886,
+        "sha256": "b595a882b763d55d933543131f32a2c4b6f41d0818d418ef46a2b66f946b67a8"
+      }
+    },
+    {
+      "id": "japan-post-domestic-terms-2023-to-2024",
+      "old": {
+        "status": "edition_url_unresolved"
+      },
+      "new": {
+        "status": "edition_url_unresolved"
+      }
+    },
+    {
+      "id": "bunka-official-writing-1952-to-2022",
+      "old": {
+        "url": "https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/kijun/sanko/koyobun/pdf/yoryo_ver02.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/kijun/sanko/koyobun/pdf/yoryo_ver02.pdf",
+        "stderr": "",
+        "bytes": 240091,
+        "sha256": "eab197762a6c2be1272f4b10f0603b98383c8aa9ecebc4bd23ba3b0424cf9890"
+      },
+      "new": {
+        "url": "https://www.bunka.go.jp/seisaku/bunkashingikai/kokugo/hokoku/pdf/93731901_01.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.bunka.go.jp/seisaku/bunkashingikai/kokugo/hokoku/pdf/93731901_01.pdf",
+        "stderr": "",
+        "bytes": 2256467,
+        "sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9"
+      }
+    },
+    {
+      "id": "faa-thunderstorms-b-to-c",
+      "old": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_00-24B.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_00-24B.pdf",
+        "stderr": "",
+        "bytes": 1097708,
+        "sha256": "f4ccfc41b97f113e4d26abf8e46fd7c59796eee477d1990cf990eedc2f730b8e"
+      },
+      "new": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_00-24C.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "404 https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_00-24C.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 404\n",
+        "bytes": 0,
+        "sha256": null
+      }
+    },
+    {
+      "id": "faa-maintenance-records-c-to-d",
+      "old": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC43-9C.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC43-9C.pdf",
+        "stderr": "",
+        "bytes": 948181,
+        "sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273"
+      },
+      "new": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-9D.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-9D.pdf",
+        "stderr": "",
+        "bytes": 518959,
+        "sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd"
+      }
+    }
+  ]
+}

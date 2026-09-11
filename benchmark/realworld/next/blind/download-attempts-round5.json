@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "selection_sha256": "f99b3a70dfb6cd5c25f14785941d129dd36950625c00ec83130b077a39ee785d",
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "nist-controls-53-r4-to-r5",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r4.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r4.pdf",
+        "stderr": "",
+        "bytes": 5301858,
+        "sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e"
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf",
+        "stderr": "",
+        "bytes": 6073678,
+        "sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6"
+      }
+    },
+    {
+      "id": "nist-risk-assessment-30-to-r1",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30.pdf",
+        "stderr": "",
+        "bytes": 3181701,
+        "sha256": "04456e1a4555e4ea3649a4f798af696a7eb91e80d2415a0b1e67a7f9e4b396ef"
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30r1.pdf",
+        "status": "downloaded",
+        "exit_code": 0,
+        "http_result": "200 https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30r1.pdf",
+        "stderr": "",
+        "bytes": 826897,
+        "sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04"
+      }
+    },
+    {
+      "id": "ietf-sip-2543-to-3261",
+      "old": {
+        "url": "https://docbox.etsi.org/reference/ietf/RFC/RFC2543.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "403 https://docbox.etsi.org/reference/ietf/RFC/RFC2543.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 403\n",
+        "bytes": 0,
+        "sha256": null
+      },
+      "new": {
+        "url": "https://docbox.etsi.org/reference/ietf/RFC/RFC3261.pdf",
+        "status": "download_failed",
+        "exit_code": 22,
+        "http_result": "403 https://docbox.etsi.org/reference/ietf/RFC/RFC3261.pdf",
+        "stderr": "curl: (22) The requested URL returned error: 403\n",
+        "bytes": 0,
+        "sha256": null
+      }
+    }
+  ]
+}
