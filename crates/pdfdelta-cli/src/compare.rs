@@ -20,6 +20,7 @@ use pdfdelta_core::{
 
 use crate::{
     args::{ColorChoice, CompareCommand, ComparisonInput, ComparisonOptions, resolve_color},
+    evidence_text::escape_terminal_controls,
     extraction_cache::{ExtractionCache, cache_key},
     fs::{
         InputReadError, ensure_named_output_does_not_alias_input,
@@ -627,37 +628,35 @@ pub fn report_extraction_issues<W: Write>(
             ExtractionIssueKind::Unsupported => "unsupported",
             ExtractionIssueKind::Unresolved => "unresolved",
         };
+        // Issue descriptions can quote PDF-derived names, so they are escaped
+        // before reaching a terminal.
+        let description = escape_terminal_controls(issue.description());
         match issue.scope() {
             ExtractionScope::Document => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=document): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=document): {description}",
                 path.display(),
-                issue.description()
             ),
             ExtractionScope::Page(page) => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=page, page={}): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=page, page={}): {description}",
                 path.display(),
                 page.0,
-                issue.description()
             ),
             ExtractionScope::PageGap { retained_before } => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=page-gap, retained-pages-before={retained_before}): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=page-gap, retained-pages-before={retained_before}): {description}",
                 path.display(),
-                issue.description()
             ),
             ExtractionScope::GlyphGap { retained_before } => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=glyph-gap, retained-glyphs-before={retained_before}): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=glyph-gap, retained-glyphs-before={retained_before}): {description}",
                 path.display(),
-                issue.description()
             ),
             _ => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=unknown): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=unknown): {description}",
                 path.display(),
-                issue.description()
             ),
         }
         .map_err(|error| {
@@ -676,7 +675,7 @@ pub fn report_extraction_issues<W: Write>(
 }
 
 pub fn report_fatal_error<W: Write>(writer: &mut W, error: &str) {
-    let _ = writeln!(writer, "{error}");
+    let _ = writeln!(writer, "{}", escape_terminal_controls(error));
     let _ = writer.flush();
 }
 
@@ -760,5 +759,32 @@ mod tests {
     #[test]
     fn final_error_diagnostic_ignores_writer_failure() {
         report_fatal_error(&mut BrokenPipeWriter, "comparison failed");
+    }
+
+    #[test]
+    fn terminal_diagnostics_escape_pdf_derived_control_characters() {
+        let issue = ExtractionIssue::new(
+            ExtractionIssueKind::Unsupported,
+            ExtractionScope::Document,
+            "font subtype /\u{1b}[31mX is not supported",
+        )
+        .expect("fixture extraction issue should be valid");
+        let mut diagnostics = Vec::new();
+        report_extraction_issues(
+            &mut diagnostics,
+            "old",
+            std::path::Path::new("fixture.pdf"),
+            &[issue],
+        )
+        .expect("diagnostics should write");
+        let text = String::from_utf8(diagnostics).expect("diagnostics are UTF-8");
+        assert!(!text.contains('\u{1b}'), "{text:?}");
+        assert!(text.contains("\\u{1b}"), "{text:?}");
+
+        let mut fatal = Vec::new();
+        report_fatal_error(&mut fatal, "cannot parse /\u{202e}font");
+        let text = String::from_utf8(fatal).expect("fatal error is UTF-8");
+        assert!(!text.contains('\u{202e}'), "{text:?}");
+        assert!(text.contains("\\u{202e}"), "{text:?}");
     }
 }

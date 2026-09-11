@@ -17,14 +17,38 @@ fn escaped(value: &str) -> (String, bool) {
     let mut chars = value.chars();
     let mut output = String::new();
     for ch in chars.by_ref().take(MAX_PREVIEW_CHARS) {
-        if matches!(ch, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
-        {
+        if is_bidi_control(ch) {
             output.extend(ch.escape_unicode());
         } else {
             output.extend(ch.escape_debug());
         }
     }
     (output, chars.next().is_some())
+}
+
+pub(crate) fn is_bidi_control(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{061c}'
+            | '\u{200e}'
+            | '\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{2069}'
+    )
+}
+
+/// Renders untrusted bytes for a terminal by escaping control characters and
+/// Unicode bidi controls; every other character is preserved as-is.
+pub(crate) fn escape_terminal_controls(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_control() || is_bidi_control(ch) {
+            output.extend(ch.escape_unicode());
+        } else {
+            output.push(ch);
+        }
+    }
+    output
 }
 
 fn preview(value: &str) -> String {

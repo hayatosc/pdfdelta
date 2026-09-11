@@ -10,6 +10,7 @@ use pdfdelta_core::{
     source::{ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits},
 };
 
+use crate::evidence_text::escape_terminal_controls;
 use crate::fs::{
     parse_external_font_identities, parse_lopdf, paths_refer_to_same_file, read_limited,
     read_password_file, write_output_atomically,
@@ -256,14 +257,14 @@ pub fn format_pdf_object(object: &PdfObject) -> String {
                 format!("{val}")
             }
         }
-        PdfObject::Name(bytes) => format!("/{}", String::from_utf8_lossy(bytes)),
-        PdfObject::String(bytes) => {
-            if let Ok(s) = std::str::from_utf8(bytes) {
-                format!("{s:?}")
-            } else {
-                format!("<{}>", lowercase_hex(bytes))
-            }
-        }
+        PdfObject::Name(bytes) => format!(
+            "/{}",
+            escape_terminal_controls(&String::from_utf8_lossy(bytes))
+        ),
+        PdfObject::String(bytes) => match std::str::from_utf8(bytes) {
+            Ok(text) => escape_terminal_controls(&format!("{text:?}")),
+            Err(_) => format!("<{}>", lowercase_hex(bytes)),
+        },
         PdfObject::Array(items) => {
             let formatted: Vec<_> = items.iter().map(format_pdf_object).collect();
             format!("[{}]", formatted.join(" "))
@@ -281,7 +282,7 @@ pub fn format_pdf_dict(dict: &PdfDict) -> String {
     for (key, value) in dict {
         parts.push(format!(
             "/{} {}",
-            String::from_utf8_lossy(key),
+            escape_terminal_controls(&String::from_utf8_lossy(key)),
             format_pdf_object(value)
         ));
     }
@@ -290,7 +291,9 @@ pub fn format_pdf_dict(dict: &PdfDict) -> String {
 
 pub fn format_glyph(glyph: &Glyph) -> String {
     let text = match &glyph.text {
-        DecodedText::Mapped(text) => format!("text={text:?}"),
+        DecodedText::Mapped(text) => {
+            format!("text={}", escape_terminal_controls(&format!("{text:?}")))
+        }
         DecodedText::Unmapped {
             font_hash,
             glyph_id,
@@ -455,6 +458,28 @@ mod tests {
         assert_eq!(
             format_pdf_object(&PdfObject::String(b"Hello".to_vec())),
             "\"Hello\""
+        );
+    }
+
+    #[test]
+    fn pdf_names_strings_and_keys_escape_terminal_controls() {
+        let mut dict: PdfDict = BTreeMap::new();
+        dict.insert(b"Ty\x1bpe".to_vec(), PdfObject::Name(b"Page".to_vec()));
+        dict.insert(
+            b"Type".to_vec(),
+            PdfObject::Name("Pa\u{202e}ge".as_bytes().to_vec()),
+        );
+        assert_eq!(
+            format_pdf_dict(&dict),
+            "<< /Ty\\u{1b}pe /Page /Type /Pa\\u{202e}ge >>"
+        );
+        assert_eq!(
+            format_pdf_object(&PdfObject::String(b"a\x1b]0;t\x07b".to_vec())),
+            "\"a\\u{1b}]0;t\\u{7}b\""
+        );
+        assert_eq!(
+            format_pdf_object(&PdfObject::String(vec![0xff, 0xfe])),
+            "<fffe>"
         );
     }
 
