@@ -1,6 +1,7 @@
 # Fixed-source follow-up evaluation
 
-This run has not met its recovery or completion gates. The root `PLAN.md` records
+This run stopped with an unmet completion constraint; see [RESULTS.md](RESULTS.md).
+It has not met its recovery or completion gates. The root `PLAN.md` records
 the approved thresholds and append-only progress. Historical evidence under
 `../next` remains unchanged; its exposed blind inputs are development inputs now.
 

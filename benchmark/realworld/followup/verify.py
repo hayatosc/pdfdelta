@@ -4,7 +4,9 @@
 import argparse
 import hashlib
 import json
+import mmap
 from pathlib import Path
+import subprocess
 import sys
 
 
@@ -37,6 +39,80 @@ def unique_by(rows, key):
     if len(result) != len(rows):
         raise ValueError(f"duplicate {key} entries")
     return result
+
+
+def target_sources(target):
+    annotation = read(checked_path(target["references"]["annotation"]))
+    resolution = read(checked_path(target["references"]["resolution"]))
+    selectors = unique_by(annotation["selectors"], "id")
+    resolved = unique_by(resolution.get("selectors", []), "id")
+
+    def atoms(ids):
+        return {(selectors[name]["side"], atom["id"])
+                for name in ids for row in source_rows(resolved.get(name, {}))
+                for atom in row if atom["kind"] == "glyph"}
+
+    core = atoms([name for names in target["core_selectors"].values() for name in names])
+    extent = atoms([name for names in target["permissible_extent_selectors"].values() for name in names])
+    controls = atoms(target["unchanged_control_selectors"])
+    return core, extent, controls
+
+
+def native_sources(sources, side):
+    return {(side, source["glyph"]) for source in sources if source["origin"] == "native"}
+
+
+def range_recovery(review, core, extent):
+    comparison = review["comparison"]
+    sources = set().union(*(native_sources(review[side + "_sources"], side)
+                            for side in ("old", "new")))
+    eligible = (comparison["interpretation"] == "conditional_on_correspondence"
+                and comparison["compared"] is True and not comparison["unresolved"]
+                and comparison["operation"] is not None
+                and comparison["operation"]["kind"] == "text_changed")
+    both_cores = all(any(atom[0] == side for atom in core) for side in ("old", "new"))
+    return {"source_range_hit": eligible and both_cores and core <= sources <= extent,
+            "category": "B" if comparison["interpretation"] == "conditional_on_correspondence" else "C",
+            "predicted_atoms": len(sources), "core_intersection": len(core & sources),
+            "extra_context_atoms": len(sources - extent)}
+
+
+def common_target_score(report, target):
+    core, extent, controls = target_sources(target)
+    reviews = []
+    strict_sources = set()
+    for scope_index, scope in enumerate(report["comparison"]["scopes"]):
+        for review_index, review in enumerate(scope["result"].get("text_scope_reviews", [])):
+            score = range_recovery(review, core, extent)
+            score["pointer"] = f"/comparison/scopes/{scope_index}/result/text_scope_reviews/{review_index}"
+            reviews.append(score)
+        for comparison in scope["result"]["comparisons"]:
+            if (comparison["interpretation"] == "conditional_on_correspondence"
+                    and comparison["operation"] is not None and comparison["text_mask"] is not None):
+                for side in ("old", "new"):
+                    for token in comparison["text_mask"][side]:
+                        strict_sources.update(native_sources(token["sources"], side))
+    # A range hit still needs a source-content and correspondence adjudication.
+    return {"pair": target["pair"], "core_atoms": len(core), "extent_atoms": len(extent),
+            "strict_control_atoms_claimed": len(strict_sources & controls),
+            "B_source_range_hits": sum(review["source_range_hit"] for review in reviews),
+            "strict_event_recall": None, "strict_source_recall": None,
+            "reviews": reviews}
+
+
+def recovery_gate(pair_ids, producers, minimum_pairs, minimum_producers):
+    pairs = set(pair_ids)
+    publishers = {producers[name] for name in pairs}
+    return {"observed_pairs": len(pairs), "required_pairs": minimum_pairs,
+            "observed_producers": len(publishers), "required_producers": minimum_producers,
+            "passed": len(pairs) >= minimum_pairs and len(publishers) >= minimum_producers}
+
+
+def completion_gate(baseline_complete, current_complete):
+    gained = set(current_complete) - set(baseline_complete)
+    lost = set(baseline_complete) - set(current_complete)
+    return {"gained_pairs": sorted(gained), "lost_pairs": sorted(lost),
+            "required_gain": 2, "allowed_losses": 0, "passed": len(gained) >= 2 and not lost}
 
 
 def registration():
@@ -172,6 +248,57 @@ def baseline_observations(panel):
     print(f"Baseline common-text complete: {complete}/{len(pairs)} in both repetitions")
 
 
+def constraint_stop(panel):
+    record = read(DIRECTORY / "constraint-stop.json")
+    checked_path(record["panel"])
+    for source in record["contract_sources"]:
+        checked_path(source)
+    baseline = read(DIRECTORY / "baseline.json")
+    unchanged = subprocess.run(
+        ["git", "diff", "--quiet", baseline["baseline_commit"], "--",
+         "crates/pdfdelta-core", "crates/pdfdelta-cli"], cwd=ROOT, check=False)
+    if unchanged.returncode != 0:
+        raise ValueError("constraint stop no longer describes the production tree")
+    probes = read(checked_path(record["inventory_probes"]))
+    if probes["frozen_binary_sha256"] != baseline["binary"]["sha256"]:
+        raise ValueError("inventory probes used a different executable")
+    pairs = unique_by(panel["pairs"], "id")
+    observed = set()
+    blocked = set()
+    for row in probes["rows"]:
+        key = row["pair"], row["side"]
+        if key in observed or row["side"] not in ("old", "new"):
+            raise ValueError("duplicate or invalid inventory probe")
+        observed.add(key)
+        if row["pdf_sha256"] != pairs[row["pair"]][row["side"]]["sha256"]:
+            raise ValueError("inventory probe input mismatch")
+        path = checked_path(row["response"])
+        if row["exit_code"] != 0 or not row.get("non_text_paint"):
+            continue
+        with path.open("rb") as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            marker = b'"last_non_text_paint":'
+            start = data.find(marker)
+            if start < 0:
+                raise ValueError("paint observation missing from worker response")
+            start += len(marker)
+            paint, _ = json.JSONDecoder().raw_decode(data[start:start + 1024 * 1024].decode())
+            if paint != row["non_text_paint"]:
+                raise ValueError("paint observation differs from worker response")
+            blocked.add(row["pair"])
+    if observed != {(name, side) for name in pairs for side in ("old", "new")}:
+        raise ValueError("inventory probe panel is incomplete")
+    upper_bound = len(pairs) - len(blocked)
+    if sorted(blocked) != record["pairs_with_non_text_paint"] or upper_bound >= 2:
+        raise ValueError("the retained probes do not establish this constraint stop")
+    print("G1: 0 additional development pairs demonstrated; required 6 pairs / 3 producers")
+    print("G2: fresh blind set not selected; required 12 pairs and recovery on 3 pairs / 2 producers")
+    print(f"G3: {len(blocked)}/{len(pairs)} pairs have non-text paint; "
+          f"at most {upper_bound} can complete under the preserved native inventory rule; required gain 2")
+    print("G4: production unchanged; baseline common-text target controls have no strict-mask claims")
+    print("G5: recovery adjudications, fresh blind evidence and the full final evaluator are missing")
+    raise ValueError("constraint-blocked stop; goal not achieved")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=STAGES, required=True)
@@ -181,6 +308,8 @@ def main():
         baseline_observations(panel)
         if args.stage == "registration":
             return 0
+        if (DIRECTORY / "constraint-stop.json").exists():
+            constraint_stop(panel)
         raise ValueError("later-stage recovery, diagnosis and correctness evidence is not registered")
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f"FAIL {args.stage}: {error}", file=sys.stderr)

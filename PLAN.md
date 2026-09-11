@@ -1,6 +1,8 @@
 # Demonstrate source-backed prose recovery on fixed and unseen inputs
 
-Status: execution started 2026-09-11 07:28:35 UTC; hard stop 2026-09-11 19:28:35 UTC.
+Status: stopped with an unmet G3 constraint; goal not achieved.
+Execution started 2026-09-11 07:28:35 UTC; original hard stop 2026-09-11 19:28:35 UTC.
+Stop evidence: `benchmark/realworld/followup/RESULTS.md` and `constraint-stop.json`.
 Plan location: `/home/hayato/ghq/github.com/hayatosc/pdfdelta/PLAN.md`.
 Human-readable companion: [PLAN.html](PLAN.html). This Markdown file is the execution source of truth.
 
@@ -257,3 +259,4 @@ is a compact index, not a raw transcript.
 ```
 | 2026-09-11 07:39:48 UTC | C1 in progress | Registered all 36 historical source references; 28 prose candidates, 27 source-resolved, 13 independent producers; finite B extents prohibit unselected context. Production unchanged. | `followup/targets.json` SHA-256 `a1ec08f034a00315acd9fc7e12c916214290511329ff3a49396dc9bdded78e7a`; four checker failure-mode tests pass; `verify.py --stage final` exits 1 for absent baseline index; common-text baseline repeat running in ignored cache. About 11 minutes elapsed, 11h49m remaining. | Finish 72 baseline observations, source controls registration and fail-closed stage checks before C1 completion. |
 | 2026-09-11 07:42:57 UTC | C1 registration unit | Bound both common-text attempts for all 36 pairs; all remain incomplete, including explicit W-4 process failures. Registered 60 generated and 3 real-source controls. | `baseline-observations.json` SHA-256 `3fd5e354615d5fe46711ecd117d61432f4a02722f402056d6866c58461a044c7`; registration exits 0; final exits 1 for absent later-stage evidence. fmt/clippy pass; workspace tests 2326 passed, 2 ignored. Four checker tests pass. Elapsed 862s, remaining 42338s. | Complete source-bound gate evaluator/self-tests and baseline target scoring; continue earliest-blocker diagnosis. C1 remains open until its complete checker contract is implemented. |
+| 2026-09-11 08:07:35 UTC | Constraint stop; goal not achieved | All 72 frozen-worker probes completed: 35 pairs have non-text paint on at least one side; remaining NIST controls pair failed both response-bound probes. Preserving native Text inventory and excluding OCR leaves at most one eligible complete pair, below G3 gain of two. No production changes or new blind selection. | `constraint-stop.json` SHA-256 `52f47b3395a23270af4f863f664f5e298d20c763f4d5338d41abadb26016d9f5`; `RESULTS.md` lists unmet G1/G2/G3/C1/C2/G5. Registration exits 0; final exits 1 and prints all gates. fmt/clippy pass; tests 2326 passed, 2 ignored; generated verification 48/48 passed (strict author-intent 42/48); six checker tests pass. Elapsed 2340s, unused time 40860s. | Stop under the approved constraint condition. A revised inventory/proof contract or evaluation scope is required before this fixed G3 claim can be resumed; do not mark this goal complete. |

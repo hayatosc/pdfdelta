@@ -1,0 +1,4741 @@
+{
+  "version": 1,
+  "frozen_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+  "request": {
+    "job": {
+      "kind": "content",
+      "structure": true,
+      "first_structure_id": 0
+    },
+    "password": null,
+    "font_identities": [],
+    "cache_dir": null
+  },
+  "timeout_seconds": 35,
+  "rows": [
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "old",
+      "pdf_sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6",
+      "exit_code": 0,
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/irs-schedule-c-2024-to-2025-old.json",
+        "sha256": "fb0c12cb2673b04e771b171e1762a9d94aa497317f7a93429d4e3bf344aaf8a8"
+      },
+      "native_keys": [
+        "items",
+        "vector_lines",
+        "marked_content",
+        "last_non_text_paint"
+      ],
+      "non_text_paint": {
+        "0": 4575,
+        "1": 6662
+      },
+      "inventories": [
+        {
+          "page": 0,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": 1,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "backend": 0,
+          "complete": false
+        }
+      ],
+      "issues": [
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 21
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 22
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 24
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 25
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 27
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 28
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 34
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 36
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 37
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 40
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 41
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 45
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 46
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 48
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 49
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 57
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 58
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 62
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 63
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 67
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 68
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 71
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 77
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 78
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 80
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 81
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 88
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 94
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 95
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 97
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 98
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 104
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 105
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 107
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 108
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 120
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 125
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 134
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 143
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 152
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 161
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 170
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 179
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 194
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 203
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 212
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 221
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 230
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 239
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 248
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 257
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 270
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 279
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 288
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 298
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 307
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 320
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 329
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 338
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 347
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 356
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 369
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 378
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 387
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 396
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 407
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 416
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 425
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 434
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 441
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 442
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 444
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 445
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 454
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 471
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 487
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 488
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 492
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 493
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 519
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 520
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 524
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 525
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 529
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 530
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 536
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 537
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 539
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 540
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 549
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 558
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 567
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 576
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 585
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 594
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 603
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 612
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 624
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 626
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 627
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 629
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 630
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 638
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 639
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 641
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 642
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 644
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 645
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 651
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 652
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 654
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 655
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 661
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 662
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 664
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 665
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 673
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 674
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 676
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 677
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 683
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 684
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 686
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 687
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 697
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 700
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 704
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 707
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 711
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 714
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 718
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 721
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 725
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 728
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 732
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 735
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 739
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 742
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 746
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 749
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 753
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 756
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 765
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined"
+        }
+      ]
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "new",
+      "pdf_sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716",
+      "exit_code": 0,
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/irs-schedule-c-2024-to-2025-new.json",
+        "sha256": "501b0feccfdc229df165b8fac00d6339e694139cdcad843e01473290c979c672"
+      },
+      "native_keys": [
+        "items",
+        "vector_lines",
+        "marked_content",
+        "last_non_text_paint"
+      ],
+      "non_text_paint": {
+        "0": 4575,
+        "1": 6668
+      },
+      "inventories": [
+        {
+          "page": 0,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": 1,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "backend": 0,
+          "complete": false
+        }
+      ],
+      "issues": [
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 21
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 22
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 24
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 25
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 27
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 28
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 34
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 36
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 37
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 40
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 41
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 45
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 46
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 48
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 49
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 57
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 58
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 62
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 63
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 67
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 68
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 71
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 77
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 78
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 80
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 81
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 88
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 94
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 95
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 97
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 98
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 104
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 105
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 107
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 108
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 121
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 126
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 135
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 144
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 153
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 162
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 171
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 180
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 195
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 204
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 213
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 222
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 231
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 240
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 249
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 258
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 271
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 280
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 289
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 299
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 308
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 321
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 330
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 339
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 348
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 357
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 370
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 379
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 388
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 397
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 408
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 417
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 426
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 435
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 442
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 443
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 445
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 446
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 455
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 472
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 488
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 489
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 493
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 494
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 520
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 521
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 525
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 526
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 530
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 531
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 537
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 538
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 540
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 541
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 550
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 559
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 568
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 577
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 586
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 595
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 604
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 613
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 625
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 627
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 628
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 630
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 631
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 639
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 640
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 642
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 643
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 645
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 646
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 652
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 653
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 655
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 656
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 662
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 663
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 665
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 666
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 674
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 675
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 677
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 678
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 684
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 685
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 687
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 688
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 698
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 701
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 705
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 708
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 712
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 715
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 719
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 722
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 726
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 729
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 733
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 736
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 740
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 743
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 747
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 750
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 754
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 757
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 766
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined"
+        }
+      ]
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "old",
+      "pdf_sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0",
+      "exit_code": 0,
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/irs-schedule-se-2024-to-2025-old.json",
+        "sha256": "0d4bd37d710d24eb1b2c4704c920780cbd640fedc1c082ed34ee9906cd016192"
+      },
+      "native_keys": [
+        "items",
+        "vector_lines",
+        "marked_content",
+        "last_non_text_paint"
+      ],
+      "non_text_paint": {
+        "0": 3811,
+        "1": 5264
+      },
+      "inventories": [
+        {
+          "page": 0,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": 1,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "backend": 0,
+          "complete": false
+        }
+      ],
+      "issues": [
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 21
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 22
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 24
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 25
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 39
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 52
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 63
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 75
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 84
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 95
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 107
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 116
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 128
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 137
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 146
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 154
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 155
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 167
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 176
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 185
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 194
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 203
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 212
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 221
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 230
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 241
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 269
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 270
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 279
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 290
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 299
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined"
+        }
+      ]
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "new",
+      "pdf_sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347",
+      "exit_code": 0,
+      "response": {
+        "path": "benchmark/realworld/cache/followup-inventory/irs-schedule-se-2024-to-2025-new.json",
+        "sha256": "ef82e946587335f406d7af1150f8b86c61a4c4a2dfa59c51b950663243b27034"
+      },
+      "native_keys": [
+        "items",
+        "vector_lines",
+        "marked_content",
+        "last_non_text_paint"
+      ],
+      "non_text_paint": {
+        "0": 3812,
+        "1": 5281
+      },
+      "inventories": [
+        {
+          "page": 0,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": 1,
+          "channel": "text",
+          "backend": 0,
+          "complete": false
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "backend": 0,
+          "complete": false
+        }
+      ],
+      "issues": [
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 21
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 22
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 24
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 25
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 39
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 52
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 63
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 75
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 84
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 95
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 107
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 116
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 128
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 137
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 146
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 154
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 155
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 167
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 176
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 185
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 194
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 203
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 212
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 221
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 230
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 241
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 269
+            }
+          ],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: overlapping or mixed structure memberships require additional views"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 270
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 279
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 290
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [
+            {
+              "origin": "structured",
+              "element": 299
+            }
+          ],
+          "boundary": null,
+          "kind": "unsupported",
+          "reason": "unsupported feature: structure object-reference binding is not implemented"
+        },
+        {
+          "page": null,
+          "channel": "relations",
+          "sources": [],
+          "boundary": null,
+          "kind": "unresolved",
+          "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined"
+        }
+      ]
+    }
+  ]
+}
