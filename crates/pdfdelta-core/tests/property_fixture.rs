@@ -224,6 +224,54 @@ proptest! {
     }
 
     #[test]
+    fn alignment_spans_partition_both_sides_in_order(
+        old_words in arb_block_words(),
+        new_words in arb_block_words(),
+    ) {
+        let old_features = features_from(1, old_words);
+        let new_features = features_from(10_000, new_words);
+        let generator = InvertedIndexCandidateGenerator::new(&new_features)
+            .expect("candidate index should build");
+        let alignment =
+            align_ordered(&old_features, &new_features, &generator, AlignmentOptions::default())
+                .expect("arbitrary documents should align");
+
+        let old_ids = old_features
+            .iter()
+            .map(|features| features.block)
+            .collect::<Vec<_>>();
+        let new_ids = new_features
+            .iter()
+            .map(|features| features.block)
+            .collect::<Vec<_>>();
+        let mut seen_old = Vec::new();
+        let mut seen_new = Vec::new();
+        for span in &alignment.spans {
+            match span.kind {
+                AlignmentKind::Match => {
+                    prop_assert!(!span.old.is_empty() && !span.new.is_empty());
+                    seen_old.extend(span.old.iter().copied());
+                    seen_new.extend(span.new.iter().copied());
+                }
+                AlignmentKind::Unresolved => {
+                    seen_old.extend(span.old.iter().copied());
+                    seen_new.extend(span.new.iter().copied());
+                }
+                AlignmentKind::Deletion => {
+                    prop_assert!(span.new.is_empty());
+                    seen_old.extend(span.old.iter().copied());
+                }
+                AlignmentKind::Insertion => {
+                    prop_assert!(span.old.is_empty());
+                    seen_new.extend(span.new.iter().copied());
+                }
+            }
+        }
+        prop_assert_eq!(seen_old, old_ids, "old blocks must appear once in order");
+        prop_assert_eq!(seen_new, new_ids, "new blocks must appear once in order");
+    }
+
+    #[test]
     fn diff_of_identical_documents_is_empty(block_words in arb_block_words()) {
         let fixture = fixture_from(1, block_words);
 
