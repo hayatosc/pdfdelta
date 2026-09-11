@@ -6,7 +6,7 @@ use std::{
 
 use pdfdelta_core::{
     model::{DecodedText, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode, VectorLine},
-    pdf::{LopdfParser, ParseLimits, PdfDict, PdfObject},
+    pdf::{LopdfParser, ParseLimits, PdfDict, PdfIssue, PdfObject},
     source::{ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits},
 };
 
@@ -110,13 +110,18 @@ pub fn inspect_backend<W: Write>(
     )?;
     write_inspection_line(writer, path, format_args!("pages: {page_count}"))?;
     for issue in pdf.issues() {
-        write_inspection_line(
-            writer,
-            path,
-            format_args!("parser-issue: unresolved: {}", issue.description()),
-        )?;
+        write_inspection_line(writer, path, format_args!("{}", parser_issue_text(issue)))?;
     }
     Ok(())
+}
+
+/// Parser issue descriptions can quote PDF-derived bytes, so they are escaped
+/// before reaching a terminal.
+fn parser_issue_text(issue: &PdfIssue) -> String {
+    format!(
+        "parser-issue: unresolved: {}",
+        escape_terminal_controls(issue.description())
+    )
 }
 
 pub fn inspect_objects<W: Write>(
@@ -150,11 +155,7 @@ pub fn inspect_objects<W: Write>(
         )?;
     }
     for issue in pdf.issues() {
-        write_inspection_line(
-            writer,
-            path,
-            format_args!("parser-issue: unresolved: {}", issue.description()),
-        )?;
+        write_inspection_line(writer, path, format_args!("{}", parser_issue_text(issue)))?;
     }
     Ok(())
 }
@@ -397,7 +398,7 @@ mod tests {
             DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
             GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
         },
-        pdf::{ObjectRef, PdfDict, PdfObject},
+        pdf::{ObjectRef, PdfDict, PdfIssue, PdfObject},
     };
 
     use super::{format_glyph, format_pdf_dict, format_pdf_object, write_inspection_line};
@@ -481,6 +482,15 @@ mod tests {
             format_pdf_object(&PdfObject::String(vec![0xff, 0xfe])),
             "<fffe>"
         );
+    }
+
+    #[test]
+    fn parser_issue_lines_escape_terminal_controls() {
+        let issue =
+            PdfIssue::unresolved("filter /\u{1b}[31mX is unsupported").expect("valid issue");
+        let line = super::parser_issue_text(&issue);
+        assert!(!line.contains('\u{1b}'), "{line:?}");
+        assert!(line.contains("\\u{1b}"), "{line:?}");
     }
 
     #[test]
