@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "pair": "lopdf-tj-affiliation-font_size",
+  "old_sha256": "dddb2a142981fb65944c9d680e2707bedc17658e9a356213b130634c8a853329",
+  "new_sha256": "3b61c2df255d98c5bdfb5700e93dcb52a2f65c9f365c99916075cd02e638fde5",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "old-paragraph-0-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The vessel carries 7 crates.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-1-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The cable measures 9 meters.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-2-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The valve is open.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-3-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The sample belongs to Orion.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-0-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The vessel carries 7 crates.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-1-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The cable measures 9 meters.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-2-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The valve is open.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-3-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "The sample belongs to Lyra.",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

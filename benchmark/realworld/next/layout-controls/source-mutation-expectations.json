@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "frozen_before_comparison": true,
+  "pairs": [
+    {
+      "id": "irs-schedule-c-storage",
+      "kind": "storage",
+      "old": {
+        "file": "benchmark/realworld/cache/next-layout-r2/old-storage.pdf",
+        "sha256": "ce016f8ad81489626a8490f61dafc504bb4ce1133c01ebd1f84621e163ff486a"
+      },
+      "new": {
+        "file": "benchmark/realworld/cache/next-layout-r2/new-storage.pdf",
+        "sha256": "e5d40987f6a6d456d2b37c497372226e7e838225ab37c64bd6dd92d773973dd3"
+      },
+      "strict_events": 1,
+      "strict_source_atoms": [
+        {
+          "side": "old",
+          "atoms": [
+            {
+              "id": 881,
+              "kind": "glyph"
+            }
+          ]
+        },
+        {
+          "side": "new",
+          "atoms": [
+            {
+              "id": 881,
+              "kind": "glyph"
+            }
+          ]
+        }
+      ],
+      "changed_scope_denominator": 1,
+      "annotation_sha256": "a3caf2327879d10e9b8331447252f1634f0ea5ed0afc700bf6294d5813cdf95d"
+    },
+    {
+      "id": "irs-schedule-c-prepended_blank_page",
+      "kind": "prepended_blank_page",
+      "old": {
+        "file": "benchmark/realworld/cache/next-layout-r2/old-page.pdf",
+        "sha256": "187f62fbd42ba71e436c698a6bbdb0339456f06d1832c2d5b3ec733215b8fbdc"
+      },
+      "new": {
+        "file": "benchmark/realworld/cache/next-layout-r2/new-page.pdf",
+        "sha256": "549d8713b1ee55b1542a5e9b0c85e395c7decf2ec98daf69b2258cbb9dcd3f5f"
+      },
+      "strict_events": 1,
+      "strict_source_atoms": [
+        {
+          "side": "old",
+          "atoms": [
+            {
+              "id": 881,
+              "kind": "glyph"
+            }
+          ]
+        },
+        {
+          "side": "new",
+          "atoms": [
+            {
+              "id": 881,
+              "kind": "glyph"
+            }
+          ]
+        }
+      ],
+      "changed_scope_denominator": 1,
+      "annotation_sha256": "d3765fda2d5cfe83ffe05977513bcef46fce40b92acdd72246742a6a05e8ce17"
+    },
+    {
+      "id": "irs-schedule-c-reverse",
+      "kind": "reverse",
+      "old": {
+        "file": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf",
+        "sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716"
+      },
+      "new": {
+        "file": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf",
+        "sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6"
+      },
+      "strict_events": 1,
+      "strict_source_atoms": [
+        {
+          "side": "old",
+          "atoms": [
+            {
+              "id": 881,
+              "kind": "glyph"
+            }
+          ]
+        },
+        {
+          "side": "new",
+          "atoms": [
+            {
+              "id": 881,
+              "kind": "glyph"
+            }
+          ]
+        }
+      ],
+      "changed_scope_denominator": 1,
+      "annotation_sha256": "774f6495be3b09c030dfd3bf5fa232b67281687c9682fa4234f84db58ac3b022"
+    }
+  ]
+}

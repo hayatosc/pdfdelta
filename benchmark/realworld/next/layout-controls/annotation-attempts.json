@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "attempts": [
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "status": "missing",
+      "attempted_selectors": 8,
+      "reason": "Authored prose spaces are TJ positioning gaps in this renderer, not raw space glyphs. Corrected literal quotes before comparison using the raw source representation.",
+      "annotation": {
+        "new_sha256": "3741ccaa5c9b00316cc10aa5018e55627a81b99df0596ca72f66dcaee5bb79bf",
+        "normalization": "none",
+        "old_sha256": "3741ccaa5c9b00316cc10aa5018e55627a81b99df0596ca72f66dcaee5bb79bf",
+        "pair": "classic-xref-tj-unchanged-plain",
+        "selectors": [
+          {
+            "id": "old-paragraph-0-piece-0",
+            "literal_quote": "The vessel carries 7 crates.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "old"
+          },
+          {
+            "id": "old-paragraph-1-piece-0",
+            "literal_quote": "The cable measures 9 meters.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "old"
+          },
+          {
+            "id": "old-paragraph-2-piece-0",
+            "literal_quote": "The valve is open.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "old"
+          },
+          {
+            "id": "old-paragraph-3-piece-0",
+            "literal_quote": "The sample belongs to Orion.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "old"
+          },
+          {
+            "id": "new-paragraph-0-piece-0",
+            "literal_quote": "The vessel carries 7 crates.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "new"
+          },
+          {
+            "id": "new-paragraph-1-piece-0",
+            "literal_quote": "The cable measures 9 meters.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "new"
+          },
+          {
+            "id": "new-paragraph-2-piece-0",
+            "literal_quote": "The valve is open.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "new"
+          },
+          {
+            "id": "new-paragraph-3-piece-0",
+            "literal_quote": "The sample belongs to Orion.",
+            "locator": {
+              "block": null,
+              "page": 0,
+              "range": null
+            },
+            "position_unit": "unicode_scalar",
+            "side": "new"
+          }
+        ],
+        "source_view": "paint_order_raw",
+        "version": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "irs-schedule-c-storage",
+  "old_sha256": "ce016f8ad81489626a8490f61dafc504bb4ce1133c01ebd1f84621e163ff486a",
+  "new_sha256": "e5d40987f6a6d456d2b37c497372226e7e838225ab37c64bd6dd92d773973dd3",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Did you \u201cmaterially participate\u201d in the operation of this business during 2024? If \u201cNo,\u201d see instructions for limit on losses . ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-title-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Profit or Loss From Business (Sole Proprietorship)",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Did you \u201cmaterially participate\u201d in the operation of this business during 2025? If \u201cNo,\u201d see instructions for limit on losses . ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-title-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Profit or Loss From Business (Sole Proprietorship)",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}
