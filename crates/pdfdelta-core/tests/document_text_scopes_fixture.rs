@@ -8,7 +8,7 @@ use pdfdelta_core::{
     },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
-        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+        GlyphProvenance, NonTextPaint, PageId, Rect, TextRenderMode, Vec2,
     },
     normalize::ComparableToken,
     pdf::ObjectRef,
@@ -276,6 +276,98 @@ fn native_interval_rejects_omissions_unsafe_visibility_and_order_competitors() {
                 }
                 new.0.native = Document::new(glyphs);
             }
+        }
+        assert!(
+            compare(&old, &new).scopes[0]
+                .result
+                .text_scope_reviews
+                .is_empty(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+fn with_paint(fixture: &mut Fixture, bounds: Option<Rect>) {
+    fixture.0.native = fixture
+        .0
+        .native
+        .clone()
+        .with_non_text_paint_bounds(vec![NonTextPaint {
+            page: PageId(0),
+            render_order: 0,
+            bounds,
+            content_stream: ObjectRef {
+                object_number: 1,
+                generation: 0,
+            },
+            operator_index: 0,
+        }]);
+    fixture.0.inventories[0].complete = false;
+}
+
+#[test]
+fn bounded_paint_closes_only_the_retained_local_interval() {
+    let old = fixture("a");
+    let mut new = fixture("aa");
+    with_paint(
+        &mut new,
+        Some(Rect {
+            min: Vec2 { x: 0.0, y: 120.0 },
+            max: Vec2 { x: 200.0, y: 140.0 },
+        }),
+    );
+    let result = compare(&old, &new);
+    let reviews = &result.scopes[0].result.text_scope_reviews;
+    assert_eq!(reviews.len(), 1);
+    assert_eq!(
+        reviews[0].convention,
+        "closed-native-paint-bounds-interval-v1"
+    );
+    assert!(!new.0.inventory_complete(Some(PageId(0)), Channel::Text));
+    assert_eq!(
+        compare(&new, &old).scopes[0]
+            .result
+            .text_scope_reviews
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn paint_closure_rejects_unknown_bounds_boundary_ink_and_incomplete_sources() {
+    for mutation in 0..6 {
+        let old = fixture("a");
+        let mut new = fixture("aa");
+        let mut bounds = Rect {
+            min: Vec2 { x: 0.0, y: 120.0 },
+            max: Vec2 { x: 200.0, y: 140.0 },
+        };
+        if mutation == 1 {
+            // Above the anchor baseline, but still covering its actual ink.
+            bounds.min.y = 105.0;
+        }
+        with_paint(&mut new, (mutation != 0).then_some(bounds));
+        match mutation {
+            2 => {
+                new.0.native = Document::new(new.0.native.items().to_vec())
+                    .with_last_non_text_paint([(PageId(0), 0)].into())
+            }
+            3 => {
+                new.0.inventories[0].sources.pop();
+            }
+            4 => new.0.issues.push(EvidenceIssue {
+                page: Some(PageId(0)),
+                channel: Channel::Text,
+                sources: vec![],
+                boundary: None,
+                kind: EvidenceFailure::Unresolved,
+                reason: "unlocated extraction gap".into(),
+            }),
+            5 => {
+                append_unassigned(&mut new, PageId(0), 80.0);
+                with_paint(&mut new, Some(bounds));
+            }
+            _ => {}
         }
         assert!(
             compare(&old, &new).scopes[0]

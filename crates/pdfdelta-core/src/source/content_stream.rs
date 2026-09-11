@@ -7,8 +7,8 @@ use crate::{
     Error, Result,
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
-        GlyphPathClipStatus, GlyphProvenance, MarkedContent, PageId, Rect, TextRenderMode, Vec2,
-        VectorLine, VectorLineId,
+        GlyphPathClipStatus, GlyphProvenance, MarkedContent, NonTextPaint, PageId, Rect,
+        TextRenderMode, Vec2, VectorLine, VectorLineId,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -28,6 +28,9 @@ use super::{
     ExternalFontIdentities, ExtractionIssue, ExtractionLimits, ExtractionOutcome, ExtractionScope,
     GlyphExtractor,
 };
+
+mod paint_bounds;
+use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContentStreamGlyphExtractor;
@@ -134,7 +137,7 @@ impl ContentStreamGlyphExtractor {
         ExtractionOutcome::new(
             Document::with_vector_lines(extraction.glyphs, extraction.vector_lines)
                 .with_marked_content(extraction.marked_content)
-                .with_last_non_text_paint(extraction.last_non_text_paint),
+                .with_non_text_paint_bounds(extraction.non_text_paint_bounds),
             issues,
         )
     }
@@ -171,7 +174,7 @@ struct Extraction<'a> {
     glyphs: Vec<Glyph>,
     vector_lines: Vec<VectorLine>,
     marked_content: Vec<MarkedContent>,
-    last_non_text_paint: std::collections::BTreeMap<PageId, u32>,
+    non_text_paint_bounds: Vec<NonTextPaint>,
     issues: Vec<ExtractionIssue>,
     consumed_glyphs: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
@@ -264,6 +267,7 @@ struct CurrentPath {
     clip_rectangle: Option<Rect>,
     has_unsupported_segments: bool,
     clip_pending: bool,
+    paint_bounds: paint_bounds::Bounds,
 }
 
 impl CurrentPath {
@@ -394,7 +398,7 @@ impl<'a> Extraction<'a> {
             glyphs: Vec::new(),
             vector_lines: Vec::new(),
             marked_content: Vec::new(),
-            last_non_text_paint: std::collections::BTreeMap::new(),
+            non_text_paint_bounds: Vec::new(),
             issues: Vec::new(),
             consumed_glyphs: 0,
             font_cache: HashMap::new(),
@@ -542,11 +546,16 @@ impl<'a> Extraction<'a> {
     ) -> Result<()> {
         match operation.operator.as_slice() {
             b"BI" => {
-                self.record_non_text_paint(page);
+                self.record_non_text_paint(
+                    page,
+                    stream,
+                    operation,
+                    image_paint_bounds(page_geometry, state),
+                );
             }
             b"sh" => {
                 one_name(operation)?;
-                self.record_non_text_paint(page);
+                self.record_non_text_paint(page, stream, operation, None);
             }
             b"BMC" | b"BDC" => {
                 if state.marked_stack.len() >= self.limits.max_nesting_depth
@@ -617,10 +626,10 @@ impl<'a> Extraction<'a> {
             }
             b"cm" => {
                 let [a, b, c, d, e, f] = number_operands(operation)?;
-                state.graphics.ctm = state
-                    .graphics
-                    .ctm
-                    .concatenate(Matrix::new(a, b, c, d, e, f)?)?;
+                let matrix = Matrix::new(a, b, c, d, e, f)?;
+                state.graphics.ctm = state.graphics.ctm.concatenate(matrix)?;
+                state.graphics.paint_ctm =
+                    state.graphics.paint_ctm.then(MatrixBounds::from(matrix));
             }
             b"w" => {
                 let width = one_number(operation)?;
@@ -634,11 +643,29 @@ impl<'a> Extraction<'a> {
             }
             b"m" => {
                 let [x, y] = number_operands(operation)?;
+                state
+                    .current_path
+                    .paint_bounds
+                    .include(paint_bounds::point_bounds(
+                        page_geometry,
+                        state.graphics.paint_ctm,
+                        x,
+                        y,
+                    ));
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 state.current_path.move_to(point);
             }
             b"l" => {
                 let [x, y] = number_operands(operation)?;
+                state
+                    .current_path
+                    .paint_bounds
+                    .include(paint_bounds::point_bounds(
+                        page_geometry,
+                        state.graphics.paint_ctm,
+                        x,
+                        y,
+                    ));
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 self.ensure_path_segment_capacity(state, 1)?;
                 state.current_path.line_to(point).map_err(|_| {
@@ -670,6 +697,17 @@ impl<'a> Extraction<'a> {
             }
             b"re" => {
                 let [x, y, width, height] = number_operands(operation)?;
+                state
+                    .current_path
+                    .paint_bounds
+                    .include(paint_bounds::rectangle_bounds(
+                        page_geometry,
+                        state.graphics.paint_ctm,
+                        x,
+                        y,
+                        width,
+                        height,
+                    ));
                 let (corners, rectangle) = transformed_rectangle_path(
                     page_geometry,
                     state.graphics.ctm,
@@ -839,6 +877,7 @@ impl<'a> Extraction<'a> {
                 let result = self.invoke_xobject(
                     name,
                     operation,
+                    stream,
                     page,
                     page_geometry,
                     resources,
@@ -905,11 +944,21 @@ impl<'a> Extraction<'a> {
 }
 
 impl Extraction<'_> {
-    fn record_non_text_paint(&mut self, page: PageId) {
-        self.last_non_text_paint
-            .entry(page)
-            .and_modify(|order| *order = (*order).max(self.render_order))
-            .or_insert(self.render_order);
+    fn record_non_text_paint(
+        &mut self,
+        page: PageId,
+        stream: ObjectRef,
+        operation: &Operation,
+        bounds: Option<Rect>,
+    ) {
+        // Every record is charged by the existing global operator budget.
+        self.non_text_paint_bounds.push(NonTextPaint {
+            page,
+            render_order: self.render_order,
+            bounds,
+            content_stream: stream,
+            operator_index: operation.index,
+        });
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -931,7 +980,12 @@ impl Extraction<'_> {
         }
 
         if operation.operator != b"n" && state.current_path.drawn_subpaths != 0 {
-            self.record_non_text_paint(page);
+            self.record_non_text_paint(
+                page,
+                stream,
+                operation,
+                path_paint_bounds(page_geometry, state, stroke),
+            );
         }
 
         let clip_update = if state.current_path.clip_pending {
@@ -1543,6 +1597,7 @@ impl Extraction<'_> {
         &mut self,
         name: &[u8],
         operation: &Operation,
+        stream: ObjectRef,
         page: PageId,
         page_geometry: PageGeometry,
         resources: &Resources,
@@ -1574,7 +1629,12 @@ impl Extraction<'_> {
         };
         let xobject = self.cached_xobject(reference)?;
         if matches!(xobject.kind, CachedXObjectKind::Image) {
-            self.record_non_text_paint(page);
+            self.record_non_text_paint(
+                page,
+                stream,
+                operation,
+                image_paint_bounds(page_geometry, state),
+            );
         }
         let CachedXObjectKind::Form {
             matrix: form_matrix,
@@ -1604,6 +1664,10 @@ impl Extraction<'_> {
             form_state.marked_overflow = 0;
             form_state.content_form = Some(reference);
             form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
+            form_state.graphics.paint_ctm = form_state
+                .graphics
+                .paint_ctm
+                .then(MatrixBounds::from(*form_matrix));
             form_state.graphics_stack.clear();
             form_state.current_path.reset();
             form_state.compatibility_depth = 0;
@@ -2311,6 +2375,7 @@ impl Extraction<'_> {
 #[derive(Clone)]
 struct GraphicsState {
     ctm: Matrix,
+    paint_ctm: MatrixBounds,
     line_width: f64,
     clip_region: ClipRegion,
     character_spacing: f64,
@@ -2327,6 +2392,7 @@ impl Default for GraphicsState {
     fn default() -> Self {
         Self {
             ctm: Matrix::IDENTITY,
+            paint_ctm: MatrixBounds::from(Matrix::IDENTITY),
             line_width: 1.0,
             clip_region: ClipRegion::Unbounded,
             character_spacing: 0.0,

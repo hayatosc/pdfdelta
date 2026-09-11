@@ -395,6 +395,7 @@ impl EvidenceStore {
             self.native.vector_lines().len(),
             self.native.marked_content().len(),
             self.native.last_non_text_paint().len(),
+            self.native.non_text_paint_bounds().map_or(0, <[_]>::len),
             self.rendered.len(),
             self.structured.len(),
             self.inventories.len(),
@@ -445,6 +446,28 @@ impl EvidenceStore {
             return Err(invalid(
                 "paint acquisition marker references an unknown page",
             ));
+        }
+        if let Some(paints) = self.native.non_text_paint_bounds() {
+            let mut last_paint = BTreeMap::new();
+            for paint in paints {
+                if !pages.contains_key(&paint.page) || paint.content_stream.object_number == 0 {
+                    return Err(invalid(
+                        "paint bounds have invalid page or stream provenance",
+                    ));
+                }
+                if let Some(bounds) = paint.bounds {
+                    valid_rect(bounds)?;
+                }
+                last_paint
+                    .entry(paint.page)
+                    .and_modify(|order: &mut u32| *order = (*order).max(paint.render_order))
+                    .or_insert(paint.render_order);
+            }
+            if &last_paint != self.native.last_non_text_paint() {
+                return Err(invalid(
+                    "paint bounds disagree with paint acquisition markers",
+                ));
+            }
         }
         let mut marked_memberships = 0usize;
         for sequence in self.native.marked_content() {

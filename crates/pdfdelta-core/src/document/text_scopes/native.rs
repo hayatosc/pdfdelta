@@ -4,14 +4,22 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     Result,
-    model::{Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus, PageId, TextRenderMode, Vec2},
+    model::{
+        Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus, PageId, Rect, TextRenderMode, Vec2,
+    },
 };
 
 use super::{
     DocumentComparisonLimits, DocumentView, EdgeKind, GraphNode, NodeContent, NodeId, SourceRef,
     source_children, spend,
 };
-use crate::document::{Channel, NodeKind, ViewBasis};
+use crate::document::{BackendKind, Channel, NodeKind, ViewBasis};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Closure {
+    WholePage,
+    BoundedPaint,
+}
 
 /// Runs are discovery paths only. A path becomes a closed interval only after
 /// its complete native source band has been checked by [`Sources::closed`].
@@ -121,44 +129,39 @@ impl<'a> Sources<'a> {
         root: NodeId,
         path: &[&GraphNode],
         remaining: &mut usize,
-    ) -> bool {
+    ) -> Option<Closure> {
         let [page] = path[0].pages.as_slice() else {
-            return false;
+            return None;
         };
-        if spend(
+        spend(
             remaining,
             view.evidence
                 .inventories
                 .len()
                 .saturating_add(view.evidence.issues.len()),
-        )
-        .is_none()
-            || !view.evidence.inventory_complete(Some(*page), Channel::Text)
-        {
-            return false;
-        }
+        )?;
         let mut sources = BTreeSet::new();
         let mut min_x = f64::INFINITY;
         let mut max_x = f64::NEG_INFINITY;
         let mut min_y = f64::INFINITY;
         let mut max_y = f64::NEG_INFINITY;
+        let mut ink_bottom = f64::INFINITY;
+        let mut ink_top = f64::NEG_INFINITY;
         let mut previous_bottom = f64::INFINITY;
         for node in path {
             if node.pages != [*page]
                 || node.sources.is_empty()
                 || spend(remaining, node.sources.len()).is_none()
             {
-                return false;
+                return None;
             }
             let mut top = f64::NEG_INFINITY;
             let mut bottom = f64::INFINITY;
             for source in &node.sources {
                 let SourceRef::Native { glyph } = source else {
-                    return false;
+                    return None;
                 };
-                let Some(glyph) = self.glyphs.get(glyph) else {
-                    return false;
-                };
+                let glyph = self.glyphs.get(glyph)?;
                 if glyph.page != *page
                     || glyph.direction != (Vec2 { x: 1.0, y: 0.0 })
                     || glyph.crop_status != GlyphCropStatus::Inside
@@ -174,10 +177,12 @@ impl<'a> Sources<'a> {
                     )
                     || !sources.insert(*source)
                 {
-                    return false;
+                    return None;
                 }
                 min_x = min_x.min(glyph.bbox.min.x);
                 max_x = max_x.max(glyph.bbox.max.x);
+                ink_bottom = ink_bottom.min(glyph.bbox.min.y);
+                ink_top = ink_top.max(glyph.bbox.max.y);
                 top = top.max(glyph.baseline.y);
                 bottom = bottom.min(glyph.baseline.y);
             }
@@ -185,35 +190,33 @@ impl<'a> Sources<'a> {
             // horizontal blocks; rotated or interleaved baselines need another
             // source closure, not a guessed order or a pixel-distance threshold.
             if top >= previous_bottom {
-                return false;
+                return None;
             }
             previous_bottom = bottom;
             min_y = min_y.min(bottom);
             max_y = max_y.max(top);
         }
         for glyph in self.pages.get(page).into_iter().flatten() {
-            if spend(remaining, 1).is_none() {
-                return false;
-            }
+            spend(remaining, 1)?;
             if glyph.baseline.y >= min_y
                 && glyph.baseline.y <= max_y
                 && glyph.bbox.max.x >= min_x
                 && glyph.bbox.min.x <= max_x
                 && !sources.contains(&SourceRef::Native { glyph: glyph.id })
             {
-                return false;
+                return None;
             }
         }
         let members: BTreeSet<_> = path.iter().map(|node| node.id).collect();
         for alternative in &view.graph.alternatives {
             if alternative.parent == root || members.contains(&alternative.parent) {
-                return false;
+                return None;
             }
             for partition in &alternative.partitions {
                 if spend(remaining, partition.len()).is_none()
                     || partition.iter().any(|id| members.contains(id))
                 {
-                    return false;
+                    return None;
                 }
             }
         }
@@ -224,9 +227,92 @@ impl<'a> Sources<'a> {
                     .iter()
                     .any(|source| sources.contains(source))
             {
-                return false;
+                return None;
             }
         }
-        true
+        if view.evidence.inventory_complete(Some(*page), Channel::Text) {
+            Some(Closure::WholePage)
+        } else {
+            self.paint_closed(
+                view,
+                *page,
+                Rect {
+                    min: Vec2 {
+                        x: min_x,
+                        y: ink_bottom,
+                    },
+                    max: Vec2 {
+                        x: max_x,
+                        y: ink_top,
+                    },
+                },
+                remaining,
+            )
+        }
+    }
+
+    fn paint_closed(
+        &self,
+        view: DocumentView<'_>,
+        page: PageId,
+        band: Rect,
+        remaining: &mut usize,
+    ) -> Option<Closure> {
+        let evidence = view.evidence;
+        let paints = evidence.native.non_text_paint_bounds()?;
+        if !evidence.native.last_non_text_paint().contains_key(&page)
+            || evidence.issues.iter().any(|issue| {
+                issue.channel == Channel::Text && (issue.page.is_none() || issue.page == Some(page))
+            })
+        {
+            return None;
+        }
+        let glyphs = self.pages.get(&page)?;
+        spend(remaining, glyphs.len())?;
+        let expected: BTreeSet<_> = glyphs
+            .iter()
+            .map(|glyph| SourceRef::Native { glyph: glyph.id })
+            .collect();
+        let mut found = false;
+        for inventory in &evidence.inventories {
+            if inventory.channel != Channel::Text
+                || (inventory.page.is_some() && inventory.page != Some(page))
+            {
+                continue;
+            }
+            // Only a complete native acquisition with explicit opaque paint can
+            // explain this local exception. Other incomplete providers or a
+            // missing native glyph remain uncertainty, even outside the band.
+            if inventory.page != Some(page)
+                || evidence.backends.get(inventory.backend)?.kind != BackendKind::NativeParser
+            {
+                return None;
+            }
+            spend(remaining, inventory.sources.len())?;
+            if inventory.sources.len() != expected.len()
+                || inventory.sources.iter().copied().collect::<BTreeSet<_>>() != expected
+            {
+                return None;
+            }
+            found = true;
+        }
+        if !found {
+            return None;
+        }
+        for paint in paints {
+            spend(remaining, 1)?;
+            if paint.page != page {
+                continue;
+            }
+            let bounds = paint.bounds?;
+            if bounds.max.x >= band.min.x
+                && bounds.min.x <= band.max.x
+                && bounds.max.y >= band.min.y
+                && bounds.min.y <= band.max.y
+            {
+                return None;
+            }
+        }
+        Some(Closure::BoundedPaint)
     }
 }

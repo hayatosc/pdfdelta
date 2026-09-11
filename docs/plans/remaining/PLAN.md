@@ -256,6 +256,8 @@ complete only when every G1-G5 gate and required verification succeeds.
 
 | 2026-09-11 15:09:13 UTC | Verified experiment unit | Paint probe test, three evaluator tests, fmt, workspace clippy/tests and generated-fixture verification pass. Final remains nonzero for missing diagnosis and later evidence; no production changes or new blind selection. | `cache/remaining-probe-checks/checks.json`; commit diagnostic evidence, then implement/test local paint-bound acquisition. |
 
+| 2026-09-11 15:33:50 UTC | C3/C4 bounded native paint | Added conservative outward-rounded bounds for images, straight fills and single-segment strokes; unknown paint stays explicit. Local native B intervals require the full boundary-ink band to exclude every paint, an exact native glyph inventory and no dependent text issues. Whole-page text completeness and strict source ownership are unchanged; cache format is 6, glyph identity profile remains unchanged. | Local positive/negative fixtures pass; fmt, clippy, workspace tests and generated verification pass (48/48). Logs: `cache/remaining-paint-bounds-checks/checks-2.json`. Initial clippy findings (Option idiom and test panic messages) were fixed. No real-PDF gains claimed; measure the fixed panel next. |
+
 ## Goal contract
 
 Follow this plan to demonstrate additional A/B recovery on fixed body targets in

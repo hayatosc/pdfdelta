@@ -779,3 +779,51 @@ fn paint_boundary_preserves_glyph_order_in_pages_and_nested_forms() {
         assert_eq!(document.last_non_text_paint().get(&PageId(0)), Some(&1));
     }
 }
+
+#[test]
+fn acquired_paint_bounds_enclose_images_fills_and_caps_without_guessing_joins() {
+    for nested in [false, true] {
+        for (content, expected) in [
+            ("20 0 0 30 10 15 cm /I Do", Some((10.0, 15.0, 30.0, 45.0))),
+            ("10 15 20 30 re f", Some((10.0, 15.0, 30.0, 45.0))),
+            (
+                "3 0 0 2 0 0 cm 2 w 2 J 10 10 m 20 10 l S",
+                Some((27.0, 18.0, 63.0, 22.0)),
+            ),
+            ("0 w 10 10 m 20 20 l S", None),
+            ("10 10 20 20 re S", None),
+            ("10 10 m 20 10 20 20 10 20 c f", None),
+            ("/Shade sh", None),
+        ] {
+            let pdf = LopdfParser
+                .parse(
+                    Arc::from(image_pdf([0; 3], content.as_bytes(), nested)),
+                    ParseLimits::default(),
+                )
+                .expect("valid paint fixture");
+            let extraction = ContentStreamGlyphExtractor
+                .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
+                .expect("valid paint fixture");
+            assert!(extraction.is_complete());
+            let paints = extraction
+                .document()
+                .non_text_paint_bounds()
+                .expect("valid paint fixture");
+            assert_eq!(paints.len(), 1);
+            assert_ne!(paints[0].content_stream.object_number, 0);
+            if let Some((min_x, min_y, max_x, max_y)) = expected {
+                let bounds = paints[0].bounds.expect(content);
+                assert!(
+                    bounds.min.x <= min_x
+                        && bounds.min.y <= min_y
+                        && bounds.max.x >= max_x
+                        && bounds.max.y >= max_y,
+                    "{content}: {bounds:?}"
+                );
+                assert!(bounds.min.x > min_x - 10.0 && bounds.max.x < max_x + 10.0);
+            } else {
+                assert_eq!(paints[0].bounds, None, "{content}");
+            }
+        }
+    }
+}

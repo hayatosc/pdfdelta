@@ -273,11 +273,20 @@ pub(super) fn append(
         if a.iter().chain(b).any(|node| node.kind != a[0].kind) {
             continue;
         }
-        if let Some((old_sources, new_sources)) = &sources
-            && (!old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
-                || !new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining))
-        {
-            continue;
+        let mut bounded_paint = false;
+        if let Some((old_sources, new_sources)) = &sources {
+            let Some(old_closure) =
+                old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
+            else {
+                continue;
+            };
+            let Some(new_closure) =
+                new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining)
+            else {
+                continue;
+            };
+            bounded_paint = old_closure == native::Closure::BoundedPaint
+                || new_closure == native::Closure::BoundedPaint;
         }
         match compare_text_group_views(a, b, limits.local) {
             Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
@@ -285,7 +294,9 @@ pub(super) fn append(
                     comparison.interpretation = InterpretationStatus::Inferred;
                 }
                 result.text_scope_reviews.push(TextScopeReview {
-                    convention: if native {
+                    convention: if bounded_paint {
+                        "closed-native-paint-bounds-interval-v1"
+                    } else if native {
                         "closed-native-baseline-interval-v1"
                     } else {
                         "closed-retained-order-interval-v1"

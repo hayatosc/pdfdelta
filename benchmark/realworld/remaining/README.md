@@ -39,3 +39,10 @@ non-text paint, reject unknown/intersecting bounds, and admit a native band only
 when all paint is provably outside it and acquisition has no dependent issue.
 This would preserve global inventory uncertainty and non-owning B semantics.
 It still requires positive/adversarial fixtures and real-target replay.
+
+The native extractor now retains conservative paint bounds. The new
+`closed-native-paint-bounds-interval-v1` review convention accepts only a locally
+closed source band, including both boundary glyphs, with no overlapping or
+unbounded paint and no dependent text acquisition issues. These B reviews do
+not discharge strict source ownership or document-wide text completeness.
+The fixed real-PDF gains remain unmeasured for this change.

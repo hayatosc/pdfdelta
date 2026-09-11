@@ -155,6 +155,19 @@ pub struct MarkedContent {
     pub complete: bool,
 }
 
+/// A non-text painting operation with a conservative bound in native page
+/// coordinates. An unknown bound remains an obstruction to local text closure;
+/// neither a known bound nor its absence identifies the painted content.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct NonTextPaint {
+    pub page: PageId,
+    /// The next native render-order index at this operation, before later glyphs.
+    pub render_order: u32,
+    pub bounds: Option<Rect>,
+    pub content_stream: ObjectRef,
+    pub operator_index: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Document<T> {
     items: Vec<T>,
@@ -163,6 +176,9 @@ pub struct Document<T> {
     marked_content: Vec<MarkedContent>,
     #[serde(default)]
     last_non_text_paint: std::collections::BTreeMap<PageId, u32>,
+    /// None denotes an older or incomplete paint-bound inventory, not no paint.
+    #[serde(default)]
+    non_text_paint_bounds: Option<Vec<NonTextPaint>>,
 }
 
 impl<T> Document<T> {
@@ -172,6 +188,7 @@ impl<T> Document<T> {
             vector_lines: Vec::new(),
             marked_content: Vec::new(),
             last_non_text_paint: std::collections::BTreeMap::new(),
+            non_text_paint_bounds: None,
         }
     }
 
@@ -183,6 +200,7 @@ impl<T> Document<T> {
             vector_lines,
             marked_content: Vec::new(),
             last_non_text_paint: std::collections::BTreeMap::new(),
+            non_text_paint_bounds: None,
         }
     }
 
@@ -213,6 +231,25 @@ impl<T> Document<T> {
         &self.last_non_text_paint
     }
 
+    /// Attaches an exhaustive inventory of encountered painting operations.
+    /// Acquisition issues still invalidate affected pages; each unbounded paint
+    /// stays explicit. This does not make the document's text inventory complete.
+    pub fn with_non_text_paint_bounds(mut self, paints: Vec<NonTextPaint>) -> Self {
+        self.last_non_text_paint.clear();
+        for paint in &paints {
+            self.last_non_text_paint
+                .entry(paint.page)
+                .and_modify(|order| *order = (*order).max(paint.render_order))
+                .or_insert(paint.render_order);
+        }
+        self.non_text_paint_bounds = Some(paints);
+        self
+    }
+
+    pub fn non_text_paint_bounds(&self) -> Option<&[NonTextPaint]> {
+        self.non_text_paint_bounds.as_deref()
+    }
+
     pub fn items(&self) -> &[T] {
         &self.items
     }
@@ -224,6 +261,7 @@ impl<T> Document<T> {
             vector_lines: self.vector_lines,
             marked_content: self.marked_content,
             last_non_text_paint: self.last_non_text_paint,
+            non_text_paint_bounds: self.non_text_paint_bounds,
         }
     }
 
