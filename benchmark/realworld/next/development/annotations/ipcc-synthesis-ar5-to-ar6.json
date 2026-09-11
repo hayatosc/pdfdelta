@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "ipcc-synthesis-ar5-to-ar6",
+  "old_sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c",
+  "new_sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 18
+      },
+      "literal_quote": "Human influence on the climate system is clear, and recent anthropogenic emissions of green-house gases are the highest in history. Recent climate changes have had widespread impacts on human and natural systems.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-label-old",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "Summary for Policymakers",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 19
+      },
+      "literal_quote": "Human activities, principally through emissions of greenhouse gases, have unequivocally caused global warming, with global surface temperature reaching 1.1°C above 1850–1900 in 2011–2020. Global greenhouse gas emissions have continued to increase, with unequal historical and ongoing contributions arising from unsustainable energy use, land use and land-use change, lifestyles and patterns of consumption and production across regions, between and within countries, and among individuals (high confidence).",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-label-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Summary for Policymakers",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

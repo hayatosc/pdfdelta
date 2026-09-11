@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "nist-ai-rmf-draft2-to-v1",
+  "old_sha256": "87d67b518e1cef9aff671e1a76860e8013a8ab160bad8763da801782ee7b7000",
+  "new_sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "The AI RMF will employ a two-number versioning system to track and identify major changes and key decisions that are made throughout its development. The first number will represent the generation of the AI RMF and all of its companion documents. The AI RMF generation will be incremented upon a major revision being made to the Framework. The most up-to-date version of all AI RMF documents will have the same generation identifier. Minor revisions will be tracked using “.n” after the generation number. The minor revision identifier will be incremented upon any edit to the document. It is possible that AI RMF resources will have different minor revision identifiers.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-label-old",
+      "side": "old",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Version Control Table",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "TheFrameworkwillemployatwo-numberversioningsystemtotrackandidentifymajorandminorchanges.ThefirstnumberwillrepresentthegenerationoftheAIRMFanditscompaniondocuments(e.g.,1.0)andwillchangeonlywithmajorrevisions.Minorrevisionswillbetrackedusing“.n”afterthegenerationnumber(e.g.,1.1).",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-label-new",
+      "side": "new",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "VersionControlTable",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

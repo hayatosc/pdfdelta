@@ -92,6 +92,14 @@ scope recovery. Four existing inferred page-render comparisons are visually
 adjudicated separately. W-4 shared-route ownership-limit failures remain in the
 denominator on both revisions.
 
-The other 16 pairs still need source references and have not been compared.
-Concrete vertical/ruby/scan/overpaint traits and the remaining evaluation
-denominators are not established by family labels.
+`nist-edpb-results/` adds seven source-annotated pairs and their baseline/current
+comparisons. `remaining-results/` adds the final nine attempts, including the
+unresolved ECB annotation and failed native comparison. All 24 registered pairs
+now have source-reference attempts and comparison records; 23 have resolved
+references. These remain partial references, not exhaustive document gold.
+
+Concrete traits are recorded with the selected source regions. In particular,
+the care-skills reference includes ruby and a watermark, while the upper-secondary
+reference is a cover date. Family labels alone do not establish vertical-text,
+scan or overpaint coverage. Aggregate family metrics and blind evaluation remain
+separate outstanding work.

@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "pair": "nist-ai-rmf-draft2-to-v1",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "52306d70c47f14209f80637a639e6177a5e47896c4e2f7672a304920db87da65",
+  "resolution_sha256": "fc403926653d85518ddf8c7b40f8511ac762e689386676901da2205766047d86",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "sampling": "One finite changed body range and one unchanged content control, selected and visually inspected before comparison; partial reference only.",
+  "positive_scope": {
+    "selectors": {
+      "old": [
+        "body-old"
+      ],
+      "new": [
+        "body-new"
+      ]
+    },
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null,
+    "reason": "The finite version-number convention range changes major/key decisions to major/minor changes and revises generation and minor-revision wording."
+  },
+  "negative_control": {
+    "selectors": {
+      "old": [
+        "unchanged-label-old"
+      ],
+      "new": [
+        "unchanged-label-new"
+      ]
+    },
+    "expected_content_change": false,
+    "unchanged_scope_denominator": 1,
+    "convention": "Compare visible wording in these finite source pieces; preserve raw whitespace in annotations without treating missing space glyphs or page breaks as changed prose. Font, line wrapping and unselected text are outside the unchanged-content assertion."
+  },
+  "comparison_convention": "Finite source ranges, excluding intervening headers and footnotes between page pieces. No claim about a unique author edit history or exact minimal character positions.",
+  "regions": [
+    {
+      "selector": "body-old",
+      "side": "old",
+      "page": 3,
+      "bbox": [
+        76.5,
+        496.416,
+        538.4399999999999,
+        623.64
+      ],
+      "source_atoms": 671,
+      "unicode_scalars": 671,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    },
+    {
+      "selector": "unchanged-label-old",
+      "side": "old",
+      "page": 3,
+      "bbox": [
+        152.16000000000003,
+        480.57599999999996,
+        260.1480000000001,
+        496.74
+      ],
+      "source_atoms": 21,
+      "unicode_scalars": 21,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    },
+    {
+      "selector": "body-new",
+      "side": "new",
+      "page": 2,
+      "bbox": [
+        90.0,
+        154.798992,
+        522.0156159629996,
+        211.52691400000003
+      ],
+      "source_atoms": 278,
+      "unicode_scalars": 279,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    },
+    {
+      "selector": "unchanged-label-new",
+      "side": "new",
+      "page": 2,
+      "bbox": [
+        279.5759938890001,
+        154.798992,
+        367.878082815,
+        163.705914
+      ],
+      "source_atoms": 19,
+      "unicode_scalars": 19,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    }
+  ],
+  "presentation": {
+    "single_column_selected_body": true,
+    "cross_page_positive": false,
+    "cross_page_negative": false,
+    "old_visible_line_numbers": false,
+    "old_diagonal_watermark": false,
+    "observed_column_change": false
+  },
+  "visual_checks": [
+    {
+      "side": "new",
+      "page": 2,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        6,
+        0
+      ],
+      "pages": 48,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "8324e1f0dfb1a20e9d9cd8c62e2e0badd3433e403c726ef6ca80fc9d97c86498",
+      "input_sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    },
+    {
+      "side": "old",
+      "page": 3,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        10,
+        0
+      ],
+      "pages": 36,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "1862e4d5e528ad58be0137cbb6be33c5f7ed77f9dec60d1af917d0aedf886eaf",
+      "input_sha256": "87d67b518e1cef9aff671e1a76860e8013a8ab160bad8763da801782ee7b7000",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    }
+  ]
+}

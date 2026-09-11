@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "nist-ssdf-draft-to-final",
+  "old_sha256": "24f4e6df241f5a488df909710f45b66c3f0eb6a5d2ea9899655097f6a5d82d6e",
+  "new_sha256": "617746e553a9e2da49bfbd4eef0dfc3094758a39b869314e4173ac36605cde22",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "101 Few software development life cycle (SDLC) models explicitly address software security in 102 detail, so secure software development practices usually need to be added to each SDLC model 103 to ensure that the software being developed is well-secured. This document recommends the 104 Secure Software Development Framework (SSDF) – a core set of high-level secure software 105 development practices that can be integrated into each SDLC implementation. Following these 106 practices should help software producers reduce the number of vulnerabilities in released 107 software, mitigate the potential impact of the exploitation of undetected or unaddressed 108 vulnerabilities, and address the root causes of vulnerabilities to prevent future recurrences. 109 Because the framework provides a common vocabulary for secure software development, 110 software purchasers and consumers can also use it to foster communications with suppliers in 111 acquisition processes and other management activities. 112",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-heading-old",
+      "side": "old",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Few software development life cycle (SDLC) models explicitly address software security in detail, so secure software development practices usually need to be added to each SDLC model to ensure that the software being developed is well-secured. This document recommends the Secure Software Development Framework (SSDF) – a core set of high-level secure software development practices that can be integrated into each SDLC implementation. Following such practices should help software producers reduce the number of vulnerabilities in released software, reduce the potential impact of the exploitation of undetected or unaddressed vulnerabilities, and address the root causes of vulnerabilities to prevent future recurrences. Because the framework provides a common vocabulary for secure software development, software acquirers can also use it to foster communications with suppliers in acquisition processes and other management activities.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-heading-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

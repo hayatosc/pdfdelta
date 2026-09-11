@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "mext-primary-japanese-2008-to-2017",
+  "old_sha256": "15b499bba39b7d9586879328a3fe13dd9a8c5ae80b2d187ae3ff15b0133e1c57",
+  "new_sha256": "4a18f8d0247415c9e27a86e2688b3759cdb0c032a8e07ab51690a13a5fc27c2e",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "内容については，これまでは「話すこと・聞くこと」，「書くこと」，「読むこと」の３領域及び〔言語事項〕で構成していたが，３領域と〔伝統的な言語文化と国語の特質に関する事項〕に改めている。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-heading-old",
+      "side": "old",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "内容の構成の改善",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "三つの柱に沿った資質・能力の整理を踏まえ，従前，「話すこと・聞くこと」，「書くこと」，「読むこと」の３領域及び〔伝統的な言語文化と国語の特質に関する事項〕で構成していた内容を，〔知識及び技能〕及び〔思考力，判断力，表現力等〕に構成し直した。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-heading-new",
+      "side": "new",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "内容の構成の改善",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

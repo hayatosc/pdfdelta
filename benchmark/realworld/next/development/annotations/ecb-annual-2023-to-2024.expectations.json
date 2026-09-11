@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "pair": "ecb-annual-2023-to-2024",
+  "frozen_before_comparison": true,
+  "annotation_status": "unresolved",
+  "annotation_sha256": "fe0e203e46ca872daa9ff60d04c19f413144bfb1efa0a09ec1dc90070fab8369",
+  "resolution_sha256": "074281fa0088c5fe2b1f7f6511254a390f009af8465512fa6dfcd8cd2985b0c1",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "reason": "source extraction: CID width entries exceeded its limit of 65536\n",
+  "visual_target": {
+    "old_page": 0,
+    "new_page": 0,
+    "old_quote": "2023",
+    "new_quote": "2024",
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "coarse_region": {
+      "coordinate_system": "rendered page pixels, top-left origin at 72 dpi",
+      "bbox": [
+        270,
+        220,
+        325,
+        245
+      ]
+    },
+    "strict_source_position_gold": null,
+    "strict_event_gold": null,
+    "note": "Visible cover-year change fixed before comparison. The failed source extraction supplies no source identities, so no resolved-source or strict-position score can be fabricated."
+  },
+  "negative_visual_control": {
+    "literal_quote": "Annual Report",
+    "old_page": 0,
+    "new_page": 0,
+    "expected_content_change": false,
+    "source_resolution": "unresolved"
+  },
+  "visual_checks": [
+    {
+      "side": "new",
+      "page": 0,
+      "width": 596,
+      "height": 843,
+      "page_object": [
+        4,
+        0
+      ],
+      "pages": 200,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "27202988ba87224297569a3fca173789a9d4fc70a9357b2dcba22b4a8379dde6",
+      "input_sha256": "9b1fa8402e6a50c318dba51c8158a14a54319dab92b3f25e0dfbc4a0e4ab43cc",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    },
+    {
+      "side": "old",
+      "page": 0,
+      "width": 596,
+      "height": 843,
+      "page_object": [
+        21590,
+        0
+      ],
+      "pages": 195,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "1578bc4e52040086ab81e27527591ef5e514e2fe42ec3f488484d47dd7b11251",
+      "input_sha256": "8d241acc31e76042d46640355c7539c0bacacf75effca4b51292fcd7b1bd65dd",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    }
+  ]
+}
