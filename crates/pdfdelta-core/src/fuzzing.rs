@@ -1027,7 +1027,7 @@ fn native_evidence_for_pdf(input: &[u8]) -> bool {
 }
 
 /// Builds a small PDF with one font, a marked-content run, a structure tree,
-/// and up to three AcroForm fields whose names, types, values, and widget
+/// and up to three `AcroForm` fields whose names, types, values, and widget
 /// states derive from the fuzz bytes.
 fn synthetic_evidence_pdf(input: &[u8]) -> Vec<u8> {
     use lopdf::{Document, Object, Stream, dictionary};
