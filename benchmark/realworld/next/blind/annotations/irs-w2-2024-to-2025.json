@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "irs-w2-2024-to-2025",
+  "old_sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526",
+  "new_sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "FormW-2Wage and Tax Statement2024",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-control-old",
+      "side": "old",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "Wage and Tax Statement",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "FormW-2Wage and Tax Statement2025",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-control-new",
+      "side": "new",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "Wage and Tax Statement",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

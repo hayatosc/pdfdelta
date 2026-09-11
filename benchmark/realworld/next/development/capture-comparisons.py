@@ -18,13 +18,14 @@ def main():
     parser.add_argument("pdfdelta", type=Path)
     parser.add_argument("cache", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--manifest", type=Path, default=Path(__file__).with_name("inputs.json"))
     parser.add_argument("--pair", action="append", required=True)
     parser.add_argument("--implementation", required=True)
     parser.add_argument("--route", action="append", choices=("native", "text", "all"),
                         help="Capture only these routes; defaults to all three")
     args = parser.parse_args()
     binary = args.pdfdelta.resolve(strict=True)
-    manifest = Path(__file__).with_name("inputs.json")
+    manifest = args.manifest
     inputs = json.loads(manifest.read_text())
     if not inputs["frozen"]:
         parser.error("comparison requires frozen input selection")

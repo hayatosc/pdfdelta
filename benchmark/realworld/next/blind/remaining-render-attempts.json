@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+  "selection_sha256": "4b40bafba5bccfcbe0be17908ce7176ef228bcb0be31f7daed68085a70cfec0b",
+  "profile": "page-rgb-white-72dpi-annotations-v1",
+  "attempts": [
+    {
+      "id": "bunka-official-writing-1952-to-2022",
+      "side": "new",
+      "page": 3,
+      "input_sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9",
+      "object_evidence_sha256": "3aecc0192ffeeb7bb3135ae37fba67ddefc0d4c4c7063f017c8121c067413ebc",
+      "width": 596,
+      "height": 842,
+      "object_number": 5,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "b399efec559cd2621f32909f1bff35644ce779650fa4391133435bf4dacdb7ad",
+      "warning": false,
+      "png_sha256": "648e7996b19254a679e6b45e3b24a0ff8c0006484e4f07c65082946ffab3c16c"
+    },
+    {
+      "id": "nist-risk-assessment-30-to-r1",
+      "side": "new",
+      "page": 10,
+      "input_sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04",
+      "object_evidence_sha256": "be6ef9acbf96a5751904e3c5aa6cfb09734b55b3847a7068285387255d816950",
+      "width": 612,
+      "height": 792,
+      "object_number": 23,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "7d5032a3e80ff42ef3fa8450b5f81e5670088ed3118e8463b8b767b7c37413ac",
+      "warning": false,
+      "png_sha256": "fdaa975f74c321eb052ab8858744a123539d7edf822d13a3a777d4c377e8acec"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-mask-rcnn-v1-to-v3",
+  "old_sha256": "7de5bdd6997c513e42645d8fd6c6cc69928ff6b6eabafe11a7c1673f79739602",
+  "new_sha256": "b595a882b763d55d933543131f32a2c4b6f41d0818d418ef46a2b66f946b67a8",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Wepresentaconceptuallysimple,ﬂexible,andgeneralframeworkforobjectinstancesegmentation.Ourapproachefﬁcientlydetectsobjectsinanimagewhilesimultaneouslygeneratingahigh-qualitysegmentationmaskforeachin-stance.Themethod,calledMaskR-CNN,extendsFasterR-CNNbyaddingabranchforpredictinganobjectmaskinparallelwiththeexistingbranchforboundingboxrecogni-tion.MaskR-CNNissimpletotrainandaddsonlyasmalloverheadtoFasterR-CNN,runningat5fps.Moreover,MaskR-CNNiseasytogeneralizetoothertasks,e.g.,al-lowingustoestimatehumanposesinthesameframework.WeshowtopresultsinallthreetracksoftheCOCOsuiteofchallenges,includinginstancesegmentation,bounding-boxobjectdetection,andpersonkeypointdetection.Withouttricks,MaskR-CNNoutperformsallexisting,single-modelentriesoneverytask,includingtheCOCO2016challengewinners.Wehopeoursimpleandeffectiveapproachwillserveasasolidbaselineandhelpeasefutureresearchininstance-levelrecognition.Codewillbemadeavailable.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "MaskR-CNNKaimingHeGeorgiaGkioxariPiotrDoll´arRossGirshickFacebookAIResearch(FAIR)",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Wepresentaconceptuallysimple,ﬂexible,andgeneralframeworkforobjectinstancesegmentation.Ourapproachefﬁcientlydetectsobjectsinanimagewhilesimultaneouslygeneratingahigh-qualitysegmentationmaskforeachin-stance.Themethod,calledMaskR-CNN,extendsFasterR-CNNbyaddingabranchforpredictinganobjectmaskinparallelwiththeexistingbranchforboundingboxrecogni-tion.MaskR-CNNissimpletotrainandaddsonlyasmalloverheadtoFasterR-CNN,runningat5fps.Moreover,MaskR-CNNiseasytogeneralizetoothertasks,e.g.,al-lowingustoestimatehumanposesinthesameframework.WeshowtopresultsinallthreetracksoftheCOCOsuiteofchallenges,includinginstancesegmentation,bounding-boxobjectdetection,andpersonkeypointdetection.With-outbellsandwhistles,MaskR-CNNoutperformsallex-isting,single-modelentriesoneverytask,includingtheCOCO2016challengewinners.Wehopeoursimpleandeffectiveapproachwillserveasasolidbaselineandhelpeasefutureresearchininstance-levelrecognition.Codehasbeenmadeavailableat:https://github.com/facebookresearch/Detectron.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "MaskR-CNNKaimingHeGeorgiaGkioxariPiotrDoll´arRossGirshickFacebookAIResearch(FAIR)",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 # Closed retained-order interval comparisons
 
-Status: initial implementation, not a completed real-document adoption result.
+Status: adopted for the bounded conventions below. Development recovers new
+source-backed ranges from independent NIST and Berkeley publications; the frozen
+blind set recovers no additional B targets. See `RESULTS.md` for the separate
+denominators, negative controls and adoption limits.
 
 `closed-retained-order-interval-v1` defines a finite observable interval between
 two unchanged, accepted source-only mandatory one-to-one boundaries in an existing
@@ -65,5 +68,6 @@ reversed source storage, duplicate content, detached members, repeated boundarie
 missing inventories, incomplete relations, crossed boundaries, acquisition issues,
 local-proof limits and inherited parent inference. They verify that source range
 references exclude boundary context and that adding reviews leaves strict coverage
-unchanged. Independent PDF recovery, concrete cross-kind handling, static source
-navigation and family-level evaluation remain required before full adoption.
+unchanged. Independent PDF recovery, static source navigation and family-level
+evaluation are recorded in `RESULTS.md`. Cross-kind and native cross-page closure
+remain unsupported; evaluated misses are not promoted by relaxing this contract.

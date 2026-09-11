@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "pair": "faa-maintenance-records-c-to-d",
+  "old_sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273",
+  "new_sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This advisory circular (AC) describes methods, procedures and practices that have been determined to be acceptable means of showing compliance with the general aviation maintenance record making and record keeping requirements of Title 14 of the Code of Federal Regulations ( 14 CFR) parts 43 and 9 1. This material is not mandatory, nor is it reg]ulatory and acknowledges that the Federal Aviation Administration (FAA) will consider other methods that may be presented. It is issued for guidance purposes and outlines several methods of compliance with the regulations.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This AC provides information relevant to the public for the maintenance recordkeeping and record-making requirements of Title 14 of the Code of Federal Regulations (14 CFR) parts 43 and 91. This AC provides one means, but not the only means, of ensuring that the contemplated maintenance, alterations, or continue-in-service condition is in compliance with applicable regulations and existing policy.",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}
