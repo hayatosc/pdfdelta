@@ -983,6 +983,36 @@ pub fn fuzz_native_evidence(input: &[u8]) -> bool {
         );
         reached = true;
     }
+    let Ok(graph) = DocumentGraph::from_evidence(
+        &store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return reached;
+    };
+    let view = DocumentView {
+        evidence: &store,
+        graph: &graph,
+    };
+    if let Ok(comparison) = crate::document::compare_document_views(
+        view,
+        view,
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        DocumentComparisonLimits::default(),
+        HierarchyLimits::default(),
+    ) {
+        assert!(
+            comparison
+                .comparisons()
+                .all(|pair| pair.operation.is_none()),
+            "identity comparison of extracted evidence reported a typed operation"
+        );
+        reached = true;
+    }
     reached
 }
 
