@@ -468,3 +468,20 @@ and never mark success before all gates pass. Do not publish externally.
   transformed Form bounds, opaque fallback, invalid-reference and local-closure
   tests. Generated fixtures pass 48/48. Next: investigate first-line paragraph
   fragmentation and recover source-closed discovery paths across layout gaps.
+
+### 2026-09-11 19:00 UTC: retain justified first-line paragraph continuity
+
+- The Mask abstract's first-line indent is 1.39 median line heights; its right
+  edge differs from the next full line by only 0.00012 native units. A bounded
+  outdent exception now requires at most 1.5 heights, at least 80% of the next
+  line's width and right-edge agreement within 0.1 heights. The ordinary indent
+  ceiling, vertical-gap limit, font checks and grid boundaries remain intact.
+- `first-indent-pilot.json` retains five same-budget captures and source graphs.
+  The Mask target becomes one old paragraph (923 glyphs) and two consecutive new
+  fragments (984 glyphs), without additional context. The existing EDPB target
+  remains recovered; the other four targets and all complete counts remain zero.
+- The regression fails before the change and passes at three scales, rejecting
+  short labels and larger outdents and keeping the next paragraph separate.
+  Format, Clippy and workspace checks pass (2344 passed, two ignored), and all
+  48 generated fixtures pass. Next: source-closed discovery across the remaining
+  new abstract heading/body adjacency gap, without changing strict ownership.
