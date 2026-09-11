@@ -421,3 +421,25 @@ and never mark success before all gates pass. Do not publish externally.
   generated fixtures pass 48/48. Elapsed 3h46m; remaining 8h14m. Next: investigate
   source-local closure for the fixed Mask R-CNN abstract, whose page retains an
   unsupported nested form invocation and disconnected column fragments.
+
+### 2026-09-11 18:42 UTC: recover columns behind terminal lines and headers
+
+- The fixed Mask R-CNN page has a centered terminal line splitting an otherwise
+  usable column gutter. When ordinary cuts fail, isolate a supported terminal
+  line only if its width is at most twice the median line height and all other
+  lines are separated by at least that distance. Every line remains present.
+- A smaller header gap may be used only when its lower partition exposes an
+  ordinary uninterrupted column gutter. The 2.5-median-height floor remains;
+  ordinary cut priorities and default ratios are unchanged. A global horizontal
+  ratio reduction from 0.05 to 0.04 was rejected after failing the real fixture.
+- `header-columns-pilot.json` binds the build, two same-budget RCNN captures,
+  source graphs, rejected attempt and check logs. The fixed Mask target goes
+  from 12 old and 14 new source-exclusive fragments to two old and three new
+  consecutive fragments. Both target recovery counts and complete counts remain
+  zero. The rotated sidebar still separates the new abstract heading from its
+  body; the unsupported figure invocation still prevents local paint closure.
+- Required format, Clippy and workspace tests pass (2341 passed, two ignored);
+  generated fixtures pass 48/48. The scale regression fails before the change
+  and passes after it, including wide and insufficiently separated terminals.
+  Next: retain the sidebar's uncertainty while recovering independent body order,
+  then investigate the failed Form's explicit bounding box.
