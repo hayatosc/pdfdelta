@@ -86,6 +86,12 @@ including one independently inspected ID-free funding paragraph; the frozen
 first-page targets are still missed. Posthoc recovery and native-route results
 remain separate from preregistered shared-route recall.
 
-The other 20 pairs still need source references and have not been compared.
+`irs-results/` adds four preregistered form references and paired baseline/current
+captures. Native retains two exact numeric targets; shared routes add no text
+scope recovery. Four existing inferred page-render comparisons are visually
+adjudicated separately. W-4 shared-route ownership-limit failures remain in the
+denominator on both revisions.
+
+The other 16 pairs still need source references and have not been compared.
 Concrete vertical/ruby/scan/overpaint traits and the remaining evaluation
 denominators are not established by family labels.

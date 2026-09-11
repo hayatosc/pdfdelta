@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "pair": "irs-schedule-se-2024-to-2025",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "a15c3f69d3b09249efb80d0e8ab8ca55b94c4e7d9d37b1213ecb2e53973560e4",
+  "resolution_sha256": "e6cfdcfeacb98683d33c8b124374a0a48dd5e7cb7a2a69bbfa873b0704ece752",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "sampling": "One first-page changed source range and one unchanged title control, selected and visually inspected before any comparison. Partial reference only; unannotated predictions require separate adjudication.",
+  "comparison_convention": "Compare the first-page line 7 description and printed amount. Both the year and amount change, and the new printed amount includes a dollar sign. This is literal visible content; no financial interpretation or unique internal edit mask is asserted.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "old_new_regions": {
+      "old": {
+        "page": 0,
+        "bbox": [
+          64.8,
+          384.11100000000005,
+          574.2510000000003,
+          406.14
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "body-old"
+      },
+      "new": {
+        "page": 0,
+        "bbox": [
+          64.8,
+          384.11100000000005,
+          574.2510000000003,
+          406.14
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "body-new"
+      }
+    },
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null,
+    "reason": "Only separately specified one-character numeric targets have strict localization gold; the remaining range changes do not assume a unique edit history."
+  },
+  "controls": [
+    "unchanged-title-old",
+    "unchanged-title-new"
+  ],
+  "control_convention": "The selected title text is literally and visibly unchanged; typography and unselected surrounding text are outside this control.",
+  "presentation": {
+    "form_with_ruled_fields": true,
+    "first_page_only": true,
+    "cross_page_split_in_this_scope": false,
+    "rotated_sidebar_text": false,
+    "selected_body_multiline": true,
+    "two_column_instructions_on_selected_page": false,
+    "paint_order_header_changed": false
+  },
+  "visual_checks": [
+    {
+      "side": "old",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        523,
+        0
+      ],
+      "pages": 2,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "f54d7c9280f46b74b7e8e35df4b8316d3c23f155b373b5136d082e884017c091",
+      "input_sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0",
+      "visually_inspected": true,
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+      "profile": "existing 72 dpi render-page worker; white background; default annotation/display state"
+    },
+    {
+      "side": "new",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        523,
+        0
+      ],
+      "pages": 2,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "00c3fee4556400b810dac4379846c88ac6837679c326ca372ff40c763b4a3b7e",
+      "input_sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347",
+      "visually_inspected": true,
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+      "profile": "existing 72 dpi render-page worker; white background; default annotation/display state"
+    }
+  ]
+}

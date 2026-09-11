@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "pair": "irs-w9-2018-to-2024",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "48745d407657eb1173615cfd905fec2c7ba35d804ed9c36a78029595837b6fc0",
+  "resolution_sha256": "32adb2bc4c771bfb73c183a249c71a1871010d394f7148e579c24fba53b6f00f",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "sampling": "One first-page changed source range and one unchanged title control, selected and visually inspected before any comparison. Partial reference only; unannotated predictions require separate adjudication.",
+  "comparison_convention": "Compare the first-page line 1 name instruction; the entity/individual wording and owner instruction change. Preserve its full source range without treating the extra line as an independent content edit.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "old_new_regions": {
+      "old": {
+        "page": 0,
+        "bbox": [
+          69.384,
+          699.473,
+          387.695,
+          707.635
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "body-old"
+      },
+      "new": {
+        "page": 0,
+        "bbox": [
+          73.276,
+          678.071,
+          574.6370000000005,
+          694.633
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "body-new"
+      }
+    },
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null,
+    "reason": "Only separately specified one-character numeric targets have strict localization gold; the remaining range changes do not assume a unique edit history."
+  },
+  "controls": [
+    "unchanged-title-old",
+    "unchanged-title-new"
+  ],
+  "control_convention": "The selected title text is literally and visibly unchanged; typography and unselected surrounding text are outside this control.",
+  "presentation": {
+    "form_with_ruled_fields": true,
+    "first_page_only": true,
+    "cross_page_split_in_this_scope": false,
+    "rotated_sidebar_text": true,
+    "selected_body_multiline": true,
+    "two_column_instructions_on_selected_page": true,
+    "paint_order_header_changed": false
+  },
+  "visual_checks": [
+    {
+      "side": "old",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        890,
+        0
+      ],
+      "pages": 6,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "ff3e3fa3d8d9bf487adfe4a3849dcf50cd63561dbb8fe9e3ecea123467f999f5",
+      "input_sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff",
+      "visually_inspected": true,
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+      "profile": "existing 72 dpi render-page worker; white background; default annotation/display state"
+    },
+    {
+      "side": "new",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        1036,
+        0
+      ],
+      "pages": 6,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "5036b70a24551a8a287473351e164d7e0d55a61a8c6d8caf2d961ab2e6534fd5",
+      "input_sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53",
+      "visually_inspected": true,
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+      "profile": "existing 72 dpi render-page worker; white background; default annotation/display state"
+    }
+  ]
+}

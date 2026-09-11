@@ -1,0 +1,719 @@
+[
+  {
+    "pair": "irs-schedule-c-2024-to-2025",
+    "route": "native",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "summary": {
+      "established_changes": 8,
+      "content_changes": 8,
+      "proven_changed_regions": 0,
+      "formatting_only_changes": 1,
+      "uncertain_changes": 2,
+      "unresolved_regions": 77,
+      "unsupported_extraction_issues": 0,
+      "unresolved_extraction_issues": 0,
+      "comparison_complete": false,
+      "difference_status": "detected",
+      "comparison_scope": {
+        "supported_text": true,
+        "images_compared": false
+      },
+      "tentative_candidates": 4,
+      "old_alignment_coverage": {
+        "resolved_tokens": 4934,
+        "total_tokens": 6822,
+        "ratio": 0.723248314277338
+      },
+      "new_alignment_coverage": {
+        "resolved_tokens": 4949,
+        "total_tokens": 6827,
+        "ratio": 0.7249157755968947
+      },
+      "comparison_coverage_ratio": 0.723248314277338
+    },
+    "whole_document_precision": null,
+    "strict_numeric_target": {
+      "true_events": 1,
+      "event_denominator": 1,
+      "true_source_atoms": 2,
+      "changed_source_atom_denominator": 2,
+      "false_changed_source_atoms": 0,
+      "restricted_event_precision": 1.0,
+      "restricted_source_precision": 1.0,
+      "outside_reference_events_unscored": 7
+    },
+    "unchanged_title_control": {
+      "old": {
+        "source_atoms": 50,
+        "false_changed_atoms": 0
+      },
+      "new": {
+        "source_atoms": 50,
+        "false_changed_atoms": 0
+      }
+    },
+    "positive_range_strict_source_intersections": {
+      "old": 1,
+      "new": 1
+    },
+    "intersection_is_not_scope_detection": true
+  },
+  {
+    "pair": "irs-schedule-c-2024-to-2025",
+    "route": "text",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "captured",
+    "comparison_complete": false,
+    "strict_events": 0,
+    "strict_precision": null,
+    "strict_numeric_target": {
+      "true_events": 0,
+      "event_denominator": 1,
+      "true_source_atoms": 0,
+      "changed_source_atom_denominator": 2
+    },
+    "B_detected": 0,
+    "changed_scope_denominator": 1,
+    "B_precision": null,
+    "scope_C_detected": 0,
+    "legacy_inferred_changes": 0,
+    "unchanged_control_false_strict_atoms": 0,
+    "unchanged_control_source_atom_denominator": 100,
+    "coverage": [
+      {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 6310,
+        "new_discovered_sources": 6316,
+        "old_compared_sources": 4900,
+        "new_compared_sources": 4900,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 1410,
+        "new_uncompared_sources": 1416,
+        "complete": false
+      }
+    ],
+    "scope_completion": [
+      {
+        "scope": 0,
+        "enumeration": true,
+        "text_search": true,
+        "visual_search": true,
+        "optimization": true,
+        "compared_pairs": 85,
+        "comparison_pairs": 85,
+        "unresolved": [
+          "a correspondence conflict component exceeded its search budget"
+        ]
+      }
+    ]
+  },
+  {
+    "pair": "irs-schedule-c-2024-to-2025",
+    "route": "all",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "captured",
+    "comparison_complete": false,
+    "strict_events": 0,
+    "strict_precision": null,
+    "strict_numeric_target": {
+      "true_events": 0,
+      "event_denominator": 1,
+      "true_source_atoms": 0,
+      "changed_source_atom_denominator": 2
+    },
+    "B_detected": 0,
+    "changed_scope_denominator": 1,
+    "B_precision": null,
+    "scope_C_detected": 0,
+    "legacy_inferred_changes": 2,
+    "unchanged_control_false_strict_atoms": 0,
+    "unchanged_control_source_atom_denominator": 100,
+    "coverage": [
+      {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 6310,
+        "new_discovered_sources": 6316,
+        "old_compared_sources": 4900,
+        "new_compared_sources": 4900,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 1410,
+        "new_uncompared_sources": 1416,
+        "complete": false
+      },
+      {
+        "channel": "visual",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 2,
+        "new_discovered_sources": 2,
+        "old_compared_sources": 0,
+        "new_compared_sources": 0,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 2,
+        "new_uncompared_sources": 2,
+        "complete": false
+      },
+      {
+        "channel": "forms",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 105,
+        "new_discovered_sources": 105,
+        "old_compared_sources": 104,
+        "new_compared_sources": 104,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 1,
+        "new_uncompared_sources": 1,
+        "complete": false
+      },
+      {
+        "channel": "relations",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 768,
+        "new_discovered_sources": 769,
+        "old_compared_sources": 0,
+        "new_compared_sources": 0,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 768,
+        "new_uncompared_sources": 769,
+        "complete": false
+      }
+    ],
+    "scope_completion": [
+      {
+        "scope": 0,
+        "enumeration": true,
+        "text_search": true,
+        "visual_search": true,
+        "optimization": true,
+        "compared_pairs": 191,
+        "comparison_pairs": 191,
+        "unresolved": [
+          "a correspondence conflict component exceeded its search budget"
+        ]
+      }
+    ]
+  },
+  {
+    "pair": "irs-schedule-se-2024-to-2025",
+    "route": "native",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "summary": {
+      "established_changes": 10,
+      "content_changes": 10,
+      "proven_changed_regions": 1,
+      "formatting_only_changes": 3,
+      "uncertain_changes": 0,
+      "unresolved_regions": 20,
+      "unsupported_extraction_issues": 0,
+      "unresolved_extraction_issues": 0,
+      "comparison_complete": false,
+      "difference_status": "detected",
+      "comparison_scope": {
+        "supported_text": true,
+        "images_compared": false
+      },
+      "tentative_candidates": 4,
+      "old_alignment_coverage": {
+        "resolved_tokens": 4680,
+        "total_tokens": 5511,
+        "ratio": 0.8492106695699511
+      },
+      "new_alignment_coverage": {
+        "resolved_tokens": 4682,
+        "total_tokens": 5528,
+        "ratio": 0.8469609261939218
+      },
+      "comparison_coverage_ratio": 0.8469609261939218
+    },
+    "whole_document_precision": null,
+    "strict_numeric_target": null,
+    "unchanged_title_control": {
+      "old": {
+        "source_atoms": 70,
+        "false_changed_atoms": 0
+      },
+      "new": {
+        "source_atoms": 70,
+        "false_changed_atoms": 0
+      }
+    },
+    "positive_range_strict_source_intersections": {
+      "old": 3,
+      "new": 4
+    },
+    "intersection_is_not_scope_detection": true
+  },
+  {
+    "pair": "irs-schedule-se-2024-to-2025",
+    "route": "text",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "captured",
+    "comparison_complete": false,
+    "strict_events": 0,
+    "strict_precision": null,
+    "strict_numeric_target": null,
+    "B_detected": 0,
+    "changed_scope_denominator": 1,
+    "B_precision": null,
+    "scope_C_detected": 0,
+    "legacy_inferred_changes": 0,
+    "unchanged_control_false_strict_atoms": 0,
+    "unchanged_control_source_atom_denominator": 140,
+    "coverage": [
+      {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 5158,
+        "new_discovered_sources": 5175,
+        "old_compared_sources": 3988,
+        "new_compared_sources": 3988,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 1170,
+        "new_uncompared_sources": 1187,
+        "complete": false
+      }
+    ],
+    "scope_completion": [
+      {
+        "scope": 0,
+        "enumeration": true,
+        "text_search": true,
+        "visual_search": true,
+        "optimization": true,
+        "compared_pairs": 50,
+        "comparison_pairs": 50,
+        "unresolved": [
+          "a correspondence conflict component exceeded its search budget"
+        ]
+      }
+    ]
+  },
+  {
+    "pair": "irs-schedule-se-2024-to-2025",
+    "route": "all",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "captured",
+    "comparison_complete": false,
+    "strict_events": 0,
+    "strict_precision": null,
+    "strict_numeric_target": null,
+    "B_detected": 0,
+    "changed_scope_denominator": 1,
+    "B_precision": null,
+    "scope_C_detected": 0,
+    "legacy_inferred_changes": 2,
+    "unchanged_control_false_strict_atoms": 0,
+    "unchanged_control_source_atom_denominator": 140,
+    "coverage": [
+      {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 5158,
+        "new_discovered_sources": 5175,
+        "old_compared_sources": 3988,
+        "new_compared_sources": 3988,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 1170,
+        "new_uncompared_sources": 1187,
+        "complete": false
+      },
+      {
+        "channel": "visual",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 2,
+        "new_discovered_sources": 2,
+        "old_compared_sources": 0,
+        "new_compared_sources": 0,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 2,
+        "new_uncompared_sources": 2,
+        "complete": false
+      },
+      {
+        "channel": "forms",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 27,
+        "new_discovered_sources": 27,
+        "old_compared_sources": 27,
+        "new_compared_sources": 27,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 0,
+        "new_uncompared_sources": 0,
+        "complete": false
+      },
+      {
+        "channel": "relations",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 311,
+        "new_discovered_sources": 311,
+        "old_compared_sources": 0,
+        "new_compared_sources": 0,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 311,
+        "new_uncompared_sources": 311,
+        "complete": false
+      }
+    ],
+    "scope_completion": [
+      {
+        "scope": 0,
+        "enumeration": true,
+        "text_search": true,
+        "visual_search": true,
+        "optimization": true,
+        "compared_pairs": 79,
+        "comparison_pairs": 79,
+        "unresolved": [
+          "a correspondence conflict component exceeded its search budget"
+        ]
+      }
+    ]
+  },
+  {
+    "pair": "irs-w4-english-2024-to-2025",
+    "route": "native",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "summary": {
+      "established_changes": 7,
+      "content_changes": 7,
+      "proven_changed_regions": 2,
+      "formatting_only_changes": 25,
+      "uncertain_changes": 3,
+      "unresolved_regions": 256,
+      "unsupported_extraction_issues": 0,
+      "unresolved_extraction_issues": 0,
+      "comparison_complete": false,
+      "difference_status": "detected",
+      "comparison_scope": {
+        "supported_text": true,
+        "images_compared": false
+      },
+      "tentative_candidates": 37,
+      "old_alignment_coverage": {
+        "resolved_tokens": 5484,
+        "total_tokens": 20594,
+        "ratio": 0.2662911527629407
+      },
+      "new_alignment_coverage": {
+        "resolved_tokens": 6073,
+        "total_tokens": 21739,
+        "ratio": 0.27935967615805696
+      },
+      "comparison_coverage_ratio": 0.2662911527629407
+    },
+    "whole_document_precision": null,
+    "strict_numeric_target": {
+      "true_events": 1,
+      "event_denominator": 1,
+      "true_source_atoms": 2,
+      "changed_source_atom_denominator": 2,
+      "false_changed_source_atoms": 0,
+      "restricted_event_precision": 1.0,
+      "restricted_source_precision": 1.0,
+      "outside_reference_events_unscored": 6
+    },
+    "unchanged_title_control": {
+      "old": {
+        "source_atoms": 34,
+        "false_changed_atoms": 0
+      },
+      "new": {
+        "source_atoms": 34,
+        "false_changed_atoms": 0
+      }
+    },
+    "positive_range_strict_source_intersections": {
+      "old": 1,
+      "new": 1
+    },
+    "intersection_is_not_scope_detection": true
+  },
+  {
+    "pair": "irs-w4-english-2024-to-2025",
+    "route": "text",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "failed",
+    "failure_stage": "scope",
+    "reason": "correspondence descendant ownership exceeded its limit of 1000000",
+    "precision": null,
+    "end_to_end_numeric_event_recall": {
+      "numerator": 0,
+      "denominator": 1
+    },
+    "end_to_end_numeric_source_recall": {
+      "numerator": 0,
+      "denominator": 2
+    },
+    "note": "Failed attempt retained; no report means no output precision or completion observation."
+  },
+  {
+    "pair": "irs-w4-english-2024-to-2025",
+    "route": "all",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "failed",
+    "failure_stage": "scope",
+    "reason": "correspondence descendant ownership exceeded its limit of 1000000",
+    "precision": null,
+    "end_to_end_numeric_event_recall": {
+      "numerator": 0,
+      "denominator": 1
+    },
+    "end_to_end_numeric_source_recall": {
+      "numerator": 0,
+      "denominator": 2
+    },
+    "note": "Failed attempt retained; no report means no output precision or completion observation."
+  },
+  {
+    "pair": "irs-w9-2018-to-2024",
+    "route": "native",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "summary": {
+      "established_changes": 14,
+      "content_changes": 14,
+      "proven_changed_regions": 6,
+      "formatting_only_changes": 52,
+      "uncertain_changes": 0,
+      "unresolved_regions": 775,
+      "unsupported_extraction_issues": 0,
+      "unresolved_extraction_issues": 0,
+      "comparison_complete": false,
+      "difference_status": "detected",
+      "comparison_scope": {
+        "supported_text": true,
+        "images_compared": false
+      },
+      "tentative_candidates": 176,
+      "old_alignment_coverage": {
+        "resolved_tokens": 6286,
+        "total_tokens": 34794,
+        "ratio": 0.1806633327585216
+      },
+      "new_alignment_coverage": {
+        "resolved_tokens": 6270,
+        "total_tokens": 37390,
+        "ratio": 0.1676918962289382
+      },
+      "comparison_coverage_ratio": 0.1676918962289382
+    },
+    "whole_document_precision": null,
+    "strict_numeric_target": null,
+    "unchanged_title_control": {
+      "old": {
+        "source_atoms": 60,
+        "false_changed_atoms": 0
+      },
+      "new": {
+        "source_atoms": 60,
+        "false_changed_atoms": 0
+      }
+    },
+    "positive_range_strict_source_intersections": {
+      "old": 0,
+      "new": 0
+    },
+    "intersection_is_not_scope_detection": true
+  },
+  {
+    "pair": "irs-w9-2018-to-2024",
+    "route": "text",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "captured",
+    "comparison_complete": false,
+    "strict_events": 0,
+    "strict_precision": null,
+    "strict_numeric_target": null,
+    "B_detected": 0,
+    "changed_scope_denominator": 1,
+    "B_precision": null,
+    "scope_C_detected": 0,
+    "legacy_inferred_changes": 0,
+    "unchanged_control_false_strict_atoms": 0,
+    "unchanged_control_source_atom_denominator": 120,
+    "coverage": [
+      {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 34858,
+        "new_discovered_sources": 37452,
+        "old_compared_sources": 9238,
+        "new_compared_sources": 9240,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 25620,
+        "new_uncompared_sources": 28212,
+        "complete": false
+      }
+    ],
+    "scope_completion": [
+      {
+        "scope": 0,
+        "enumeration": false,
+        "text_search": false,
+        "visual_search": true,
+        "optimization": true,
+        "compared_pairs": 179,
+        "comparison_pairs": 179,
+        "unresolved": [
+          "text candidate enumeration is incomplete",
+          "a correspondence conflict component has competing optima",
+          "a correspondence conflict component has competing optima",
+          "a correspondence conflict component has competing optima",
+          "a correspondence conflict component has competing optima"
+        ]
+      }
+    ]
+  },
+  {
+    "pair": "irs-w9-2018-to-2024",
+    "route": "all",
+    "applies_to": [
+      "3f318d7",
+      "9093cab"
+    ],
+    "status": "captured",
+    "comparison_complete": false,
+    "strict_events": 0,
+    "strict_precision": null,
+    "strict_numeric_target": null,
+    "B_detected": 0,
+    "changed_scope_denominator": 1,
+    "B_precision": null,
+    "scope_C_detected": 0,
+    "legacy_inferred_changes": 0,
+    "unchanged_control_false_strict_atoms": 0,
+    "unchanged_control_source_atom_denominator": 120,
+    "coverage": [
+      {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 34858,
+        "new_discovered_sources": 37452,
+        "old_compared_sources": 9238,
+        "new_compared_sources": 9240,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 25620,
+        "new_uncompared_sources": 28212,
+        "complete": false
+      },
+      {
+        "channel": "visual",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 6,
+        "new_discovered_sources": 6,
+        "old_compared_sources": 0,
+        "new_compared_sources": 0,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 6,
+        "new_uncompared_sources": 6,
+        "complete": false
+      },
+      {
+        "channel": "forms",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 22,
+        "new_discovered_sources": 23,
+        "old_compared_sources": 1,
+        "new_compared_sources": 1,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 21,
+        "new_uncompared_sources": 22,
+        "complete": false
+      },
+      {
+        "channel": "relations",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 781,
+        "new_discovered_sources": 708,
+        "old_compared_sources": 0,
+        "new_compared_sources": 0,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 781,
+        "new_uncompared_sources": 708,
+        "complete": false
+      }
+    ],
+    "scope_completion": [
+      {
+        "scope": 0,
+        "enumeration": false,
+        "text_search": false,
+        "visual_search": false,
+        "optimization": true,
+        "compared_pairs": 180,
+        "comparison_pairs": 180,
+        "unresolved": [
+          "visual candidate enumeration is incomplete",
+          "text candidate enumeration is incomplete",
+          "a correspondence conflict component has competing optima",
+          "a correspondence conflict component has competing optima",
+          "a correspondence conflict component has competing optima",
+          "a correspondence conflict component has competing optima"
+        ]
+      }
+    ]
+  }
+]
