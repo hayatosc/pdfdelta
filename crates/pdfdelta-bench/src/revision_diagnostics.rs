@@ -2993,6 +2993,52 @@ mod tests {
     }
 
     #[test]
+    fn quote_locator_matches_every_short_binary_substring_exactly() {
+        for length in 1..=8usize {
+            for mask in 0..(1usize << length) {
+                let text = (0..length)
+                    .map(|index| if mask & (1 << index) == 0 { 'a' } else { 'b' })
+                    .collect::<String>();
+                for start in 0..length {
+                    for end in (start + 1)..=length {
+                        let quote = &text[start..end];
+                        let occurrences = (0..=text.len() - quote.len())
+                            .filter(|offset| text[*offset..].starts_with(quote))
+                            .count();
+                        let mut budget = DiagnosticBudget::default();
+                        let outcome = locate_quote(
+                            &[diagnostic_block(1, &text)],
+                            quote,
+                            &mut budget,
+                            DiagnosticLimits::default(),
+                        )
+                        .expect("plain quote scan");
+                        match outcome {
+                            QuoteLocateOutcome::Unique(location) => {
+                                assert_eq!(
+                                    occurrences, 1,
+                                    "text={text:?} quote={quote:?} matched a repeated quote"
+                                );
+                                assert_eq!(location.block, BlockId(1));
+                                assert_eq!(
+                                    location.scalar_range,
+                                    ScalarRange { start, end },
+                                    "text={text:?} quote={quote:?}"
+                                );
+                            }
+                            QuoteLocateOutcome::Ambiguous => assert!(
+                                occurrences >= 2,
+                                "text={text:?} quote={quote:?} rejected a unique quote"
+                            ),
+                            other => panic!("text={text:?} quote={quote:?} produced {other:?}"),
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn quote_locator_treats_unmapped_tokens_as_hard_barriers_and_issues_as_indeterminate() {
         let mut unmapped = diagnostic_block(1, "abcdef");
         unmapped.canonical.unmapped.push(UnmappedToken {
