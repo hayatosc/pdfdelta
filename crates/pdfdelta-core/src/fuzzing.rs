@@ -1140,7 +1140,26 @@ fn synthetic_evidence_pdf(input: &[u8]) -> Vec<u8> {
                 }
             }
         }
-        fields.push(Object::Reference(pdf.add_object(field)));
+        let field_id = pdf.new_object_id();
+        match byte(base + 7) % 4 {
+            0 => {
+                // A repeated reference must stay a reported failure, never a hang.
+                field.set("Kids", vec![Object::Reference(field_id)]);
+            }
+            1 => {
+                // The inherited type stays on the parent while the child owns
+                // the partial name.
+                let child_id = pdf.new_object_id();
+                let child = dictionary! {
+                    "T" => Object::string_literal(format!("child{index}")),
+                };
+                pdf.objects.insert(child_id, Object::Dictionary(child));
+                field.set("Kids", vec![Object::Reference(child_id)]);
+            }
+            _ => {}
+        }
+        pdf.objects.insert(field_id, Object::Dictionary(field));
+        fields.push(Object::Reference(field_id));
     }
 
     let root = pdf.new_object_id();
