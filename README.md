@@ -524,7 +524,7 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 55 and include optional nested
+Compact revision summaries use schema version 68 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 Sentence/Line, search-scope, and known/ambiguous-span work attribution,
 diagnostic-only Sentence shadow relations, paired-anchor cross-span locality,
@@ -584,10 +584,11 @@ instead of a guessed cause. The
 unversioned full-report v1 key set remains unchanged. Reviewed candidate recall
 and expected-change failure
 diagnostics and scoped event/token metrics are available only through
-`--summary-json-output`; CLI trace schema v24 exposes sentence-recovery metrics,
+`--summary-json-output`; CLI trace schema v26 exposes sentence-recovery metrics,
 including both Sentence edge shadows and the production edge filter, one-hot
 direct-execution provenance, near-search, shadow, filter, and run-signature stop
-reasons, plus structural-run counters, but not those reviewed metrics.
+reasons, plus structural-run counters and per-phase `duration_us` metrics, but not
+those reviewed metrics.
 `--json-output` and `--summary-json-output` are published independently and
 atomically (each serializing in memory and publishing via same-directory temporary
 files without overwriting existing destinations). If the second publication fails,
@@ -658,7 +659,7 @@ JSON schema 11 also exposes non-owning `assessment.review_units`. Each unit name
 
 `--extraction-cache-dir DIR` reuses cached glyph extraction results stored under `DIR`, keyed by the file contents and every extraction-determining input (parser and extraction limits, password, and asserted font identities). A missing, corrupt, oversized, or outdated entry falls back to a fresh extraction, so comparison results are identical with or without the cache. Entries are revalidated only for resource ceilings and issue-scope invariants; glyph content, geometry, and ids are not re-verified and entries are not authenticated, so the cache directory is a trust boundary and must not be shared with untrusted writers.
 
-`--trace-json PATH` writes a separate version 2 diagnostic trace without changing the normal report. The trace records input reading, PDF parsing, glyph extraction, layout reconstruction, normalization, alignment, exact diff, and report phases with bounded metrics, including sentence-recovery diagnostics when available. It also identifies incomplete or failed phases, records typed resource-limit errors, and marks phases that were skipped after an earlier stop. Each phase entry carries a wall-clock `duration_us` metric, which is nondeterministic across runs and must be excluded from golden-file comparisons. Trace files use the same atomic, no-overwrite publication policy as JSON reports.
+`--trace-json PATH` writes a separate diagnostic trace (trace schema version 26) without changing the normal report. The trace records input reading, PDF parsing, glyph extraction, layout reconstruction, normalization, alignment, exact diff, and report phases with bounded metrics, including sentence-recovery diagnostics when available. It also identifies incomplete or failed phases, records typed resource-limit errors, and marks phases that were skipped after an earlier stop. Each phase entry carries a wall-clock `duration_us` metric, which is nondeterministic across runs and must be excluded from golden-file comparisons. Trace files use the same atomic, no-overwrite publication policy as JSON reports.
 
 The real-world benchmark also diagnoses valid expected masks that cannot occur under the literal-minimal objective, without changing their acceptance criteria. The [claim evaluation](benchmark/realworld/results/2026-09-09-claims/README.md) preserves the original corpus and annotations and adds an untouched PDF pair. [Supplied-role experiments](benchmark/realworld/results/structure-claim-probe/README.md) report source-mask and event-grouping results separately; the tested stamp and function-list policies do not justify automatic structure discovery or production role matching.
 
