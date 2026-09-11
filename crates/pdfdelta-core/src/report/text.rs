@@ -139,7 +139,7 @@ pub(super) fn render(
                         side_name(issue.side),
                         issue_kind_name(issue.kind),
                         scope,
-                        issue.description,
+                        terminal_safe(&issue.description),
                     ),
                 )
             )
@@ -152,7 +152,10 @@ pub(super) fn render(
         writeln!(
             output,
             "{}",
-            painter.paint(CODE_FILE_HEADER, &format!("{marker}{label}"))
+            painter.paint(
+                CODE_FILE_HEADER,
+                &format!("{marker}{}", terminal_safe(label))
+            )
         )
         .map_err(|error| Error::Report(error.to_string()))?;
     }
@@ -856,6 +859,15 @@ fn push_terminal_safe(rendered: &mut String, scalar: char) {
     } else {
         rendered.push(scalar);
     }
+}
+
+/// Applies [`push_terminal_safe`] to every scalar of an untrusted string.
+fn terminal_safe(value: &str) -> String {
+    let mut rendered = String::with_capacity(value.len());
+    for scalar in value.chars() {
+        push_terminal_safe(&mut rendered, scalar);
+    }
+    rendered
 }
 
 fn is_bidi_control(scalar: char) -> bool {

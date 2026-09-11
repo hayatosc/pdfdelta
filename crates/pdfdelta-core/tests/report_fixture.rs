@@ -2035,6 +2035,38 @@ fn text_report_escapes_control_and_bidi_characters_from_pdf_text() -> Result<()>
 }
 
 #[test]
+fn text_report_escapes_extraction_issue_text_and_labels() -> Result<()> {
+    let extraction = ExtractionStatus {
+        old_complete: false,
+        new_complete: true,
+        issues: vec![ExtractionIssueRecord {
+            side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::Page(PageId(0)),
+            description: "font subtype /\u{1b}[31mX is not supported".to_owned(),
+        }],
+    };
+    let options = TextReportOptions {
+        old_label: "old\u{202e}.pdf",
+        new_label: "new.pdf",
+        color: false,
+    };
+    let mut comparison = empty_comparison();
+    // An incomplete side carries no coverage ratio, matching the pipeline.
+    comparison.old_coverage.ratio = None;
+
+    let report = render_text(&[], &[], &comparison, &extraction, &options)?;
+
+    assert!(
+        !report.contains('\u{1b}') && !report.contains('\u{202e}'),
+        "extraction diagnostics and labels must not reach the terminal raw: {report:?}"
+    );
+    assert!(report.contains("\\u{1b}"), "{report:?}");
+    assert!(report.contains("\\u{202e}"), "{report:?}");
+    Ok(())
+}
+
+#[test]
 fn text_report_renders_change_tags_in_hunk_headers() -> Result<()> {
     let old_blocks = vec![block_with_text(2, "Ａ")];
     let new_blocks = vec![block_with_text(102, "A")];
