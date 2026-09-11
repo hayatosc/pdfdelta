@@ -23,7 +23,7 @@ use pdfdelta_core::{
     normalize::{BlockText, normalize_blocks},
     pdf::ObjectRef,
     pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents},
-    report::{ExtractionStatus, project_span_sources, summarize},
+    report::{DifferenceStatus, ExtractionStatus, project_span_sources, summarize},
     source::ExtractionOutcome,
 };
 
@@ -540,6 +540,79 @@ proptest! {
                     prop_assert!(change.occurrences[0].new_span.is_some());
                 }
             }
+        }
+    }
+
+    #[test]
+    fn alignment_coverage_totals_and_summary_are_grounded(
+        old_words in arb_block_words(),
+        new_words in arb_block_words(),
+    ) {
+        let old_fixture = fixture_from(1, old_words);
+        let new_fixture = fixture_from(10_000, new_words);
+        let comparison = compare_glyph_documents(
+            &old_fixture.document,
+            &new_fixture.document,
+            PipelineOptions::default(),
+        )
+        .expect("arbitrary documents should compare");
+
+        for (label, fixture, coverage) in [
+            ("old", &old_fixture, comparison.old_coverage),
+            ("new", &new_fixture, comparison.new_coverage),
+        ] {
+            let blocks = normalize_blocks(&fixture.document, &fixture.lines, &fixture.blocks)
+                .expect("normalization should succeed");
+            let expected_total: usize = blocks
+                .iter()
+                .map(|block| block.canonical.text.chars().count() + block.canonical.unmapped.len())
+                .sum();
+            prop_assert_eq!(
+                coverage.total_tokens,
+                expected_total,
+                "{} total tokens must match independently normalized canonical tokens",
+                label
+            );
+            prop_assert!(
+                coverage.resolved_tokens <= coverage.total_tokens,
+                "{} resolved tokens exceed the whole document",
+                label
+            );
+            let expected_ratio = if coverage.total_tokens == 0 {
+                1.0
+            } else {
+                coverage.resolved_tokens as f64 / coverage.total_tokens as f64
+            };
+            prop_assert_eq!(
+                coverage.ratio,
+                Some(expected_ratio),
+                "{} coverage ratio must equal resolved over total",
+                label
+            );
+        }
+
+        let summary = summarize(&comparison, &ExtractionStatus::complete())
+            .expect("summary should succeed");
+        prop_assert_eq!(summary.old_alignment_coverage, comparison.old_coverage.ratio);
+        prop_assert_eq!(summary.new_alignment_coverage, comparison.new_coverage.ratio);
+        prop_assert_eq!(
+            summary.comparison_coverage,
+            comparison
+                .old_coverage
+                .ratio
+                .zip(comparison.new_coverage.ratio)
+                .map(|(old, new)| old.min(new)),
+        );
+        if summary.comparison_complete {
+            prop_assert!(comparison.change_candidates.is_empty());
+            prop_assert!(comparison.proven_changed_regions.is_empty());
+            prop_assert!(comparison.unresolved_regions.is_empty());
+            prop_assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+            prop_assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+        }
+        if summary.difference_status == DifferenceStatus::NoContentChange {
+            prop_assert!(comparison.changes.is_empty());
+            prop_assert!(summary.comparison_complete);
         }
     }
 }
