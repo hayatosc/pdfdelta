@@ -771,6 +771,10 @@ fn check_text_comparison(old: &Document<Glyph>, new: &Document<Glyph>) -> bool {
     )
     .expect("a successful comparison must render as text");
     assert!(!text.is_empty());
+    assert!(
+        !text.contains('\u{1b}') && !text.contains('\u{202e}'),
+        "PDF-derived text must be rendered with terminal controls escaped"
+    );
     let old_evidence = old
         .items()
         .iter()
@@ -1563,7 +1567,7 @@ fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
     Document::with_vector_lines(glyphs, vector_lines)
 }
 
-const SYNTHETIC_TEXTS: [&str; 16] = [
+const SYNTHETIC_TEXTS: [&str; 18] = [
     "a",
     "b",
     " ",
@@ -1580,6 +1584,8 @@ const SYNTHETIC_TEXTS: [&str; 16] = [
     "unchanged.",
     "wrap-",
     "hyphenation",
+    "\u{1b}[31m",
+    "\u{202e}reordered",
 ];
 
 const SYNTHETIC_RENDER_MODES: [TextRenderMode; 4] = [

@@ -1996,6 +1996,45 @@ fn text_report_renders_replacement_insertion_and_deletion_hunks() -> Result<()> 
 }
 
 #[test]
+fn text_report_escapes_control_and_bidi_characters_from_pdf_text() -> Result<()> {
+    let hostile = "before\u{1b}[31mred\u{202e}after";
+    let old_blocks = vec![block_with_text(2, hostile)];
+    let new_blocks = vec![block_with_text(102, "before red after")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(2, hostile)),
+            new_span: Some(full_span(102, "before red after")),
+        }],
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(
+        !report.contains('\u{1b}'),
+        "terminal escape sequences must not reach the report: {report:?}"
+    );
+    assert!(
+        !report.contains('\u{202e}'),
+        "bidi overrides must not reach the report: {report:?}"
+    );
+    assert!(
+        report.contains("\\u{1b}"),
+        "the escaped escape must stay visible literally: {report:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn text_report_renders_change_tags_in_hunk_headers() -> Result<()> {
     let old_blocks = vec![block_with_text(2, "Ａ")];
     let new_blocks = vec![block_with_text(102, "A")];

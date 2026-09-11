@@ -834,7 +834,7 @@ fn render_region(group: &ResolvedGroup, start: usize, end: usize) -> String {
     let mut rendered = String::new();
     for token in &group.tokens[start..end] {
         match token {
-            ComparableToken::Scalar(scalar) => rendered.push(*scalar),
+            ComparableToken::Scalar(scalar) => push_terminal_safe(&mut rendered, *scalar),
             ComparableToken::Unmapped {
                 font_hash,
                 glyph_id,
@@ -844,6 +844,31 @@ fn render_region(group: &ResolvedGroup, start: usize, end: usize) -> String {
         }
     }
     rendered
+}
+
+/// PDF text is untrusted input. Control characters would let a byte sequence
+/// drive the terminal (escape sequences, carriage returns) and Unicode bidi
+/// controls could silently reorder the displayed diff, so both are rendered in
+/// their escaped literal form instead of being executed.
+fn push_terminal_safe(rendered: &mut String, scalar: char) {
+    if scalar.is_control() || is_bidi_control(scalar) {
+        rendered.extend(scalar.escape_unicode());
+    } else {
+        rendered.push(scalar);
+    }
+}
+
+fn is_bidi_control(scalar: char) -> bool {
+    matches!(
+        scalar,
+        '\u{061c}'
+            | '\u{200e}'
+            | '\u{200f}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{2069}'
+    )
 }
 
 // Abbreviates the font hash to its first four bytes for human-readable display.
