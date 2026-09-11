@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "reason": "Complete the common immutable-baseline and current-release observations for two early development pairs previously measured on intermediate revisions. Existing source references are unchanged.",
+  "all_captured": 12,
+  "all_attempted": 12,
+  "all_complete": 0,
+  "nist_posthoc_continuity": "All eight current review operation texts and old/new interior source counts equal the prior individually adjudicated records. Prior visible-content precision 6/8 remains a posthoc metric, not frozen recall.",
+  "files": {
+    "baseline-runs.json": "3d4a58456d292c61238b387ac65f9718a9dc7f588af9f233fce2a18cb3368d67",
+    "contracts.json": "baa47569cceaddfa20b3af2157ae4ab96afcd70e660e9bbb65ba94fe790c0b41",
+    "current-runs.json": "6fb24c62907dd07c8008a7f256abcbc20ffbd5e6d9d893c7c52b6ae59c7d6a26",
+    "native-selected-fields.json": "70060e783a1f2357a30ec9f5b4b02328c93b86f3cdd641aa939196d62d21dc54",
+    "scores.json": "e7505a31f9a9f64d8c27175cd95363ab694a7f0923bc07ab328901186dab2bc4"
+  }
+}

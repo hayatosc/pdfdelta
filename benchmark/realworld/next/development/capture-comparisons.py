@@ -20,6 +20,8 @@ def main():
     parser.add_argument("output", type=Path)
     parser.add_argument("--pair", action="append", required=True)
     parser.add_argument("--implementation", required=True)
+    parser.add_argument("--route", action="append", choices=("native", "text", "all"),
+                        help="Capture only these routes; defaults to all three")
     args = parser.parse_args()
     binary = args.pdfdelta.resolve(strict=True)
     manifest = Path(__file__).with_name("inputs.json")
@@ -60,6 +62,10 @@ def main():
         "text": ["--channels", "text"],
         "all": ["--channels", "text,visual,forms,relations"],
     }
+    if args.route:
+        if len(set(args.route)) != len(args.route):
+            parser.error("routes must be unique")
+        routes = {route: routes[route] for route in args.route}
     for id in args.pair:
         pair = pairs[id]
         paths = [args.cache / f"{id}-{side}.pdf" for side in ("old", "new")]

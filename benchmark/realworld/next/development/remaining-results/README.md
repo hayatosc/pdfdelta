@@ -51,7 +51,9 @@ at baseline and 555.59 seconds currently; these are not elapsed batch times.
 Maximum process RSS is 1,334,460 versus 1,330,512 KiB, not live heap memory.
 Captured output totals are 6,558,753,674 versus 6,558,815,173 bytes. Raw reports
 remain outside version control. Source coverage, stage completion and acquisition
-reasons remain in `scores.json`; no full-document success is claimed.
+reasons remain in `scores.json`; its legacy optimization flag denotes conflict
+search, while `../stage-evidence.json` additionally checks every component.
+No full-document success is claimed.
 
 ## Reproduction
 

@@ -55,7 +55,7 @@ Twenty of 24 process attempts capture reports, all incomplete with exit 3.
 Both W-4 shared routes fail with exit 2 on both binaries: descendant ownership
 exceeds the unchanged 1,000,000 limit. The failure is retained as a scope-stage
 resource limit. No budget increase or replacement removes it from the ledger.
-Per-scope enumeration, optimization, comparison counts and channel source
+Per-scope enumeration, legacy conflict-search flags, comparison counts and channel source
 coverage are retained in `scores.json`; a captured report is not a complete
 comparison. Literal resolution is 16/16 and inspected source acquisition is 8/8,
 separate from complete shared-channel inventories and whole-document coverage.

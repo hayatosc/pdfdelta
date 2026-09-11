@@ -1,0 +1,2483 @@
+{
+  "version": 1,
+  "reason": "Correct legacy optimization labels that measured conflict-search completion without checking every optimization component. Supplement only unavailable shared reports; historical contract hashes prove the borrowed stage fields match the original baseline and current observations.",
+  "supplement_attempts": 24,
+  "supplement_not_additional_pairs": true,
+  "definition": "optimization = matching.conflict_search_complete AND every matching component.exhaustive; scope flags are then ANDed. Empty optimization sets do not establish acquisition or source-comparison completeness.",
+  "rows": [
+    {
+      "revision": "baseline",
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "route": "text",
+      "report_sha256": "5983f0b16ba974391b7d44f1ed8ee3e10e71f3d04f6424f13770f55a6702a7b8",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/arxiv-gpt3-v1-to-v4-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1544,
+        "comparison_pairs": 1544,
+        "unresolved_counterpart_decisions": 2707,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 97
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "arxiv-llama2-v1-to-v2",
+      "route": "text",
+      "report_sha256": "b6f907ee0af5dbbda926694975431ca1d4d3c7cf03b9a5d363f5bf05d3b90b22",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/arxiv-llama2-v1-to-v2-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1037,
+        "comparison_pairs": 1037,
+        "unresolved_counterpart_decisions": 5158,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 208,
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "ecb-annual-2023-to-2024",
+      "route": "text",
+      "report_sha256": "2726622e7ed3c87b1a51a031ecf45d4bd5a0ab5a7a9437ecbaba2d44929c83d9",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/ecb-annual-2023-to-2024-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {}
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "route": "text",
+      "report_sha256": "c24a5f44d0f692a01195020ad655cbc22690c5838d5757e6498b71dbbb918c1e",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/ipcc-synthesis-ar5-to-ar6-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {}
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "route": "text",
+      "report_sha256": "9a08a2c605fc333db522085c8851430ba754ea34cb355731dc7fac13790b235a",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mext-lower-secondary-japanese-2008-to-2017-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 4,
+        "comparison_pairs": 4,
+        "unresolved_counterpart_decisions": 145,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 10
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "route": "text",
+      "report_sha256": "5526423800a79e12bd87d372db0cd8b617ab12251ad24bd712cb238a5eb953a7",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mext-primary-japanese-2008-to-2017-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 9,
+        "comparison_pairs": 9,
+        "unresolved_counterpart_decisions": 161,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 13
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "route": "text",
+      "report_sha256": "db96c8b2ce5a3e2b34b3037f037c4428bf7332978ec41cd7d52612829a4efc55",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mext-upper-secondary-japanese-2009-to-2018-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 6,
+        "comparison_pairs": 6,
+        "unresolved_counterpart_decisions": 34,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 5
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mhlw-care-skills-original-to-revised",
+      "route": "text",
+      "report_sha256": "c2f09872c46e27ba514e0c722211c1c79e82785df13fe1938f37b65366374186",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mhlw-care-skills-original-to-revised-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 788,
+        "comparison_pairs": 788,
+        "unresolved_counterpart_decisions": 7275,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 130,
+          "a correspondence conflict component exceeded its search budget": 2
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "route": "text",
+      "report_sha256": "65f716dfbf104530b4237e077af675e5dbe4d318d0c0f3ffc1811afcbb04c152",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/nasa-buckling-8007-1968-to-2020-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1,
+        "comparison_pairs": 1,
+        "unresolved_counterpart_decisions": 404,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 15
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "route": "all",
+      "report_sha256": "5beeb9b275089dd665827793f498cb990c3f92ebdb90a436f2e446494cc72ad7",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/arxiv-gpt3-v1-to-v4-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1544,
+        "comparison_pairs": 1544,
+        "unresolved_counterpart_decisions": 2707,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 97
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "arxiv-llama2-v1-to-v2",
+      "route": "all",
+      "report_sha256": "108b6b157419b64d2eb113b8f2b5cdf9aa927b4d646bf593c7728408ef73d644",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/arxiv-llama2-v1-to-v2-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1037,
+        "comparison_pairs": 1037,
+        "unresolved_counterpart_decisions": 5158,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 208,
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "ecb-annual-2023-to-2024",
+      "route": "all",
+      "report_sha256": "0060228c94c7e9bcd5fe7ba1fbe36c4fa04696e82e52b74d88aa5426fb0753fd",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/ecb-annual-2023-to-2024-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "route": "all",
+      "report_sha256": "414abed88ffa060aedd953efe24d09eb48017077ef3a5da669b0af6d8ac88ece",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/ipcc-synthesis-ar5-to-ar6-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "route": "all",
+      "report_sha256": "967f894c9920ae5898d1600b8adc8b3dfe5617ba1b5ec5ec4e4558c5edcb17fd",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mext-lower-secondary-japanese-2008-to-2017-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 4,
+        "comparison_pairs": 4,
+        "unresolved_counterpart_decisions": 145,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 10
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "route": "all",
+      "report_sha256": "955dfab5f54121e29dcc0527f42cffd133537ba731cd5400fdce4ee60892e748",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mext-primary-japanese-2008-to-2017-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 9,
+        "comparison_pairs": 9,
+        "unresolved_counterpart_decisions": 161,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 13
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "route": "all",
+      "report_sha256": "4143d27f1bd16a843497aaaf01d5c0d88b9f8f1177e46b9c6203e1946d491c21",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mext-upper-secondary-japanese-2009-to-2018-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 6,
+        "comparison_pairs": 6,
+        "unresolved_counterpart_decisions": 34,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 5
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "mhlw-care-skills-original-to-revised",
+      "route": "all",
+      "report_sha256": "0e6b2e6210725bfa0377215ec55b0b0db6ef82a4b9968da12d9e9f48ca30290b",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/mhlw-care-skills-original-to-revised-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 788,
+        "comparison_pairs": 788,
+        "unresolved_counterpart_decisions": 7275,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 130,
+          "a correspondence conflict component exceeded its search budget": 2
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "route": "all",
+      "report_sha256": "a77156f7565a33f44d7fdaaceb307b667298db922c7a06ec3662e2e886633137",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-3f318d7/nasa-buckling-8007-1968-to-2020-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1,
+        "comparison_pairs": 1,
+        "unresolved_counterpart_decisions": 404,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 15
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "route": "text",
+      "report_sha256": "7b8a299555f7f1881c2b8879eb0dd1aa76b377a2c056a930b404ca30dde8ae79",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/arxiv-gpt3-v1-to-v4-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1544,
+        "comparison_pairs": 1544,
+        "unresolved_counterpart_decisions": 2707,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 97
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-llama2-v1-to-v2",
+      "route": "text",
+      "report_sha256": "be56980865eae8c91a3eda02196ce1c958c24dd5a068bdd3262194f488f3e9f7",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/arxiv-llama2-v1-to-v2-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1037,
+        "comparison_pairs": 1037,
+        "unresolved_counterpart_decisions": 5158,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 208,
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "ecb-annual-2023-to-2024",
+      "route": "text",
+      "report_sha256": "f1acac9ed1d62e6ce99e15e15625d8098b2e341ed441c2ddbe2c0435e4271692",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/ecb-annual-2023-to-2024-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {}
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "route": "text",
+      "report_sha256": "b44e99882aec0076a7ff93564dac6275bb19193eb9a2a52e329ce0ad486fa0dc",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/ipcc-synthesis-ar5-to-ar6-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {}
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "route": "text",
+      "report_sha256": "6af6ed90146f9063abb00accba9a3cff783235a1fcc2f60be81c00521aaf48df",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-lower-secondary-japanese-2008-to-2017-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 4,
+        "comparison_pairs": 4,
+        "unresolved_counterpart_decisions": 145,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 10
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "route": "text",
+      "report_sha256": "935915a6c193e03d0f695bcf229e975b650f260606cdf52f1347e461a639bea1",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-primary-japanese-2008-to-2017-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 9,
+        "comparison_pairs": 9,
+        "unresolved_counterpart_decisions": 161,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 13
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "route": "text",
+      "report_sha256": "96fff5bc4211fef586c47f9eef6a0b926168ea8e86154e7cc010a9de9888594a",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-upper-secondary-japanese-2009-to-2018-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 6,
+        "comparison_pairs": 6,
+        "unresolved_counterpart_decisions": 34,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 5
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mhlw-care-skills-original-to-revised",
+      "route": "text",
+      "report_sha256": "ee6db1fe4abc39671fa7500de3afd61366fa6a914145d534f7f086ca3351d81b",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mhlw-care-skills-original-to-revised-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 788,
+        "comparison_pairs": 788,
+        "unresolved_counterpart_decisions": 7275,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 130,
+          "a correspondence conflict component exceeded its search budget": 2
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "route": "text",
+      "report_sha256": "9ab257248f3239fbacbc2202bd2efdc0845b4e60a8a3eb6b41212e46f564c19d",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/nasa-buckling-8007-1968-to-2020-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1,
+        "comparison_pairs": 1,
+        "unresolved_counterpart_decisions": 404,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 15
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "route": "all",
+      "report_sha256": "fa184028402fe9e702df120e3de86ec572d5572226af6626dce0f3c835a5cf99",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/arxiv-gpt3-v1-to-v4-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1544,
+        "comparison_pairs": 1544,
+        "unresolved_counterpart_decisions": 2707,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 97
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-llama2-v1-to-v2",
+      "route": "all",
+      "report_sha256": "bc5ef0c7191068a49c47578e33d27b33119c5d9c758cded798e5698c0cf536f9",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/arxiv-llama2-v1-to-v2-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1037,
+        "comparison_pairs": 1037,
+        "unresolved_counterpart_decisions": 5158,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 208,
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "ecb-annual-2023-to-2024",
+      "route": "all",
+      "report_sha256": "f4ac8ce9f0f6977a5a314fb9bac3d25f19da98c699db077a80edce7e55a7af73",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/ecb-annual-2023-to-2024-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "route": "all",
+      "report_sha256": "c5ac108d7be5cb1f302d225cae24c2e54ddc2b1a9a9d54877780d8e0cb0780b9",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/ipcc-synthesis-ar5-to-ar6-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "route": "all",
+      "report_sha256": "1ebe617055a9ba1a7149045753a6f78ac9e7d9c874ff95f9509fbe466d027f86",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-lower-secondary-japanese-2008-to-2017-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 4,
+        "comparison_pairs": 4,
+        "unresolved_counterpart_decisions": 145,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 10
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "route": "all",
+      "report_sha256": "569639f9460c412ca018952b2b92fbc43cbc59237312a6c64547ba916f876595",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-primary-japanese-2008-to-2017-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 9,
+        "comparison_pairs": 9,
+        "unresolved_counterpart_decisions": 161,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 13
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "route": "all",
+      "report_sha256": "b4c7188e1bb9e4ec7a5ca15c8d74e8dd35da9828e3d9b0ace62e7c979e42de0e",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-upper-secondary-japanese-2009-to-2018-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 6,
+        "comparison_pairs": 6,
+        "unresolved_counterpart_decisions": 34,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 5
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "mhlw-care-skills-original-to-revised",
+      "route": "all",
+      "report_sha256": "8d1512facb45b08822e73075bfa6ece797848d678e1f865ea635c17aa9bc1ed6",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/mhlw-care-skills-original-to-revised-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 788,
+        "comparison_pairs": 788,
+        "unresolved_counterpart_decisions": 7275,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 130,
+          "a correspondence conflict component exceeded its search budget": 2
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "route": "all",
+      "report_sha256": "ae98134f4d517f5eefc643a1bc2dfb4899fd64415983805a6e0e4b0e205f0bcb",
+      "source_cache": "benchmark/realworld/cache/next-execution/nine-9093cab/nasa-buckling-8007-1968-to-2020-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 1,
+        "comparison_pairs": 1,
+        "unresolved_counterpart_decisions": 404,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 15
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "text",
+      "report_sha256": "004f642c64322c5a2b01837749d67befd6f46dd2fa1f0d12892b58c97aa4ddaa",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-baseline/edpb-controller-processor-v1-to-v2-1-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 28,
+        "comparison_pairs": 28,
+        "unresolved_counterpart_decisions": 49,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-sha-1803-to-1804",
+      "route": "text",
+      "report_sha256": "e4d07136e49d1ed121170fc12916e8388b8fe7eafe58da69ca64f69f8c3624fd",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-baseline/nist-sha-1803-to-1804-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 169,
+        "comparison_pairs": 169,
+        "unresolved_counterpart_decisions": 1013,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 21,
+          "a correspondence component depends on omitted source candidates": 5
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "all",
+      "report_sha256": "13410ef47d83cd07a53a2c22b8fa545ddfd3ec7290a891edc4480a7e6d46880a",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-baseline/edpb-controller-processor-v1-to-v2-1-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 28,
+        "comparison_pairs": 28,
+        "unresolved_counterpart_decisions": 49,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-sha-1803-to-1804",
+      "route": "all",
+      "report_sha256": "8fc0acba14dd15d6f0f2edf73a85b24b37247cf791d04d73479dc06b7dbbe7c8",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-baseline/nist-sha-1803-to-1804-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 169,
+        "comparison_pairs": 169,
+        "unresolved_counterpart_decisions": 1013,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 21,
+          "a correspondence component depends on omitted source candidates": 5
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "text",
+      "report_sha256": "f9e0145a76af78cd4353c90f5be3a3248421d33f7052c33265728b4fa93eef8f",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-current/edpb-controller-processor-v1-to-v2-1-text.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 28,
+        "comparison_pairs": 28,
+        "unresolved_counterpart_decisions": 49,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-sha-1803-to-1804",
+      "route": "text",
+      "report_sha256": "720c4ebee01e6e5456ad3b84f6c80fcdb04e9c30803c4cc68bc406795c2fa3fa",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-current/nist-sha-1803-to-1804-text.json",
+      "B": 8,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 169,
+        "comparison_pairs": 169,
+        "unresolved_counterpart_decisions": 1013,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 21,
+          "a correspondence component depends on omitted source candidates": 5
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "all",
+      "report_sha256": "029015ff7446f63801c4a7cb6a71a3c1d57eedf4ee16cce3ea400bfb3f3fcd6a",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-current/edpb-controller-processor-v1-to-v2-1-all.json",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 28,
+        "comparison_pairs": 28,
+        "unresolved_counterpart_decisions": 49,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-sha-1803-to-1804",
+      "route": "all",
+      "report_sha256": "99a087f4532eebc5e5b9262659ea337ec9ca6726f71cf73af4ea9572fcb8db28",
+      "source_cache": "benchmark/realworld/cache/next-execution/two-final-current/nist-sha-1803-to-1804-all.json",
+      "B": 8,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 169,
+        "comparison_pairs": 169,
+        "unresolved_counterpart_decisions": 1013,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 21,
+          "a correspondence component depends on omitted source candidates": 5
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "route": "text",
+      "report_sha256": "9218c8c42995c2089c62819b34f6f449f0bd313e905d84023a2204b65be32d1b",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-c-2024-to-2025-text.json",
+      "historical_contract": "irs-results/contracts.json#/1",
+      "historical_contract_equal": true,
+      "canonical_sha256": "9314fb7bf67421034919da28c650be74db551b6eaadb96f47d7bc1d4b591281a",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 85,
+        "comparison_pairs": 85,
+        "unresolved_counterpart_decisions": 302,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "route": "text",
+      "report_sha256": "9218c8c42995c2089c62819b34f6f449f0bd313e905d84023a2204b65be32d1b",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-c-2024-to-2025-text.json",
+      "historical_contract": "irs-results/contracts.json#/1",
+      "historical_contract_equal": true,
+      "canonical_sha256": "9314fb7bf67421034919da28c650be74db551b6eaadb96f47d7bc1d4b591281a",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 85,
+        "comparison_pairs": 85,
+        "unresolved_counterpart_decisions": 302,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "route": "all",
+      "report_sha256": "526b9ee24b3518e4da70ff77397aedfd520a7f159a3476b8f094ed5c3a0f7537",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-c-2024-to-2025-all.json",
+      "historical_contract": "irs-results/contracts.json#/2",
+      "historical_contract_equal": true,
+      "canonical_sha256": "8b0dbda7388d21f359b4a1e4623c1ec7048f80c8c894813ef1686566ac87f183",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 2,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 191,
+        "comparison_pairs": 191,
+        "unresolved_counterpart_decisions": 306,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "route": "all",
+      "report_sha256": "526b9ee24b3518e4da70ff77397aedfd520a7f159a3476b8f094ed5c3a0f7537",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-c-2024-to-2025-all.json",
+      "historical_contract": "irs-results/contracts.json#/2",
+      "historical_contract_equal": true,
+      "canonical_sha256": "8b0dbda7388d21f359b4a1e4623c1ec7048f80c8c894813ef1686566ac87f183",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 2,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 191,
+        "comparison_pairs": 191,
+        "unresolved_counterpart_decisions": 306,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "irs-schedule-se-2024-to-2025",
+      "route": "text",
+      "report_sha256": "243492d0b5b6286071b314bb0b439878bbf902e392f4ae2923d2953a978f58ee",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-se-2024-to-2025-text.json",
+      "historical_contract": "irs-results/contracts.json#/4",
+      "historical_contract_equal": true,
+      "canonical_sha256": "586501f55ec90c3639c2b78f4f69fa0b25404f8871564c7a5c37d24f0350090c",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 50,
+        "comparison_pairs": 50,
+        "unresolved_counterpart_decisions": 120,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "irs-schedule-se-2024-to-2025",
+      "route": "text",
+      "report_sha256": "243492d0b5b6286071b314bb0b439878bbf902e392f4ae2923d2953a978f58ee",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-se-2024-to-2025-text.json",
+      "historical_contract": "irs-results/contracts.json#/4",
+      "historical_contract_equal": true,
+      "canonical_sha256": "586501f55ec90c3639c2b78f4f69fa0b25404f8871564c7a5c37d24f0350090c",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 50,
+        "comparison_pairs": 50,
+        "unresolved_counterpart_decisions": 120,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "irs-schedule-se-2024-to-2025",
+      "route": "all",
+      "report_sha256": "c815baf5bce48c83577a10aa45104165d6d38ef69820040dd4910a47bb445517",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-se-2024-to-2025-all.json",
+      "historical_contract": "irs-results/contracts.json#/5",
+      "historical_contract_equal": true,
+      "canonical_sha256": "e71a700c434e6c1a33144d9c2f5ccfe008cc9352ad97a21d7d18bb3c37ada106",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 2,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 79,
+        "comparison_pairs": 79,
+        "unresolved_counterpart_decisions": 124,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "irs-schedule-se-2024-to-2025",
+      "route": "all",
+      "report_sha256": "c815baf5bce48c83577a10aa45104165d6d38ef69820040dd4910a47bb445517",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-se-2024-to-2025-all.json",
+      "historical_contract": "irs-results/contracts.json#/5",
+      "historical_contract_equal": true,
+      "canonical_sha256": "e71a700c434e6c1a33144d9c2f5ccfe008cc9352ad97a21d7d18bb3c37ada106",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 2,
+      "fields": {
+        "enumeration": true,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": true,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 79,
+        "comparison_pairs": 79,
+        "unresolved_counterpart_decisions": 124,
+        "unresolved_reasons": {
+          "a correspondence conflict component exceeded its search budget": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "irs-w9-2018-to-2024",
+      "route": "text",
+      "report_sha256": "4d723c7e0788d57a86120f26c5058a79c52b0b713b8199cf365d6e6259c6ec38",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-w9-2018-to-2024-text.json",
+      "historical_contract": "irs-results/contracts.json#/8",
+      "historical_contract_equal": true,
+      "canonical_sha256": "99d5563993edec412c3b9e75770ef8768135564d99204a6fd44c85428333fcde",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 179,
+        "comparison_pairs": 179,
+        "unresolved_counterpart_decisions": 19,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "irs-w9-2018-to-2024",
+      "route": "text",
+      "report_sha256": "4d723c7e0788d57a86120f26c5058a79c52b0b713b8199cf365d6e6259c6ec38",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-w9-2018-to-2024-text.json",
+      "historical_contract": "irs-results/contracts.json#/8",
+      "historical_contract_equal": true,
+      "canonical_sha256": "99d5563993edec412c3b9e75770ef8768135564d99204a6fd44c85428333fcde",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 179,
+        "comparison_pairs": 179,
+        "unresolved_counterpart_decisions": 19,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "irs-w9-2018-to-2024",
+      "route": "all",
+      "report_sha256": "267de9e14b5f8d1d17fb10cfe3a4b89c21540d7e45acbe6433a986e9ae509570",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-w9-2018-to-2024-all.json",
+      "historical_contract": "irs-results/contracts.json#/9",
+      "historical_contract_equal": true,
+      "canonical_sha256": "48e6f4ab73a634d6f9cbb547d3f910867a21e73c74e56aec6ecea9b0b4690a66",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 180,
+        "comparison_pairs": 180,
+        "unresolved_counterpart_decisions": 19,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "irs-w9-2018-to-2024",
+      "route": "all",
+      "report_sha256": "267de9e14b5f8d1d17fb10cfe3a4b89c21540d7e45acbe6433a986e9ae509570",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-w9-2018-to-2024-all.json",
+      "historical_contract": "irs-results/contracts.json#/9",
+      "historical_contract_equal": true,
+      "canonical_sha256": "48e6f4ab73a634d6f9cbb547d3f910867a21e73c74e56aec6ecea9b0b4690a66",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 180,
+        "comparison_pairs": 180,
+        "unresolved_counterpart_decisions": 19,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 4
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-design-default-v1-to-v2",
+      "route": "text",
+      "report_sha256": "6ac2804b57d4e32eaf67541753134782186510773e7b286b17758b84f093f99e",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-design-default-v1-to-v2-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/1",
+      "historical_contract_equal": true,
+      "canonical_sha256": "d052141dee8d8d386f512e2e2ba71c352aa8a7790c8876aa22a683656f336eac",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-design-default-v1-to-v2",
+      "route": "text",
+      "report_sha256": "6ac2804b57d4e32eaf67541753134782186510773e7b286b17758b84f093f99e",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-design-default-v1-to-v2-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/1",
+      "historical_contract_equal": true,
+      "canonical_sha256": "d052141dee8d8d386f512e2e2ba71c352aa8a7790c8876aa22a683656f336eac",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-design-default-v1-to-v2",
+      "route": "all",
+      "report_sha256": "34c16a5436b8ba475923d756074e7e581240b5551ae7eda61be49707c4569907",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-design-default-v1-to-v2-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/2",
+      "historical_contract_equal": true,
+      "canonical_sha256": "5bfca96bc9f7fbcc72e9b17ff9a31b0a0f6aa6b24668c31a7548f06a670377e8",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-design-default-v1-to-v2",
+      "route": "all",
+      "report_sha256": "34c16a5436b8ba475923d756074e7e581240b5551ae7eda61be49707c4569907",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-design-default-v1-to-v2-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/2",
+      "historical_contract_equal": true,
+      "canonical_sha256": "5bfca96bc9f7fbcc72e9b17ff9a31b0a0f6aa6b24668c31a7548f06a670377e8",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-restrictions-v1-to-final",
+      "route": "text",
+      "report_sha256": "ab09ea5f910b0b5946f25a68f8eb72ab4f3e6524ab0154154b2a149a07973ce4",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-restrictions-v1-to-final-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/4",
+      "historical_contract_equal": true,
+      "canonical_sha256": "54dd24317a398ec94fd478cee1d59f1660e3f35e8eb5452d68ef676480178623",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-restrictions-v1-to-final",
+      "route": "text",
+      "report_sha256": "ab09ea5f910b0b5946f25a68f8eb72ab4f3e6524ab0154154b2a149a07973ce4",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-restrictions-v1-to-final-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/4",
+      "historical_contract_equal": true,
+      "canonical_sha256": "54dd24317a398ec94fd478cee1d59f1660e3f35e8eb5452d68ef676480178623",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-restrictions-v1-to-final",
+      "route": "all",
+      "report_sha256": "c529c5bdb502dc37f45ecc38aa2a6e52a417aac1d3aedce57c024872762ea8b1",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-restrictions-v1-to-final-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/5",
+      "historical_contract_equal": true,
+      "canonical_sha256": "cec3aa301a76b300b0c2fcbceb64d155b997308c3aba8881f84a76e7e709f361",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-restrictions-v1-to-final",
+      "route": "all",
+      "report_sha256": "c529c5bdb502dc37f45ecc38aa2a6e52a417aac1d3aedce57c024872762ea8b1",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-restrictions-v1-to-final-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/5",
+      "historical_contract_equal": true,
+      "canonical_sha256": "cec3aa301a76b300b0c2fcbceb64d155b997308c3aba8881f84a76e7e709f361",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "route": "text",
+      "report_sha256": "49208e843c42231ffea75ff8505fca6eec7b4580f9d4881be9cd0422cb1744c8",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-social-targeting-v1-to-v2-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/7",
+      "historical_contract_equal": true,
+      "canonical_sha256": "55319e8596fc6286e56edd3d78d97943048e3e757645ca19b921bc64a107811b",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 111,
+        "comparison_pairs": 111,
+        "unresolved_counterpart_decisions": 8,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 2
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "route": "text",
+      "report_sha256": "49208e843c42231ffea75ff8505fca6eec7b4580f9d4881be9cd0422cb1744c8",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-social-targeting-v1-to-v2-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/7",
+      "historical_contract_equal": true,
+      "canonical_sha256": "55319e8596fc6286e56edd3d78d97943048e3e757645ca19b921bc64a107811b",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 111,
+        "comparison_pairs": 111,
+        "unresolved_counterpart_decisions": 8,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 2
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "route": "all",
+      "report_sha256": "6f3b14693a5d87a1e099070fae29f3b257a24ed70855118fed2164126351ce0c",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-social-targeting-v1-to-v2-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/8",
+      "historical_contract_equal": true,
+      "canonical_sha256": "b49f5cbc76fe3e678b2765c710e1b2eb41c18d51a957b0f0635d637d6b37169e",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 111,
+        "comparison_pairs": 111,
+        "unresolved_counterpart_decisions": 8,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 2
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "route": "all",
+      "report_sha256": "6f3b14693a5d87a1e099070fae29f3b257a24ed70855118fed2164126351ce0c",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-social-targeting-v1-to-v2-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/8",
+      "historical_contract_equal": true,
+      "canonical_sha256": "b49f5cbc76fe3e678b2765c710e1b2eb41c18d51a957b0f0635d637d6b37169e",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 111,
+        "comparison_pairs": 111,
+        "unresolved_counterpart_decisions": 8,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 2
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "route": "text",
+      "report_sha256": "3a2bff9ecedcbf14d7f666afe9e7ecd4d791e8d2da18cf35abfcedc0fd6cfc99",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ai-rmf-draft2-to-v1-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/10",
+      "historical_contract_equal": true,
+      "canonical_sha256": "2dd3a39b30788eeaa99fb510565baa3dbaed6ada7fb04b754d728d983485c468",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "route": "text",
+      "report_sha256": "3a2bff9ecedcbf14d7f666afe9e7ecd4d791e8d2da18cf35abfcedc0fd6cfc99",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ai-rmf-draft2-to-v1-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/10",
+      "historical_contract_equal": true,
+      "canonical_sha256": "2dd3a39b30788eeaa99fb510565baa3dbaed6ada7fb04b754d728d983485c468",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "route": "all",
+      "report_sha256": "8d90a7a66e58d104c7dc49a980fec9ec7fc6f46b4a6360d1025babc998d8b529",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ai-rmf-draft2-to-v1-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/11",
+      "historical_contract_equal": true,
+      "canonical_sha256": "5132a1058fcdc58c360f837ea5634ae87faa2e649a326507304be6130a3d618f",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "route": "all",
+      "report_sha256": "8d90a7a66e58d104c7dc49a980fec9ec7fc6f46b4a6360d1025babc998d8b529",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ai-rmf-draft2-to-v1-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/11",
+      "historical_contract_equal": true,
+      "canonical_sha256": "5132a1058fcdc58c360f837ea5634ae87faa2e649a326507304be6130a3d618f",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 0,
+        "comparison_pairs": 0,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-authentication-63b-to-63b4",
+      "route": "text",
+      "report_sha256": "71218e81b114d85f24a1ce5dd5e976b334ca7b641b950d180ebe6a4b3c7963a3",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-authentication-63b-to-63b4-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/13",
+      "historical_contract_equal": true,
+      "canonical_sha256": "24894f7854378a89aa9cbc7ffd0681b270a6bf7cddba5e02d465d52610b48b44",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 5,
+        "comparison_pairs": 5,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-authentication-63b-to-63b4",
+      "route": "text",
+      "report_sha256": "71218e81b114d85f24a1ce5dd5e976b334ca7b641b950d180ebe6a4b3c7963a3",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-authentication-63b-to-63b4-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/13",
+      "historical_contract_equal": true,
+      "canonical_sha256": "24894f7854378a89aa9cbc7ffd0681b270a6bf7cddba5e02d465d52610b48b44",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 5,
+        "comparison_pairs": 5,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-authentication-63b-to-63b4",
+      "route": "all",
+      "report_sha256": "0797fa843c8ec0f53a22c34030fd2e31195a43c7901757379f057f589e2f71fe",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-authentication-63b-to-63b4-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/14",
+      "historical_contract_equal": true,
+      "canonical_sha256": "72c6283ccdd97534e20d7d649c8b16e053122ac0289dd8ff943a4174fe62785c",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 5,
+        "comparison_pairs": 5,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-authentication-63b-to-63b4",
+      "route": "all",
+      "report_sha256": "0797fa843c8ec0f53a22c34030fd2e31195a43c7901757379f057f589e2f71fe",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-authentication-63b-to-63b4-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/14",
+      "historical_contract_equal": true,
+      "canonical_sha256": "72c6283ccdd97534e20d7d649c8b16e053122ac0289dd8ff943a4174fe62785c",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 5,
+        "comparison_pairs": 5,
+        "unresolved_counterpart_decisions": 0,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-incident-handling-r2-to-r3",
+      "route": "text",
+      "report_sha256": "8f522b2b5d135ed77cd6796514f3f0b0e289bb9aeee21fcf71c59e501d66a879",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-incident-handling-r2-to-r3-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/16",
+      "historical_contract_equal": true,
+      "canonical_sha256": "850be10685fbc7ec71731b092e2c4f5ca13d2fd266531c1d6298c96186e661d9",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": false,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 54,
+        "comparison_pairs": 54,
+        "unresolved_counterpart_decisions": 9656,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 3
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-incident-handling-r2-to-r3",
+      "route": "text",
+      "report_sha256": "8f522b2b5d135ed77cd6796514f3f0b0e289bb9aeee21fcf71c59e501d66a879",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-incident-handling-r2-to-r3-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/16",
+      "historical_contract_equal": true,
+      "canonical_sha256": "850be10685fbc7ec71731b092e2c4f5ca13d2fd266531c1d6298c96186e661d9",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": false,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 54,
+        "comparison_pairs": 54,
+        "unresolved_counterpart_decisions": 9656,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 3
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-incident-handling-r2-to-r3",
+      "route": "all",
+      "report_sha256": "cf57b6d77f0fe0524df0cb7b282df9395a3a254719f43baa49e5acdd65183e4e",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-incident-handling-r2-to-r3-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/17",
+      "historical_contract_equal": true,
+      "canonical_sha256": "91db5aec929653366f60574dac09a37890c2c82600d4cd06a84d288f2a9b6631",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": false,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 54,
+        "comparison_pairs": 54,
+        "unresolved_counterpart_decisions": 9656,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 3
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-incident-handling-r2-to-r3",
+      "route": "all",
+      "report_sha256": "cf57b6d77f0fe0524df0cb7b282df9395a3a254719f43baa49e5acdd65183e4e",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-incident-handling-r2-to-r3-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/17",
+      "historical_contract_equal": true,
+      "canonical_sha256": "91db5aec929653366f60574dac09a37890c2c82600d4cd06a84d288f2a9b6631",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": false,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 54,
+        "comparison_pairs": 54,
+        "unresolved_counterpart_decisions": 9656,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component exceeded its search budget": 1,
+          "a correspondence conflict component has competing optima": 3
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-ssdf-draft-to-final",
+      "route": "text",
+      "report_sha256": "20a1b4f67b829d5718d13da1a996ad1f98fa4e4d078eace35fcc716b6f13c8e1",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ssdf-draft-to-final-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/19",
+      "historical_contract_equal": true,
+      "canonical_sha256": "def1e45ee4d3904b19100353374db3f12af45e1ea6c4764c09d09e85f3254d4e",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 307,
+        "comparison_pairs": 307,
+        "unresolved_counterpart_decisions": 2118,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 38,
+          "a correspondence component depends on omitted source candidates": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-ssdf-draft-to-final",
+      "route": "text",
+      "report_sha256": "20a1b4f67b829d5718d13da1a996ad1f98fa4e4d078eace35fcc716b6f13c8e1",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ssdf-draft-to-final-text.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/19",
+      "historical_contract_equal": true,
+      "canonical_sha256": "def1e45ee4d3904b19100353374db3f12af45e1ea6c4764c09d09e85f3254d4e",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 307,
+        "comparison_pairs": 307,
+        "unresolved_counterpart_decisions": 2118,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 38,
+          "a correspondence component depends on omitted source candidates": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "nist-ssdf-draft-to-final",
+      "route": "all",
+      "report_sha256": "43a0e762d9bb1513ec7efcb225b3c39da2a2cfe2a0e4586624ad1902637d51b9",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ssdf-draft-to-final-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/20",
+      "historical_contract_equal": true,
+      "canonical_sha256": "54de54102534d0bf3e6e72b0af838ee205ebca68d0522509401be4b80507ca70",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 307,
+        "comparison_pairs": 307,
+        "unresolved_counterpart_decisions": 2118,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 38,
+          "a correspondence component depends on omitted source candidates": 1
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "nist-ssdf-draft-to-final",
+      "route": "all",
+      "report_sha256": "43a0e762d9bb1513ec7efcb225b3c39da2a2cfe2a0e4586624ad1902637d51b9",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ssdf-draft-to-final-all.json",
+      "historical_contract": "nist-edpb-results/contracts.json#/20",
+      "historical_contract_equal": true,
+      "canonical_sha256": "54de54102534d0bf3e6e72b0af838ee205ebca68d0522509401be4b80507ca70",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": false,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 307,
+        "comparison_pairs": 307,
+        "unresolved_counterpart_decisions": 2118,
+        "unresolved_reasons": {
+          "source candidate enumeration is incomplete in retained dependency regions": 1,
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 38,
+          "a correspondence component depends on omitted source candidates": 1
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "route": "text",
+      "report_sha256": "4d90ca4977230b7a08ef0c4cca847945a6988858189cd58216a46bc9f222bdad",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-ddpm-v1-to-v2-text.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/0",
+      "historical_contract_equal": true,
+      "canonical_sha256": "ad282dea14be0e0883a7e93bfb5e22ea14be588dc4a412a0281f104b19949aa2",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 341,
+        "comparison_pairs": 341,
+        "unresolved_counterpart_decisions": 187,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 27
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "route": "text",
+      "report_sha256": "4d90ca4977230b7a08ef0c4cca847945a6988858189cd58216a46bc9f222bdad",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-ddpm-v1-to-v2-text.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/0",
+      "historical_contract_equal": true,
+      "canonical_sha256": "ad282dea14be0e0883a7e93bfb5e22ea14be588dc4a412a0281f104b19949aa2",
+      "B": 39,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 341,
+        "comparison_pairs": 341,
+        "unresolved_counterpart_decisions": 187,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 27
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "route": "all",
+      "report_sha256": "8d10a45b1929c3c5c18df41713df20c574cca6367ae7e1fc7f3fcb4a2672af60",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-ddpm-v1-to-v2-all.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/1",
+      "historical_contract_equal": true,
+      "canonical_sha256": "06da4776140fee222595764ffd842707f2ae01aa8ad9b7dfc969ba305c3dd7dc",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 341,
+        "comparison_pairs": 341,
+        "unresolved_counterpart_decisions": 187,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 27
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "route": "all",
+      "report_sha256": "8d10a45b1929c3c5c18df41713df20c574cca6367ae7e1fc7f3fcb4a2672af60",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-ddpm-v1-to-v2-all.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/1",
+      "historical_contract_equal": true,
+      "canonical_sha256": "06da4776140fee222595764ffd842707f2ae01aa8ad9b7dfc969ba305c3dd7dc",
+      "B": 39,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 341,
+        "comparison_pairs": 341,
+        "unresolved_counterpart_decisions": 187,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 27
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "arxiv-bert-v1-to-v2",
+      "route": "text",
+      "report_sha256": "2e3028c1db62651ffe0f17fb16cf27b185db71f4ce874b1da8672c04accd9ef1",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-bert-v1-to-v2-text.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/2",
+      "historical_contract_equal": true,
+      "canonical_sha256": "d2b32add0d9ce0d629f079f250cd5ddc8b03f7967c14fe6cf904765cd6dc9755",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 106,
+        "comparison_pairs": 106,
+        "unresolved_counterpart_decisions": 352,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 39
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-bert-v1-to-v2",
+      "route": "text",
+      "report_sha256": "2e3028c1db62651ffe0f17fb16cf27b185db71f4ce874b1da8672c04accd9ef1",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-bert-v1-to-v2-text.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/2",
+      "historical_contract_equal": true,
+      "canonical_sha256": "d2b32add0d9ce0d629f079f250cd5ddc8b03f7967c14fe6cf904765cd6dc9755",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 106,
+        "comparison_pairs": 106,
+        "unresolved_counterpart_decisions": 352,
+        "unresolved_reasons": {
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 39
+        }
+      }
+    },
+    {
+      "revision": "baseline",
+      "pair": "arxiv-bert-v1-to-v2",
+      "route": "all",
+      "report_sha256": "3831e3f222e3a0fcde9b3ae60d5921dc79b886ffa115a05bb13a061e18569137",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-bert-v1-to-v2-all.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/3",
+      "historical_contract_equal": true,
+      "canonical_sha256": "791efb1a11795ce2459c5f2463a7d9229f67059732c5347c1a12347848ee47ea",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 106,
+        "comparison_pairs": 106,
+        "unresolved_counterpart_decisions": 352,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 39
+        }
+      }
+    },
+    {
+      "revision": "current",
+      "pair": "arxiv-bert-v1-to-v2",
+      "route": "all",
+      "report_sha256": "3831e3f222e3a0fcde9b3ae60d5921dc79b886ffa115a05bb13a061e18569137",
+      "source_cache": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-bert-v1-to-v2-all.json",
+      "historical_contract": "arxiv-page-gap-results/shared-contracts.json#/3",
+      "historical_contract_equal": true,
+      "canonical_sha256": "791efb1a11795ce2459c5f2463a7d9229f67059732c5347c1a12347848ee47ea",
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "fields": {
+        "enumeration": false,
+        "conflict_search": true,
+        "optimization": true,
+        "text_search": false,
+        "inventory": false,
+        "source_comparison": false,
+        "compared_pairs": 106,
+        "comparison_pairs": 106,
+        "unresolved_counterpart_decisions": 352,
+        "unresolved_reasons": {
+          "visual candidate enumeration is incomplete": 1,
+          "text candidate enumeration is incomplete": 1,
+          "a correspondence conflict component has competing optima": 39
+        }
+      }
+    }
+  ]
+}

@@ -42,8 +42,10 @@ not evidence of a column-count change.
 
 All 14 literal-source extractions report complete and all 30 selectors resolve
 uniquely. This does not make shared-channel inventories complete. Text candidate
-enumeration remains incomplete on 7/7 pairs; conflict optimization completes on
-6/7, failing to complete for incident handling. Per-scope flags, compared-pair
+enumeration remains incomplete on 7/7 pairs; conflict search completes on
+6/7, failing to complete for incident handling. Full component optimization
+completes on 5/7: SSDF also has an incomplete component. The corrected distinction
+is recorded in `../stage-evidence.json`. Per-scope flags, compared-pair
 counts, channel source coverage and unresolved reasons remain in `scores.json`.
 No complete whole-document comparison is observed.
 

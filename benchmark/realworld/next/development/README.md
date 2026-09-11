@@ -97,9 +97,11 @@ comparisons. `remaining-results/` adds the final nine attempts, including the
 unresolved ECB annotation and failed native comparison. All 24 registered pairs
 now have source-reference attempts and comparison records; 23 have resolved
 references. These remain partial references, not exhaustive document gold.
+`two-final-results/` supplies common immutable-baseline/current observations for
+the two early guideline and NIST pairs, preserving their intermediate captures.
 
 Concrete traits are recorded with the selected source regions. In particular,
 the care-skills reference includes ruby and a watermark, while the upper-secondary
 reference is a cover date. Family labels alone do not establish vertical-text,
-scan or overpaint coverage. Aggregate family metrics and blind evaluation remain
-separate outstanding work.
+scan or overpaint coverage. `aggregate-results/` records family metrics, failures
+and corrected optimization-stage counts. Blind evaluation remains outstanding.
