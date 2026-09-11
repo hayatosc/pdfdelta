@@ -56,12 +56,18 @@ pub(super) fn keys<'a>(
         charge(result, view.tokens.len(), limits)?;
         let mut hasher = DefaultHasher::new();
         view.tokens.hash(&mut hasher);
-        keys.push(Key::Literal(node.kind, hasher.finish()));
+        let fingerprint = hasher.finish();
+        keys.push(Key::Literal(node.kind, fingerprint));
         if let Some(body) = super::padding_body(node) {
-            charge(result, view.tokens.len(), limits)?;
-            let mut hasher = DefaultHasher::new();
-            body.hash(&mut hasher);
-            keys.push(Key::PaddingBody(node.kind, hasher.finish()));
+            let fingerprint = if body.len() == view.tokens.len() {
+                fingerprint
+            } else {
+                charge(result, view.tokens.len(), limits)?;
+                let mut hasher = DefaultHasher::new();
+                body.hash(&mut hasher);
+                hasher.finish()
+            };
+            keys.push(Key::PaddingBody(node.kind, fingerprint));
         }
     }
     Some(keys)

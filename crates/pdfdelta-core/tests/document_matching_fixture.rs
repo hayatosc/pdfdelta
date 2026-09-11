@@ -780,6 +780,46 @@ fn candidate_truncation_is_distinct_from_solver_exhaustion() {
 }
 
 #[test]
+fn unpadded_native_literals_reuse_their_boundary_fingerprint_within_budget() {
+    use pdfdelta_core::document::{TextNormalization, TextView};
+
+    let parts = ["alpha", "beta", "gamma"];
+    let mut document = graph(&[("", ""), ("", ""), ("", "")], 0);
+    for (node, part) in document.nodes.iter_mut().skip(1).zip(parts) {
+        node.kind = NodeKind::Paragraph;
+        node.identity = None;
+        node.basis = ViewBasis::NativeLayout;
+        node.content = NodeContent::Text {
+            view: TextView {
+                tokens: part
+                    .chars()
+                    .map(pdfdelta_core::normalize::ComparableToken::Scalar)
+                    .collect(),
+                origins: vec![node.sources.clone(); part.len()],
+                source_backed: vec![true; part.len()],
+                normalization: TextNormalization::Exact,
+            },
+        };
+    }
+    let full =
+        propose_scope_correspondences(&document, &document, SCOPE, MatchingLimits::default())
+            .expect("full native literal population");
+    let bounded = propose_scope_correspondences(
+        &document,
+        &document,
+        SCOPE,
+        MatchingLimits {
+            max_index_work: 4 * parts.iter().map(|part| part.len()).sum::<usize>(),
+            ..MatchingLimits::default()
+        },
+    )
+    .expect("one fingerprint per unchanged token slice plus exact verification");
+    assert!(bounded.exhaustive);
+    assert_eq!(bounded.proposals, full.proposals);
+    assert_eq!(bounded.proposals.len(), 3);
+}
+
+#[test]
 fn literal_verification_exhaustion_retains_all_omitted_bucket_endpoints() {
     use pdfdelta_core::document::{TextNormalization, TextView};
 

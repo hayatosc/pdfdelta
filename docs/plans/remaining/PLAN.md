@@ -405,3 +405,19 @@ and never mark success before all gates pass. Do not publish externally.
 - Elapsed 3h34m; remaining 8h26m. Next: use the recovered source evidence to
   identify duplicate indexing work, and measure remaining wire-size components
   before choosing another transport change.
+
+### 2026-09-11 18:09 UTC — share unchanged literal and boundary hashes
+
+- Unpadded native text previously hashed the same token slice twice for literal
+  and padding-boundary keys. Reusing that fingerprint preserves both key domains,
+  collision verification, candidate population and weights. The bounded fixture
+  fails before the change and now matches the complete high-budget population.
+- `shared-key-pilot.json` retains four same-budget captures. Index work falls
+  from 581795 to 489892 for controller/processor, 179874 to 105323 for BERT, and
+  1000000 to 680186 for GPT-3. Their compared-source counts and fixed-target B
+  results are unchanged. The recovered NIST risk-management source population
+  still exceeds its key-index budget. No G1/G3 gain is claimed.
+- Required format, Clippy and workspace tests pass (2340 passed, two ignored);
+  generated fixtures pass 48/48. Elapsed 3h46m; remaining 8h14m. Next: investigate
+  source-local closure for the fixed Mask R-CNN abstract, whose page retains an
+  unsupported nested form invocation and disconnected column fragments.
