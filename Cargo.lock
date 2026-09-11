@@ -836,6 +836,7 @@ name = "pdfdelta-bench"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "hayro",
  "lopdf",
  "pdfdelta-core",
  "serde",

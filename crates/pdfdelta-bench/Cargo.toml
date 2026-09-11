@@ -11,6 +11,10 @@ description = "Benchmark fixtures and evaluation tooling for pdfdelta"
 name = "pdfbench"
 path = "src/main.rs"
 
+[[example]]
+name = "render_observer"
+test = true
+
 [features]
 fuzzing = []
 
@@ -22,6 +26,9 @@ serde_json.workspace = true
 serde-saphyr.workspace = true
 sha2.workspace = true
 pdfdelta-core = { path = "../pdfdelta-core" }
+
+[dev-dependencies]
+hayro = "=0.7.1"
 
 [lints]
 workspace = true
