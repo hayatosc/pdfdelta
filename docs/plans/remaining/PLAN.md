@@ -195,7 +195,7 @@ it and at final integration. Do not repeatedly run an unchanged whole corpus.
 
 ## Checkpoints and verification
 
-- [ ] C1: Bind the unchanged panel, targets, controls and baseline; finish a fail-closed
+- [x] C1: Bind the unchanged panel, targets, controls and baseline; finish a fail-closed
   evaluator for every gate, including a genuine synthetic all-pass path and tests
   for missing/stale evidence, duplicate pairs, C-only recovery, oversized B ranges
   and false empty completion. Synthetic fixtures never count toward G1/G2/G3.
@@ -296,3 +296,24 @@ and never mark success before all gates pass. Do not publish externally.
   earliest-blocker diagnosis for every target, not just corpus-level counters.
 - Elapsed 2h15m; remaining 9h45m. Next: complete target-specific diagnostics and
   continue shared-root fixes under the unchanged target and completion contracts.
+
+### 2026-09-11 16:53 UTC — exercise the complete evidence path
+
+- Added a constructed 36-pair development / 12-pair blind / 189-control evidence
+  tree with a temporary Git registration commit. All six stages execute their
+  actual parsers and gate checks; only filesystem roots are redirected. No gate
+  function or result is mocked. Source-review mutation and removal make final
+  fail. The fixture is evaluator-only and never contributes to real-PDF counts.
+- Seven checker tests pass. Strict-gold subsets/duplicate outputs cannot pass as
+  exact events; unhandled inferred outputs now fail instead of disappearing from
+  C metrics. Blind comparison timestamps must follow annotation completion.
+- C1 is complete. Production is unchanged. Mandatory format, Clippy and workspace
+  checks pass; actual final still fails while real diagnosis/development/blind
+  records are absent.
+- Bounded source-graph exports for the remaining eligible targets are retained
+  under `cache/remaining-target-diagnosis`; these are diagnostic observations,
+  not additional repeated benchmark claims. Fixed EDPB body extents exclude
+  separately drawn paragraph labels; the SSDF extent excludes a trailing space.
+  These source mismatches cannot be removed by widening frozen extents.
+- Elapsed 2h30m; remaining 9h30m. Next: source-linked target diagnosis and the
+  smallest shared proof or acquisition change supported by those observations.

@@ -6,7 +6,7 @@ The fixed 36-pair panel and historical annotations remain unchanged.
 The baseline remains 0/36 complete; no new G1, G2 or G3 gain has been demonstrated.
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHON_UV=0 python benchmark/realworld/remaining/test_verify.py
+PYTHONDONTWRITEBYTECODE=1 PYTHON_UV=0 python -m unittest discover -s benchmark/realworld/remaining -v
 PYTHONDONTWRITEBYTECODE=1 PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage registration
 PYTHONDONTWRITEBYTECODE=1 PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage final
 cargo test -p pdfdelta-bench --example paint_trace_probe --locked
@@ -17,7 +17,10 @@ Registration succeeds. Final fails while diagnosis and later-stage evidence are 
 now validate repeated captures, executable builds, source adjudication and all
 189 control attempts. The synthetic tests cover missing/stale evidence, changed
 budgets, duplicate attempts and strict gold that source review cannot override.
-An end-to-end all-stage pass test is still missing; C1 remains open.
+The all-stage integration fixture passes registration through final using
+constructed files and a temporary registration commit, with no mocked gate
+functions. Changing or removing its source adjudication makes final fail.
+These seven checker tests establish evaluator behavior only, not real recovery.
 
 ## Additional proof experiments
 

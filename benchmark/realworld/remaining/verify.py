@@ -184,6 +184,8 @@ def events(report):
     require(counts["A"] == report["typed_changes"],
             "strict report contains an unhandled nonlocal event; extend the source adapter")
     require(counts["B"] == report.get("scope_content_changes", 0), "B event denominator mismatch")
+    require(counts["C"] == report.get("inferred_changes", 0) + report.get("inferred_scope_changes", 0),
+            "inferred report contains an unhandled event; extend the source adapter")
     return rows
 
 
@@ -221,9 +223,9 @@ def pair_recovery(before, after, core, extent, controls, adjudications, strict_g
     false_control_atoms = len(strict_atoms & controls)
     correct &= false_control_atoms == 0
     if strict_gold is not None:
-        correct &= all(event["sources"] == strict_gold["sources"]
-                       and event["operation"] == strict_gold["operation"]
-                       for event in current if event["category"] == "A" and event["sources"] & extent)
+        scored = [event for event in current if event["category"] == "A" and event["sources"] & extent]
+        correct &= len(scored) <= 1 and all(event["sources"] == strict_gold["sources"]
+                                           and event["operation"] == strict_gold["operation"] for event in scored)
 
     def hits(rows):
         found = set()
@@ -444,7 +446,7 @@ def controls(record, registered, binary):
         false_masks = len(strict & unchanged)
         unproved_strict = False
         for event in detected:
-            if event["category"] != "A" or (gold is not None and event["sources"] <= gold):
+            if event["category"] != "A" or (gold is not None and event["sources"] == gold):
                 continue
             if gold is not None:
                 unproved_strict = True
@@ -453,6 +455,8 @@ def controls(record, registered, binary):
             unproved_strict |= not review or review["event_sha256"] != event_digest(event)
         bad_ranges = sum(event["sources"] != target or not target
                          for event in detected if event["category"] == "B")
+        if gold is not None:
+            unproved_strict |= sum(event["category"] == "A" for event in detected) > expected[name]["strict_events"]
         row.update(correct=not false_masks and not unproved_strict and not bad_ranges,
                    false_strict_control_atoms=false_masks, unproved_strict=unproved_strict,
                    unsupported_B_ranges=bad_ranges, **Counter(event["category"] for event in detected))
@@ -595,6 +599,9 @@ def main():
             return 0
         blind = historical.read(DIRECTORY / "blind.json")
         require(blind["binary"] == freeze["binary"], "blind executable differs from freeze")
+        require(freeze["annotation_completed_utc"] <= blind["comparison_started_utc"]
+                and freeze["annotation_completed_utc"] <= blind["baseline_comparison_started_utc"],
+                "blind comparisons began before source annotation was frozen")
         baseline = read_reference(freeze["baseline_observations"])
         blind_rows = phase(blind, panel, targets, baseline, sources["baseline"]["binary"])
         blind_recovered, _, _ = recovery_summary(blind_rows)

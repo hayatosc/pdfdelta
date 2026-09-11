@@ -24,6 +24,7 @@ class EvidenceTests(unittest.TestCase):
         if extra:
             review["new_sources"].append({"origin": "native", "glyph": 3})
         return {"typed_changes": 0, "scope_content_changes": int(category == "B"),
+                "inferred_scope_changes": int(category == "C"),
                 "comparison": {"scopes": [{"result": {"comparisons": [], "text_scope_reviews": [review]}}]}}
 
     @staticmethod
