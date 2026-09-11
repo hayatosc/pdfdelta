@@ -7,9 +7,10 @@ use crate::Result;
 use super::{
     CorrespondenceScope, DocumentGraph, EvidenceLimits, EvidenceStore, GraphLimits,
     InterpretationStatus, LocalComparisonLimits, LocalViewComparison, MatchingLimits, NodeContent,
-    NodeId, ScopeMatching, ScopeProposals, VisualCandidateLimits, VisualCandidateSearch,
-    compare_local_views, compare_text_group_views, dependencies::candidate_dependencies,
-    propose_scope_correspondences, solve_correspondence_scope, visual::append_visual_candidates,
+    NodeId, ProposalBasis, ScopeMatching, ScopeProposals, VisualCandidateLimits,
+    VisualCandidateSearch, compare_local_views, compare_text_group_views,
+    dependencies::candidate_dependencies, propose_scope_correspondences,
+    solve_correspondence_scope, visual::append_visual_candidates,
 };
 
 #[derive(Clone, Copy)]
@@ -44,6 +45,11 @@ pub struct ScopeViewComparison {
     /// Mandatory candidate indexes admitted after dependency checks. Retained
     /// across hierarchy traversal for cross-scope relationship comparison.
     pub accepted_correspondences: Vec<usize>,
+    /// Source-checked interior equality may support a non-owning text boundary
+    /// without identifying its whole padded paragraph. These proposals never
+    /// enter strict comparisons, relation mapping, or source coverage.
+    #[serde(default)]
+    pub text_boundary_correspondences: Vec<usize>,
     /// Candidate indexes requiring a more specific child scope or group view.
     pub structural_correspondences: Vec<usize>,
     /// Conditional local results never imply that an entire PDF is complete.
@@ -391,6 +397,7 @@ fn compare_validated_scope(
         text_search,
         comparisons: Vec::new(),
         accepted_correspondences: Vec::new(),
+        text_boundary_correspondences: Vec::new(),
         structural_correspondences: Vec::new(),
         unresolved: Vec::new(),
         extraction_dependencies: Vec::new(),
@@ -492,6 +499,13 @@ fn compare_validated_scope(
             {
                 result.unresolved.push(format!(
                     "correspondence {index} depends on unexamined correspondence rivals",
+                ));
+                continue;
+            }
+            if proposal.basis == ProposalBasis::LiteralContentWithPadding {
+                result.text_boundary_correspondences.push(*index);
+                result.unresolved.push(format!(
+                    "correspondence {index} proves only an unpadded text boundary; whole paragraph sources remain uncompared"
                 ));
                 continue;
             }

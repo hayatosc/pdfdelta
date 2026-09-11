@@ -568,7 +568,7 @@ fn keyed_value_membership_precedes_overlapping_literal_fragments() {
             .expect("common solver");
         assert_eq!(
             matching.objective,
-            MatchingObjective::ScopedIdentityThenLiteralThenInferredStructureV3
+            MatchingObjective::ScopedIdentityThenLiteralThenPaddingThenInferredStructureV4
         );
         assert_eq!(matching.components.len(), 1);
         let component = &matching.components[0];

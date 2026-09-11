@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     Channel, DocumentComparisonLimits, DocumentView, EdgeKind, GraphNode, InterpretationStatus,
-    LocalViewComparison, NodeContent, NodeId, ScopeViewComparison, SourceRef, ViewBasis,
-    compare_text_group_views, matching::source_children,
+    LocalViewComparison, NodeContent, NodeId, ProposalBasis, ScopeViewComparison, SourceRef,
+    ViewBasis, compare_text_group_views, matching::source_children,
 };
 use crate::Result;
 
@@ -198,15 +198,24 @@ pub(super) fn append(
     };
     let old_positions = positions(&left);
     let new_positions = positions(&right);
+    let padding_boundaries: BTreeSet<_> = result
+        .text_boundary_correspondences
+        .iter()
+        .filter_map(|index| {
+            let proposal = &result.candidates.proposals[*index];
+            match (proposal.old.as_slice(), proposal.new.as_slice()) {
+                ([a], [b]) => Some((*a, *b)),
+                _ => None,
+            }
+        })
+        .collect();
     let unchanged: BTreeSet<_> = result
         .comparisons
         .iter()
-        .filter(|comparison| {
-            comparison.compared && comparison.operation.is_none() && comparison.text_mask.is_some()
-        })
+        .filter(|comparison| comparison.compared && comparison.text_mask.is_some())
         .filter_map(
             |comparison| match (comparison.old.as_slice(), comparison.new.as_slice()) {
-                ([old], [new]) => Some((*old, *new)),
+                ([a], [b]) if comparison.operation.is_none() => Some((*a, *b)),
                 _ => None,
             },
         )
@@ -215,14 +224,18 @@ pub(super) fn append(
     // Accepted comparisons have already discharged their own source-candidate
     // dependencies. Optional interior hypotheses cannot invalidate protected
     // higher-priority boundaries and do not identify edits inside this range.
-    for &index in &result.accepted_correspondences {
+    for &index in result
+        .accepted_correspondences
+        .iter()
+        .chain(&result.text_boundary_correspondences)
+    {
         let proposal = &result.candidates.proposals[index];
         let ([a], [b]) = (proposal.old.as_slice(), proposal.new.as_slice()) else {
             continue;
         };
         if !result.matching.source_only_mandatory.contains(&index)
             || result.matching.inferred_proposals.contains(&index)
-            || !unchanged.contains(&(*a, *b))
+            || (!unchanged.contains(&(*a, *b)) && !padding_boundaries.contains(&(*a, *b)))
         {
             continue;
         }
@@ -288,13 +301,20 @@ pub(super) fn append(
             bounded_paint = old_closure == native::Closure::BoundedPaint
                 || new_closure == native::Closure::BoundedPaint;
         }
+        let padding_boundary = [*first, *last].into_iter().any(|index| {
+            result.candidates.proposals[index].basis == ProposalBasis::LiteralContentWithPadding
+        });
         match compare_text_group_views(a, b, limits.local) {
             Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
                 if parent == InterpretationStatus::Inferred {
                     comparison.interpretation = InterpretationStatus::Inferred;
                 }
                 result.text_scope_reviews.push(TextScopeReview {
-                    convention: if bounded_paint {
+                    convention: if padding_boundary && bounded_paint {
+                        "closed-native-paint-bounds-padding-interval-v1"
+                    } else if padding_boundary {
+                        "closed-native-padding-interval-v1"
+                    } else if bounded_paint {
                         "closed-native-paint-bounds-interval-v1"
                     } else if native {
                         "closed-native-baseline-interval-v1"

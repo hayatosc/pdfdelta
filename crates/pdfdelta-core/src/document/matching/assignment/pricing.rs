@@ -188,12 +188,12 @@ fn omitted_zero_reduced_cost_edges_destroy_restricted_necessity() {
     let edge_at = |row, column| {
         Some(Edge {
             proposal: row * 2 + column,
-            cost: Score([0, 0, 0, 0, -1]),
+            cost: Score([0, 0, 0, 0, 0, -1]),
         })
     };
     let result = trial_with(2, 2, edge_at, 100_000);
     assert!(result.complete);
-    assert_eq!(result.cost, Some(Score([0, 0, 0, 0, -2])));
+    assert_eq!(result.cost, Some(Score([0, 0, 0, 0, 0, -2])));
     assert!(result.mandatory.is_empty());
     // The original objective needs no added edge. Reusing its certificate to
     // claim necessity would incorrectly certify both diagonal seeds.
@@ -211,7 +211,7 @@ fn incomplete_pricing_never_certifies_mandatory_edges() {
     let edge_at = |row, column| {
         Some(Edge {
             proposal: row * 3 + column,
-            cost: Score([0, 0, 0, 0, if row == column { -2 } else { -1 }]),
+            cost: Score([0, 0, 0, 0, 0, if row == column { -2 } else { -1 }]),
         })
     };
     let complete = trial_with(3, 3, edge_at, 1_000_000);

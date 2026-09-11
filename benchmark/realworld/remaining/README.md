@@ -45,4 +45,8 @@ The native extractor now retains conservative paint bounds. The new
 closed source band, including both boundary glyphs, with no overlapping or
 unbounded paint and no dependent text acquisition issues. These B reviews do
 not discharge strict source ownership or document-wide text completeness.
-The fixed real-PDF gains remain unmeasured for this change.
+The first bounded-paint pass covers all 36 fixed pairs, with zero target range
+hits and zero complete comparisons; `bounded-paint-pilot.json` retains failures.
+The subsequent padding-boundary feature is not yet measured. It compares only
+unpadded native text for boundary selection and leaves every padded paragraph
+source uncompared. It cannot itself add a strict event or completion credit.

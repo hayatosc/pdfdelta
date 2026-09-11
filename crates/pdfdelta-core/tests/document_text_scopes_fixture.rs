@@ -17,6 +17,10 @@ use pdfdelta_core::{
 type Fixture = (EvidenceStore, DocumentGraph);
 
 fn fixture(interior: &str) -> Fixture {
+    fixture_with_boundaries(interior, "First boundary.", "Last boundary.")
+}
+
+fn fixture_with_boundaries(interior: &str, first: &str, last: &str) -> Fixture {
     let mut graph = DocumentGraph::default();
     graph.nodes.push(GraphNode {
         id: NodeId(0),
@@ -28,10 +32,7 @@ fn fixture(interior: &str) -> Fixture {
         content: NodeContent::Container,
     });
     let mut glyphs = Vec::new();
-    for (row, text) in ["First boundary.", interior, "Last boundary."]
-        .into_iter()
-        .enumerate()
-    {
+    for (row, text) in [first, interior, last].into_iter().enumerate() {
         let mut sources = Vec::new();
         for (column, scalar) in text.chars().enumerate() {
             let id = glyphs.len() as u64;
@@ -377,4 +378,128 @@ fn paint_closure_rejects_unknown_bounds_boundary_ink_and_incomplete_sources() {
             "mutation {mutation}"
         );
     }
+}
+
+#[test]
+fn padding_boundaries_keep_whole_paragraphs_uncompared_and_close_the_interior() {
+    let old = fixture("a");
+    let new = fixture_with_boundaries("aa", "First boundary. ", "Last boundary. ");
+    let comparison = compare(&old, &new);
+    let result = &comparison.scopes[0].result;
+    assert_eq!(result.text_scope_reviews.len(), 1);
+    let review = &result.text_scope_reviews[0];
+    assert_eq!(review.convention, "closed-native-padding-interval-v1");
+    assert_eq!(review.old_sources.len(), 1);
+    assert_eq!(review.new_sources.len(), 2);
+    assert_eq!(result.text_boundary_correspondences.len(), 2);
+    assert!(
+        result
+            .accepted_correspondences
+            .iter()
+            .all(|index| result.candidates.proposals[*index].basis
+                != pdfdelta_core::document::ProposalBasis::LiteralContentWithPadding)
+    );
+    assert!(
+        result
+            .comparisons
+            .iter()
+            .all(|pair| pair.old != [NodeId(1)] && pair.old != [NodeId(3)])
+    );
+    let coverage = pdfdelta_core::document::document_coverage(
+        DocumentView {
+            evidence: &old.0,
+            graph: &old.1,
+        },
+        DocumentView {
+            evidence: &new.0,
+            graph: &new.1,
+        },
+        &comparison,
+        &[Channel::Text].into(),
+    );
+    assert_eq!(coverage[0].old_compared_sources, 0);
+    assert_eq!(coverage[0].new_compared_sources, 0);
+    assert!(!coverage[0].complete);
+    assert!(!comparison.search_resolved());
+    assert!(
+        result
+            .unresolved
+            .iter()
+            .any(|reason| reason.contains("whole paragraph sources remain uncompared"))
+    );
+    for sources in &review.new_boundaries {
+        assert!(sources.iter().any(|source| {
+            let SourceRef::Native { glyph } = source else {
+                return false;
+            };
+            new.0
+                .native
+                .items()
+                .iter()
+                .any(|item| item.id == *glyph && item.text == DecodedText::Mapped(" ".into()))
+        }));
+    }
+    assert_eq!(
+        compare(&new, &old).scopes[0]
+            .result
+            .text_scope_reviews
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn padding_premise_does_not_ignore_internal_spaces_or_resolve_duplicate_bodies() {
+    for new in [
+        fixture_with_boundaries("aa", "First  boundary. ", "Last boundary. "),
+        fixture_with_boundaries("First boundary.  ", "First boundary. ", "Last boundary. "),
+    ] {
+        let old = fixture("a");
+        assert!(
+            compare(&old, &new).scopes[0]
+                .result
+                .text_scope_reviews
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn whole_literal_correspondence_precedes_padding_even_at_extreme_weight() {
+    use pdfdelta_core::document::{
+        MatchingLimits, ProposalBasis, propose_scope_correspondences, solve_correspondence_scope,
+    };
+    let old = fixture("a");
+    let new = fixture_with_boundaries("First boundary. ", "First boundary.", "Last boundary.");
+    let scope = CorrespondenceScope {
+        old: NodeId(0),
+        new: NodeId(0),
+    };
+    let limits = MatchingLimits::default();
+    let mut candidates = propose_scope_correspondences(&old.1, &new.1, scope, limits)
+        .expect("complete candidate index");
+    for proposal in &mut candidates.proposals {
+        if proposal.basis == ProposalBasis::LiteralContentWithPadding {
+            proposal.weight = u32::MAX;
+        }
+    }
+    let matching = solve_correspondence_scope(&old.1, &new.1, scope, &candidates.proposals, limits)
+        .expect("solve exact before padded literals");
+    assert!(matching.source_only_mandatory.iter().any(|index| {
+        let proposal = &candidates.proposals[*index];
+        proposal.old == [NodeId(1)]
+            && proposal.new == [NodeId(1)]
+            && proposal.basis == ProposalBasis::LiteralContent
+    }));
+    assert!(!matching.source_only_mandatory.iter().any(
+        |index| candidates.proposals[*index].basis == ProposalBasis::LiteralContentWithPadding
+    ));
+    let forged = pdfdelta_core::document::CorrespondenceProposal {
+        old: vec![NodeId(2)],
+        new: vec![NodeId(2)],
+        basis: ProposalBasis::LiteralContentWithPadding,
+        supplier: "forged-padding".into(),
+        weight: 1,
+    };
+    assert!(solve_correspondence_scope(&old.1, &new.1, scope, &[forged], limits).is_err());
 }

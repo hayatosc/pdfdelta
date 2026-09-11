@@ -8,6 +8,7 @@ pub(super) enum Key<'a> {
     Scoped(NodeKind, &'a IdentityKey),
     Cell(&'a IdentityKey, &'a IdentityKey),
     Literal(NodeKind, u64),
+    PaddingBody(NodeKind, u64),
 }
 
 /// Fingerprints only exclude unequal literals. Callers must verify the original
@@ -46,6 +47,12 @@ pub(super) fn keys<'a>(
         let mut hasher = DefaultHasher::new();
         view.tokens.hash(&mut hasher);
         keys.push(Key::Literal(node.kind, hasher.finish()));
+        if let Some(body) = super::padding_body(node) {
+            charge(result, view.tokens.len(), limits)?;
+            let mut hasher = DefaultHasher::new();
+            body.hash(&mut hasher);
+            keys.push(Key::PaddingBody(node.kind, hasher.finish()));
+        }
     }
     Some(keys)
 }

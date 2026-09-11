@@ -348,7 +348,7 @@ fn append_indexed_pairs(
     }
 }
 
-/// A source correspondence present in every optimum of the first two objective
+/// A source correspondence present in every optimum of the first three objective
 /// classes cannot be displaced by any added inferred score. Pruning its physical
 /// conflicts therefore preserves all possible optimal text correspondences.
 fn protect_source_correspondences(

@@ -14,7 +14,7 @@ use super::{
 mod pricing;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-struct Score([i128; 5]);
+struct Score([i128; 6]);
 
 impl Score {
     fn add(self, other: Self) -> Option<Self> {

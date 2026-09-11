@@ -30,6 +30,10 @@ pub enum ProposalBasis {
     ScopedIdentity,
     TableCellIdentity,
     LiteralContent,
+    /// Exact native paragraph text after excluding only edge U+0020 tokens
+    /// from the boundary premise. This supplies only a non-owning boundary;
+    /// complete paragraph sources and edge spaces remain uncompared.
+    LiteralContentWithPadding,
     StructuralNeighbor,
     VisualSimilarity,
     TextSimilarity,
@@ -211,7 +215,8 @@ pub struct ScopeMatching {
 }
 
 /// Source-backed scoped identities precede source-backed literal content, then
-/// inferred structural correspondence, inferred literal content, then other
+/// native text with edge padding, inferred structural correspondence, inferred
+/// literal content, then other
 /// inferred proposals. Weights are
 /// maximized lexicographically in that order.
 /// This preserves item membership when unchanged fragments compete with a
@@ -220,6 +225,7 @@ pub struct ScopeMatching {
 #[serde(rename_all = "snake_case")]
 pub enum MatchingObjective {
     ScopedIdentityThenLiteralThenInferredStructureV3,
+    ScopedIdentityThenLiteralThenPaddingThenInferredStructureV4,
 }
 
 /// Endpoint populations covering every omitted candidate in one source search.
@@ -378,6 +384,10 @@ pub fn propose_scope_correspondences(
                     }
                     if literal_equal(a, b) {
                         ProposalBasis::LiteralContent
+                    } else if let (Some(a), Some(b)) = (padding_body(a), padding_body(b))
+                        && a == b
+                    {
+                        ProposalBasis::LiteralContentWithPadding
                     } else {
                         continue;
                     }
@@ -391,7 +401,10 @@ pub fn propose_scope_correspondences(
                     supplier: "typed-scope-v1".into(),
                     // Prefer a retained key over optional structural similarity,
                     // including when both interpretations remain inferred.
-                    weight: if basis == ProposalBasis::LiteralContent {
+                    weight: if matches!(
+                        basis,
+                        ProposalBasis::LiteralContent | ProposalBasis::LiteralContentWithPadding
+                    ) {
                         1
                     } else {
                         2
@@ -691,6 +704,7 @@ pub fn solve_correspondence_scope(
                     ProposalBasis::ScopedIdentity
                         | ProposalBasis::TableCellIdentity
                         | ProposalBasis::LiteralContent
+                        | ProposalBasis::LiteralContentWithPadding
                 )
                 && proposal
                     .old
@@ -855,7 +869,7 @@ pub fn solve_correspondence_scope(
     }
     Ok(ScopeMatching {
         channels: limits.channels,
-        objective: MatchingObjective::ScopedIdentityThenLiteralThenInferredStructureV3,
+        objective: MatchingObjective::ScopedIdentityThenLiteralThenPaddingThenInferredStructureV4,
         scope,
         components,
         conflict_checks,
@@ -878,6 +892,7 @@ fn validate_premise(
         ProposalBasis::ScopedIdentity
             | ProposalBasis::TableCellIdentity
             | ProposalBasis::LiteralContent
+            | ProposalBasis::LiteralContentWithPadding
     ) && (proposal.old.iter().any(|id| !old_children.contains(id))
         || proposal.new.iter().any(|id| !new_children.contains(id)))
     {
@@ -893,6 +908,21 @@ fn validate_premise(
                 || old[&proposal.old[0]].identity != new[&proposal.new[0]].identity
             {
                 return Err(invalid("identity supplier premise does not hold"));
+            }
+        }
+        ProposalBasis::LiteralContentWithPadding => {
+            let ([a], [b]) = (proposal.old.as_slice(), proposal.new.as_slice()) else {
+                return Err(invalid(
+                    "padding premise requires individual native paragraphs",
+                ));
+            };
+            let (Some(a), Some(b)) = (padding_body(old[a]), padding_body(new[b])) else {
+                return Err(invalid(
+                    "padding premise requires exact nonempty native paragraph bodies",
+                ));
+            };
+            if a != b {
+                return Err(invalid("padding supplier changes interior source tokens"));
             }
         }
         ProposalBasis::LiteralContent => {
@@ -934,6 +964,36 @@ fn validate_premise(
         _ => {}
     }
     Ok(())
+}
+
+/// A matching feature only: edge spaces stay in the original view and diff.
+fn padding_body(node: &GraphNode) -> Option<&[crate::normalize::ComparableToken]> {
+    use crate::{
+        document::{NodeContent, NodeKind, TextNormalization, ViewBasis},
+        normalize::ComparableToken,
+    };
+    if node.kind != NodeKind::Paragraph
+        || node.identity.is_some()
+        || node.basis != ViewBasis::NativeLayout
+    {
+        return None;
+    }
+    let NodeContent::Text { view } = &node.content else {
+        return None;
+    };
+    if view.normalization != TextNormalization::Exact {
+        return None;
+    }
+    let start = view
+        .tokens
+        .iter()
+        .position(|token| *token != ComparableToken::Scalar(' '))?;
+    let end = view
+        .tokens
+        .iter()
+        .rposition(|token| *token != ComparableToken::Scalar(' '))?
+        + 1;
+    Some(&view.tokens[start..end])
 }
 
 fn text_tokens(node: &GraphNode) -> &[crate::normalize::ComparableToken] {
@@ -1313,15 +1373,16 @@ fn objective_class(
 ) -> usize {
     match (source_premises[index], proposals[index].basis) {
         (true, ProposalBasis::ScopedIdentity | ProposalBasis::TableCellIdentity) => 0,
+        (true, ProposalBasis::LiteralContentWithPadding) => 2,
         (true, _) => 1,
         (
             false,
             ProposalBasis::ScopedIdentity
             | ProposalBasis::TableCellIdentity
             | ProposalBasis::StructuralNeighbor,
-        ) => 2,
-        (false, ProposalBasis::LiteralContent) => 3,
-        (false, _) => 4,
+        ) => 3,
+        (false, ProposalBasis::LiteralContent) => 4,
+        (false, _) => 5,
     }
 }
 
@@ -1345,8 +1406,8 @@ fn search_component(
         };
     }
     // Iterative search avoids a stack overflow on adversarial conflict chains.
-    let mut pending = vec![(0, (0_u64, 0_u64, 0_u64, 0_u64, 0_u64), forced.clone())];
-    let mut best = (0, 0, 0, 0, 0);
+    let mut pending = vec![(0, [0_u64; 6], forced.clone())];
+    let mut best = [0; 6];
     let mut mandatory: Option<BTreeSet<usize>> = None;
     let mut explored_states = 0;
     let mut partition_budget = limits.max_ownership_visits;
@@ -1393,13 +1454,8 @@ fn search_component(
             let mut included = selected;
             included.insert(index);
             let weight = u64::from(proposals[index].weight);
-            let score = match objective_class(index, proposals, source_premises) {
-                0 => (score.0 + weight, score.1, score.2, score.3, score.4),
-                1 => (score.0, score.1 + weight, score.2, score.3, score.4),
-                2 => (score.0, score.1, score.2 + weight, score.3, score.4),
-                3 => (score.0, score.1, score.2, score.3 + weight, score.4),
-                _ => (score.0, score.1, score.2, score.3, score.4 + weight),
-            };
+            let mut score = score;
+            score[objective_class(index, proposals, source_premises)] += weight;
             pending.push((offset + 1, score, included));
         }
     }
