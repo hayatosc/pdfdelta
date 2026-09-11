@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "implementation_commit": "285c794",
+  "binary_sha256": "bcfe1415283b66fbcb8a33853162698306ce46d2c17983aa3eb24cf1c1f18044",
+  "inputs_sha256": "ccfc3fab3fe4659f90259c1a05f29e05a1f20ee48b677db63de25958a84d2f60",
+  "timeout_seconds": 180,
+  "limit_scale": 1,
+  "annotation_scoring": false,
+  "provenance_note": "Caller identifies the build commit; the driver binds the executable hash but does not independently prove its build provenance.",
+  "runs": [
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "route": "native",
+      "old_sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d",
+      "new_sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82",
+      "reference_sha256": "6b8a33d4f7ad645753d2fc226271bc2d746338aa8534d09af12b85eec6a0521b",
+      "exit_code": 3,
+      "wall_seconds": 1.44,
+      "peak_rss_kib": 106628,
+      "status": "captured",
+      "report_bytes": 207313305,
+      "report_sha256": "4f88739270aacac07670b18bd8d315d31c424663cd327598f06e5f2697fede88",
+      "stderr": "extraction issue for old PDF benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-old.pdf (kind=unsupported, scope=page, page=8): non-rectangular clipping path at content operator index 251\n"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "route": "text",
+      "old_sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d",
+      "new_sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82",
+      "reference_sha256": "6b8a33d4f7ad645753d2fc226271bc2d746338aa8534d09af12b85eec6a0521b",
+      "exit_code": 3,
+      "wall_seconds": 2.35,
+      "peak_rss_kib": 176832,
+      "status": "captured",
+      "report_bytes": 2325945,
+      "report_sha256": "e48540adbd9323c41715b12cf372f2c772e6cfb643996a17d0ca4d2bf6318b87",
+      "stderr": ""
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "route": "all",
+      "old_sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d",
+      "new_sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82",
+      "reference_sha256": "6b8a33d4f7ad645753d2fc226271bc2d746338aa8534d09af12b85eec6a0521b",
+      "exit_code": 3,
+      "wall_seconds": 3.28,
+      "peak_rss_kib": 177080,
+      "status": "captured",
+      "report_bytes": 2327810,
+      "report_sha256": "fef67537645544e7ef862b561db5c62a7c046514f840a75a2d902012fd140ff2",
+      "stderr": ""
+    }
+  ]
+}

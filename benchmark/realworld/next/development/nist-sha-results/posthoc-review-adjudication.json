@@ -1,0 +1,496 @@
+{
+  "version": 1,
+  "pair": "nist-sha-1803-to-1804",
+  "reference_timing": "All eight added shared-text review predictions were inspected after the first comparison. These are development posthoc adjudications, not frozen recall targets or blind data.",
+  "report_sha256": "e48540adbd9323c41715b12cf372f2c772e6cfb643996a17d0ca4d2bf6318b87",
+  "preregistered_abstract_scope_detection": {
+    "detected": 0,
+    "denominator": 1
+  },
+  "posthoc_visible_content_precision": {
+    "true_positive": 6,
+    "predictions": 8,
+    "value": 0.75,
+    "unit": "review units with visibly changed body text; both routes have the same eight predictions and are not pooled"
+  },
+  "posthoc_range_correspondence": {
+    "verified": 8,
+    "predictions": 8
+  },
+  "strict_event_precision": null,
+  "strict_position_precision": null,
+  "review_time_seconds": null,
+  "interpretation": "All eight retained literal representations differ, but two do not change visible word or mathematical content. Preserve this normalization/reporting limitation rather than relabeling those two as successful body-content recovery. No newly incorrect scope counterpart was found among these eight units.",
+  "reviews": [
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/0",
+      "regions": {
+        "old": {
+          "page": 6,
+          "bbox": [
+            189.42,
+            589.068,
+            425.52,
+            636.7320000000003
+          ]
+        },
+        "new": {
+          "page": 5,
+          "bbox": [
+            189.5,
+            602.812,
+            422.41999999999996,
+            622.738
+          ]
+        }
+      },
+      "adjudication": "margin_whitespace_only",
+      "reason": "The title words are unchanged; old boundary-space glyphs and blank lines contribute only retained-source formatting.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 23,
+        "new": 20
+      },
+      "boundary_source_count": {
+        "old": 41,
+        "new": 41
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": " SECURE HASH STANDARD  ",
+        "new": "SECURE HASH STANDARD"
+      },
+      "conditional_mask_source_count": {
+        "old": 3,
+        "new": 0
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    },
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/1",
+      "regions": {
+        "old": {
+          "page": 13,
+          "bbox": [
+            107.99999999999994,
+            526.9680000000004,
+            542.9675999999998,
+            581.6520000000003
+          ]
+        },
+        "new": {
+          "page": 12,
+          "bbox": [
+            108.02,
+            527.158,
+            543.0459999999998,
+            581.872
+          ]
+        }
+      },
+      "adjudication": "visible_body_content_change",
+      "reason": "The algorithm membership gains SHA-512/224 and SHA-512/256 in item b.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 126,
+        "new": 151
+      },
+      "boundary_source_count": {
+        "old": 75,
+        "new": 75
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": " b) For SHA-384 and SHA-512, each message block has 1024 bits, which are represented as a sequence of sixteen 64-bit words.  ",
+        "new": " b) For SHA-384, SHA-512, SHA-512/224 and SHA-512/256 each message block has 1024 bits, which are represented as a sequence of sixteen 64-bit words.  "
+      },
+      "conditional_mask_source_count": {
+        "old": 1,
+        "new": 22
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    },
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/2",
+      "regions": {
+        "old": {
+          "page": 13,
+          "bbox": [
+            72.0,
+            232.908,
+            543.0600000000001,
+            303.33028
+          ]
+        },
+        "new": {
+          "page": 12,
+          "bbox": [
+            72.024,
+            233.018,
+            542.9739999999999,
+            303.49363999999997
+          ]
+        }
+      },
+      "adjudication": "font_mapping_only",
+      "reason": "Both renderings show less-than-or-equal signs; retained Unicode differs between U+2264 and U+F0A3. This is a normalization/mapping discrepancy, not a visible mathematical-content change.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 189,
+        "new": 189
+      },
+      "boundary_source_count": {
+        "old": 39,
+        "new": 39
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": "Then 0 ≤ Z < 2w. Convert the integer Z to a word, z, and define z=x + y.  3. The right shift operation SHR n(x), where x is a w-bit word and n is an integer with 0 ≤ n < w, is defined by  ",
+        "new": "Then 0  Z < 2w. Convert the integer Z to a word, z, and define z=x + y.  3. The right shift operation SHR n(x), where x is a w-bit word and n is an integer with 0  n < w, is defined by  "
+      },
+      "conditional_mask_source_count": {
+        "old": 2,
+        "new": 2
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    },
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/3",
+      "regions": {
+        "old": {
+          "page": 13,
+          "bbox": [
+            72.00000000000003,
+            163.90809999999993,
+            489.9912000000003,
+            204.79209999999998
+          ]
+        },
+        "new": {
+          "page": 12,
+          "bbox": [
+            72.024,
+            163.988,
+            543.076,
+            204.872
+          ]
+        }
+      },
+      "adjudication": "visible_body_content_change",
+      "reason": "The applicability sentence gains SHA-512/224 and SHA-512/256.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 82,
+        "new": 107
+      },
+      "boundary_source_count": {
+        "old": 106,
+        "new": 106
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": "This operation is used in the SHA-224, SHA-256, SHA-384, and SHA-512 algorithms.  ",
+        "new": "This operation is used in the SHA-224, SHA-256, SHA-384, SHA-512, SHA-512/224 and SHA-512/256 algorithms.  "
+      },
+      "conditional_mask_source_count": {
+        "old": 0,
+        "new": 21
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    },
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/4",
+      "regions": {
+        "old": {
+          "page": 18,
+          "bbox": [
+            72.0,
+            631.5371136,
+            543.01639488,
+            672.4770063999999
+          ]
+        },
+        "new": {
+          "page": 17,
+          "bbox": [
+            72.024,
+            645.628,
+            542.9739999999997,
+            672.712
+          ]
+        }
+      },
+      "adjudication": "visible_body_content_change",
+      "reason": "The timing restriction sentence is removed and the remaining preprocessing description is revised.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 255,
+        "new": 180
+      },
+      "boundary_source_count": {
+        "old": 41,
+        "new": 41
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": "Preprocessing shall take place before hash computation begins. This preprocessing consists of three steps: padding the message, M (Sec. 5.1), parsing the padded message into message blocks (Sec. 5.2), and setting the initial hash value, H(0) (Sec. 5.3). ",
+        "new": "Preprocessing consists of three steps: padding the message, M (Sec. 5.1), parsing the message into message blocks (Sec. 5.2), and setting the initial hash value, H(0) (Sec. 5.3). "
+      },
+      "conditional_mask_source_count": {
+        "old": 28,
+        "new": 0
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    },
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/5",
+      "regions": {
+        "old": {
+          "page": 18,
+          "bbox": [
+            72.0,
+            559.0616975999999,
+            543.1248484800009,
+            599.9969064
+          ]
+        },
+        "new": {
+          "page": 17,
+          "bbox": [
+            72.024,
+            559.3480000000001,
+            542.8819999999997,
+            614.032
+          ]
+        }
+      },
+      "adjudication": "visible_body_content_change",
+      "reason": "The padding timing rule changes from before computation to permitting insertion during computation before the affected blocks.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 193,
+        "new": 314
+      },
+      "boundary_source_count": {
+        "old": 57,
+        "new": 57
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": "The message, M, shall be padded before hash computation begins. The purpose of this padding is to ensure that the padded message is a multiple of 512 or 1024 bits, depending on the algorithm. ",
+        "new": "The purpose of this padding is to ensure that the padded message is a multiple of 512 or 1024 bits, depending on the algorithm. Padding can be inserted before hash computation begins on a message, or at any other time during the hash computation prior to processing the block(s) that will contain the padding. "
+      },
+      "conditional_mask_source_count": {
+        "old": 38,
+        "new": 114
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    },
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/6",
+      "regions": {
+        "old": {
+          "page": 22,
+          "bbox": [
+            72.0,
+            548.8158015999998,
+            546.0338150399999,
+            672.4770063999999
+          ]
+        },
+        "new": {
+          "page": 22,
+          "bbox": [
+            72.024,
+            535.198,
+            539.8599999999999,
+            672.712
+          ]
+        }
+      },
+      "adjudication": "visible_body_content_change",
+      "reason": "The first paragraph adds algorithms and truncation lengths. The second paragraph is unchanged context retained in the same review.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 687,
+        "new": 768
+      },
+      "boundary_source_count": {
+        "old": 36,
+        "new": 36
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": "In the following sections, the hash algorithms are not described in ascending order of size. SHA-256 is described before SHA-224 because the specification for SHA-224 is identical to SHA-256, except that different initial hash values are used, and the final hash value is truncated to 224 bits for SHA-224. The same is true for SHA-512 and SHA-384, except that the final hash value is truncated to 384 bits for SHA-384.  For each of the secure hash algorithms, there may exist alternate computation methods that yield identical results; one example is the alternative SHA-1 computation described in Sec. 6.1.3. Such alternate methods may be implemented in conformance to this standard. ",
+        "new": "In the following sections, the hash algorithms are not described in ascending order of size. SHA-256 is described before SHA-224 because the specification for SHA-224 is identical to SHA-256, except that different initial hash values are used, and the final hash value is truncated to 224 bits for SHA-224. The same is true for SHA-512, SHA-384, SHA-512/224 and SHA-512/256, except that the final hash value is truncated to 224 bits for SHA-512/224, 256 bits for SHA-512/256 or 384 bits for SHA-384.  For each of the secure hash algorithms, there may exist alternate computation methods that yield identical results; one example is the alternative SHA-1 computation described in Sec. 6.1.3. Such alternate methods may be implemented in conformance to this standard. "
+      },
+      "conditional_mask_source_count": {
+        "old": 3,
+        "new": 54
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    },
+    {
+      "report_pointer": "/comparison/scopes/0/result/text_scope_reviews/7",
+      "regions": {
+        "old": {
+          "page": 22,
+          "bbox": [
+            72.0,
+            233.07721360000002,
+            543.0133016,
+            329.2169064
+          ]
+        },
+        "new": {
+          "page": 22,
+          "bbox": [
+            108.02,
+            260.858,
+            420.31,
+            315.54200000000003
+          ]
+        }
+      },
+      "adjudication": "visible_body_content_change",
+      "reason": "The three preprocessing steps are reorganized into two visibly different instructions; this is a scope-content change, not a unique edit-history claim.",
+      "range_correspondence_verified_from_rendered_context": true,
+      "interior_source_count": {
+        "old": 227,
+        "new": 133
+      },
+      "boundary_source_count": {
+        "old": 55,
+        "new": 55
+      },
+      "retained_text": {
+        "kind": "text_changed",
+        "old": " 1. Pad the message, M, according to Sec. 5.1.1;  2. Parse the padded message into N 512-bit message blocks, M(1), M(2), …, M(N), according to Sec. 5.2.1; and  3. Set the initial hash value, H(0), as specified in Sec. 5.3.1. ",
+        "new": " 1. Set the initial hash value, H(0), as specified in Sec. 5.3.1.  2. The message is padded and parsed as specified in Section 5. "
+      },
+      "conditional_mask_source_count": {
+        "old": 113,
+        "new": 42
+      },
+      "source_reference_access": "Complete interior and boundary glyph references are retained at the report pointer; input hashes and render-page locators bind their origin.",
+      "excess_context_measurement": null
+    }
+  ],
+  "visual_evidence": {
+    "renderer_binary_sha256": "bcfe1415283b66fbcb8a33853162698306ce46d2c17983aa3eb24cf1c1f18044",
+    "profile": "existing render-page worker; 612x792 RGB; white background; default display state",
+    "renders": [
+      {
+        "side": "old",
+        "page": 6,
+        "pages": 33,
+        "page_object": [
+          10,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "cae7d238c039f9d6a72a3a6f54bef79f9b9ea55c6c8029ee45cfd4d13860ec90"
+      },
+      {
+        "side": "old",
+        "page": 13,
+        "pages": 33,
+        "page_object": [
+          26,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "eafdcb05d54ac8fcbf0653d86706f925b39b61f19811f574caad5c0e0cb5860e"
+      },
+      {
+        "side": "old",
+        "page": 18,
+        "pages": 33,
+        "page_object": [
+          36,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "3ca91e1fbc93b6e942f5bb21530acf78937a00187bda6175d904c7be65602e0a"
+      },
+      {
+        "side": "old",
+        "page": 22,
+        "pages": 33,
+        "page_object": [
+          45,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "a4be748a71a39f230c056d70035b4d166937fcd6f55a28c68671c957fd0241d4"
+      },
+      {
+        "side": "new",
+        "page": 5,
+        "pages": 36,
+        "page_object": [
+          33,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "ea5ac317e95bddfe5fbea188b3eb26f114dead165ffe26c9d3d6b0fe90ba177b"
+      },
+      {
+        "side": "new",
+        "page": 12,
+        "pages": 36,
+        "page_object": [
+          91,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "e331a5d181a2f3e09e4bfb1c0dd04e47ada7c2a2df1a7e54517c95541b4ce75c"
+      },
+      {
+        "side": "new",
+        "page": 17,
+        "pages": 36,
+        "page_object": [
+          117,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "1ef8ef257d2b681da4f5fa0583b2d61dda656acf642f03326dc80308ab20629b"
+      },
+      {
+        "side": "new",
+        "page": 22,
+        "pages": 36,
+        "page_object": [
+          158,
+          0
+        ],
+        "width": 612,
+        "height": 792,
+        "warning_flag": 0,
+        "raw_rgb_response_sha256": "2c4ab4592301a1ecdd1189e4493d26a56100727eef5a2b85233183e3a85d2f4b"
+      }
+    ]
+  }
+}

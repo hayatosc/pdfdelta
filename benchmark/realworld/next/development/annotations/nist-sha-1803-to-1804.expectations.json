@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "pair": "nist-sha-1803-to-1804",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "6e3bac06b49736c7acc0e47c15daa0b103d3c58bb9994c288c3a2a8cce1f31c1",
+  "resolution_sha256": "cfe4f8057a8fb0a0f28257b18214fd9e1c014437f3d4cdd9e25ff5654e2e7013",
+  "resolver_binary_sha256": "2948960ce8cbfdcb01d9ddcba735e343d74c07e2f848167670cafb646ff9e207",
+  "sampling": "One source-inspected abstract content change bounded by its heading and unchanged keywords. Partial reference only; unannotated predictions require independent adjudication.",
+  "comparison_convention": "Compare the abstract paragraph between Abstract and Key words on printed page iii in both editions. The word five is present only in the old paragraph; preserve changed content separately from line-wrap and page-index changes. No unique author edit history is asserted.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "old_new_regions": {
+      "old": {
+        "page": 3,
+        "bbox": [
+          89.99999999999997,
+          651.1680000000002,
+          515.6087999999994,
+          692.0520000000001
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "abstract-body-old"
+      },
+      "new": {
+        "page": 2,
+        "bbox": [
+          90.024,
+          651.3880000000001,
+          518.6519999999998,
+          692.272
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "abstract-body-new"
+      }
+    },
+    "old_content_witness": "removed-five",
+    "changed_scope_denominator": 1,
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null,
+    "reason": "Scope-content reference; unique minimal-edit source masks under the production normalization family have not been independently adjudicated."
+  },
+  "controls": [
+    "abstract-heading-old",
+    "abstract-heading-new",
+    "keywords-control-old",
+    "keywords-control-new"
+  ],
+  "control_convention": "Literal heading and keywords strings are identical across the recorded source selectors; surrounding whitespace is outside these selectors.",
+  "presentation": {
+    "single_column_body": true,
+    "old_page_number": 4,
+    "new_page_number": 3,
+    "printed_page": "iii",
+    "old_new_line_wrap_differs": true,
+    "cross_page_split_in_this_scope": false,
+    "ruby_or_vertical_in_this_scope": false,
+    "old_archival_cover_present": true
+  },
+  "visual_checks": [
+    {
+      "side": "old",
+      "page": 3,
+      "renderer_binary_sha256": "bcfe1415283b66fbcb8a33853162698306ce46d2c17983aa3eb24cf1c1f18044",
+      "profile": "existing render-page worker; 612x792 RGB; white background; default display state",
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "7d3bdef6218a0f78648831c93bf1c819c1dc0dd2d5ef9f4aa764ad5ba8fe47f2",
+      "page_object": [
+        3,
+        0
+      ],
+      "pages": 33
+    },
+    {
+      "side": "new",
+      "page": 2,
+      "renderer_binary_sha256": "bcfe1415283b66fbcb8a33853162698306ce46d2c17983aa3eb24cf1c1f18044",
+      "profile": "existing render-page worker; 612x792 RGB; white background; default display state",
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "c4010a81c45590d88d8f4347c2081b81970b22986e0f56c0ad4c0b436190ccf3",
+      "page_object": [
+        19,
+        0
+      ],
+      "pages": 36
+    }
+  ]
+}

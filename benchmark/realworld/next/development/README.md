@@ -69,6 +69,17 @@ reference record. This small visual check does not establish complete rendering
 feature coverage or satisfy the separate observer experiment.
 
 `initial-controller-results/` records the first comparison after this reference
-was fixed. Other pairs still need source references; no other pair in this set
-has been compared at this checkpoint. Concrete vertical/ruby/scan/overpaint traits
-and the remaining evaluation denominators are not established by family labels.
+was fixed; `native-closure-results/` records the later local-closure implementation
+on that same reference. Both still miss its frozen paragraph target.
+
+The second frozen reference is the NIST SHA abstract, with seven unique literal
+selectors and both source pages visually checked before comparison. Its frozen
+target is also missed. `nist-sha-results/` separately adjudicates all eight new
+scope reviews after comparison: six visibly changed body ranges, one whitespace
+case and one glyph-mapping case with unchanged visible inequalities. Those posthoc
+judgments do not enlarge the preregistered recall denominator or imply blind
+validation. The two shared routes reuse the same eight predictions.
+
+The other 22 pairs still need source references and have not been compared.
+Concrete vertical/ruby/scan/overpaint traits and the remaining evaluation
+denominators are not established by family labels.
