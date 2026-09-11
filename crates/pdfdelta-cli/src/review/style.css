@@ -1,0 +1,38 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.55; }
+body { max-width: 90rem; margin: auto; padding: 1.5rem; color: #202427; background: #fafaf8; }
+a { color: #184f85; text-underline-offset: .18em; }
+a:focus-visible, summary:focus-visible { outline: .2rem solid #2166ac; outline-offset: .25rem; }
+header { border-bottom: .15rem solid currentColor; padding-bottom: 1rem; }
+h1 { font-size: 2rem; margin-bottom: .5rem; }
+h2 { font-size: 1.4rem; }
+h3 { font-size: 1.15rem; }
+h4 { font-size: 1rem; margin-block: .6rem; }
+nav ul { display: flex; flex-wrap: wrap; gap: .7rem 1.5rem; padding: 0; list-style: none; }
+article { border-top: .08rem solid #a5aaae; padding-block: 1.3rem; scroll-margin-block: 1rem; }
+.category { border-inline-start: .3rem solid currentColor; padding-inline-start: .7rem; }
+.category-b { border-inline-start-style: double; border-inline-start-width: .45rem; }
+.category-c { border-inline-start-style: dashed; }
+.category-u { border-inline-start-style: dotted; }
+.sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.excerpt { white-space: pre-wrap; overflow-wrap: anywhere; margin-inline: 0; padding: 1rem; background: #fff; border: 1px solid #d2d6d8; unicode-bidi: plaintext; }
+mark { color: inherit; background: #fff0a6; border-bottom: .15rem solid #725500; }
+mark.conditional { background: #e9e3f4; border-bottom: .15rem dashed #5b3b85; }
+.legend, .locator { font-size: .9rem; }
+.locator { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+details { margin-block: .7rem; }
+summary { cursor: pointer; padding-block: .3rem; }
+pre { overflow: auto; max-height: 25rem; padding: .8rem; background: #eee; }
+code { font-family: ui-monospace, monospace; font-size: .85em; }
+figure { margin: .8rem 0; }
+img { max-width: 100%; height: auto; border: 1px solid #888; background: white; }
+figcaption { font-size: .9rem; }
+.empty { font-style: italic; }
+@media (max-width: 48rem) { body { padding: 1rem; } .sides { grid-template-columns: 1fr; } }
+@media (prefers-color-scheme: dark) {
+  body { color: #eee; background: #171b1e; }
+  a { color: #9ac7f4; }
+  .excerpt { background: #22292e; border-color: #606b74; }
+  pre { background: #22292e; }
+  mark { color: #171b1e; }
+}
+@media print { body { background: white; color: black; max-width: none; } .sides { grid-template-columns: 1fr 1fr; } pre { max-height: none; white-space: pre-wrap; } article { break-inside: avoid; } }

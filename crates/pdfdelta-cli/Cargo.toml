@@ -16,6 +16,7 @@ clap.workspace = true
 clap_complete.workspace = true
 hayro = "=0.7.1"
 pdfdelta-core = { path = "../pdfdelta-core" }
+png = "0.18.1"
 rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true

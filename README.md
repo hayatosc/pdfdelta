@@ -105,6 +105,27 @@ Rendered regions with the same rendering profile and sample grid can propose vis
 
 The default human-readable report includes changed values/text, field or region labels, page numbers, inferred correspondence labels, mask counts, and unresolved reasons. Long values and report entry counts are bounded with explicit truncation markers; control characters are escaped for terminal output. Full values, masks, and dependency records remain in JSON.
 
+Add `--review DIRECTORY` to the common evidence pipeline to write a static review bundle:
+
+```bash
+pdfdelta old.pdf new.pdf --channels text --review review-output
+```
+
+Open `review-output/index.html` locally. The bundle includes byte-exact source PDFs,
+lossless retained page previews, complete comparison JSON, and source IDs with raw
+glyph evidence, geometry, provenance, graph views, rendering profiles, and warnings.
+Every reported change links to its JSON location and available source pages/regions.
+Full excerpts distinguish strict changes (A), non-owning corresponding-range content
+changes (B), and inferred comparisons (C) using labels and border/underline styles.
+Conditional masks remain non-owning, and unmarked text remains context. These
+categories do not combine into strict recall; a literal representation difference
+need not change the visible words. No script or service is required.
+
+The destination must not exist. Output is bounded to 512 MiB, 1,024 page previews,
+and 20 million source-location work units; failure may leave an incomplete directory
+without `index.html`. Review output does not change the comparison result or exit
+code. It is unavailable with `--native-text-only`.
+
 The established native-glyph pipeline remains available with `--native-text-only`, including its version 11 JSON reports and frozen regression cases. This explicit adapter cannot be combined with channel selection. The existing detailed text-pipeline descriptions and acceptance results below refer to that native-only contract. They do not establish completeness for image text, forms, or relationships.
 
 Every `--channels` selection uses the common evidence pipeline. Text selection retains rendered evidence without recognizing image text. Image invocations, inline images, painted paths, and shading operations leave their pages' text inventories incomplete until a provider can establish coverage beyond native glyphs. This includes nested forms and text drawn as outlines. Unused image resources, unpainted paths, and clipping alone do not create paint markers. The marker also retains the render-order boundary of the last non-text paint: earlier glyph boxes cannot establish visible-text coverage because later paint may cover them. The marker preserves native glyphs and their provenance; it does not claim to recognize image text or prove visibility under clipping. Extraction caches use format version 5 so previously cached documents without acquisition markers cannot establish coverage accidentally.

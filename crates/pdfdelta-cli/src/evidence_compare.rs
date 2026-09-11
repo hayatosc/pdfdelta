@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, io::Write as _, path::Path};
+use std::{collections::BTreeSet, io::Write as _, path::Path, sync::Arc};
 
 use pdfdelta_core::{
     document::{
@@ -28,7 +28,7 @@ pub struct EvidenceOptions {
 }
 
 #[derive(Serialize)]
-struct EvidenceSummary<'a> {
+pub(super) struct EvidenceSummary<'a> {
     revision: &'a str,
     pages: usize,
     native_glyphs: usize,
@@ -51,7 +51,7 @@ struct RenderedSource<'a> {
 }
 
 impl<'a> EvidenceSummary<'a> {
-    fn new(store: &'a EvidenceStore) -> Self {
+    pub(super) fn new(store: &'a EvidenceStore) -> Self {
         Self {
             revision: &store.revision,
             pages: store.pages.len(),
@@ -115,8 +115,8 @@ pub fn compare(
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
     let started = std::time::Instant::now();
-    let old = collect(old_input, cache_dir, options)?;
-    let new = collect(new_input, cache_dir, options)?;
+    let (old, old_bytes) = collect(old_input, cache_dir, options, output.review_dir.is_some())?;
+    let (new, new_bytes) = collect(new_input, cache_dir, options, output.review_dir.is_some())?;
     let limits = DocumentComparisonLimits {
         matching: MatchingLimits {
             channels: MatchingChannels::from(&options.channels),
@@ -256,6 +256,33 @@ pub fn compare(
                 .map_err(|error| format!("cannot write document report: {error}"))
         })?;
     }
+    if let Some(directory) = output.review_dir {
+        let (Some(old_bytes), Some(new_bytes)) = (old_bytes, new_bytes) else {
+            return Err("review source bytes were not retained".into());
+        };
+        crate::review::write(
+            directory,
+            &report,
+            &report.comparison,
+            complete,
+            crate::review::Input {
+                view: DocumentView {
+                    evidence: &old,
+                    graph: &old_graph,
+                },
+                name: old_input.path,
+                bytes: &old_bytes,
+            },
+            crate::review::Input {
+                view: DocumentView {
+                    evidence: &new,
+                    graph: &new_graph,
+                },
+                name: new_input.path,
+                bytes: &new_bytes,
+            },
+        )?;
+    }
     let mut text = format!(
         "Document comparison: {}\nTyped changes: {changes}\nInferred changes: {inferred_changes}\nScope content changes (B; non-owning): {scope_content_changes}\nInferred scope changes (C; non-owning): {inferred_scope_changes}\n",
         if complete { "complete" } else { "incomplete" }
@@ -321,11 +348,14 @@ pub fn compare(
     ))
 }
 
+type CollectedEvidence = (EvidenceStore, Option<Arc<[u8]>>);
+
 fn collect(
     input: ComparisonInput<'_>,
     cache_dir: Option<&Path>,
     options: &EvidenceOptions,
-) -> Result<EvidenceStore, String> {
+    retain_input: bool,
+) -> Result<CollectedEvidence, String> {
     let parse_limits = ParseLimits::default();
     let limits = EvidenceLimits::default();
     let bytes = read_limited_typed(input.path, parse_limits.max_input_bytes)
@@ -362,5 +392,5 @@ fn collect(
         }
     }
     store.validate(limits).map_err(|error| error.to_string())?;
-    Ok(store)
+    Ok((store, retain_input.then_some(bytes)))
 }

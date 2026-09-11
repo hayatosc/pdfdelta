@@ -853,6 +853,7 @@ dependencies = [
  "hayro",
  "lopdf",
  "pdfdelta-core",
+ "png",
  "rayon",
  "rustix",
  "serde",

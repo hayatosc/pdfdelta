@@ -45,6 +45,15 @@ pub struct Cli {
     #[arg(short = 'j', long, value_name = "PATH", requires = "new")]
     pub json: Option<PathBuf>,
 
+    /// Create a static HTML review directory with source PDFs and evidence JSON.
+    #[arg(
+        long,
+        value_name = "DIR",
+        requires = "new",
+        conflicts_with = "native_text_only"
+    )]
+    pub review: Option<PathBuf>,
+
     /// Write the human-readable comparison report to a file instead of standard output.
     #[arg(short = 'o', long, value_name = "PATH", requires = "new")]
     pub output: Option<PathBuf>,
@@ -212,6 +221,7 @@ pub fn resolve_color(choice: ColorChoice) -> bool {
 #[derive(Clone, Copy)]
 pub struct ComparisonOptions<'a> {
     pub json_path: Option<&'a Path>,
+    pub review_dir: Option<&'a Path>,
     pub output_path: Option<&'a Path>,
     pub strict: bool,
     pub quiet: bool,

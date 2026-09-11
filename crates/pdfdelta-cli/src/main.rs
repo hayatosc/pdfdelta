@@ -14,6 +14,7 @@ mod fs;
 mod inspect;
 mod native_worker;
 mod render;
+mod review;
 mod trace;
 mod widgets;
 
@@ -88,6 +89,7 @@ fn main() -> ExitCode {
                 extraction_cache_dir: cli.extraction_cache_dir.as_deref(),
                 options: args::ComparisonOptions {
                     json_path: cli.json.as_deref(),
+                    review_dir: cli.review.as_deref(),
                     output_path: cli.output.as_deref(),
                     strict: cli.strict,
                     quiet: cli.quiet,
