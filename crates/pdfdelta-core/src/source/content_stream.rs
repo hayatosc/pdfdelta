@@ -857,7 +857,8 @@ impl<'a> Extraction<'a> {
                         self.issues.truncate(issue_start);
                         self.render_order = render_order;
                         self.issues.push(ExtractionIssue::from_error(
-                            ExtractionScope::GlyphGap {
+                            ExtractionScope::PageGlyphGap {
+                                page,
                                 retained_before: glyph_start,
                             },
                             error,

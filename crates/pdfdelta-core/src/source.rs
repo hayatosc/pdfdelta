@@ -140,6 +140,13 @@ pub enum ExtractionScope {
     GlyphGap {
         retained_before: usize,
     },
+    /// A failed invocation on a known page, retaining its extraction boundary.
+    /// Unlike [`Self::Page`], other glyphs on this page may remain available.
+    /// The page comes from the extractor, not from the neighboring glyphs.
+    PageGlyphGap {
+        page: PageId,
+        retained_before: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -253,14 +260,15 @@ impl ExtractionOutcome {
                 ExtractionScope::Page(_) => {}
                 ExtractionScope::PageGap { .. } => {}
                 ExtractionScope::GlyphGap { retained_before }
-                    if retained_before > document.items().len() =>
-                {
+                | ExtractionScope::PageGlyphGap {
+                    retained_before, ..
+                } if retained_before > document.items().len() => {
                     return Err(Error::InvalidConfiguration(format!(
                         "extraction glyph gap boundary {retained_before} exceeds the retained glyph count {}",
                         document.items().len()
                     )));
                 }
-                ExtractionScope::GlyphGap { .. } => {}
+                ExtractionScope::GlyphGap { .. } | ExtractionScope::PageGlyphGap { .. } => {}
             }
         }
         if let Some(glyph) = document

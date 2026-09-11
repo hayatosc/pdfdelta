@@ -126,6 +126,14 @@ impl EvidenceStore {
                     ExtractionScope::GlyphGap { retained_before } => Some(
                         super::EvidenceBoundary::glyph_gap(&native, retained_before)?,
                     ),
+                    ExtractionScope::PageGlyphGap {
+                        page,
+                        retained_before,
+                    } => Some(super::EvidenceBoundary::page_glyph_gap(
+                        &native,
+                        page,
+                        retained_before,
+                    )?),
                     ExtractionScope::PageGap { retained_before } => {
                         Some(super::EvidenceBoundary::page_gap(&pages, retained_before)?)
                     }

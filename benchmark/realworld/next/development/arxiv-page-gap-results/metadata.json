@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "parent_commit": "56951a3",
+  "implementation_note": "Working-tree release build with known-page Form gaps; hashes bind the exact production sources. The final commit also includes fixtures and evaluation records.",
+  "binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+  "source_sha256": {
+    "crates/pdfdelta-core/src/document/evidence.rs": "99b0c15992a7d856ec38e617e4e3e93141cf59510ff785468890e00796d6a8c1",
+    "crates/pdfdelta-core/src/document/extraction_dependencies.rs": "0966ea711c4b9d1cccb6a3a4aaaf35917055f6ff7db32c0afaba92e05446f870",
+    "crates/pdfdelta-core/src/document/native.rs": "1517fbac6fbfcf4e4b639feadf0e64f5327ce818c8bce4f1f955c00ff90edeb9",
+    "crates/pdfdelta-core/src/pipeline.rs": "b2a3c7edf72a43b9f994887fb474bd4e33c5f66097cfe6539512074733e0c22c",
+    "crates/pdfdelta-core/src/report/json.rs": "fcfd188f0cb424bd19d4e833b7b9eef61ec9a1550591595e43a10f9e29c0d7de",
+    "crates/pdfdelta-core/src/report/text.rs": "90dff93a3798550a4e39531b00d8bca99cd576c2f6576ae70180beef38262c98",
+    "crates/pdfdelta-core/src/source.rs": "939b17151097bcf8acd8a7f70f1c07192cd961dbb83981eb663aa0dd7d166c15",
+    "crates/pdfdelta-core/src/source/content_stream.rs": "31791ccf330d3937517383df47efc0d1998eafe0b23808a335e9ce1d8cb46830"
+  },
+  "inputs_sha256": "ccfc3fab3fe4659f90259c1a05f29e05a1f20ee48b677db63de25958a84d2f60",
+  "annotations": {
+    "arxiv-ddpm-v1-to-v2.expectations.json": "bf05ab7e7b10e0dd33379e3c216d137bbeea6cbcf46635b3dca9c775dfcf2a1f",
+    "arxiv-bert-v1-to-v2.expectations.json": "5f9cdbfd030afc58afb26d0cfccdb9392301aed0e2072cbe984f920e82ece9e3"
+  },
+  "time_note": "Single functional captures, some overlapping workspace checks; no isolated speedup estimate.",
+  "memory_unit": "GNU time peak process RSS in KiB, not allocator live memory"
+}

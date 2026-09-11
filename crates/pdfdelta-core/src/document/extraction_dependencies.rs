@@ -59,6 +59,9 @@ impl Gaps {
             match issue.boundary {
                 Some(EvidenceBoundary::GlyphGap {
                     retained_before, ..
+                })
+                | Some(EvidenceBoundary::PageGlyphGap {
+                    retained_before, ..
                 }) => result.glyph_gaps.push((retained_before, index)),
                 Some(EvidenceBoundary::PageGap {
                     retained_before, ..

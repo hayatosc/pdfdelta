@@ -221,6 +221,14 @@ pub enum EvidenceBoundary {
         before: Option<GlyphId>,
         after: Option<GlyphId>,
     },
+    /// The extractor identified the failed invocation's page independently of
+    /// retained neighbors, which may lie on different pages or be absent.
+    PageGlyphGap {
+        page: PageId,
+        retained_before: usize,
+        before: Option<GlyphId>,
+        after: Option<GlyphId>,
+    },
     PageGap {
         retained_before: usize,
         before: Option<PageId>,
@@ -230,6 +238,9 @@ pub enum EvidenceBoundary {
 
 impl EvidenceBoundary {
     pub(super) fn page_scope(&self, native: &Document<Glyph>) -> Option<PageId> {
+        if let Self::PageGlyphGap { page, .. } = self {
+            return Some(*page);
+        }
         let Self::GlyphGap {
             retained_before, ..
         } = self
@@ -268,6 +279,22 @@ impl EvidenceBoundary {
                 .and_then(|index| pages.get(index))
                 .map(|page| page.page),
             after: pages.get(retained_before).map(|page| page.page),
+        })
+    }
+
+    pub(super) fn page_glyph_gap(
+        native: &Document<Glyph>,
+        page: PageId,
+        retained_before: usize,
+    ) -> Result<Self> {
+        let Self::GlyphGap { before, after, .. } = Self::glyph_gap(native, retained_before)? else {
+            unreachable!()
+        };
+        Ok(Self::PageGlyphGap {
+            page,
+            retained_before,
+            before,
+            after,
         })
     }
 }
@@ -799,6 +826,11 @@ impl EvidenceStore {
                     EvidenceBoundary::GlyphGap {
                         retained_before, ..
                     } => EvidenceBoundary::glyph_gap(&self.native, *retained_before)?,
+                    EvidenceBoundary::PageGlyphGap {
+                        page,
+                        retained_before,
+                        ..
+                    } => EvidenceBoundary::page_glyph_gap(&self.native, *page, *retained_before)?,
                     EvidenceBoundary::PageGap {
                         retained_before, ..
                     } => EvidenceBoundary::page_gap(&self.pages, *retained_before)?,

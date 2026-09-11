@@ -1322,7 +1322,10 @@ fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<(
     assert_eq!(outcome.issues().len(), 1);
     assert_eq!(
         outcome.issues()[0].scope(),
-        ExtractionScope::GlyphGap { retained_before: 1 }
+        ExtractionScope::PageGlyphGap {
+            page: PageId(0),
+            retained_before: 1
+        }
     );
     assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unresolved);
     let before = outcome.document().items()[0].id;
@@ -1345,12 +1348,101 @@ fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<(
     )?;
     assert_eq!(
         store.issues[0].boundary,
-        Some(pdfdelta_core::document::EvidenceBoundary::GlyphGap {
+        Some(pdfdelta_core::document::EvidenceBoundary::PageGlyphGap {
+            page: PageId(0),
             retained_before: 1,
             before: Some(before),
             after: Some(after),
         })
     );
+    Ok(())
+}
+
+#[test]
+fn failed_form_at_a_page_edge_does_not_poison_other_page_inventories() -> Result<()> {
+    use pdfdelta_core::document::{
+        BackendIdentity, BackendKind, Channel, EvidenceBoundary, EvidenceStore, PageEvidence,
+    };
+
+    for prefix in ["", "BT /F1 10 Tf 10 20 Td (A) Tj ET "] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let form = pdf.add_object(Stream::new(
+            dictionary! {
+                "Type" => "XObject", "Subtype" => "Form",
+                "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+            },
+            b"UnsupportedOperator".to_vec(),
+        ));
+        let failed = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("{prefix}/Bad Do").into_bytes(),
+        ));
+        let unaffected = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 10 20 Td (B) Tj ET".to_vec(),
+        ));
+        install_plain_pages(
+            &mut pdf,
+            &[failed.into(), unaffected.into()],
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "Bad" => form },
+            }),
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        let retained_before = usize::from(!prefix.is_empty());
+        assert_eq!(
+            outcome.issues()[0].scope(),
+            ExtractionScope::PageGlyphGap {
+                page: PageId(0),
+                retained_before,
+            }
+        );
+        let before = retained_before
+            .checked_sub(1)
+            .map(|i| outcome.document().items()[i].id);
+        let after = Some(outcome.document().items()[retained_before].id);
+        let mut store = EvidenceStore::from_native(
+            "page-edge-form".into(),
+            BackendIdentity {
+                kind: BackendKind::NativeParser,
+                name: "fixture".into(),
+                version: "1".into(),
+                profile: "raw".into(),
+                model: None,
+            },
+            vec![
+                PageEvidence {
+                    page: PageId(0),
+                    bounds: None,
+                },
+                PageEvidence {
+                    page: PageId(1),
+                    bounds: None,
+                },
+            ],
+            outcome,
+            Default::default(),
+        )?;
+        assert_eq!(
+            store.issues[0].boundary,
+            Some(EvidenceBoundary::PageGlyphGap {
+                page: PageId(0),
+                retained_before,
+                before,
+                after,
+            })
+        );
+        assert!(!store.inventory_complete(None, Channel::Text));
+        assert!(!store.inventory_complete(Some(PageId(0)), Channel::Text));
+        assert!(store.inventory_complete(Some(PageId(1)), Channel::Text));
+        let roundtrip: EvidenceStore =
+            serde_json::from_slice(&serde_json::to_vec(&store).expect("serialize"))
+                .expect("deserialize");
+        roundtrip.validate(Default::default())?;
+        store.issues[0].page = Some(PageId(1));
+        assert!(store.validate(Default::default()).is_err());
+    }
     Ok(())
 }
 
@@ -1466,7 +1558,10 @@ fn enclosing_form_failure_discards_nested_gap_and_preserves_page_suffix() -> Res
     assert_eq!(outcome.issues().len(), 1);
     assert_eq!(
         outcome.issues()[0].scope(),
-        ExtractionScope::GlyphGap { retained_before: 1 }
+        ExtractionScope::PageGlyphGap {
+            page: PageId(0),
+            retained_before: 1
+        }
     );
     assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
     Ok(())

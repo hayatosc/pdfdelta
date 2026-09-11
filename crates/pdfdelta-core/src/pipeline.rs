@@ -1145,9 +1145,10 @@ fn localized_issue_boundary(issue: &ExtractionIssue) -> Option<LocalizedIssueBou
         ExtractionScope::PageGap { retained_before } => {
             Some(LocalizedIssueBoundary::Page(retained_before))
         }
-        ExtractionScope::GlyphGap { retained_before } => {
-            Some(LocalizedIssueBoundary::Glyph(retained_before))
-        }
+        ExtractionScope::GlyphGap { retained_before }
+        | ExtractionScope::PageGlyphGap {
+            retained_before, ..
+        } => Some(LocalizedIssueBoundary::Glyph(retained_before)),
         ExtractionScope::Document => None,
     }
 }

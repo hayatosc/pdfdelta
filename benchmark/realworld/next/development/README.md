@@ -80,6 +80,12 @@ case and one glyph-mapping case with unchanged visible inequalities. Those posth
 judgments do not enlarge the preregistered recall denominator or imply blind
 validation. The two shared routes reuse the same eight predictions.
 
-The other 22 pairs still need source references and have not been compared.
+`arxiv-page-gap-results/` adds preregistered DDPM and BERT references and baseline
+comparisons. Preserving the known page of a failed Form enables 39 DDPM B reviews,
+including one independently inspected ID-free funding paragraph; the frozen
+first-page targets are still missed. Posthoc recovery and native-route results
+remain separate from preregistered shared-route recall.
+
+The other 20 pairs still need source references and have not been compared.
 Concrete vertical/ruby/scan/overpaint traits and the remaining evaluation
 denominators are not established by family labels.

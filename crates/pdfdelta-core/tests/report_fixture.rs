@@ -574,7 +574,7 @@ fn reports_page_tree_gap_scope_without_synthesizing_a_page() -> Result<()> {
 
 #[test]
 fn reports_localized_glyph_gap_scope() -> Result<()> {
-    let extraction = ExtractionStatus {
+    let mut extraction = ExtractionStatus {
         old_complete: false,
         new_complete: true,
         issues: vec![ExtractionIssueRecord {
@@ -600,6 +600,18 @@ fn reports_localized_glyph_gap_scope() -> Result<()> {
     assert_eq!(json["extraction"]["issues"][0]["scope"], "glyph_gap");
     assert_eq!(json["extraction"]["issues"][0]["retained_glyphs_before"], 3);
     assert!(json["extraction"]["issues"][0].get("page").is_none());
+    extraction.issues[0].scope = ExtractionScope::PageGlyphGap {
+        page: PageId(2),
+        retained_before: 3,
+    };
+    output.clear();
+    write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("known-page report");
+    assert_eq!(json["extraction"]["issues"][0]["scope"], "glyph_gap");
+    assert_eq!(json["extraction"]["issues"][0]["page"], 2);
+    assert_eq!(json["extraction"]["issues"][0]["retained_glyphs_before"], 3);
+    let text = render_text(&[], &[], &comparison, &extraction, &plain_options())?;
+    assert!(text.contains("scope=glyph-gap, page=3, retained-glyphs-before=3"));
     Ok(())
 }
 

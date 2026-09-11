@@ -353,6 +353,10 @@ fn native_gap_boundaries_preserve_neighbors_without_inventing_missing_sources() 
             );
             assert!(store.issues[0].sources.is_empty());
             assert!(!store.inventory_complete(None, Channel::Text));
+            if cross_page {
+                assert!(!store.inventory_complete(Some(PageId(0)), Channel::Text));
+                assert!(!store.inventory_complete(Some(PageId(1)), Channel::Text));
+            }
             let roundtrip: EvidenceStore =
                 serde_json::from_slice(&serde_json::to_vec(&store).expect("serialize"))
                     .expect("deserialize");

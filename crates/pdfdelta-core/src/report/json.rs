@@ -490,22 +490,29 @@ impl<'a> JsonExtraction<'a> {
                         ExtractionScope::Document => "document",
                         ExtractionScope::Page(_) => "page",
                         ExtractionScope::PageGap { .. } => "page_gap",
-                        ExtractionScope::GlyphGap { .. } => "glyph_gap",
+                        ExtractionScope::GlyphGap { .. } | ExtractionScope::PageGlyphGap { .. } => {
+                            "glyph_gap"
+                        }
                     },
                     page: match issue.scope {
                         ExtractionScope::Document
                         | ExtractionScope::PageGap { .. }
                         | ExtractionScope::GlyphGap { .. } => None,
-                        ExtractionScope::Page(page) => Some(page.0),
+                        ExtractionScope::Page(page)
+                        | ExtractionScope::PageGlyphGap { page, .. } => Some(page.0),
                     },
                     retained_pages_before: match issue.scope {
                         ExtractionScope::PageGap { retained_before } => Some(retained_before),
                         ExtractionScope::Document
                         | ExtractionScope::Page(_)
-                        | ExtractionScope::GlyphGap { .. } => None,
+                        | ExtractionScope::GlyphGap { .. }
+                        | ExtractionScope::PageGlyphGap { .. } => None,
                     },
                     retained_glyphs_before: match issue.scope {
-                        ExtractionScope::GlyphGap { retained_before } => Some(retained_before),
+                        ExtractionScope::GlyphGap { retained_before }
+                        | ExtractionScope::PageGlyphGap {
+                            retained_before, ..
+                        } => Some(retained_before),
                         ExtractionScope::Document
                         | ExtractionScope::Page(_)
                         | ExtractionScope::PageGap { .. } => None,
