@@ -57,8 +57,9 @@ pub enum SpanSourceEvidence {
 ///
 /// # Errors
 ///
-/// Returns an error for duplicate or missing evidence, inconsistent canonical
-/// and comparable ranges, malformed normalization events, or a resource limit.
+/// Returns an error for duplicate or missing evidence, non-finite glyph
+/// geometry, inconsistent canonical and comparable ranges, malformed
+/// normalization events, or a resource limit.
 pub fn project_span_sources(
     blocks: &[BlockText],
     glyph_evidence: &[GlyphEvidence],
@@ -104,12 +105,13 @@ pub struct SpanSourceProjector<'a> {
 }
 
 impl<'a> SpanSourceProjector<'a> {
-    /// Builds indexes after validating all block and glyph ids.
+    /// Builds indexes after validating all block and glyph ids and glyph
+    /// geometry.
     ///
     /// # Errors
     ///
-    /// Returns an error for duplicate ids, invalid limits, or allocation and
-    /// configured resource limits.
+    /// Returns an error for duplicate ids, non-finite geometry, invalid limits,
+    /// or allocation and configured resource limits.
     pub fn new(
         blocks: &'a [BlockText],
         glyph_evidence: &'a [GlyphEvidence],
@@ -130,6 +132,21 @@ impl<'a> SpanSourceProjector<'a> {
             glyph_evidence.len(),
             limits.max_evidence_items,
         )?;
+        for glyph in glyph_evidence {
+            for (field, value) in [
+                ("bbox.min.x", glyph.bbox.min.x),
+                ("bbox.min.y", glyph.bbox.min.y),
+                ("bbox.max.x", glyph.bbox.max.x),
+                ("bbox.max.y", glyph.bbox.max.y),
+            ] {
+                if !value.is_finite() {
+                    return Err(Error::InvalidConfiguration(format!(
+                        "glyph {} has non-finite {field}: {value}",
+                        glyph.id.0
+                    )));
+                }
+            }
+        }
 
         let mut indexed_blocks = HashMap::new();
         reserve(
@@ -814,5 +831,43 @@ fn evidence_limit(limits: SpanSourceProjectionLimits) -> Error {
     Error::LimitExceeded {
         resource: "span source evidence",
         limit: limits.max_evidence_items,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{GlyphProvenance, Vec2};
+
+    #[test]
+    fn rejects_non_finite_glyph_geometry() {
+        let glyph = GlyphEvidence {
+            id: GlyphId(0),
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 {
+                    x: f64::NAN,
+                    y: 0.0,
+                },
+                max: Vec2 { x: 1.0, y: 1.0 },
+            },
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: 0,
+            },
+        };
+
+        let error = SpanSourceProjector::new(&[], &[glyph], SpanSourceProjectionLimits::default())
+            .err()
+            .expect("non-finite geometry must not enter a report");
+
+        assert!(matches!(
+            error,
+            Error::InvalidConfiguration(message)
+                if message.contains("glyph 0 has non-finite bbox.min.x")
+        ));
     }
 }
