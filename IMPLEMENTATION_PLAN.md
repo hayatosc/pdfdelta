@@ -112,7 +112,7 @@ Core module names below refer to
 | Evidence and selected-channel contract | `document/evidence.rs`, `native.rs`, `providers.rs`; workspace evidence fixtures and actual image-only CLI controls retain unknown channels and distinct native/rendered/structured references. Paint-order, outlined-text, and worker-failure controls are recorded below. | Unsupported visibility and recognition keep inventories incomplete; native extraction alone does not prove visible-content coverage. |
 | Reversible structure and correspondence feedback | Graph alternatives, shared grid installation, counterpart-axis refinement, and source dependencies are implemented. Eleven table fixtures and a frozen 384-pair external matrix cover mixed native blocks, border removal, header changes, swaps, and presentation changes. | General structural-model integration and broader segmentation interpretations are not established by that matrix. |
 | Common solver and local comparison | Matching/group/operation fixtures cover split/merge, duplicate keys, source conflicts, bounded search, typed memberships, and exact local masks. The CLI exercises native text, table cells, form values/appearances, and rendered changes. Relationship and independent-failure controls are recorded below. | Declared relation comparisons do not prove automatic relationship discovery; inferred table change-unit recall does not prove row identity. |
-| Recognition and appearance | Both opt-in release integration tests pass with the recorded local RTen models: independent native/image text changes and widget-reading disagreements retain distinct evidence and literal stored values. | Broader OCR accuracy is unproven; predictions remain inferred and cannot establish complete recognition. |
+| Recognition and appearance | Externally supplied recognition evidence is validated against raster grounding in `recognition_evidence_fixture.rs`; widget-reading disagreements retain distinct evidence and literal stored values. The Latin OCR path and its local models were removed, so no integration test exercises a recognition provider. | Broader OCR accuracy is unproven; predictions remain inferred and cannot establish complete recognition. |
 | Direction and external producers | New vendored Tectonic Japanese vertical controls pass the real extraction/graph/solver/report path: movement preserves all 14 text sources, and a quantity change retains the exact inserted native source mask under inferred correspondence. | Multiple vertical columns, ruby, and full visual interpretation remain unproven. |
 | Evaluation and final gates | Workspace tests, all-target Clippy, and formatting pass after the native-worker partial-write correction. The five initial native acceptance cases remain in the workspace suite. Dated frozen-corpus and worker-matrix captures are linked below; prose and OCR results are retained in the results README. | Captures identify their executable versions. The native regression is not a multi-channel evaluation, matrix inference is not whole-document completion, and unavailable measurements remain unavailable. |
 
@@ -160,10 +160,9 @@ a mixed native/path fixture retains all 39 glyphs per side and detects its singl
 native quantity change. These markers establish acquisition coverage behavior,
 not recognition of arbitrary painted content.
 
-The expanded paint acquisition passes the workspace gates and both opt-in local
-OCR integration tests. Replaying the frozen external table matrix preserves all
-512 inferred change units across 384 pairs with zero false positives or misses;
-all pairs remain incomplete. The
+The expanded paint acquisition passes the workspace gates. Replaying the frozen
+external table matrix preserves 512 inferred change units across 384 pairs with
+zero false positives or misses; all pairs remain incomplete. The
 [paint-acquisition summary](benchmark/realworld/results/2026-09-09-paint-acquisition.json)
 records immutable executable/manifest identities, conditional and inferred scores,
 per-channel source coverage, and execution cost. These development controls do
@@ -173,7 +172,7 @@ not independently validate correspondence or character masks.
 
 The execution audit found native parsing/extraction inside the parent CLI. The
 selected-channel path now uses `native_worker.rs`, reusing the process runner
-and Linux restrictions already used by rendering and OCR.
+and Linux restrictions already used by rendering.
 
 - Move parsing, extraction, fields, and tags into internal workers. Pass PDF
   bytes and private options through bounded stdin and return neutral evidence.
@@ -185,7 +184,7 @@ and Linux restrictions already used by rendering and OCR.
 - Reuse the process runner and restrictions, bound serialized requests/results,
   validate returned evidence, and preserve backend/profile identities.
 - Verify actual worker execution, malformed/truncated responses, termination,
-  independent field results, and existing cache/password/CLI/OCR behavior.
+  independent field results, and existing cache/password/CLI behavior.
 
 These choices follow the existing local execution and incomplete-result
 contracts; no external service or document upload is involved.
@@ -194,7 +193,7 @@ The actual CLI array-limit fixture retains page metadata, reports the native tex
 resource failure, and compares an independent stored-field change. Worker tests
 reject malformed/oversized requests and wrong input/page/role responses. Encrypted
 cold/warm-cache comparisons agree and wrong passwords cannot reuse cached results.
-Workspace gates and both local OCR integration tests pass. A 384-pair external
-table replay retains 512 inferred matches with zero false positives or misses.
+Workspace gates pass. A 384-pair external table replay retains 512 inferred
+matches with zero false positives or misses.
 The shared serialization ceiling also handles partial writes without charging
 unwritten bytes; its focused regression and workspace gates pass.
