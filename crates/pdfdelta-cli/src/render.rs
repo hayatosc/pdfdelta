@@ -270,6 +270,15 @@ pub fn run_bounded(
                 "render output thread failed".into(),
             )
         })?;
+        let output = output.map_err(failure)?;
+        // A blocking oversized writer would otherwise be killed at the parent
+        // deadline and misreported as a deadline exhaustion.
+        if output.len() > max_output {
+            return Err((
+                EvidenceFailure::BackendFailure,
+                "oversized evidence response".into(),
+            ));
+        }
         let status = status?;
         if !status.success() {
             let kind = match status.code() {
@@ -284,13 +293,6 @@ pub fn run_bounded(
             ));
         }
         written.map_err(failure)?;
-        let output = output.map_err(failure)?;
-        if output.len() > max_output {
-            return Err((
-                EvidenceFailure::BackendFailure,
-                "oversized evidence response".into(),
-            ));
-        }
         Ok(output)
     })
 }
@@ -448,5 +450,17 @@ mod tests {
         let error = run_bounded(&mut command, &[], 64, Duration::from_secs(5))
             .expect_err("a cpu-exhausted worker must not be reported as healthy");
         assert_eq!(error.0, EvidenceFailure::ResourceLimit);
+    }
+
+    #[test]
+    fn blocking_oversized_output_is_not_reported_as_a_deadline() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "yes 1234567890"]);
+        let started = Instant::now();
+        let error = run_bounded(&mut command, &[], 8, Duration::from_secs(5))
+            .expect_err("unbounded output must not be returned");
+        assert_eq!(error.0, EvidenceFailure::BackendFailure);
+        assert!(error.1.contains("oversized"), "{}", error.1);
+        assert!(started.elapsed() < Duration::from_secs(5));
     }
 }
