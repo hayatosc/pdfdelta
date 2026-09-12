@@ -1119,6 +1119,11 @@ pub fn hash_file(path: &Path) -> Result<String> {
 /// existing artifact.
 pub fn write_reproducible_artifact(path: &Path, artifact: &ReproducibleArtifact) -> Result<()> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
     if !parent.is_dir() {
         return Err(BenchError::Publication(format!(
             "artifact parent directory does not exist: {}",
@@ -1140,6 +1145,10 @@ pub fn write_reproducible_artifact(path: &Path, artifact: &ReproducibleArtifact)
                 path.display()
             ))
         })?;
+    let mut bytes = serde_json::to_vec_pretty(artifact).map_err(|error| {
+        BenchError::Publication(format!("cannot serialize reproducible artifact: {error}"))
+    })?;
+    bytes.push(b'\n');
     let temp_path = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
     let mut file = OpenOptions::new()
         .write(true)
@@ -1148,10 +1157,6 @@ pub fn write_reproducible_artifact(path: &Path, artifact: &ReproducibleArtifact)
         .map_err(|error| {
             BenchError::Publication(format!("cannot create temporary artifact: {error}"))
         })?;
-    let mut bytes = serde_json::to_vec_pretty(artifact).map_err(|error| {
-        BenchError::Publication(format!("cannot serialize reproducible artifact: {error}"))
-    })?;
-    bytes.push(b'\n');
     let result = (|| -> Result<()> {
         file.write_all(&bytes).map_err(|error| {
             BenchError::Publication(format!("cannot write temporary artifact: {error}"))
@@ -1191,6 +1196,23 @@ mod tests {
             tuning_use,
             old_sha256: old_sha256.to_owned(),
             new_sha256: new_sha256.to_owned(),
+        }
+    }
+
+    fn artifact() -> ReproducibleArtifact {
+        ReproducibleArtifact {
+            schema_version: EVALUATION_SCHEMA_VERSION,
+            command: vec!["pdfbench".to_owned()],
+            manifest_sha256: sha256_hex(b"manifest"),
+            annotation_sha256: sha256_hex(b"annotation"),
+            policy_sha256: sha256_hex(b"policy"),
+            corpus_sha256: sha256_hex(b"corpus"),
+            source_revision: "test".to_owned(),
+            options: BTreeMap::new(),
+            baselines: Vec::new(),
+            raw_result_path: "raw.json".to_owned(),
+            raw_result_sha256: sha256_hex(b"raw"),
+            summary_sha256: None,
         }
     }
 
@@ -1570,22 +1592,23 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("temporary root");
         let path = root.join("run.json");
-        let artifact = ReproducibleArtifact {
-            schema_version: EVALUATION_SCHEMA_VERSION,
-            command: vec!["pdfbench".to_owned()],
-            manifest_sha256: sha256_hex(b"manifest"),
-            annotation_sha256: sha256_hex(b"annotation"),
-            policy_sha256: sha256_hex(b"policy"),
-            corpus_sha256: sha256_hex(b"corpus"),
-            source_revision: "test".to_owned(),
-            options: BTreeMap::new(),
-            baselines: Vec::new(),
-            raw_result_path: "raw.json".to_owned(),
-            raw_result_sha256: sha256_hex(b"raw"),
-            summary_sha256: None,
-        };
-        write_reproducible_artifact(&path, &artifact).expect("publish artifact");
-        assert!(write_reproducible_artifact(&path, &artifact).is_err());
+        write_reproducible_artifact(&path, &artifact()).expect("publish artifact");
+        assert!(write_reproducible_artifact(&path, &artifact()).is_err());
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn reproducible_artifact_accepts_a_relative_destination() {
+        let name = format!(
+            "pdfbench-relative-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        );
+        write_reproducible_artifact(Path::new(&name), &artifact())
+            .expect("a bare file name resolves against the working directory");
+        let _ = fs::remove_file(&name);
     }
 }
