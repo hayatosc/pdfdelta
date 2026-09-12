@@ -32,6 +32,8 @@ pub(crate) fn is_bidi_control(ch: char) -> bool {
         '\u{061c}'
             | '\u{200e}'
             | '\u{200f}'
+            | '\u{2028}'
+            | '\u{2029}'
             | '\u{202a}'..='\u{202e}'
             | '\u{2066}'..='\u{2069}'
     )
@@ -365,6 +367,12 @@ mod tests {
         assert!(text.contains("\\n"));
         assert!(preview(&"界".repeat(MAX_PREVIEW_CHARS + 1)).ends_with(" [truncated]"));
         assert_eq!(preview("日本語"), "日本語");
+    }
+
+    #[test]
+    fn terminal_escaping_covers_line_and_paragraph_separators() {
+        assert_eq!(escape_terminal_controls("\u{2028}"), "\\u{2028}");
+        assert_eq!(escape_terminal_controls("\u{2029}"), "\\u{2029}");
     }
 
     #[test]
