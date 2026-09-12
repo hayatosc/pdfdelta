@@ -87,6 +87,13 @@ pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, In
 }
 
 pub fn read_password_file(path: &Path) -> Result<String, String> {
+    if path == Path::new("-") {
+        // Standard input carries PDF bytes; reading a password from it would
+        // silently consume the document instead, so the collision is rejected.
+        return Err(
+            "cannot read password file -: standard input is reserved for PDF input".to_owned(),
+        );
+    }
     let bytes = read_limited_typed(path, MAX_PASSWORD_FILE_BYTES)
         .map_err(|error| format!("cannot read password file {}: {error}", path.display()))?;
     let mut bytes = bytes.as_ref();

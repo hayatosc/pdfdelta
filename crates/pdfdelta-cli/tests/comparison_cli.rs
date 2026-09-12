@@ -606,6 +606,21 @@ fn rejects_oversized_password_files() {
 }
 
 #[test]
+fn rejects_standard_input_password_files() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &["--old-password-file", "-"]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let message = stderr(&output);
+    assert!(message.contains("standard input is reserved"), "{message}");
+}
+
+#[test]
 fn page_break_only_exits_zero() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
