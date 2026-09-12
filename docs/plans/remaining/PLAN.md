@@ -1,6 +1,6 @@
 # Complete the remaining source-backed recovery gates
 
-Status: active; no gate achievement claimed.
+Status: full goal stopped unmet; bounded follow-up completed. No gate achievement claimed.
 Execution started 2026-09-11 14:23:15 UTC; hard stop 2026-09-12 02:23:15 UTC.
 The user authorized this plan and its execution through the new goal contract.
 This Markdown is the execution source of truth; [PLAN.html](PLAN.html) explains it.
@@ -506,3 +506,26 @@ and never mark success before all gates pass. Do not publish externally.
   (two ignored) and 48/48 generated fixtures. This protects the verified units;
   it does not establish the missing six-pair recovery, new blind evaluation or
   whole-document completion goals. No external publication was performed.
+
+### 2026-09-12 15:14 UTC: bounded follow-up for native adjacency discovery
+
+- The user authorized one coherent follow-up unit and a commit. The saved
+  adjacency experiment is now implemented: native run endpoints may connect
+  across a missing layout edge when page geometry and render order agree.
+  Existing competing edges and tied nearest candidates are rejected. These
+  additional edges are discovery paths only; unchanged correspondence anchors,
+  complete source-band checks and bounded-paint checks remain mandatory for B.
+  Strict ownership and source masks are unchanged.
+- Exhaustive endpoint scans spent too much of the unchanged ownership budget.
+  The fixed Mask sources contain 904 old and 1166 new endpoints. A page index,
+  vertical ordering and nearest-candidate termination avoid impossible and
+  farther pairs. Sorting, searching and candidate visits remain budgeted.
+- `remaining/spatial-bridge-pilot.json` binds the build, five same-budget PDF
+  captures, source review and check logs. The existing EDPB target remains
+  recovered. Mask, Faster R-CNN, BERT and GPT-3 target counts remain zero, and
+  no whole-document completion gain is claimed. Other B outputs still require
+  adjudication; this follow-up does not satisfy the stopped full goal.
+- The regression covers missing adjacency, omitted in-band glyphs, reversed
+  render order, competing edges and an independent rotated margin. Format,
+  Clippy and all 2345 workspace tests pass (two ignored); generated fixtures
+  pass 48/48. This verified unit is the requested stopping point.

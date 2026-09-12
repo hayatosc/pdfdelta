@@ -69,6 +69,7 @@ pub(super) fn external_continuation(
 pub(super) fn runs<'a>(
     view: DocumentView<'a>,
     root: NodeId,
+    sources: &Sources<'a>,
     limits: DocumentComparisonLimits,
     remaining: &mut usize,
 ) -> Result<Vec<Vec<&'a GraphNode>>> {
@@ -114,6 +115,12 @@ pub(super) fn runs<'a>(
             blocked.insert(node);
         }
     }
+    if sources
+        .bridge_runs(&nodes, &blocked, &mut next, &mut previous, remaining)
+        .is_none()
+    {
+        return Ok(Vec::new());
+    }
     let mut runs = Vec::new();
     let mut visited = BTreeSet::new();
     for &start in nodes.keys() {
@@ -145,7 +152,150 @@ pub(super) struct Sources<'a> {
     pages: BTreeMap<PageId, Vec<&'a Glyph>>,
 }
 
+struct NodeGeometry {
+    page: PageId,
+    bounds: Rect,
+    first_render: u32,
+    last_render: u32,
+}
+
 impl<'a> Sources<'a> {
+    fn geometry(&self, node: &GraphNode) -> Option<NodeGeometry> {
+        let [page] = node.pages.as_slice() else {
+            return None;
+        };
+        let mut geometry = None::<NodeGeometry>;
+        for source in &node.sources {
+            let SourceRef::Native { glyph } = source else {
+                return None;
+            };
+            let glyph = self.glyphs.get(glyph)?;
+            if glyph.page != *page || glyph.direction != (Vec2 { x: 1.0, y: 0.0 }) {
+                return None;
+            }
+            if let Some(current) = &mut geometry {
+                current.bounds.min.x = current.bounds.min.x.min(glyph.bbox.min.x);
+                current.bounds.min.y = current.bounds.min.y.min(glyph.bbox.min.y);
+                current.bounds.max.x = current.bounds.max.x.max(glyph.bbox.max.x);
+                current.bounds.max.y = current.bounds.max.y.max(glyph.bbox.max.y);
+                current.first_render = current.first_render.min(glyph.render_order);
+                current.last_render = current.last_render.max(glyph.render_order);
+            } else {
+                geometry = Some(NodeGeometry {
+                    page: *page,
+                    bounds: glyph.bbox,
+                    first_render: glyph.render_order,
+                    last_render: glyph.render_order,
+                });
+            }
+        }
+        geometry
+    }
+
+    fn bridge_runs(
+        &self,
+        nodes: &BTreeMap<NodeId, &GraphNode>,
+        blocked: &BTreeSet<NodeId>,
+        next: &mut BTreeMap<NodeId, BTreeSet<NodeId>>,
+        previous: &mut BTreeMap<NodeId, BTreeSet<NodeId>>,
+        remaining: &mut usize,
+    ) -> Option<()> {
+        let mut geometry = BTreeMap::new();
+        let mut page_nodes = BTreeMap::<PageId, Vec<NodeId>>::new();
+        for (&id, node) in nodes {
+            if blocked.contains(&id) || (next.contains_key(&id) && previous.contains_key(&id)) {
+                continue;
+            }
+            spend(remaining, node.sources.len())?;
+            if let Some(bounds) = self.geometry(node) {
+                if !previous.contains_key(&id) {
+                    page_nodes.entry(bounds.page).or_default().push(id);
+                }
+                geometry.insert(id, bounds);
+            }
+        }
+        for ids in page_nodes.values_mut() {
+            let mut work = 0usize;
+            ids.sort_by(|a, b| {
+                work += 1;
+                geometry[b]
+                    .bounds
+                    .max
+                    .y
+                    .total_cmp(&geometry[a].bounds.max.y)
+            });
+            spend(remaining, work)?;
+        }
+        let mut proposals = BTreeMap::<NodeId, Vec<NodeId>>::new();
+        // Cross-page endpoints cannot be adjacent here. The page index avoids
+        // spending the discovery budget on those impossible pairs.
+        for (&from, a) in &geometry {
+            if next.contains_key(&from) {
+                continue;
+            }
+            let mut best = None::<(NodeId, f64)>;
+            let mut tied = false;
+            let Some(starts) = page_nodes.get(&a.page) else {
+                continue;
+            };
+            let mut work = 0usize;
+            let first = starts.partition_point(|id| {
+                work += 1;
+                geometry[id].bounds.max.y >= a.bounds.min.y
+            });
+            spend(remaining, work)?;
+            for &to in &starts[first..] {
+                spend(remaining, 1)?;
+                let b = &geometry[&to];
+                if best.is_some_and(|(_, top)| b.bounds.max.y < top) {
+                    break;
+                }
+                if a.last_render >= b.first_render
+                    || a.bounds.min.x >= b.bounds.max.x
+                    || a.bounds.max.x <= b.bounds.min.x
+                {
+                    continue;
+                }
+                match best {
+                    Some((_, top)) if b.bounds.max.y == top => tied = true,
+                    _ => {
+                        best = Some((to, b.bounds.max.y));
+                        tied = false;
+                    }
+                }
+            }
+            if let Some((to, _)) = best
+                && !tied
+            {
+                proposals.entry(to).or_default().push(from);
+            }
+        }
+        for (to, candidates) in proposals {
+            spend(remaining, candidates.len().saturating_mul(2))?;
+            let from = candidates.iter().min_by(|a, b| {
+                geometry[a]
+                    .bounds
+                    .min
+                    .y
+                    .total_cmp(&geometry[b].bounds.min.y)
+            })?;
+            let nearest = geometry[from].bounds.min.y;
+            if candidates
+                .iter()
+                .filter(|id| geometry[id].bounds.min.y == nearest)
+                .count()
+                != 1
+            {
+                continue;
+            }
+            // These are candidate discovery edges only. The unchanged boundary
+            // checks and complete source/paint-band closure remain mandatory.
+            next.entry(*from).or_default().insert(to);
+            previous.entry(to).or_default().insert(*from);
+        }
+        Some(())
+    }
+
     pub(super) fn new(view: DocumentView<'a>, remaining: &mut usize) -> Option<Self> {
         spend(
             remaining,

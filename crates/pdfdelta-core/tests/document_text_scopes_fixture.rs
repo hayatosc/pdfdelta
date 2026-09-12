@@ -352,6 +352,54 @@ fn native_interval_does_not_report_ascii_spacing_alone_as_content() {
 }
 
 #[test]
+fn missing_layout_adjacency_needs_monotone_sources_and_a_closed_band() {
+    for mutation in 0..5 {
+        let old = fixture("a");
+        let mut new = fixture("aa");
+        new.1
+            .edges
+            .retain(|edge| !(edge.kind == EdgeKind::Precedes && edge.from == NodeId(1)));
+        match mutation {
+            1 => append_unassigned(&mut new, PageId(0), 80.0),
+            2 => {
+                let mut glyphs = new.0.native.items().to_vec();
+                glyphs["First boundary.".len()].render_order = 0;
+                new.0.native = Document::new(glyphs);
+            }
+            3 => new.1.edges.push(GraphEdge {
+                from: NodeId(1),
+                to: NodeId(3),
+                kind: EdgeKind::Precedes,
+                sources: vec![],
+                basis: ViewBasis::NativeLayout,
+            }),
+            4 => {
+                append_unassigned(&mut new, PageId(0), 80.0);
+                let mut glyphs = new.0.native.items().to_vec();
+                let margin = glyphs.last_mut().expect("margin glyph");
+                margin.bbox.min.x = -50.0;
+                margin.bbox.max.x = -40.0;
+                margin.baseline.x = -50.0;
+                margin.direction = Vec2 { x: 0.0, y: 1.0 };
+                new.0.native = Document::new(glyphs);
+            }
+            _ => {}
+        }
+        let result = compare(&old, &new);
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        assert_eq!(
+            reviews.len(),
+            usize::from(matches!(mutation, 0 | 4)),
+            "mutation {mutation}"
+        );
+        if let Some(review) = reviews.first() {
+            assert_eq!(review.old_sources.len(), 1);
+            assert_eq!(review.new_sources.len(), 2);
+        }
+    }
+}
+
+#[test]
 fn native_interval_rejects_omissions_unsafe_visibility_and_order_competitors() {
     for mutation in 0..8 {
         let old = fixture("a");

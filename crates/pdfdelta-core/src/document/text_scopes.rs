@@ -174,17 +174,26 @@ pub(super) fn append(
     }
     let mut remaining = limits.matching.max_ownership_visits;
     let scope = result.matching.scope;
-    let (left, right, native) = match (
+    let (left, right, sources) = match (
         closed_order(old, scope.old, limits, &mut remaining)?,
         closed_order(new, scope.new, limits, &mut remaining)?,
     ) {
-        (Some(left), Some(right)) => (vec![left], vec![right], false),
-        _ => (
-            native::runs(old, scope.old, limits, &mut remaining)?,
-            native::runs(new, scope.new, limits, &mut remaining)?,
-            true,
-        ),
+        (Some(left), Some(right)) => (vec![left], vec![right], None),
+        _ => {
+            let (Some(old_sources), Some(new_sources)) = (
+                native::Sources::new(old, &mut remaining),
+                native::Sources::new(new, &mut remaining),
+            ) else {
+                return Ok(());
+            };
+            (
+                native::runs(old, scope.old, &old_sources, limits, &mut remaining)?,
+                native::runs(new, scope.new, &new_sources, limits, &mut remaining)?,
+                Some((old_sources, new_sources)),
+            )
+        }
     };
+    let native = sources.is_some();
     let positions = |runs: &[Vec<&GraphNode>]| {
         runs.iter()
             .enumerate()
@@ -247,17 +256,6 @@ pub(super) fn append(
     if anchors.len() < 2 {
         return Ok(());
     }
-    let sources = if native {
-        let (Some(left), Some(right)) = (
-            native::Sources::new(old, &mut remaining),
-            native::Sources::new(new, &mut remaining),
-        ) else {
-            return Ok(());
-        };
-        Some((left, right))
-    } else {
-        None
-    };
     let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
     for pair in anchors.windows(2) {
         let [((ar0, a0), (br0, b0), first), ((ar1, a1), (br1, b1), last)] = pair else {
