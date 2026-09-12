@@ -1079,14 +1079,17 @@ pub struct ReproducibleArtifact {
     pub summary_sha256: Option<String>,
 }
 
+/// Formats bytes as lowercase hexadecimal.
+#[must_use]
+pub fn hex_digest(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 /// Hashes bytes using the same lowercase SHA-256 representation as the
 /// revision manifest.
 #[must_use]
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    hex_digest(Sha256::digest(bytes).as_slice())
 }
 
 /// Hashes a reproducibility input without accepting a directory or symlink.

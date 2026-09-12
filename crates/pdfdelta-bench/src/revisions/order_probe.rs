@@ -36,7 +36,10 @@ use super::{
     flatten_actual_changes, flatten_candidate_changes, load_expected_document, match_changes,
     token_resolution_counts,
 };
-use crate::{BenchError, Result};
+use crate::{
+    BenchError, Result,
+    evaluation::{hex_digest, sha256_hex},
+};
 
 const MAX_EXPECTED_BYTES: usize = 16 * 1024 * 1024;
 const MAX_MODEL_BYTES: usize = 64 * 1024 * 1024;
@@ -336,8 +339,8 @@ fn run(input: ProbeInput) -> Result<OrderProbeReport> {
         ParseLimits::default().max_input_bytes,
         "new PDF",
     )?;
-    let old_sha256 = sha256(&old_bytes);
-    let new_sha256 = sha256(&new_bytes);
+    let old_sha256 = sha256_hex(&old_bytes);
+    let new_sha256 = sha256_hex(&new_bytes);
     let expected = input
         .expected_path
         .as_deref()
@@ -1479,12 +1482,4 @@ fn quality_for(
             None,
         )
     }
-}
-
-fn sha256(bytes: &[u8]) -> String {
-    hex_digest(Sha256::digest(bytes).as_slice())
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

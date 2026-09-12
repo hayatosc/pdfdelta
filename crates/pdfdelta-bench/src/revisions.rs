@@ -83,7 +83,6 @@ use pdfdelta_core::{
     },
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::{
     BenchError, Result,
@@ -94,7 +93,7 @@ use crate::{
         EvaluationSummary, ExpectedChangeMatchEvaluation, ManifestProvenanceEntry,
         PROVENANCE_COLUMNS, ProvenEvaluation, QualityEvaluation, ReviewedRecallEvaluation,
         ScopedEventEvaluation, ScopedTokenEvaluation, TokenResolutionCounts, TrialStatus,
-        validate_manifest_provenance,
+        sha256_hex, validate_manifest_provenance,
     },
 };
 
@@ -6525,8 +6524,7 @@ fn verify_provenance(
             provenance.byte_count
         ));
     }
-    let digest = Sha256::digest(&bytes);
-    let actual: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    let actual = sha256_hex(&bytes);
     if actual != provenance.sha256 {
         return Err(format!(
             "{side} download {} has sha256 {actual} but the manifest captured {}",
