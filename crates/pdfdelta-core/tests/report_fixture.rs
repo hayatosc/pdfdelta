@@ -2286,6 +2286,43 @@ fn text_report_keeps_distant_edits_in_separate_hunks() -> Result<()> {
 }
 
 #[test]
+fn text_report_never_renders_a_neighboring_change_as_context() -> Result<()> {
+    let old_text = format!("A{}{}{}C", "q".repeat(20), "B", "r".repeat(20));
+    let new_text = format!("X{}{}{}C", "q".repeat(20), "Y", "r".repeat(20));
+    let old_blocks = vec![block_with_text(6, &old_text)];
+    let new_blocks = vec![block_with_text(106, &new_text)];
+    let mut comparison = empty_comparison();
+    for (start, end) in [(0_usize, 1_usize), (21, 22)] {
+        comparison.changes.push(Change {
+            kind: ChangeKind::Replacement,
+            occurrences: vec![ChangeOccurrence {
+                old_span: Some(range_span(6, start, end)),
+                new_span: Some(range_span(106, start, end)),
+            }],
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        });
+    }
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    let minus_lines: Vec<_> = report
+        .lines()
+        .filter(|line| line.starts_with("- "))
+        .collect();
+    assert_eq!(minus_lines.len(), 2, "{report}");
+    assert!(!minus_lines[0].contains('B'), "{report}");
+    assert!(!minus_lines[1].contains('A'), "{report}");
+    Ok(())
+}
+
+#[test]
 fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> {
     let long_prefix = "a".repeat(80);
     let long_suffix = "z".repeat(80);

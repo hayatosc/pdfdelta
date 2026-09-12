@@ -160,11 +160,35 @@ pub(super) fn render(
         .map_err(|error| Error::Report(error.to_string()))?;
     }
 
-    for cluster in cluster_changes(comparison) {
+    let clusters = cluster_changes(comparison);
+    let mut all_old_spans = Vec::new();
+    let mut all_new_spans = Vec::new();
+    for cluster in &clusters {
+        for change in &cluster.changes {
+            all_old_spans.extend(old_spans(change));
+            all_new_spans.extend(new_spans(change));
+        }
+    }
+    let old_runs = edited_runs(&all_old_spans);
+    let new_runs = edited_runs(&all_new_spans);
+    for cluster in &clusters {
         writeln!(output).map_err(|error| Error::Report(error.to_string()))?;
         let mut body = Vec::new();
         let mut pages = Vec::new();
-        append_cluster_body(&cluster, &old, &new, &mut pages, &mut body, &painter)?;
+        append_cluster_body(
+            cluster,
+            SideRuns {
+                index: &old,
+                runs: &old_runs,
+            },
+            SideRuns {
+                index: &new,
+                runs: &new_runs,
+            },
+            &mut pages,
+            &mut body,
+            &painter,
+        )?;
         pages.sort_unstable();
         pages.dedup();
         writeln!(
@@ -370,12 +394,18 @@ pub(super) fn render(
     Ok(output)
 }
 
+/// One side's rendered index plus its global edited-run partitions.
+struct SideRuns<'a, 'b> {
+    index: &'a SideIndex<'b>,
+    runs: &'a [EditedRuns<'b>],
+}
+
 /// Renders one presentation hunk body, merging nearby ranges only within a
 /// shared block group and separator coordinate system.
 fn append_cluster_body(
     cluster: &Cluster<'_>,
-    old: &SideIndex<'_>,
-    new: &SideIndex<'_>,
+    old: SideRuns<'_, '_>,
+    new: SideRuns<'_, '_>,
     pages: &mut Vec<u32>,
     body: &mut Vec<String>,
     painter: &Painter,
@@ -386,10 +416,10 @@ fn append_cluster_body(
         let mut old_pages = Vec::new();
         let mut new_pages = Vec::new();
         for span in old_spans(move_change) {
-            old_pages.extend(resolve_window(old, span)?.pages);
+            old_pages.extend(resolve_window(old.index, span)?.pages);
         }
         for span in new_spans(move_change) {
-            new_pages.extend(resolve_window(new, span)?.pages);
+            new_pages.extend(resolve_window(new.index, span)?.pages);
         }
         old_pages.sort_unstable();
         old_pages.dedup();
@@ -410,7 +440,7 @@ fn append_cluster_body(
         for occurrence in &move_change.occurrences {
             append_marked_spans(
                 occurrence.old_span.as_ref(),
-                old,
+                old.index,
                 MINUS_STYLE,
                 pages,
                 body,
@@ -418,7 +448,7 @@ fn append_cluster_body(
             )?;
             append_marked_spans(
                 occurrence.new_span.as_ref(),
-                new,
+                new.index,
                 PLUS_STYLE,
                 pages,
                 body,
@@ -438,13 +468,24 @@ fn append_cluster_body(
         .iter()
         .flat_map(|change| new_spans(change))
         .collect::<Vec<_>>();
-    append_merged_runs(&old_spans, old, MINUS_STYLE, pages, body, painter)?;
-    append_merged_runs(&new_spans, new, PLUS_STYLE, pages, body, painter)?;
+    append_merged_runs(
+        &old_spans,
+        old.runs,
+        old.index,
+        MINUS_STYLE,
+        pages,
+        body,
+        painter,
+    )?;
+    append_merged_runs(
+        &new_spans, new.runs, new.index, PLUS_STYLE, pages, body, painter,
+    )?;
     Ok(())
 }
 
 fn append_merged_runs(
     spans: &[&TextSpan],
+    partitions: &[EditedRuns<'_>],
     index: &SideIndex<'_>,
     style: LineStyle,
     pages: &mut Vec<u32>,
@@ -468,8 +509,17 @@ fn append_merged_runs(
         for span in &spans {
             validate_span_against_group(span, &group)?;
         }
-        for (start, end) in merged_edited_ranges(spans.into_iter()) {
-            let window = bounded_window(&group, start, end);
+        let partition = partitions.iter().find(|partition| {
+            partition.template.blocks == template.blocks
+                && partition.template.separator == template.separator
+        });
+        let merged = merged_edited_ranges(spans.into_iter());
+        for (start, end) in merged {
+            let (window_floor, window_ceiling) = partition
+                .map_or((0, group.tokens.len()), |runs| {
+                    runs.neighbor_bounds(start, end, group.tokens.len())
+                });
+            let window = bounded_window(&group, start, end, window_floor, window_ceiling);
             pages.extend_from_slice(&window.pages);
             body.push(window.render_marked(style, painter));
         }
@@ -492,6 +542,61 @@ fn append_marked_spans(
     pages.extend_from_slice(&window.pages);
     body.push(window.render_marked(style, painter));
     Ok(())
+}
+
+/// Edited runs for one block and separator coordinate system across all
+/// clusters, sorted and non-overlapping.
+struct EditedRuns<'a> {
+    template: &'a TextSpan,
+    runs: Vec<(usize, usize)>,
+}
+
+impl EditedRuns<'_> {
+    /// Context bounds that keep a window outside neighboring edited runs.
+    fn neighbor_bounds(&self, start: usize, end: usize, total: usize) -> (usize, usize) {
+        let Some(position) = self
+            .runs
+            .iter()
+            .position(|run| run.0 <= start && end <= run.1)
+        else {
+            return (0, total);
+        };
+        let floor = position
+            .checked_sub(1)
+            .map_or(0, |previous| self.runs[previous].1);
+        let ceiling = self.runs.get(position + 1).map_or(total, |next| next.0);
+        (floor, ceiling)
+    }
+}
+
+/// Groups all edited spans of one side into runs per block and separator
+/// coordinate system.
+fn edited_runs<'a>(spans: &[&'a TextSpan]) -> Vec<EditedRuns<'a>> {
+    let mut sorted = spans.to_vec();
+    sorted.sort_unstable_by_key(|span| (span.comparable_range.start, span.comparable_range.end));
+    let mut groups: Vec<EditedRuns<'a>> = Vec::new();
+    for span in sorted {
+        if let Some(group) = groups.iter_mut().find(|group| {
+            group.template.blocks == span.blocks && group.template.separator == span.separator
+        }) {
+            match group.runs.last_mut() {
+                Some((_, last_end))
+                    if span.comparable_range.start <= *last_end + COALESCE_MAX_EQUAL_TOKENS =>
+                {
+                    *last_end = (*last_end).max(span.comparable_range.end);
+                }
+                _ => group
+                    .runs
+                    .push((span.comparable_range.start, span.comparable_range.end)),
+            }
+        } else {
+            groups.push(EditedRuns {
+                template: span,
+                runs: vec![(span.comparable_range.start, span.comparable_range.end)],
+            });
+        }
+    }
+    groups
 }
 
 /// Unions nearby edited comparable-token ranges into contiguous hunk spans.
@@ -788,15 +893,29 @@ fn resolve_window(index: &SideIndex<'_>, span: &TextSpan) -> Result<SideWindow> 
         &group,
         span.comparable_range.start,
         span.comparable_range.end,
+        0,
+        group.tokens.len(),
     ))
 }
 
 /// Cuts the bounded context window around one already validated edited range
-/// of a resolved group.
-fn bounded_window(group: &ResolvedGroup, start: usize, end: usize) -> SideWindow {
+/// of a resolved group. The window never extends into a neighboring edited
+/// run, so a changed token cannot be rendered as unmarked context.
+fn bounded_window(
+    group: &ResolvedGroup,
+    start: usize,
+    end: usize,
+    window_floor: usize,
+    window_ceiling: usize,
+) -> SideWindow {
     let total = group.tokens.len();
-    let window_start = start.saturating_sub(CONTEXT_WINDOW_TOKENS);
-    let window_end = end.saturating_add(CONTEXT_WINDOW_TOKENS).min(total);
+    let window_start = start
+        .saturating_sub(CONTEXT_WINDOW_TOKENS)
+        .max(window_floor);
+    let window_end = end
+        .saturating_add(CONTEXT_WINDOW_TOKENS)
+        .min(window_ceiling)
+        .min(total);
     SideWindow {
         pages: group.pages.clone(),
         pre: render_region(group, window_start, start),
