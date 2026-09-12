@@ -485,3 +485,24 @@ and never mark success before all gates pass. Do not publish externally.
   Format, Clippy and workspace checks pass (2344 passed, two ignored), and all
   48 generated fixtures pass. Next: source-closed discovery across the remaining
   new abstract heading/body adjacency gap, without changing strict ownership.
+
+### 2026-09-12 11:38 UTC: deadline stop, objective not achieved
+
+- The recorded deadline was 2026-09-12 02:23:15 UTC. The last earlier clock
+  observation was 2026-09-11 18:59:49 UTC; the next recorded observation was
+  2026-09-12 11:38:11 UTC. The time limit was exceeded before detection. The
+  cause of this observation gap is not established, and an on-time stop is
+  not claimed. New experiments stopped when the exceeded deadline was detected.
+- The unfinished native adjacency-discovery experiment was saved as a patch
+  and removed from the working tree. Production remains the verified b11ef89
+  revision. Its small regression passed, but it had neither completed all
+  quality gates nor a real-PDF evaluation at the stop; no gain is claimed.
+- `remaining/stop.json` retains the stop contract and final verifier output.
+  `verify.py --stage final` exits 1 because `remaining/development.json` is
+  missing. Formal G1 and G2 counts are zero, no G3 completion gain is proved,
+  and G4/G5 are unfulfilled because the final phase evidence is incomplete.
+  The one EDPB pilot hit is not a substitute for repeated adjudicated G1 data.
+- The retained production revision passed format, Clippy, 2344 workspace tests
+  (two ignored) and 48/48 generated fixtures. This protects the verified units;
+  it does not establish the missing six-pair recovery, new blind evaluation or
+  whole-document completion goals. No external publication was performed.
