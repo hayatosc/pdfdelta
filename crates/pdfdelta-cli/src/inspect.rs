@@ -7,7 +7,9 @@ use std::{
 use pdfdelta_core::{
     model::{DecodedText, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode, VectorLine},
     pdf::{LopdfParser, ParseLimits, PdfDict, PdfIssue, PdfObject},
-    source::{ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits},
+    source::{
+        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssue, ExtractionLimits,
+    },
 };
 
 use crate::evidence_text::escape_terminal_controls;
@@ -124,6 +126,16 @@ fn parser_issue_text(issue: &PdfIssue) -> String {
     )
 }
 
+/// Extraction issue descriptions can quote PDF-derived bytes, so they are
+/// escaped before reaching a terminal.
+fn extraction_issue_text(issue: &ExtractionIssue) -> String {
+    format!(
+        "extraction-issue: {:?}: {}",
+        issue.scope(),
+        escape_terminal_controls(issue.description())
+    )
+}
+
 pub fn inspect_objects<W: Write>(
     path: &Path,
     bytes: Arc<[u8]>,
@@ -180,11 +192,7 @@ pub fn inspect_glyphs<W: Write>(
         write_inspection_line(
             writer,
             path,
-            format_args!(
-                "extraction-issue: {:?}: {}",
-                issue.scope(),
-                issue.description()
-            ),
+            format_args!("{}", extraction_issue_text(issue)),
         )?;
     }
     let document = outcome.document();
@@ -399,9 +407,13 @@ mod tests {
             GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
         },
         pdf::{ObjectRef, PdfDict, PdfIssue, PdfObject},
+        source::{ExtractionIssue, ExtractionIssueKind, ExtractionScope},
     };
 
-    use super::{format_glyph, format_pdf_dict, format_pdf_object, write_inspection_line};
+    use super::{
+        extraction_issue_text, format_glyph, format_pdf_dict, format_pdf_object,
+        write_inspection_line,
+    };
 
     struct BrokenPipeWriter;
 
@@ -489,6 +501,19 @@ mod tests {
         let issue =
             PdfIssue::unresolved("filter /\u{1b}[31mX is unsupported").expect("valid issue");
         let line = super::parser_issue_text(&issue);
+        assert!(!line.contains('\u{1b}'), "{line:?}");
+        assert!(line.contains("\\u{1b}"), "{line:?}");
+    }
+
+    #[test]
+    fn extraction_issue_lines_escape_terminal_controls() {
+        let issue = ExtractionIssue::new(
+            ExtractionIssueKind::Unsupported,
+            ExtractionScope::Page(PageId(0)),
+            "font /\u{1b}[31mX is unsupported",
+        )
+        .expect("valid issue");
+        let line = extraction_issue_text(&issue);
         assert!(!line.contains('\u{1b}'), "{line:?}");
         assert!(line.contains("\\u{1b}"), "{line:?}");
     }
