@@ -21,6 +21,11 @@ pub(super) fn load_to_unicode(
     let Some(to_unicode) = dictionary.get(b"ToUnicode".as_slice()) else {
         return Ok((None, 0));
     };
+    // A null entry is equivalent to an absent one, and the font remains usable
+    // without a Unicode map.
+    if matches!(to_unicode, PdfObject::Null) {
+        return Ok((None, 0));
+    }
     let reference =
         resolve_stream_reference(pdf, to_unicode, limits.max_indirections, "ToUnicode")?;
     let stream = pdf.decoded_stream(reference)?;

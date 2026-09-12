@@ -1773,6 +1773,23 @@ mod tests {
     }
 
     #[test]
+    fn treats_null_to_unicode_as_absent() -> Result<()> {
+        let mut font = font_with_encoding(PdfObject::Name(b"WinAnsiEncoding".to_vec()));
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Null);
+
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(b"A", 1, usize::MAX)?;
+
+        assert_eq!(loaded.decoded_font_bytes, 0);
+        assert_eq!(loaded.decoder.cmap_entry_count(), 0);
+        assert_eq!(glyphs[0].mapping, UnicodeMapping::Mapped("A".into()));
+        Ok(())
+    }
+
+    #[test]
     fn partial_to_unicode_prefers_mappings_then_falls_back_with_aggregate_limits() -> Result<()> {
         let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
                      1 beginbfchar <41> <005A> endbfchar"
