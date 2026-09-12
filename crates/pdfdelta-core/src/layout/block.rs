@@ -2271,10 +2271,14 @@ mod tests {
             SignatureToken::SyntheticSpace,
         ];
 
-        // 1. Reflexivity and Eq consistency: a.cmp(a) == Equal, and a == a
+        // 1. Reflexivity and Eq consistency: ordering and equality agree for
+        // independently constructed copies of equal content.
         for a in &tokens {
             assert_eq!(a.cmp(a), Ordering::Equal);
-            assert_eq!(a, a);
+        }
+        for (a, b) in tokens.iter().zip(tokens.iter().cloned()) {
+            assert_eq!(a, &b);
+            assert_eq!(a.cmp(&b), Ordering::Equal);
         }
 
         // 2. Consistency with Eq and Antisymmetry for all pairs (a, b)
