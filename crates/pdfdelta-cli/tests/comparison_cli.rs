@@ -167,6 +167,35 @@ fn extraction_cache_produces_identical_reports_cold_and_warm() {
 }
 
 #[test]
+fn extraction_cache_directory_cannot_alias_a_report_destination() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let report = directory.join("report.json");
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--extraction-cache-dir",
+            path_text(&report),
+            "--json",
+            path_text(&report),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let message = stderr(&output);
+    assert!(message.contains("extraction cache directory"), "{message}");
+    assert!(
+        !report.exists(),
+        "the report destination must remain unused"
+    );
+}
+
+#[test]
 fn inspect_without_flags_prints_backend_summary() {
     let directory = TestDirectory::new();
     let document = directory.join("document.pdf");

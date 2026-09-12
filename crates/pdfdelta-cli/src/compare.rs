@@ -151,6 +151,28 @@ fn compare_documents_inner<W: Write>(
         }
     }
 
+    if let Some(cache_dir) = command.extraction_cache_dir {
+        for (destination, noun) in [
+            (trace_output, "trace output"),
+            (json_output, "JSON report"),
+            (report_output, "text report output"),
+        ] {
+            if let Some(destination) = destination
+                && output_paths_refer_to_same_file(
+                    destination,
+                    cache_dir,
+                    "extraction cache/output collision",
+                )?
+            {
+                return Err(format!(
+                    "refusing {noun} {} because it refers to the extraction cache directory {}",
+                    destination.display(),
+                    cache_dir.display()
+                ));
+            }
+        }
+    }
+
     let mut trace = ExecutionTrace::new(old_path, new_path, command.options.strict);
     let output_validation: Result<(), String> = (|| {
         if let Some(json_path) = command.options.json_path {
