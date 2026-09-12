@@ -275,6 +275,7 @@ pub fn run_bounded(
             let kind = match status.code() {
                 Some(3) => EvidenceFailure::ResourceLimit,
                 Some(4) => EvidenceFailure::Unsupported,
+                None if cpu_limit_termination(status) => EvidenceFailure::ResourceLimit,
                 _ => EvidenceFailure::BackendFailure,
             };
             return Err((
@@ -292,6 +293,22 @@ pub fn run_bounded(
         }
         Ok(output)
     })
+}
+
+/// The CPU budget configured by [`restrict_process`] terminates an exhausted
+/// child with `SIGXCPU`, which is a typed resource-limit outcome rather than a
+/// backend failure.
+#[cfg(target_os = "linux")]
+fn cpu_limit_termination(status: std::process::ExitStatus) -> bool {
+    use std::os::unix::process::ExitStatusExt;
+
+    const SIGXCPU: i32 = 24;
+    status.signal() == Some(SIGXCPU)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn cpu_limit_termination(_status: std::process::ExitStatus) -> bool {
+    false
 }
 
 /// Binary response: one warning flag followed by exactly width × height RGB bytes.
@@ -420,5 +437,16 @@ mod tests {
         let output = run_bounded(&mut command, b"healthy", 8, Duration::from_secs(5))
             .expect("an independent bounded request remains usable");
         assert_eq!(output, b"healthy");
+    }
+
+    #[test]
+    fn worker_cpu_exhaustion_is_a_resource_limit() {
+        let mut command = Command::new("sh");
+        // Only the soft limit is set so the child is terminated by SIGXCPU
+        // instead of the shell's ignored-signal SIGKILL fallback.
+        command.args(["-c", "ulimit -S -t 1; while :; do :; done"]);
+        let error = run_bounded(&mut command, &[], 64, Duration::from_secs(5))
+            .expect_err("a cpu-exhausted worker must not be reported as healthy");
+        assert_eq!(error.0, EvidenceFailure::ResourceLimit);
     }
 }
