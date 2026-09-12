@@ -572,10 +572,18 @@ fn limit_indirections<T>(limit: usize) -> Result<T> {
     })
 }
 
-pub(super) fn optional_number(dictionary: &PdfDict, key: &[u8]) -> Result<Option<f64>> {
+pub(super) fn optional_number(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    key: &[u8],
+    max_indirections: usize,
+) -> Result<Option<f64>> {
     dictionary
         .get(key)
-        .map(|value| finite_number(value, "font metric"))
+        .map(|value| {
+            let value = resolve_object(pdf, value.clone(), max_indirections)?;
+            finite_number(&value, "font metric")
+        })
         .transpose()
 }
 

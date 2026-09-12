@@ -1078,9 +1078,12 @@ fn load_widths(
         return Ok((0, None));
     };
     let first_char = match dictionary.get(b"FirstChar".as_slice()) {
-        Some(PdfObject::Integer(value)) => u8::try_from(*value)
-            .map_err(|_| Error::Unresolved("FirstChar is outside the byte range".into()))?,
-        _ => return unresolved("Widths requires an integer FirstChar"),
+        Some(value) => match resolve_object(pdf, value.clone(), limits.max_indirections)? {
+            PdfObject::Integer(value) => u8::try_from(value)
+                .map_err(|_| Error::Unresolved("FirstChar is outside the byte range".into()))?,
+            _ => return unresolved("Widths requires an integer FirstChar"),
+        },
+        None => return unresolved("Widths requires an integer FirstChar"),
     };
     let widths = resolve_object(pdf, widths.clone(), limits.max_indirections)?;
     let PdfObject::Array(widths) = widths else {
@@ -1099,8 +1102,11 @@ fn load_widths(
         return unresolved("font Widths extends beyond the byte code range");
     }
     let widths = widths
-        .iter()
-        .map(|width| non_negative_number(width, "font width"))
+        .into_iter()
+        .map(|width| {
+            let width = resolve_object(pdf, width, limits.max_indirections)?;
+            non_negative_number(&width, "font width")
+        })
         .collect::<Result<Vec<_>>>()?;
     Ok((first_char, Some(widths)))
 }
@@ -1127,15 +1133,21 @@ fn load_descriptor(
         _ => return unresolved("FontDescriptor is not a dictionary"),
     };
     let fallback = base14.map(Base14::vertical_metrics);
-    let ascent = optional_number(&descriptor, b"Ascent")?.or_else(|| fallback.map(|value| value.0));
-    let descent =
-        optional_number(&descriptor, b"Descent")?.or_else(|| fallback.map(|value| value.1));
+    let ascent = optional_number(pdf, &descriptor, b"Ascent", max_indirections)?
+        .or_else(|| fallback.map(|value| value.0));
+    let descent = optional_number(pdf, &descriptor, b"Descent", max_indirections)?
+        .or_else(|| fallback.map(|value| value.1));
     let (ascent, descent) = apply_bbox_vertical_fallback((ascent, descent), || {
         load_descriptor_bbox(pdf, &descriptor, max_indirections)
     })?;
     let missing_width = descriptor
         .get(b"MissingWidth".as_slice())
-        .map_or(Ok(0.0), |value| non_negative_number(value, "MissingWidth"))?;
+        .map(|value| {
+            let value = resolve_object(pdf, value.clone(), max_indirections)?;
+            non_negative_number(&value, "MissingWidth")
+        })
+        .transpose()?
+        .unwrap_or(0.0);
     Ok((ascent, descent, missing_width))
 }
 
@@ -1705,6 +1717,58 @@ mod tests {
         assert_eq!(glyphs[0], glyph(b'A', "A", 620.0));
         assert_eq!(glyphs[1], glyph(0x80, "€", 480.0));
         assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_indirect_widths_and_descriptor_metrics() -> Result<()> {
+        let mut pdf = MockPdf::default();
+        pdf.objects.insert(object_ref(1), PdfObject::Integer(65));
+        pdf.objects.insert(object_ref(2), PdfObject::Integer(620));
+        pdf.objects.insert(object_ref(3), PdfObject::Integer(630));
+        pdf.objects.insert(object_ref(4), PdfObject::Integer(700));
+        pdf.objects.insert(object_ref(5), PdfObject::Integer(-200));
+        pdf.objects.insert(object_ref(6), PdfObject::Integer(480));
+        pdf.objects.insert(
+            object_ref(7),
+            PdfObject::Dictionary(PdfDict::from([
+                (b"Ascent".to_vec(), PdfObject::Reference(object_ref(4))),
+                (b"Descent".to_vec(), PdfObject::Reference(object_ref(5))),
+                (
+                    b"MissingWidth".to_vec(),
+                    PdfObject::Reference(object_ref(6)),
+                ),
+            ])),
+        );
+        let font = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec())),
+            (
+                b"Encoding".to_vec(),
+                PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+            ),
+            (b"FirstChar".to_vec(), PdfObject::Reference(object_ref(1))),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array(vec![
+                    PdfObject::Reference(object_ref(2)),
+                    PdfObject::Reference(object_ref(3)),
+                ]),
+            ),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Reference(object_ref(7)),
+            ),
+        ]));
+
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[b'A', b'B', 0x81], 3, usize::MAX)?;
+
+        assert_eq!(loaded.decoder.ascent_1000_em(), 700.0);
+        assert_eq!(loaded.decoder.descent_1000_em(), -200.0);
+        assert_eq!(glyphs[0], glyph(b'A', "A", 620.0));
+        assert_eq!(glyphs[1], glyph(b'B', "B", 630.0));
+        assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(glyphs[2].width_1000_em, 480.0);
         Ok(())
     }
 
