@@ -1640,7 +1640,7 @@ fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
     Document::with_vector_lines(glyphs, vector_lines)
 }
 
-const SYNTHETIC_TEXTS: [&str; 18] = [
+const SYNTHETIC_TEXTS: [&str; 24] = [
     "a",
     "b",
     " ",
@@ -1659,6 +1659,12 @@ const SYNTHETIC_TEXTS: [&str; 18] = [
     "hyphenation",
     "\u{1b}[31m",
     "\u{202e}reordered",
+    "\u{ad}",
+    "\u{2028}",
+    "a\u{200d}b",
+    "e\u{327}\u{301}",
+    "one\rtwo",
+    "\u{5e}3",
 ];
 
 const SYNTHETIC_RENDER_MODES: [TextRenderMode; 4] = [
