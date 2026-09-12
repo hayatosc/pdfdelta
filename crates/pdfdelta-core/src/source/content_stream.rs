@@ -1320,12 +1320,12 @@ impl Extraction<'_> {
                 .cmap_entries
                 .checked_add(loaded.decoder.cmap_entry_count())
                 .ok_or(Error::LimitExceeded {
-                    resource: "ToUnicode CMap entries",
+                    resource: "CMap entries",
                     limit: self.limits.max_cmap_entries,
                 })?;
             if self.cmap_entries > self.limits.max_cmap_entries {
                 return Err(Error::LimitExceeded {
-                    resource: "ToUnicode CMap entries",
+                    resource: "CMap entries",
                     limit: self.limits.max_cmap_entries,
                 });
             }

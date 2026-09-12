@@ -37,6 +37,9 @@ pub(crate) struct ToUnicodeCMap {
 pub(crate) struct IdentityCidEncoding {
     pub(crate) source_width: usize,
     pub(crate) vertical: bool,
+    /// Codespace and CID-range entries covered by this identity `CMap`, charged
+    /// against the decoder's aggregate `CMap` entry budget.
+    pub(crate) entries: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -255,6 +258,7 @@ pub(crate) fn parse_identity_cid_encoding(
     Ok(IdentityCidEncoding {
         source_width,
         vertical: vertical.unwrap_or(false),
+        entries,
     })
 }
 
@@ -1328,6 +1332,7 @@ mod tests {
             IdentityCidEncoding {
                 source_width: 1,
                 vertical: true,
+                entries: 257,
             }
         );
         assert!(matches!(

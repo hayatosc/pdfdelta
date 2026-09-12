@@ -24,6 +24,7 @@ struct DefaultVerticalMetrics {
 #[derive(Clone, Debug)]
 pub(crate) struct CompositeFontDecoder {
     to_unicode: Option<ToUnicodeCMap>,
+    identity_cmap_entries: usize,
     widths: BTreeMap<u16, f64>,
     default_width: f64,
     ascent: f64,
@@ -38,6 +39,7 @@ struct LoadedEncoding {
     writing_mode: WritingMode,
     source_width: usize,
     decoded_bytes: usize,
+    cmap_entries: usize,
 }
 
 pub(super) struct LoadedCompositeFont {
@@ -101,6 +103,7 @@ impl CompositeFontDecoder {
             cid_width_entries: widths.len(),
             decoder: Self {
                 to_unicode,
+                identity_cmap_entries: encoding.cmap_entries,
                 widths,
                 default_width,
                 ascent,
@@ -186,9 +189,11 @@ impl CompositeFontDecoder {
     }
 
     pub(super) fn cmap_entry_count(&self) -> usize {
-        self.to_unicode
-            .as_ref()
-            .map_or(0, ToUnicodeCMap::entry_count)
+        self.identity_cmap_entries.saturating_add(
+            self.to_unicode
+                .as_ref()
+                .map_or(0, ToUnicodeCMap::entry_count),
+        )
     }
 
     pub(super) fn writing_mode(&self) -> WritingMode {
@@ -217,11 +222,13 @@ fn load_encoding(
             writing_mode: WritingMode::Horizontal,
             source_width: 2,
             decoded_bytes: 0,
+            cmap_entries: 0,
         }),
         PdfObject::Name(name) if name.as_slice() == b"Identity-V" => Ok(LoadedEncoding {
             writing_mode: WritingMode::Vertical,
             source_width: 2,
             decoded_bytes: 0,
+            cmap_entries: 0,
         }),
         PdfObject::Name(name) => Err(Error::Unsupported(format!(
             "Type0 encoding /{} is not supported",
@@ -246,6 +253,7 @@ fn load_encoding(
                 },
                 source_width: parsed.source_width,
                 decoded_bytes: stream.bytes.len(),
+                cmap_entries: parsed.entries,
             })
         }
         PdfObject::Dictionary(_) => Err(Error::Unsupported(
@@ -707,6 +715,35 @@ mod tests {
                 limit: 1,
             })
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn charges_custom_identity_encoding_entries_to_the_aggregate_count() -> Result<()> {
+        let mut pdf =
+            MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(Vec::new())));
+        pdf.objects
+            .insert(object_ref(3), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(
+            object_ref(3),
+            b"1 begincodespacerange <00> <FF> endcodespacerange \
+              1 begincidrange <00> <FF> 0 endcidrange"
+                .to_vec(),
+        );
+        let mut font = font_dictionary();
+        font.insert(b"Encoding".to_vec(), PdfObject::Reference(object_ref(3)));
+        let limits = FontDecoderLimits {
+            cmap: CMapLimits {
+                max_entries: 300,
+                ..LIMITS.cmap
+            },
+            ..LIMITS
+        };
+
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+
+        // Six ToUnicode range entries plus the 1-byte identity codespace and range.
+        assert_eq!(loaded.decoder.cmap_entry_count(), 263);
         Ok(())
     }
 
