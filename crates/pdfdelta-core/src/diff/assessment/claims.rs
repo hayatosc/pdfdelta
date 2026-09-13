@@ -79,6 +79,31 @@ pub(super) fn literal_claims<T: Eq + Hash>(
         new_residual,
         remaining_work,
         None,
+        false,
+    )
+}
+
+/// A local caller can spend unperformed grid work on an independent proof.
+/// Completed LCS and setup work remain charged; no partial mask is returned.
+pub(super) fn literal_claims_retaining_unspent_grid_work<T: Eq + Hash>(
+    old: &[T],
+    new: &[T],
+    old_source: &[bool],
+    new_source: &[bool],
+    old_residual: &[bool],
+    new_residual: &[bool],
+    remaining_work: &mut usize,
+) -> Result<Option<LiteralClaims>> {
+    literal_claims_with_preference(
+        old,
+        new,
+        old_source,
+        new_source,
+        old_residual,
+        new_residual,
+        remaining_work,
+        None,
+        true,
     )
 }
 
@@ -134,6 +159,7 @@ pub(super) fn literal_claims_for_benchmark_with_limit<T: Eq + Hash>(
         new_residual,
         remaining_work,
         Some(force_band),
+        false,
     );
     CLAIM_MEMORY_LIMIT.with(|limit| limit.set(previous_limit));
     result
@@ -149,6 +175,7 @@ fn literal_claims_with_preference<T: Eq + Hash>(
     new_residual: &[bool],
     remaining_work: &mut usize,
     forced_band: Option<bool>,
+    retain_unspent_grid_work: bool,
 ) -> Result<Option<LiteralClaims>> {
     validate_masks(old, new, old_source, new_source)?;
     validate_masks(old, new, old_residual, new_residual)?;
@@ -222,12 +249,14 @@ fn literal_claims_with_preference<T: Eq + Hash>(
         BandLayout::dense(old.len(), new.len())?
     };
     ensure_memory(layout.memory_bytes()?)?;
-    let mut grid = ClaimGrid::new(layout)?;
-    let grid_work = grid
-        .cells
-        .len()
+    let grid_work = layout
+        .cell_count
         .checked_mul(2)
         .ok_or(limit_error(CLAIM_CELLS_RESOURCE))?;
+    if retain_unspent_grid_work && grid_work > *remaining_work {
+        return Ok(None);
+    }
+    let mut grid = ClaimGrid::new(layout)?;
     if !charge(remaining_work, grid_work) {
         return Ok(None);
     }
@@ -1196,6 +1225,65 @@ pub(super) fn allocation_error(resource: &'static str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_grid_decline_preserves_only_unspent_work() {
+        let old = vec![b'a'; 800];
+        let new = vec![b'b'; 800];
+        let source = vec![true; 800];
+        let mut regular_work = 1_000_000;
+        assert!(
+            literal_claims(
+                &old,
+                &new,
+                &source,
+                &source,
+                &source,
+                &source,
+                &mut regular_work
+            )
+            .expect("valid exact inputs")
+            .is_none()
+        );
+        assert_eq!(regular_work, 0);
+        let mut local_work = 1_000_000;
+        assert!(
+            literal_claims_retaining_unspent_grid_work(
+                &old,
+                &new,
+                &source,
+                &source,
+                &source,
+                &source,
+                &mut local_work,
+            )
+            .expect("valid exact inputs")
+            .is_none()
+        );
+        assert!(local_work > 0 && local_work < 1_000_000);
+        let setup_work = 1_000_000 - local_work;
+        let grid_work = (old.len() + 1) * (new.len() + 1) * 2;
+        let mut sufficient_work = setup_work + grid_work;
+        let claims = literal_claims_retaining_unspent_grid_work(
+            &old,
+            &new,
+            &source,
+            &source,
+            &source,
+            &source,
+            &mut sufficient_work,
+        )
+        .expect("valid exact inputs")
+        .expect("all exact work fits");
+        assert_eq!(sufficient_work, 0);
+        assert_eq!(
+            claims.source,
+            CountBounds {
+                lower: 1600,
+                upper: 1600
+            }
+        );
+    }
 
     #[test]
     fn count_bounds_handles_empty_sides() {
