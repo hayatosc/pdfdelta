@@ -289,16 +289,16 @@ pub fn evaluate_rendered_with_options(
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let old = source
         .extract_outcome(old_pdf, parse_limits(), extraction_limits())
-        .map_err(|error| core_error("old extraction", error))?;
+        .map_err(|error| BenchError::core("old extraction", error))?;
     let new = source
         .extract_outcome(new_pdf, parse_limits(), extraction_limits())
-        .map_err(|error| core_error("new extraction", error))?;
+        .map_err(|error| BenchError::core("new extraction", error))?;
     let (old_index, new_index) = if old.is_complete() && new.is_complete() {
         (
             canonical_document_index(old_plan, old.document(), options)
-                .map_err(|error| core_error("old expectation context", error))?,
+                .map_err(|error| BenchError::core("old expectation context", error))?,
             canonical_document_index(new_plan, new.document(), options)
-                .map_err(|error| core_error("new expectation context", error))?,
+                .map_err(|error| BenchError::core("new expectation context", error))?,
         )
     } else {
         (
@@ -307,9 +307,9 @@ pub fn evaluate_rendered_with_options(
         )
     };
     let outcome = compare_extraction_outcomes(old, new, options)
-        .map_err(|error| core_error("comparison", error))?;
+        .map_err(|error| BenchError::core("comparison", error))?;
     let summary = summarize(&outcome.comparison, &outcome.extraction)
-        .map_err(|error| core_error("summary", error))?;
+        .map_err(|error| BenchError::core("summary", error))?;
 
     let actual_kinds = outcome
         .comparison
@@ -1056,13 +1056,6 @@ fn validate_renderer_name(name: &str) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
-    BenchError::Core {
-        stage,
-        source: error,
-    }
 }
 
 fn parse_limits() -> ParseLimits {

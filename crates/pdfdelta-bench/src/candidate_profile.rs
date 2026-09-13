@@ -101,8 +101,10 @@ pub fn profile_synthetic_candidate_generator(
     match generator {
         CandidateProfileGenerator::InvertedIndex => {
             let started = Instant::now();
-            let candidate_generator = InvertedIndexCandidateGenerator::new(&features)
-                .map_err(|error| core_error("candidate profile inverted index build", error))?;
+            let candidate_generator =
+                InvertedIndexCandidateGenerator::new(&features).map_err(|error| {
+                    BenchError::core("candidate profile inverted index build", error)
+                })?;
             profile_with_generator(
                 &features,
                 top_k,
@@ -114,8 +116,10 @@ pub fn profile_synthetic_candidate_generator(
         }
         CandidateProfileGenerator::MinhashLsh => {
             let started = Instant::now();
-            let candidate_generator = MinHashLshCandidateGenerator::new(&features)
-                .map_err(|error| core_error("candidate profile MinHash index build", error))?;
+            let candidate_generator =
+                MinHashLshCandidateGenerator::new(&features).map_err(|error| {
+                    BenchError::core("candidate profile MinHash index build", error)
+                })?;
             profile_with_generator(
                 &features,
                 top_k,
@@ -128,7 +132,7 @@ pub fn profile_synthetic_candidate_generator(
         CandidateProfileGenerator::Exhaustive => {
             let started = Instant::now();
             let candidate_generator = ExhaustiveCandidateGenerator::new(&features)
-                .map_err(|error| core_error("candidate profile exhaustive build", error))?;
+                .map_err(|error| BenchError::core("candidate profile exhaustive build", error))?;
             profile_with_generator(
                 &features,
                 top_k,
@@ -146,6 +150,11 @@ pub fn write_candidate_profiles_json(
     path: &Path,
     records: &[CandidateProfileRecord],
 ) -> Result<()> {
+    // Serialize before creating the destination so a serialization failure
+    // cannot leave a partial artifact that later runs refuse to replace.
+    let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
+        BenchError::InvalidInput(format!("cannot serialize candidate profile JSON: {error}"))
+    })?;
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -156,9 +165,6 @@ pub fn write_candidate_profiles_json(
                 path.display()
             ))
         })?;
-    let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
-        BenchError::InvalidInput(format!("cannot serialize candidate profile JSON: {error}"))
-    })?;
     file.write_all(&bytes).map_err(|error| {
         BenchError::InvalidInput(format!("cannot write candidate profile JSON: {error}"))
     })
@@ -257,7 +263,7 @@ fn profile_with_generator<G: CandidateGenerator>(
         for old in features {
             let candidates = generator
                 .candidates(old, k)
-                .map_err(|error| core_error("candidate profile recall query", error))?;
+                .map_err(|error| BenchError::core("candidate profile recall query", error))?;
             if candidates
                 .iter()
                 .any(|candidate| candidate.block == old.block)
@@ -273,7 +279,7 @@ fn profile_with_generator<G: CandidateGenerator>(
     for old in features {
         let candidates = generator
             .candidates(old, usize::MAX)
-            .map_err(|error| core_error("candidate profile full query", error))?;
+            .map_err(|error| BenchError::core("candidate profile full query", error))?;
         candidate_counts.push(candidates.len());
     }
     let query_latency_ns = query_started.elapsed().as_nanos();
@@ -362,13 +368,6 @@ fn parse_proc_status_kib(status: &str, field: &str) -> Result<u64> {
             "Linux process memory status overflowed for {field}"
         ))
     })
-}
-
-fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
-    BenchError::Core {
-        stage,
-        source: error,
-    }
 }
 
 #[cfg(test)]

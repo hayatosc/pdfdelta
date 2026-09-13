@@ -263,22 +263,22 @@ pub fn evaluate_candidate_generation(
     )?;
 
     let old_features = build_block_features(&old_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let new_features = build_block_features(&new_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let index_build_started = Instant::now();
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate index build", error))?;
+        .map_err(|error| BenchError::core("candidate index build", error))?;
     let index_build_latency_ns =
         u64::try_from(index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let minhash_index_build_started = Instant::now();
     let minhash = MinHashLshCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("minhash candidate index build", error))?;
+        .map_err(|error| BenchError::core("minhash candidate index build", error))?;
     let minhash_index_build_latency_ns =
         u64::try_from(minhash_index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let oracle_index_build_started = Instant::now();
     let exhaustive = ExhaustiveCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate index build", error))?;
+        .map_err(|error| BenchError::core("candidate index build", error))?;
     let oracle_index_build_latency_ns =
         u64::try_from(oracle_index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
 
@@ -377,11 +377,11 @@ pub fn evaluate_candidate_visit_pressure(
     let new_blocks = normalized_blocks_from_document(new, options)?;
     enforce_ngram_budget(&old_blocks, &new_blocks, options)?;
     let old_features = build_block_features(&old_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let new_features = build_block_features(&new_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate index build", error))?;
+        .map_err(|error| BenchError::core("candidate index build", error))?;
     measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)
 }
 
@@ -396,11 +396,11 @@ pub fn evaluate_minhash_candidate_visit_pressure(
     let new_blocks = normalized_blocks_from_document(new, options)?;
     enforce_ngram_budget(&old_blocks, &new_blocks, options)?;
     let old_features = build_block_features(&old_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let new_features = build_block_features(&new_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let minhash = MinHashLshCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate minhash index build", error))?;
+        .map_err(|error| BenchError::core("candidate minhash index build", error))?;
     measure_visit_metrics(&old_features, &new_features, &minhash, options.alignment)
 }
 
@@ -408,6 +408,13 @@ pub fn evaluate_minhash_candidate_visit_pressure(
 /// overwrite an existing path via `create_new`. Suppressing partial-run
 /// artifacts is the caller's responsibility.
 pub fn write_candidates_json(path: &Path, records: &[CandidateEvalRecord]) -> Result<()> {
+    // Serialize before creating the destination so a serialization failure
+    // cannot leave a partial artifact that later runs refuse to replace.
+    let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
+        BenchError::InvalidInput(format!(
+            "cannot serialize candidate evaluation JSON: {error}"
+        ))
+    })?;
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -418,11 +425,6 @@ pub fn write_candidates_json(path: &Path, records: &[CandidateEvalRecord]) -> Re
                 path.display()
             ))
         })?;
-    let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
-        BenchError::InvalidInput(format!(
-            "cannot serialize candidate evaluation JSON: {error}"
-        ))
-    })?;
     file.write_all(&bytes).map_err(|error| {
         BenchError::InvalidInput(format!("cannot write candidate evaluation JSON: {error}"))
     })
@@ -438,9 +440,9 @@ fn normalized_blocks(plan: &RenderPlan, renderer: RendererKind) -> Result<Vec<Bl
             ParseLimits::default(),
             ExtractionLimits::default(),
         )
-        .map_err(|error| core_error("candidate-eval extraction", error))?
+        .map_err(|error| BenchError::core("candidate-eval extraction", error))?
         .into_complete()
-        .map_err(|error| core_error("candidate-eval extraction", error))?;
+        .map_err(|error| BenchError::core("candidate-eval extraction", error))?;
     normalized_blocks_from_document(&document, PipelineOptions::default())
 }
 
@@ -451,11 +453,11 @@ fn normalized_blocks_from_document(
     options: PipelineOptions,
 ) -> Result<Vec<BlockText>> {
     let lines = reconstruct_lines(document, options.line)
-        .map_err(|error| core_error("candidate-eval line reconstruction", error))?;
+        .map_err(|error| BenchError::core("candidate-eval line reconstruction", error))?;
     let blocks = reconstruct_blocks(document, &lines, options.block)
-        .map_err(|error| core_error("candidate-eval block reconstruction", error))?;
+        .map_err(|error| BenchError::core("candidate-eval block reconstruction", error))?;
     normalize_blocks(document, &lines, &blocks)
-        .map_err(|error| core_error("candidate-eval normalization", error))
+        .map_err(|error| BenchError::core("candidate-eval normalization", error))
 }
 
 /// The render plan's flattened lines joined by one space, matching the
@@ -479,9 +481,9 @@ fn enforce_ngram_budget(
 ) -> Result<()> {
     let limit = options.max_ngram_token_elements;
     let old_elements = estimate_ngram_token_elements(old, options.ngram_size, limit)
-        .map_err(|error| core_error("candidate n-gram budget", error))?;
+        .map_err(|error| BenchError::core("candidate n-gram budget", error))?;
     let new_elements = estimate_ngram_token_elements(new, options.ngram_size, limit)
-        .map_err(|error| core_error("candidate n-gram budget", error))?;
+        .map_err(|error| BenchError::core("candidate n-gram budget", error))?;
     let aggregate = old_elements
         .checked_add(new_elements)
         .ok_or_else(|| ngram_budget_error(limit))?;
@@ -649,7 +651,7 @@ fn recall_at_k(
         total += 1;
         let top_k = generator
             .candidates(features, k)
-            .map_err(|error| core_error("candidate query", error))?
+            .map_err(|error| BenchError::core("candidate query", error))?
             .into_iter()
             .map(|candidate| candidate.block)
             .collect::<HashSet<_>>();
@@ -675,7 +677,7 @@ fn candidate_counts(
             generator
                 .candidates(features, usize::MAX)
                 .map(|candidates| candidates.len())
-                .map_err(|error| core_error("candidate query", error))
+                .map_err(|error| BenchError::core("candidate query", error))
         })
         .collect()
 }
@@ -735,7 +737,7 @@ fn estimated_visits_per_block(
         .map(|features| {
             generator
                 .estimated_visits(features, limit)
-                .map_err(|error| core_error("candidate visit estimate", error))
+                .map_err(|error| BenchError::core("candidate visit estimate", error))
         })
         .collect()
 }
@@ -912,13 +914,6 @@ fn percentile(values: &[usize], quantile: f64) -> usize {
     sorted.sort_unstable();
     let index = ((sorted.len() - 1) as f64 * quantile).round() as usize;
     sorted[index]
-}
-
-fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
-    BenchError::Core {
-        stage,
-        source: error,
-    }
 }
 
 #[cfg(test)]
@@ -1225,6 +1220,10 @@ mod tests {
         assert_eq!(parsed[0]["oracle_index_build_latency_ns"], 15);
         assert_eq!(parsed[0]["oracle_query_latency_ns"], 16);
         assert!(write_candidates_json(&path, &records).is_err());
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("artifact survives a refused overwrite"),
+            json
+        );
         std::fs::remove_file(&path).expect("artifact removed");
     }
 
