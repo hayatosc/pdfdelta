@@ -1,0 +1,39 @@
+{
+  "version": 5,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "meti-cyber-management-v2-to-v3",
+      "side": "old",
+      "url": "https://www.meti.go.jp/policy/netsecurity/downloadfiles/CSM_Guideline_v2.0.pdf",
+      "started_utc": "2026-09-13T16:10:04.850892+00:00",
+      "wall_seconds": 0.09468782100157114,
+      "exit_code": 22,
+      "http_code": "403",
+      "stderr": "curl: (22) The requested URL returned error: 403\n",
+      "status": "failed"
+    },
+    {
+      "pair": "meti-cyber-management-v2-to-v3",
+      "side": "new",
+      "url": "https://www.meti.go.jp/press/2022/03/20230324002/20230324002-1.pdf",
+      "started_utc": "2026-09-13T16:10:04.851061+00:00",
+      "wall_seconds": 0.10006711499590892,
+      "exit_code": 22,
+      "http_code": "403",
+      "stderr": "curl: (22) The requested URL returned error: 403\n",
+      "status": "failed"
+    },
+    {
+      "pair": "faa-aqp-54-to-54a",
+      "side": "old",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-54.pdf",
+      "started_utc": "2026-09-13T16:10:04.945878+00:00",
+      "wall_seconds": 0.6506656019992079,
+      "exit_code": 22,
+      "http_code": "404",
+      "stderr": "curl: (22) The requested URL returned error: 404\n",
+      "status": "failed"
+    }
+  ]
+}

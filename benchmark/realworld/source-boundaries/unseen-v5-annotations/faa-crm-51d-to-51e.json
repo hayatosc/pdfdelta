@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "faa-crm-51d-to-51e",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This advisory circular (AC) presents guidelines for developing, implementing, reinforcing, and assessing Crew Resource Management (CRM) training programs for flight crewmembers and other personnel essential to flight safety.  These programs are designed to become an integral part of training and operations.  Guidelines are primarily for those operators subject to Title 14 of the Code of Federal Regulations (14 CFR) part 121.  All part 121 operators are required by regulations to provide CRM training for pilots and flight attendants, and dispatch resource management (DRM) training for aircraft dispatchers.  These guidelines are also for use by those 14 CFR part 135 operators electing to train in accordance with part 121 requirements.  Certificate holders and individuals operating apart from air carrier operations, under other operating rules, such as 14 CFR parts 91, 125, and others, should find these guidelines useful in addressing human performance issues. This AC presents one way, but not necessarily the only way, that CRM training may be addressed.  CRM training focuses on situation awareness, communication skills, teamwork, task allocation, and decisionmaking within a comprehensive framework of standard operating procedures (SOP's).",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "PURPOSE.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This Advisory Circular (AC) presents guidelines for developing, implementing, reinforcing, and assessing crew resource management (CRM) training for flight crewmembers and other personnel essential to flight safety.  CRM training is designed to become an integral part of training and operations.  These guidelines were originally intended for Title 14 of the Code of Federal Regulations (14 CFR) part 121 certificate holders who are required by regulation to provide CRM training for pilots and flight attendants, and dispatch resource management (DRM) training for aircraft dispatchers.  Fractional ownership program managers, required by 14 CFR part 91, subpart K to provide CRM training to pilots and flight attendants, and those 14 CFR part 135 operators electing to train in accordance with part 121 requirements, should also use these guidelines.  Certificate holders and individuals operating under other operating rules, such as parts 91 (apart from  subpart K), 125, and part 135 operators not electing to train in accordance with part 121, and others, should find these guidelines useful in addressing human performance issues.  This AC presents one way, but not necessarily the only way, that CRM training may be addressed.  CRM training focuses on situation awareness, communication skills, teamwork, task allocation, and decisionmaking within a comprehensive framework of standard operating procedures (SOP).",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "PURPOSE.",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "1653181930b4c6b0af7d82a65a4253268b23939f828db7a2aea9e9d90bae316e",
+  "new_sha256": "b5871e586b949a8eb32b19bf78ac43dacc1e728d9ff1f7fd2b7375fd4363580f"
+}

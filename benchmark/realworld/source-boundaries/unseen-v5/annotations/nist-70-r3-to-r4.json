@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "nist-70-r3-to-r4",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 8
+      },
+      "literal_quote": "NIST maintains the National Checklist Repository, which is a publicly available resource that contains information on a variety of security configuration checklists for specific IT products or categories of IT products. The repository, which is located at https://checklists.nist.gov/, contains information that describes each checklist. The repository also hosts copies of some checklists, primarily those developed by the federal government, and has links to the location of other checklists. Users can browse and search the repository to locate a particular checklist using a variety of criteria, including the product category, vendor name, and submitting organization. Having a centralized checklist repository makes it easier for organizations to find the current, authoritative versions of security checklists and to determine which ones best meet their needs.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 8
+      },
+      "literal_quote": "NIST maintains the National Checklist Repository, which is a publicly available resource that contains information on a variety of security configuration checklists for specific IT products or categories of IT products. The repository, which is located at https://checklists.nist.gov/, contains information that describes each checklist. The repository also hosts copies of some checklists, primarily those developed by the federal government, and has links to the location of other checklists. Users can browse and search the repository to locate a particular checklist using a variety of criteria. Having a centralized checklist repository makes it easier for organizations to find the current, authoritative versions of security checklists and to determine which ones best meet their needs.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "57a347667c8ed9c4304c4bcb2a7ce9a0dc0b9865ffcd982d4e35a67adfe3bc31",
+  "new_sha256": "0d6b829cdb49432f770c05121e4d7a1bac688c1861b5aeab6adda1c7eaaea2ee"
+}

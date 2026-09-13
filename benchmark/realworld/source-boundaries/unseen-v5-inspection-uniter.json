@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "0dd282b50c020ceb5a7bc521ebde97df3a20dc5f209f3e229c90028ddf06e2bf",
+  "attempts": [
+    {
+      "pair": "arxiv-uniter-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-intervals-v54/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-uniter-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T16:20:48.984343+00:00",
+      "exit_code": 0,
+      "input_sha256": "002de2ce4946848ece38d7cce390f84dfbf29ba097d1e36f2cbba4f71a748c34",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-uniter-v1-to-v2-old.glyphs.txt",
+        "sha256": "62fb8d7c2d1a13d9c609f95d32519c1c822a058f68e1e816462e4291fb867e58"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-uniter-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-uniter-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-intervals-v54/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-uniter-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T16:20:49.217939+00:00",
+      "exit_code": 0,
+      "input_sha256": "79653cfb37be54ec165bd42cb5febe5348f9f06b8659d3554397736ff79a8852",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-uniter-v1-to-v2-new.glyphs.txt",
+        "sha256": "cee55037ca29b5e94f1665f69f508b7338da17b62282ae066d70e5369dd1ead0"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-uniter-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

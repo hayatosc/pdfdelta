@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "reason": "The first changed prose paragraph is the Benchmarking Attention contribution, which removes In benchmarks. Both complete ranges contain an unmapped multiplication glyph; omitting it would violate the literal annotation contract. Abstract content is unchanged; earlier Introduction changes are citation renumbering.",
+  "sides": {
+    "old": {
+      "range": [
+        7677,
+        8140
+      ],
+      "inspection": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-flashattention-v1-to-v2-old.glyphs.txt",
+        "sha256": "13165631d3eab74a4f0d3ad769df09313f3232acacd783cde66bf80f78f8b70e"
+      },
+      "unmapped_glyphs": [
+        "glyph id=7734 page=2 unmapped-font-hash=d6755e5f8f372dca7391a3a4051f534d115a8b8a4eeaca840eb5a7570a839c7c unmapped-glyph-id=2 raw-hex=02 bbox=(419.842,520.1646847999999,426.1782136,528.7225582) baseline=(419.842,521.679) direction=(1,0) font-id=3 font-size=9.9626 render-order=7931 render-mode=fill crop-status=inside path-clip-status=unclipped content-stream-object=262 content-stream-generation=0 operator-index=151"
+      ]
+    },
+    "new": {
+      "range": [
+        7678,
+        8129
+      ],
+      "inspection": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-flashattention-v1-to-v2-new.glyphs.txt",
+        "sha256": "5cbdbbbf9cf02b1fc8394f141491a7ed968301bb31589598a5c63a31a12af107"
+      },
+      "unmapped_glyphs": [
+        "glyph id=7722 page=2 unmapped-font-hash=d6755e5f8f372dca7391a3a4051f534d115a8b8a4eeaca840eb5a7570a839c7c unmapped-glyph-id=2 raw-hex=02 bbox=(337.552,520.1646847999999,343.88821360000003,528.7225582) baseline=(337.552,521.679) direction=(1,0) font-id=3 font-size=9.9626 render-order=7919 render-mode=fill crop-status=inside path-clip-status=unclipped content-stream-object=270 content-stream-generation=0 operator-index=148"
+      ]
+    }
+  }
+}

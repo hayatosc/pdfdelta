@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "0dd282b50c020ceb5a7bc521ebde97df3a20dc5f209f3e229c90028ddf06e2bf",
+  "attempts": [
+    {
+      "pair": "nist-56a-r2-to-r3",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-intervals-v54/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/nist-56a-r2-to-r3-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T16:15:41.902629+00:00",
+      "exit_code": 0,
+      "input_sha256": "d6f6a8d6a745b376e5cf4a9d800db7ee223cde7e38c24fa3820768a55d7a6f32",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/nist-56a-r2-to-r3-old.glyphs.txt",
+        "sha256": "6700dc7e26de7a6e8e40b96c35e6f02a36233353bb9e2f6c033b37cfee368706"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/nist-56a-r2-to-r3-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-56a-r2-to-r3",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-intervals-v54/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/nist-56a-r2-to-r3-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T16:15:43.481664+00:00",
+      "exit_code": 0,
+      "input_sha256": "6b315e3a91012981f9a88ad62c97ea7d4b170a7746e713f34dd29538ee46f403",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/nist-56a-r2-to-r3-new.glyphs.txt",
+        "sha256": "d2d827dd1623007df80b84ae7e74da44d63a7d7c2ca4eb9b177eed620831b51c"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/nist-56a-r2-to-r3-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

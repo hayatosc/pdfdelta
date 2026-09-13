@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-tcp-793-to-9293",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "f1f57de7a5ca90adc378ed44d77c7e1240f9d5da782a4522b76fc20a2a2a585c",
+  "body_eligible": true,
+  "reason": "The first complete Header Format paragraph expands IP and adds historical protocol layering. Both late-painted new citations [1] and [13] are included through a second raw selector; they are visibly inside the paragraph. The unchanged title phrase is in the old page header and new Purpose and Scope body."
+}

@@ -1,0 +1,70 @@
+{
+  "version": 5,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "faa-crm-51d-to-51e",
+      "side": "old",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-51D.pdf",
+      "started_utc": "2026-09-13T16:11:06.157505+00:00",
+      "wall_seconds": 1.1401666890014894,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/faa-crm-51d-to-51e-old.pdf",
+        "sha256": "1653181930b4c6b0af7d82a65a4253268b23939f828db7a2aea9e9d90bae316e"
+      },
+      "bytes": 273629
+    },
+    {
+      "pair": "faa-crm-51d-to-51e",
+      "side": "new",
+      "url": "https://www.faa.gov/sites/faa.gov/files/2022-11/AC120-51e_0.pdf",
+      "started_utc": "2026-09-13T16:11:06.157800+00:00",
+      "wall_seconds": 0.26047530000505503,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/faa-crm-51d-to-51e-new.pdf",
+        "sha256": "b5871e586b949a8eb32b19bf78ac43dacc1e728d9ff1f7fd2b7375fd4363580f"
+      },
+      "bytes": 149657
+    },
+    {
+      "pair": "mhlw-medical-security-v5-1-to-v5-2",
+      "side": "old",
+      "url": "https://www.mhlw.go.jp/content/10808000/000730541.pdf",
+      "started_utc": "2026-09-13T16:11:06.419083+00:00",
+      "wall_seconds": 0.12042566000309307,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/mhlw-medical-security-v5-1-to-v5-2-old.pdf",
+        "sha256": "34a2bff4cc69e3519e71708fde3b9d6a546d22755adf8c0b9f4ca92ef6073b5a"
+      },
+      "bytes": 2059073
+    },
+    {
+      "pair": "mhlw-medical-security-v5-1-to-v5-2",
+      "side": "new",
+      "url": "https://www.mhlw.go.jp/content/10808000/000936160.pdf",
+      "started_utc": "2026-09-13T16:11:06.544694+00:00",
+      "wall_seconds": 0.09923820400581462,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/mhlw-medical-security-v5-1-to-v5-2-new.pdf",
+        "sha256": "5e573837eaac8d354bdbab8d73cdc1085e41e339b17a856af594fb70c1ad3ea4"
+      },
+      "bytes": 769488
+    }
+  ]
+}

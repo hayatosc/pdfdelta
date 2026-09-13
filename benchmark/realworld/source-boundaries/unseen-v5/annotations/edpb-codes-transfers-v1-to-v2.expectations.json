@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-codes-transfers-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "aef10959aabf3684f07b5a16a343247adade46d01e00157568ae27799f73be39",
+  "body_eligible": true,
+  "reason": "The complete second Aim paragraph adds the European Commission definition. Both original paragraph numbers remain. The old obsolete watermark intersects the body and may prevent closure."
+}

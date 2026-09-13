@@ -1,0 +1,38 @@
+{
+  "version": 5,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "arxiv-palm-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2204.02311v1",
+      "started_utc": "2026-09-13T16:16:36.270110+00:00",
+      "wall_seconds": 0.14085362300102133,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-palm-v1-to-v2-old.pdf",
+        "sha256": "692b101e3d0abf3736fa6721dc03de4fe86eed27f8831705e8aafb81f9aa0a90"
+      },
+      "bytes": 2636382
+    },
+    {
+      "pair": "arxiv-palm-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2204.02311v2",
+      "started_utc": "2026-09-13T16:16:36.270655+00:00",
+      "wall_seconds": 0.11655190100282198,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-palm-v1-to-v2-new.pdf",
+        "sha256": "68f11f5763239adbed754c04015fc6d9c049ad82399b310453bf50ffe2879c59"
+      },
+      "bytes": 2644915
+    }
+  ]
+}

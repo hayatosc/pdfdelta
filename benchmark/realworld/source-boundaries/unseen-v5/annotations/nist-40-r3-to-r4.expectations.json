@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-40-r3-to-r4",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "362a783bda6e4255a114f0b7155da31a4af7a6e60b59494ac7a22d49b141c415",
+  "body_eligible": true,
+  "reason": "The complete abstract changes patch management guidance to enterprise patching strategy and preventive maintenance."
+}
