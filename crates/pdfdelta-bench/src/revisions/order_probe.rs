@@ -7,6 +7,7 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
+    io::Read as _,
     path::{Path, PathBuf},
     sync::Arc,
     time::Instant,
@@ -447,9 +448,28 @@ fn run(input: ProbeInput) -> Result<OrderProbeReport> {
 }
 
 fn read_bounded(path: &Path, max_bytes: usize, label: &str) -> Result<Vec<u8>> {
-    let bytes = fs::read(path).map_err(|error| {
+    let metadata = fs::metadata(path).map_err(|error| {
         BenchError::InvalidInput(format!("cannot read {label} {}: {error}", path.display()))
     })?;
+    if metadata.len() > max_bytes as u64 {
+        return Err(BenchError::InvalidInput(format!(
+            "{label} {} exceeds the {} byte limit",
+            path.display(),
+            max_bytes
+        )));
+    }
+    // Enforce the ceiling on the read itself: the metadata check above can
+    // race a growing file, and an oversized input must never be buffered in
+    // full before the limit is noticed.
+    let file = fs::File::open(path).map_err(|error| {
+        BenchError::InvalidInput(format!("cannot read {label} {}: {error}", path.display()))
+    })?;
+    let mut bytes = Vec::new();
+    file.take(max_bytes as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            BenchError::InvalidInput(format!("cannot read {label} {}: {error}", path.display()))
+        })?;
     if bytes.len() > max_bytes {
         return Err(BenchError::InvalidInput(format!(
             "{label} {} exceeds the {} byte limit",
