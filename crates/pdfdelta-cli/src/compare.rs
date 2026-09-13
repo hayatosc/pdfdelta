@@ -50,7 +50,7 @@ impl ExitStatus {
 /// Converts a validated core result into the CLI's process status policy.
 /// Fatal execution errors are returned through `Result` and become code 2 in
 /// `main`; an incomplete comparison takes precedence over detected changes.
-fn exit_status(summary: &ReportSummary, _strict: bool) -> ExitStatus {
+fn exit_status(summary: &ReportSummary) -> ExitStatus {
     if summary.comparison_complete {
         match summary.difference_status {
             DifferenceStatus::Detected => ExitStatus::ContentChanges,
@@ -357,7 +357,7 @@ pub fn compare_documents_traced<W: Write>(
             new_input.path.display()
         )
     })?;
-    let status = exit_status(&summary, options.strict);
+    let status = exit_status(&summary);
 
     if let Some(json_path) = options.json_path
         && let Err(error) = write_json_atomically(

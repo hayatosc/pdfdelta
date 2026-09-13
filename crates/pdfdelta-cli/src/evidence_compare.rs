@@ -16,6 +16,7 @@ use serde::Serialize;
 
 use crate::{
     args::{ComparisonInput, ComparisonOptions},
+    compare::ExitStatus,
     fs::{
         read_limited_typed, read_password_file, write_output_atomically,
         write_text_report_atomically,
@@ -286,7 +287,16 @@ pub fn compare(
             ("selected_channels", report.coverage.len()),
         ],
     );
-    Ok((if !complete { 3 } else { u8::from(changes > 0) }, !complete))
+    let status = if complete {
+        if changes > 0 {
+            ExitStatus::ContentChanges
+        } else {
+            ExitStatus::NoContentChanges
+        }
+    } else {
+        ExitStatus::IncompleteComparison
+    };
+    Ok((status.code(), !complete))
 }
 
 fn collect(
