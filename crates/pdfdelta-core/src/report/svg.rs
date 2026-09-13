@@ -3,6 +3,7 @@ use std::{
     io::{self, Write},
 };
 
+use super::hex_preview;
 use crate::{
     Error, Result,
     model::{
@@ -349,16 +350,6 @@ fn render_glyph_svg<W: Write>(
 
     writeln!(writer, r"    </g>").map_err(map_io_error)?;
     Ok(())
-}
-
-fn hex_preview(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len().min(4) * 2);
-    for &byte in bytes.iter().take(4) {
-        out.push(DIGITS[(byte >> 4) as usize] as char);
-        out.push(DIGITS[(byte & 0x0f) as usize] as char);
-    }
-    out
 }
 
 /// Returns true if `ch` is a legal character in XML 1.0 (Fifth Edition, Section 2.2):

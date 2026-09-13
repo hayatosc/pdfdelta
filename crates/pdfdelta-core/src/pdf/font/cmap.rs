@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{Error, Result};
+use crate::{Error, Result, pdf::content::is_pdf_whitespace};
 
 use super::common::unresolved;
 
@@ -1060,10 +1060,6 @@ impl<'a> Lexer<'a> {
 
 fn is_delimiter(byte: u8) -> bool {
     is_pdf_whitespace(byte) || matches!(byte, b'[' | b']' | b'<' | b'>' | b'%')
-}
-
-fn is_pdf_whitespace(byte: u8) -> bool {
-    matches!(byte, 0x00 | b'\t' | b'\n' | 0x0c | b'\r' | b' ')
 }
 
 #[cfg(test)]

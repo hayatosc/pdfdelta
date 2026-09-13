@@ -294,6 +294,11 @@ fn lowercase_hex(bytes: &[u8]) -> String {
     output
 }
 
+/// Encodes at most the first four bytes as lowercase hexadecimal.
+fn hex_preview(bytes: &[u8]) -> String {
+    lowercase_hex(&bytes[..bytes.len().min(4)])
+}
+
 /// Read-only view over one side's normalized blocks, used to resolve report
 /// spans back to canonical text and page provenance.
 pub(crate) struct SideIndex<'a> {
