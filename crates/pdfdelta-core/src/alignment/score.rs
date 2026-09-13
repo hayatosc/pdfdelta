@@ -321,6 +321,12 @@ mod tests {
     };
 
     #[test]
+    #[should_panic(expected = "index out of bounds")]
+    fn per_boundary_separator_outside_its_group_panics() {
+        let _ = BlockSeparator::PerBoundary([true, false]).at(2);
+    }
+
+    #[test]
     fn oversized_mixed_groups_remain_ambiguous_without_panicking() {
         let feature = |id, text: &str| {
             let tokens = text

@@ -391,3 +391,68 @@ where
             .extract_outcome(parsed.as_ref(), extraction_limits)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn external_font_identities_accept_their_documented_bounds() {
+        let mut identities = ExternalFontIdentities::default();
+        let base_font = vec![b'A'; ExternalFontIdentities::MAX_BASE_FONT_BYTES];
+        let identity = vec![b'i'; ExternalFontIdentities::MAX_IDENTITY_BYTES];
+        identities
+            .insert(&base_font, &identity)
+            .expect("documented boundary lengths are accepted");
+        assert!(identities.get(&base_font).is_some());
+        let names = identities
+            .iter()
+            .map(|(name, _)| name.to_vec())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec![base_font]);
+    }
+
+    #[test]
+    fn external_font_identities_reject_empty_and_oversized_inputs() {
+        let mut identities = ExternalFontIdentities::default();
+        assert!(identities.insert(b"", b"identity").is_err());
+        let oversized_base_font = vec![b'A'; ExternalFontIdentities::MAX_BASE_FONT_BYTES + 1];
+        assert!(
+            identities
+                .insert(&oversized_base_font, b"identity")
+                .is_err()
+        );
+        assert!(identities.insert(b"BaseFont", b"").is_err());
+        let oversized_identity = vec![b'i'; ExternalFontIdentities::MAX_IDENTITY_BYTES + 1];
+        assert!(identities.insert(b"BaseFont", &oversized_identity).is_err());
+        assert!(identities.get(b"BaseFont").is_none());
+    }
+
+    #[test]
+    fn external_font_identities_reject_duplicates_and_excess_entries() {
+        let mut identities = ExternalFontIdentities::default();
+        identities
+            .insert(b"BaseFont", b"identity")
+            .expect("the first insertion succeeds");
+        assert!(identities.insert(b"BaseFont", b"other").is_err());
+        assert_eq!(identities.iter().count(), 1);
+
+        let mut identities = ExternalFontIdentities::default();
+        for index in 0..ExternalFontIdentities::MAX_ENTRIES {
+            let name = format!("BaseFont{index}");
+            identities
+                .insert(name.as_bytes(), b"identity")
+                .expect("entries below the limit are accepted");
+        }
+        let error = identities
+            .insert(b"BaseFontOverflow", b"identity")
+            .expect_err("one entry beyond the limit is rejected");
+        assert!(matches!(
+            error,
+            Error::LimitExceeded {
+                resource: "external font identity entries",
+                limit,
+            } if limit == ExternalFontIdentities::MAX_ENTRIES
+        ));
+    }
+}

@@ -15521,6 +15521,18 @@ mod tests {
         }
     }
 
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn change_single_occurrence_rejects_a_mismatched_span_shape() {
+        let _ = Change::single_occurrence(
+            ChangeKind::Insertion,
+            Some(test_span(1, 0, 1)),
+            Some(test_span(2, 0, 1)),
+            Confidence::High,
+            Vec::new(),
+        );
+    }
+
     fn test_span(block: u64, start: usize, end: usize) -> TextSpan {
         TextSpan {
             blocks: vec![BlockId(block)],
