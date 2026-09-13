@@ -241,6 +241,23 @@ pub struct GeneralizationScore {
     pub new_evidence_issues: usize,
 }
 
+impl GeneralizationScore {
+    /// Whether the comparison is complete, at least one dimension is annotated,
+    /// and every annotated dimension has an exact alternative with no inferred
+    /// reports. Unannotated dimensions cannot establish accuracy.
+    #[must_use]
+    pub fn exact(&self) -> bool {
+        self.comparison_complete
+            && !self.dimensions.is_empty()
+            && self.dimensions.iter().all(|dimension| {
+                dimension.inferred_reports == 0
+                    && dimension.alternatives.iter().any(|alternative| {
+                        alternative.false_positive == 0 && alternative.false_negative == 0
+                    })
+            })
+    }
+}
+
 /// Evaluate annotated dimensions against the common graph comparison output.
 ///
 /// Each acceptable alternative receives its own score. An exact match requires
@@ -674,5 +691,41 @@ mod tests {
         assert!(
             matches!(evaluate_fixture(&annotation, &comparison), Err(BenchError::InvalidInput(message)) if message.contains("work limit"))
         );
+    }
+
+    #[test]
+    fn exact_requires_complete_annotated_dimensions_without_inference() {
+        let mut score = GeneralizationScore {
+            schema_version: GENERALIZATION_SCHEMA_VERSION,
+            dimensions: vec![DimensionScore {
+                dimension: Dimension::ChangeUnit,
+                alternatives: vec![AlternativeScore {
+                    true_positive: 1,
+                    false_positive: 0,
+                    false_negative: 0,
+                }],
+                inferred_reports: 0,
+                inferred_alternatives: Vec::new(),
+            }],
+            search_resolved: true,
+            coverage: Vec::new(),
+            comparison_complete: true,
+            unresolved_local_comparisons: 0,
+            old_evidence_issues: 0,
+            new_evidence_issues: 0,
+        };
+        assert!(score.exact());
+
+        score.dimensions[0].alternatives[0].false_positive = 1;
+        assert!(!score.exact());
+        score.dimensions[0].alternatives[0].false_positive = 0;
+        score.dimensions[0].inferred_reports = 1;
+        assert!(!score.exact());
+        score.dimensions[0].inferred_reports = 0;
+        score.comparison_complete = false;
+        assert!(!score.exact());
+        score.comparison_complete = true;
+        score.dimensions.clear();
+        assert!(!score.exact());
     }
 }

@@ -617,14 +617,7 @@ fn evaluate_document<W: Write>(
     let report = read_bounded_file(report, MAX_DOCUMENT_REPORT_BYTES, "document report")?;
     let result =
         evaluate_document_report(&annotation, &report).map_err(|error| error.to_string())?;
-    let passed = result.score.comparison_complete
-        && !result.score.dimensions.is_empty()
-        && result.score.dimensions.iter().all(|dimension| {
-            dimension.inferred_reports == 0
-                && dimension.alternatives.iter().any(|alternative| {
-                    alternative.false_positive == 0 && alternative.false_negative == 0
-                })
-        });
+    let passed = result.score.exact();
     serde_json::to_writer_pretty(&mut *writer, &result).map_err(|error| error.to_string())?;
     writeln!(writer).map_err(|error| error.to_string())?;
     Ok(u8::from(!passed))
