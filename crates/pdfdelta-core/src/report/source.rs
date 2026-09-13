@@ -278,34 +278,35 @@ impl<'a> SpanSourceProjector<'a> {
             self.limits.max_evidence_items,
         )?;
         let mut canonical_offset = 0;
+        let mut previous_token = None;
         for (position, block_id) in span.blocks.iter().copied().enumerate() {
             let block = self.block(block_id)?;
-            let block_start_token = tokens.len();
-            append_block_tokens(&mut tokens, block, canonical_offset);
-            if position > 0
-                && separator_inserts_space(
+            let (first_token, last_token) = block_boundary_tokens(block);
+            // Decide the separator before appending so tokens are pushed in
+            // order: inserting into the middle would shift every following
+            // token for every block boundary.
+            let inserts_separator = position > 0
+                && separator_inserts_space_tokens(
                     span.separator
                         .unwrap_or(BlockSeparator::Concatenate)
                         .at(position - 1),
-                    block_start_token
-                        .checked_sub(1)
-                        .and_then(|index| tokens.get(index)),
-                    tokens.get(block_start_token),
-                )
-            {
-                tokens.insert(
-                    block_start_token,
-                    ProjectedToken {
-                        token: ProjectedComparableToken::Scalar(' '),
-                        canonical_position: canonical_offset,
-                        source: ProjectedTokenSource::BlockSeparatorSpace,
-                    },
+                    previous_token,
+                    first_token,
                 );
+            if inserts_separator {
+                tokens.push(ProjectedToken {
+                    token: ProjectedComparableToken::Scalar(' '),
+                    canonical_position: canonical_offset,
+                    source: ProjectedTokenSource::BlockSeparatorSpace,
+                });
                 canonical_offset += 1;
-                for token in &mut tokens[block_start_token + 1..] {
-                    token.canonical_position += 1;
-                }
             }
+            append_block_tokens(&mut tokens, block, canonical_offset);
+            previous_token = last_token.or(if inserts_separator {
+                Some(ProjectedComparableToken::Scalar(' '))
+            } else {
+                previous_token
+            });
             let block_scalar_count = block.canonical.text.chars().count();
             let block_start = canonical_offset;
             canonical_offset += block_scalar_count;
@@ -707,18 +708,6 @@ fn block_boundary_tokens(
             })
     };
     (first, last)
-}
-
-fn separator_inserts_space(
-    separator: BlockSeparator,
-    previous: Option<&ProjectedToken<'_>>,
-    next: Option<&ProjectedToken<'_>>,
-) -> bool {
-    separator_inserts_space_tokens(
-        separator,
-        previous.map(|token| token.token),
-        next.map(|token| token.token),
-    )
 }
 
 fn separator_inserts_space_tokens(
