@@ -47,6 +47,7 @@ fn fields(revision: &str, names: &[&str], complete: bool) -> EvidenceStore {
             backend: 0,
             complete,
         }],
+        native_structures: Vec::new(),
     };
     store
         .validate(EvidenceLimits::default())

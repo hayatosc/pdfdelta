@@ -71,6 +71,7 @@ fn fixture(text: &str) -> EvidenceStore {
             },
         }],
         key_inventories: Vec::new(),
+        native_structures: Vec::new(),
         inventories: vec![ChannelInventory {
             page: Some(PageId(0)),
             channel: Channel::Text,

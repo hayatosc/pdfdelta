@@ -17,6 +17,232 @@ use pdfdelta_core::{
 
 type Fixture = (EvidenceStore, DocumentGraph);
 
+fn mixed_native_page_break(fixture: &mut Fixture) {
+    use pdfdelta_core::{
+        document::{NativeStructureInventory, NativeStructureKid, NativeStructureParent},
+        model::MarkedContent,
+    };
+    tagged_page_break(fixture);
+    let items = fixture.0.native.items().to_vec();
+    let page_break = items
+        .iter()
+        .position(|glyph| glyph.page == PageId(1))
+        .expect("page break");
+    let SourceRef::Native { glyph: tail } = fixture.1.nodes.last().expect("tail").sources[0] else {
+        unreachable!()
+    };
+    let tail = items
+        .iter()
+        .position(|glyph| glyph.id == tail)
+        .expect("tail source");
+    let length = items.len();
+    fixture.0.native = Document::new(items).with_marked_content(vec![
+        MarkedContent {
+            page: PageId(0),
+            form: None,
+            mcid: 0,
+            glyph_range: 0..page_break,
+            complete: true,
+        },
+        MarkedContent {
+            page: PageId(1),
+            form: None,
+            mcid: 0,
+            glyph_range: page_break..tail,
+            complete: true,
+        },
+        MarkedContent {
+            page: PageId(1),
+            form: None,
+            mcid: 1,
+            glyph_range: tail..length,
+            complete: true,
+        },
+    ]);
+    let object = |number| ObjectRef {
+        object_number: number,
+        generation: 0,
+    };
+    fixture.0.structured[0].object = Some(object(100));
+    let StructuredValue::StructureElement {
+        glyphs, content, ..
+    } = &mut fixture.0.structured[0].value
+    else {
+        unreachable!()
+    };
+    glyphs.clear();
+    *content = Some(vec![
+        NativeStructureKid::MarkedContent { sequence: 0 },
+        NativeStructureKid::Element { element: 1 },
+        NativeStructureKid::MarkedContent { sequence: 2 },
+        NativeStructureKid::MarkedContent { sequence: 2 },
+    ]);
+    fixture.0.structured.push(StructuredEvidence {
+        id: 1,
+        page: None,
+        bounds: None,
+        object: Some(object(101)),
+        backend: 0,
+        value: StructuredValue::StructureElement {
+            role: "Span".into(),
+            identifier: None,
+            text: None,
+            glyphs: Vec::new(),
+            content: Some(vec![NativeStructureKid::MarkedContent { sequence: 1 }]),
+            parent: Some(0),
+            order: Some(1),
+        },
+    });
+    let relations = fixture.0.inventories.last_mut().expect("relations");
+    relations.complete = false;
+    relations.sources.push(SourceRef::Structured { element: 1 });
+    fixture.0.issues.push(EvidenceIssue {
+        boundary: None,
+        page: None,
+        channel: Channel::Relations,
+        sources: Vec::new(),
+        kind: EvidenceFailure::Unresolved,
+        reason: "Semantic relationships remain unexamined".into(),
+    });
+    fixture.0.native_structures.push(NativeStructureInventory {
+        backend: 0,
+        root: Some(object(99)),
+        roots: vec![0],
+        complete: true,
+        parents: Some(vec![
+            NativeStructureParent {
+                sequence: 0,
+                owner: object(100),
+            },
+            NativeStructureParent {
+                sequence: 1,
+                owner: object(101),
+            },
+            NativeStructureParent {
+                sequence: 2,
+                owner: object(100),
+            },
+        ]),
+    });
+}
+
+#[test]
+fn mixed_native_order_closes_only_the_unique_parent_bound_source_interval() {
+    use pdfdelta_core::document::NativeStructureKid;
+    let old = fixture_rows(&["BEGIN", "Budget 10.", "Cost 10.", "END", "TAIL"]);
+    let mut new = fixture_rows(&["BEGIN", "Budget 20.", "Cost 20.", "END", "TAIL"]);
+    mixed_native_page_break(&mut new);
+    let marks = new.0.native.marked_content().to_vec();
+    let mut glyphs = new.0.native.items().to_vec();
+    let count = glyphs.len() as u32;
+    for glyph in &mut glyphs {
+        glyph.render_order = count - glyph.render_order;
+    }
+    new.0.native = Document::new(glyphs).with_marked_content(marks);
+    let result = compare(&old, &new);
+    let expected: Vec<_> = new.1.nodes[2..4]
+        .iter()
+        .flat_map(|node| node.sources.clone())
+        .collect();
+    assert!(
+        result
+            .scopes
+            .iter()
+            .flat_map(|scope| &scope.result.text_scope_reviews)
+            .any(|review| review.new_sources == expected
+                && review.native_regions.as_ref().is_some_and(|chains| chains
+                    .new
+                    .as_ref()
+                    .is_some_and(
+                        |chain| chain.convention == "native-k-parent-bound-page-regions-v1"
+                    )))
+    );
+    assert!(!new.0.inventory_complete(None, Channel::Relations));
+    for fault in [
+        "incomplete",
+        "parent-tree",
+        "owner",
+        "annotation",
+        "duplicate",
+        "physical-gap",
+    ] {
+        let mut bad = new.clone();
+        match fault {
+            "incomplete" => bad.0.native_structures[0].complete = false,
+            "parent-tree" => bad.0.native_structures[0].parents = None,
+            "owner" => {
+                bad.0.native_structures[0]
+                    .parents
+                    .as_mut()
+                    .expect("parents")[1]
+                    .owner
+                    .object_number = 100
+            }
+            "annotation" => {
+                let StructuredValue::StructureElement {
+                    content: Some(content),
+                    ..
+                } = &mut bad.0.structured[0].value
+                else {
+                    unreachable!()
+                };
+                content.insert(
+                    1,
+                    NativeStructureKid::Annotation {
+                        object: ObjectRef {
+                            object_number: 200,
+                            generation: 0,
+                        },
+                        page: PageId(0),
+                    },
+                );
+                let StructuredValue::StructureElement { order, .. } =
+                    &mut bad.0.structured[1].value
+                else {
+                    unreachable!()
+                };
+                *order = Some(2);
+            }
+            "duplicate" => {
+                let mut duplicate = bad.0.structured[1].clone();
+                duplicate.id = 2;
+                duplicate.object = Some(ObjectRef {
+                    object_number: 102,
+                    generation: 0,
+                });
+                let StructuredValue::StructureElement { parent, order, .. } = &mut duplicate.value
+                else {
+                    unreachable!()
+                };
+                *parent = None;
+                *order = Some(1);
+                bad.0.structured.push(duplicate);
+                bad.0.native_structures[0].roots.push(2);
+                bad.0
+                    .inventories
+                    .last_mut()
+                    .expect("relations")
+                    .sources
+                    .push(SourceRef::Structured { element: 2 });
+            }
+            "physical-gap" => {
+                let marks = bad.0.native.marked_content().to_vec();
+                append_unassigned(&mut bad, PageId(1), 85.0);
+                bad.0.native = bad.0.native.clone().with_marked_content(marks);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            compare(&old, &bad)
+                .scopes
+                .iter()
+                .flat_map(|scope| &scope.result.text_scope_reviews)
+                .all(|review| review.native_regions.is_none()),
+            "{fault}"
+        );
+    }
+}
+
 fn tagged_page_break(fixture: &mut Fixture) {
     let mut glyphs = fixture.0.native.items().to_vec();
     let start = match fixture.1.nodes[3].sources[0] {
@@ -436,6 +662,7 @@ fn fixture_rows(rows: &[&str]) -> Fixture {
             rendered: vec![],
             structured: vec![],
             key_inventories: vec![],
+            native_structures: vec![],
             issues: vec![],
             inventories: vec![ChannelInventory {
                 page: Some(PageId(0)),

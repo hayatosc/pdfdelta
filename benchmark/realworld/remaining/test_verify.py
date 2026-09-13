@@ -34,6 +34,9 @@ class EvidenceTests(unittest.TestCase):
         with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
             event = verify.events(report)[0]
             self.assertEqual(event["source_projection"]["native_regions"], review["native_regions"])
+            native = copy.deepcopy(report)
+            native["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]["native_regions"]["new"]["convention"] = "native-k-parent-bound-page-regions-v1"
+            self.assertEqual(verify.events(native)[0]["category"], "B")
             for mutation in ("missing", "duplicate", "order", "unaccepted", "inferred"):
                 invalid = copy.deepcopy(report)
                 scope = invalid["comparison"]["scopes"][0]["result"]

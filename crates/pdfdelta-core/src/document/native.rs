@@ -185,6 +185,7 @@ impl EvidenceStore {
             structured: Vec::new(),
             inventories,
             key_inventories: Vec::new(),
+            native_structures: Vec::new(),
             issues,
         };
         store.validate(limits)?;

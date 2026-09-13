@@ -58,7 +58,7 @@ struct Sources<'a>(DocumentView<'a>);
 impl Serialize for Sources<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let store = self.0.evidence;
-        let mut map = serializer.serialize_map(Some(7))?;
+        let mut map = serializer.serialize_map(Some(8))?;
         map.serialize_entry(
             "summary",
             &crate::evidence_compare::EvidenceSummary::new(store),
@@ -68,6 +68,7 @@ impl Serialize for Sources<'_> {
         map.serialize_entry("structured", &store.structured)?;
         map.serialize_entry("inventories", &store.inventories)?;
         map.serialize_entry("key_inventories", &store.key_inventories)?;
+        map.serialize_entry("native_structures", &store.native_structures)?;
         map.serialize_entry("graph", self.0.graph)?;
         map.end()
     }

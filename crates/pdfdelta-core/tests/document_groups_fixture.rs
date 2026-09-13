@@ -24,6 +24,7 @@ fn fixture(parts: &[&str]) -> (EvidenceStore, DocumentGraph) {
         rendered: Vec::new(),
         inventories: Vec::new(),
         key_inventories: Vec::new(),
+        native_structures: Vec::new(),
         issues: Vec::new(),
         structured: parts
             .iter()

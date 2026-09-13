@@ -174,7 +174,15 @@ pub(super) fn runs<'a>(
     {
         return Ok(Vec::new());
     }
-    segments::bridge(view, &nodes, &blocked, &mut next, &mut previous, remaining);
+    segments::bridge(
+        sources,
+        view,
+        &nodes,
+        &blocked,
+        &mut next,
+        &mut previous,
+        remaining,
+    );
     let mut runs = Vec::new();
     let mut visited = BTreeSet::new();
     for &start in nodes.keys() {
@@ -208,6 +216,7 @@ pub(super) fn runs<'a>(
 pub(super) struct Sources<'a> {
     glyphs: BTreeMap<GlyphId, &'a Glyph>,
     pages: BTreeMap<PageId, Vec<&'a [Glyph]>>,
+    native_order: Option<Vec<segments::Membership<'a>>>,
 }
 
 struct NodeGeometry {
@@ -220,6 +229,9 @@ struct NodeGeometry {
 }
 
 impl<'a> Sources<'a> {
+    pub(super) fn acquire_native_order(&mut self, view: DocumentView<'a>, remaining: &mut usize) {
+        self.native_order = segments::native_memberships(view, remaining);
+    }
     pub(super) fn census(
         &self,
         view: DocumentView<'_>,
@@ -498,6 +510,7 @@ impl<'a> Sources<'a> {
         let mut index = Self {
             glyphs: BTreeMap::new(),
             pages: BTreeMap::new(),
+            native_order: None,
         };
         let mut start = 0;
         for (position, glyph) in glyphs.iter().enumerate() {
@@ -898,6 +911,7 @@ mod tests {
             structured: Vec::new(),
             inventories: Vec::new(),
             key_inventories: Vec::new(),
+            native_structures: Vec::new(),
             issues: Vec::new(),
         };
         let graph = DocumentGraph::default();

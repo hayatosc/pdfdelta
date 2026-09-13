@@ -2,9 +2,26 @@
 //! Page adjacency and render order alone never establish these transitions.
 
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 use super::*;
 use crate::document::StructuredValue;
+
+mod order;
+
+pub(super) struct Membership<'a> {
+    structure: SourceRef,
+    glyphs: Cow<'a, [GlyphId]>,
+    offset: usize,
+    convention: &'static str,
+}
+
+pub(super) fn native_memberships<'a>(
+    view: DocumentView<'a>,
+    remaining: &mut usize,
+) -> Option<Vec<Membership<'a>>> {
+    order::acquire(view, remaining)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NativeRegion {
@@ -36,10 +53,7 @@ pub struct NativeRegionChains {
     pub new: Option<NativeRegionChain>,
 }
 
-fn memberships<'a>(
-    view: DocumentView<'a>,
-    remaining: &mut usize,
-) -> Option<Vec<(SourceRef, &'a [GlyphId])>> {
+fn memberships<'a>(view: DocumentView<'a>, remaining: &mut usize) -> Option<Vec<Membership<'a>>> {
     if view.evidence.structured.is_empty() {
         return Some(Vec::new());
     }
@@ -103,7 +117,12 @@ fn memberships<'a>(
             return None;
         }
         if !glyphs.is_empty() {
-            result.push((source, glyphs.as_slice()));
+            result.push(Membership {
+                structure: source,
+                glyphs: Cow::Borrowed(glyphs),
+                offset: 0,
+                convention: "native-tag-ordered-page-regions-v1",
+            });
         }
     }
     Some(result)
@@ -112,6 +131,7 @@ fn memberships<'a>(
 /// Candidate links only: complete page bands and the complete selected tag
 /// subsequence still have to pass `closed` under matched outer boundaries.
 pub(super) fn bridge(
+    sources: &Sources<'_>,
     view: DocumentView<'_>,
     nodes: &BTreeMap<NodeId, &GraphNode>,
     blocked: &BTreeSet<NodeId>,
@@ -119,7 +139,12 @@ pub(super) fn bridge(
     previous: &mut BTreeMap<NodeId, BTreeSet<NodeId>>,
     remaining: &mut usize,
 ) {
-    let Some(memberships) = memberships(view, remaining) else {
+    let legacy = sources
+        .native_order
+        .is_none()
+        .then(|| memberships(view, remaining))
+        .flatten();
+    let Some(memberships) = sources.native_order.as_deref().or(legacy.as_deref()) else {
         return;
     };
     if memberships.is_empty() {
@@ -151,25 +176,36 @@ pub(super) fn bridge(
         }
     }
     let mut proposals = Vec::new();
-    for (_, glyphs) in memberships {
-        for pair in glyphs.windows(2) {
+    for membership in memberships {
+        for pair in membership.glyphs.windows(2) {
+            if spend(remaining, ends.len().saturating_add(1).ilog2() as usize + 1).is_none() {
+                return;
+            }
+            let Some(a) = ends.get(&SourceRef::Native { glyph: pair[0] }) else {
+                continue;
+            };
             if spend(
                 remaining,
-                (nodes.len().saturating_add(1).ilog2() as usize + 1) * 8,
+                starts.len().saturating_add(1).ilog2() as usize + 1,
             )
             .is_none()
             {
                 return;
             }
-            let (Some(a), Some(b)) = (
-                ends.get(&SourceRef::Native { glyph: pair[0] }),
-                starts.get(&SourceRef::Native { glyph: pair[1] }),
-            ) else {
+            let Some(b) = starts.get(&SourceRef::Native { glyph: pair[1] }) else {
                 continue;
             };
             let ([a], [b]) = (a.as_slice(), b.as_slice()) else {
                 continue;
             };
+            if spend(
+                remaining,
+                (nodes.len().saturating_add(1).ilog2() as usize + 1) * 2,
+            )
+            .is_none()
+            {
+                return;
+            }
             if a != b && nodes[a].pages != nodes[b].pages {
                 proposals.push((*a, *b));
             }
@@ -188,7 +224,12 @@ pub(super) fn closed(
     path: &[&GraphNode],
     remaining: &mut usize,
 ) -> Option<NativeRegionChain> {
-    let memberships = memberships(view, remaining)?;
+    let legacy = sources
+        .native_order
+        .is_none()
+        .then(|| memberships(view, remaining))
+        .flatten();
+    let memberships = sources.native_order.as_deref().or(legacy.as_deref())?;
     let mut selected = Vec::new();
     let mut seen = BTreeSet::new();
     let mut offsets = Vec::new();
@@ -233,7 +274,8 @@ pub(super) fn closed(
     if regions.len() < 2 {
         return None;
     }
-    for (structure, glyphs) in memberships {
+    for membership in memberships {
+        let glyphs = &membership.glyphs;
         spend(remaining, glyphs.len().saturating_add(selected.len()))?;
         let Some(start) = glyphs
             .iter()
@@ -245,7 +287,7 @@ pub(super) fn closed(
             continue;
         }
         return Some(NativeRegionChain {
-            convention: "native-tag-ordered-page-regions-v1".into(),
+            convention: membership.convention.into(),
             regions,
             transitions: offsets
                 .into_iter()
@@ -256,8 +298,8 @@ pub(super) fn closed(
                     after: SourceRef::Native {
                         glyph: selected[offset],
                     },
-                    structure,
-                    position: start + offset,
+                    structure: membership.structure,
+                    position: membership.offset + start + offset,
                 })
                 .collect(),
         });

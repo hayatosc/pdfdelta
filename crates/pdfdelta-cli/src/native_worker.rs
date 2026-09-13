@@ -185,9 +185,13 @@ fn combine(
                 let fields = base.store.structured.len();
                 let inventories = base.store.inventories.len();
                 let key_inventories = base.store.key_inventories.len();
+                let native_structures = base.store.native_structures.len();
                 let issues = base.store.issues.len();
                 base.store.native = content.store.native;
                 base.store.structured.extend(content.store.structured);
+                base.store
+                    .native_structures
+                    .extend(content.store.native_structures);
                 base.store.inventories.extend(content.store.inventories);
                 base.store
                     .key_inventories
@@ -198,6 +202,7 @@ fn combine(
                     base.store.structured.truncate(fields);
                     base.store.inventories.truncate(inventories);
                     base.store.key_inventories.truncate(key_inventories);
+                    base.store.native_structures.truncate(native_structures);
                     base.store.issues.truncate(issues);
                     issue(
                         &mut base.store,
@@ -317,6 +322,7 @@ fn validate_response(value: &Acquisition, job: Job, hash: &str) -> Result<(), Fa
                 !store.native.items().is_empty()
                     || !store.native.vector_lines().is_empty()
                     || !store.native.marked_content().is_empty()
+                    || !store.native_structures.is_empty()
                     || !store.native.last_non_text_paint().is_empty()
                     || store
                         .inventories
@@ -504,6 +510,7 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
                         store.issues.extend(structure.issues);
                         store.inventories.push(structure.inventory);
                         store.key_inventories.push(structure.key_inventory);
+                        store.native_structures.push(structure.native_inventory);
                     }
                     Err(error) => issue(&mut store, &Failure::core(error), &[Channel::Relations]),
                 }

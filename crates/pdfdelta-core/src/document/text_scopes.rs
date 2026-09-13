@@ -236,7 +236,15 @@ pub(super) fn append(
     limits: DocumentComparisonLimits,
 ) -> Result<()> {
     let mut remaining = limits.matching.max_ownership_visits;
-    append_pass(old, new, result, parent, limits, false, &mut remaining)?;
+    append_pass(
+        old,
+        new,
+        result,
+        parent,
+        limits,
+        Discovery::Page,
+        &mut remaining,
+    )?;
     if remaining == 0 || !limits.matching.channels.text {
         return Ok(());
     }
@@ -244,9 +252,48 @@ pub(super) fn append(
     // comparisons. Both passes share one cap and retain the earlier reviews.
     let prior = result.source_cut_search.take();
     let before = remaining;
-    append_pass(old, new, result, parent, limits, true, &mut remaining)?;
+    append_pass(
+        old,
+        new,
+        result,
+        parent,
+        limits,
+        Discovery::Rows,
+        &mut remaining,
+    )?;
     merge_cut_search(result, prior, before - remaining);
+    if remaining != 0
+        && [old, new].iter().any(|view| {
+            view.evidence.native_structures.iter().any(|inventory| {
+                inventory.complete
+                    && inventory
+                        .parents
+                        .as_ref()
+                        .is_some_and(|parents| !parents.is_empty())
+            })
+        })
+    {
+        let prior = result.source_cut_search.take();
+        let before = remaining;
+        append_pass(
+            old,
+            new,
+            result,
+            parent,
+            limits,
+            Discovery::NativeStructure,
+            &mut remaining,
+        )?;
+        merge_cut_search(result, prior, before - remaining);
+    }
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum Discovery {
+    Page,
+    Rows,
+    NativeStructure,
 }
 
 fn merge_cut_search(result: &mut ScopeViewComparison, prior: Option<SourceCutSearch>, work: usize) {
@@ -269,9 +316,10 @@ fn append_pass(
     result: &mut ScopeViewComparison,
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
-    rows: bool,
+    discovery: Discovery,
     remaining: &mut usize,
 ) -> Result<()> {
+    let rows = matches!(discovery, Discovery::Rows);
     if !limits.matching.channels.text {
         return Ok(());
     }
@@ -282,12 +330,16 @@ fn append_pass(
     ) {
         (Some(left), Some(right)) => (vec![left], vec![right], None),
         _ => {
-            let (Some(old_sources), Some(new_sources)) = (
+            let (Some(mut old_sources), Some(mut new_sources)) = (
                 native::Sources::new(old, remaining),
                 native::Sources::new(new, remaining),
             ) else {
                 return Ok(());
             };
+            if matches!(discovery, Discovery::NativeStructure) {
+                old_sources.acquire_native_order(old, remaining);
+                new_sources.acquire_native_order(new, remaining);
+            }
             (
                 native::runs(old, scope.old, &old_sources, limits, rows, remaining)?,
                 native::runs(new, scope.new, &new_sources, limits, rows, remaining)?,

@@ -31,6 +31,7 @@ fn fixture(values: [&str; 2], reverse: bool) -> (EvidenceStore, DocumentGraph) {
         structured: Vec::new(),
         inventories: Vec::new(),
         key_inventories: Vec::new(),
+        native_structures: Vec::new(),
         issues: Vec::new(),
     };
     let mut graph = DocumentGraph::default();

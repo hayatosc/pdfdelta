@@ -1132,6 +1132,14 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
         "mcid",
         "depth",
         "malformed",
+        "annotation",
+        "annotation-page",
+        "parents-duplicate",
+        "parents-limits",
+        "parents-cycle",
+        "parents-budget",
+        "parents-container",
+        "parents-owner",
     ] {
         let mut pdf = LopdfDocument::with_version("1.7");
         let font = base_font(&mut pdf);
@@ -1166,6 +1174,15 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
         if fault == "object" {
             kids.push(Object::Dictionary(dictionary! { "Type" => "OBJR" }));
         }
+        let annotation = pdf.add_object(dictionary! {
+            "Type" => "Annot", "Subtype" => "Link", "P" => pages[&1],
+        });
+        if matches!(fault, "annotation" | "annotation-page") {
+            kids.push(Object::Dictionary(dictionary! {
+                "Type" => "OBJR", "Obj" => annotation,
+                "Pg" => if fault == "annotation-page" { pages[&2] } else { pages[&1] },
+            }));
+        }
         pdf.objects.insert(
             parent,
             Object::Dictionary(dictionary! {
@@ -1176,6 +1193,41 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
             root,
             Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => parent }),
         );
+        for (number, page) in &pages {
+            pdf.get_object_mut(*page)
+                .expect("fixture page")
+                .as_dict_mut()
+                .expect("page dictionary")
+                .set(
+                    "StructParents",
+                    if fault == "parents-container" {
+                        0
+                    } else {
+                        i64::from(*number) - 1
+                    },
+                );
+        }
+        let first_parents = pdf.add_object(dictionary! {
+            "Limits" => vec![Object::Integer(0), Object::Integer(if fault == "parents-limits" { 1 } else { 0 })],
+            "Nums" => vec![Object::Integer(0), Object::Array(vec![
+                if fault == "parents-owner" { root.into() } else { parent.into() }, child.into(),
+            ])],
+        });
+        let second_key = if fault == "parents-duplicate" { 0 } else { 1 };
+        let second_parents = pdf.add_object(dictionary! {
+            "Limits" => vec![Object::Integer(second_key), Object::Integer(second_key)],
+            "Nums" => vec![Object::Integer(second_key), Object::Array(vec![parent.into()])],
+        });
+        let parent_tree = pdf.new_object_id();
+        pdf.objects.insert(parent_tree, Object::Dictionary(dictionary! {
+            "Kids" => if fault == "parents-cycle" { vec![Object::Reference(parent_tree)] }
+                else { vec![Object::Reference(first_parents), Object::Reference(second_parents)] },
+        }));
+        pdf.get_object_mut(root)
+            .expect("structure root")
+            .as_dict_mut()
+            .expect("root dictionary")
+            .set("ParentTree", parent_tree);
         let catalog = pdf
             .trailer
             .get(b"Root")
@@ -1217,6 +1269,11 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
             37,
             StructureLimits {
                 max_depth: if fault == "depth" { 0 } else { 64 },
+                max_nodes: if fault == "parents-budget" {
+                    10
+                } else {
+                    100_000
+                },
                 ..StructureLimits::default()
             },
         )?;
@@ -1255,6 +1312,21 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
         if fault == "object" {
             assert_eq!(content[3], NativeStructureKid::Unresolved);
         }
+        if fault == "annotation-page" {
+            assert_eq!(content[3], NativeStructureKid::Unresolved);
+        }
+        if fault == "annotation" {
+            assert_eq!(
+                content[3],
+                NativeStructureKid::Annotation {
+                    object: pdfdelta_core::pdf::ObjectRef {
+                        object_number: annotation.0,
+                        generation: annotation.1
+                    },
+                    page: PageId(0),
+                }
+            );
+        }
         if fault == "mcid" {
             let StructuredValue::StructureElement {
                 content: Some(content),
@@ -1265,6 +1337,44 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
             };
             assert_eq!(content, &[NativeStructureKid::Unresolved]);
         }
+        assert_eq!(
+            tags.native_inventory.complete,
+            !matches!(
+                fault,
+                "object" | "parent" | "mcid" | "depth" | "malformed" | "annotation-page"
+            ),
+            "{fault}"
+        );
+        if matches!(
+            fault,
+            "parents-duplicate"
+                | "parents-limits"
+                | "parents-cycle"
+                | "parents-budget"
+                | "parents-container"
+                | "depth"
+        ) {
+            assert!(tags.native_inventory.parents.is_none(), "{fault}");
+        } else {
+            let bindings = tags
+                .native_inventory
+                .parents
+                .as_ref()
+                .expect("closed parent lookup");
+            assert_eq!(bindings.len(), 3);
+            assert_eq!(bindings[0].sequence, 0);
+            assert_eq!(
+                bindings[0].owner.object_number,
+                if fault == "parents-owner" {
+                    root.0
+                } else {
+                    parent.0
+                }
+            );
+            assert_eq!(bindings[1].owner.object_number, child.0);
+            assert_eq!(bindings[2].owner.object_number, parent.0);
+        }
+        store.native_structures.push(tags.native_inventory);
         store.structured = tags.elements;
         store.issues.extend(tags.issues);
         store.inventories.push(tags.inventory);
@@ -1276,6 +1386,32 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
                 .expect("deserialize mixed evidence");
         assert_eq!(store, restored);
         if fault == "none" {
+            for mutation in [
+                "missing-root",
+                "repeated-root",
+                "repeated-parent",
+                "parent-sequence",
+            ] {
+                let mut bad = store.clone();
+                let inventory = &mut bad.native_structures[0];
+                match mutation {
+                    "missing-root" => inventory.roots.clear(),
+                    "repeated-root" => inventory.roots.push(inventory.roots[0]),
+                    "repeated-parent" => {
+                        let parents = inventory.parents.as_mut().expect("parent bindings");
+                        parents.push(parents[0].clone());
+                    }
+                    "parent-sequence" => {
+                        inventory.parents.as_mut().expect("parent bindings")[0].sequence =
+                            usize::MAX;
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    bad.validate(EvidenceLimits::default()).is_err(),
+                    "{mutation}"
+                );
+            }
             for mutation in ["sequence", "omission", "order", "child", "flat"] {
                 let mut bad = store.clone();
                 let StructuredValue::StructureElement {
@@ -1329,6 +1465,83 @@ fn incomplete_marked_content_preserves_native_glyphs() -> Result<()> {
         assert_eq!(document.marked_content()[0].glyph_range, 0..4);
         assert!(!document.marked_content()[0].complete);
     }
+    Ok(())
+}
+
+#[test]
+fn form_marked_content_uses_its_own_structural_parent_key() -> Result<()> {
+    use pdfdelta_core::document::{
+        NativeStructureKid, StructuredValue, extract_structure_evidence,
+    };
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form", "StructParents" => 7,
+            "BBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+            "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } },
+        },
+        b"/Span << /MCID 0 >> BDC BT /F1 10 Tf (A) Tj ET EMC".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(dictionary! {}, b"/X Do".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    let root = pdf.new_object_id();
+    let owner = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page,
+        "K" => dictionary! { "Type" => "MCR", "Stm" => form, "MCID" => 0 },
+    });
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => owner,
+            "ParentTree" => dictionary! { "Nums" => vec![
+                Object::Integer(7), Object::Array(vec![owner.into()]),
+            ] },
+        }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes).expect("form fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    assert_eq!(mapped_text(native.items()), "A");
+    let tags = extract_structure_evidence(parsed.as_ref(), &native, 0, 0, Default::default())?;
+    assert!(tags.native_inventory.complete);
+    let parents = tags.native_inventory.parents.expect("form parent lookup");
+    assert_eq!(parents.len(), 1);
+    assert_eq!(parents[0].sequence, 0);
+    assert_eq!(parents[0].owner.object_number, owner.0);
+    let StructuredValue::StructureElement {
+        content: Some(content),
+        ..
+    } = &tags.elements[0].value
+    else {
+        panic!("form membership")
+    };
+    assert_eq!(
+        content,
+        &[NativeStructureKid::MarkedContent { sequence: 0 }]
+    );
     Ok(())
 }
 

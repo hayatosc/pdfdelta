@@ -199,9 +199,35 @@ pub enum NativeStructureKid {
     Element {
         element: u64,
     },
+    /// A separate content item, never an empty glyph sequence. A text interval
+    /// must not silently cross this acquired annotation reference.
+    Annotation {
+        object: ObjectRef,
+        page: PageId,
+    },
     /// Acquisition failed or this entry's binding is unsupported. The parent's
     /// relation issues retain the reason; the slot must never become empty text.
     Unresolved,
+}
+
+/// Native forward structure acquisition, independent of semantic relationships.
+/// A complete forest retains every `/K` slot, including non-glyph content items.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeStructureInventory {
+    pub backend: usize,
+    pub root: Option<ObjectRef>,
+    pub roots: Vec<u64>,
+    pub complete: bool,
+    /// A closed lookup of the structural parent number tree. Missing bindings
+    /// do not prove absence; selected sequences require a matching owner.
+    /// `None` means acquisition failed, not an empty parent tree.
+    pub parents: Option<Vec<NativeStructureParent>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeStructureParent {
+    pub sequence: usize,
+    pub owner: ObjectRef,
 }
 
 /// A recognition candidate, not a native character or an exact source reading.
@@ -392,6 +418,8 @@ pub struct EvidenceStore {
     pub inventories: Vec<ChannelInventory>,
     #[serde(default)]
     pub key_inventories: Vec<KeyInventory>,
+    #[serde(default)]
+    pub native_structures: Vec<NativeStructureInventory>,
     pub issues: Vec<EvidenceIssue>,
 }
 
@@ -436,6 +464,7 @@ impl EvidenceStore {
             self.structured.len(),
             self.inventories.len(),
             self.key_inventories.len(),
+            self.native_structures.len(),
             self.issues.len(),
             self.backends.len(),
         ]
@@ -789,6 +818,11 @@ impl EvidenceStore {
                         )?;
                         let mut position = 0usize;
                         for kid in content {
+                            if let NativeStructureKid::Annotation { object, page } = kid
+                                && (object.object_number == 0 || !pages.contains_key(page))
+                            {
+                                return Err(invalid("invalid native annotation reference"));
+                            }
                             if let NativeStructureKid::MarkedContent { sequence } = kid {
                                 let mark = self.native.marked_content().get(*sequence).ok_or_else(
                                     || invalid("missing structure marked-content sequence"),
@@ -896,6 +930,43 @@ impl EvidenceStore {
         }
         let mut inventory_keys = BTreeSet::new();
         let mut references = 0usize;
+        let mut structure_backends = BTreeSet::new();
+        for inventory in &self.native_structures {
+            if self
+                .backends
+                .get(inventory.backend)
+                .map(|backend| backend.kind)
+                != Some(BackendKind::NativeParser)
+                || !structure_backends.insert(inventory.backend)
+                || inventory.root.is_some_and(|root| root.object_number == 0)
+                || (inventory.complete && inventory.root.is_none())
+            {
+                return Err(invalid("invalid native structure acquisition identity"));
+            }
+            add_bytes(
+                &mut references,
+                inventory.roots.len(),
+                limits.max_items,
+                "native structure root references",
+            )?;
+            if let Some(parents) = &inventory.parents {
+                add_bytes(
+                    &mut references,
+                    parents.len(),
+                    limits.max_items,
+                    "native structure parent references",
+                )?;
+                let mut sequences = BTreeSet::new();
+                for parent in parents {
+                    if parent.sequence >= self.native.marked_content().len()
+                        || parent.owner.object_number == 0
+                        || !sequences.insert(parent.sequence)
+                    {
+                        return Err(invalid("invalid native structure parent binding"));
+                    }
+                }
+            }
+        }
         for inventory in &self.inventories {
             if inventory
                 .page

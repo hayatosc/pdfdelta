@@ -229,6 +229,7 @@ fn store() -> EvidenceStore {
         structured: Vec::new(),
         inventories: Vec::new(),
         key_inventories: Vec::new(),
+        native_structures: Vec::new(),
         issues: Vec::new(),
     }
 }

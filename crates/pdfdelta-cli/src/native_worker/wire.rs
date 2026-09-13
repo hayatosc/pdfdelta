@@ -4,7 +4,7 @@
 use pdfdelta_core::{
     document::{
         BackendIdentity, ChannelInventory, EvidenceIssue, EvidenceStore, KeyInventory,
-        PageEvidence, RenderedEvidence, StructuredEvidence,
+        NativeStructureInventory, PageEvidence, RenderedEvidence, StructuredEvidence,
     },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 // A version change is required when reordering positional fields. This format
 // is internal to one executable; public reports retain their named fields.
-const VERSION: u8 = 2;
+const VERSION: u8 = 3;
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Acquisition {
@@ -35,6 +35,7 @@ struct Store {
     structured: Vec<StructuredEvidence>,
     inventories: Vec<ChannelInventory>,
     key_inventories: Vec<KeyInventory>,
+    native_structures: Vec<NativeStructureInventory>,
     issues: Vec<EvidenceIssue>,
 }
 
@@ -193,6 +194,7 @@ impl From<super::Acquisition> for Acquisition {
             structured,
             inventories,
             key_inventories,
+            native_structures,
             issues,
         } = value.store;
         let mut context = None;
@@ -207,6 +209,7 @@ impl From<super::Acquisition> for Acquisition {
                 structured,
                 inventories,
                 key_inventories,
+                native_structures,
                 issues,
             },
             page_refs: value.page_refs,
@@ -230,6 +233,7 @@ impl Acquisition {
             structured,
             inventories,
             key_inventories,
+            native_structures,
             issues,
         } = self.store;
         if native
@@ -252,6 +256,7 @@ impl Acquisition {
                 structured,
                 inventories,
                 key_inventories,
+                native_structures,
                 issues,
             },
             page_refs: self.page_refs,

@@ -297,7 +297,8 @@ def checked_native_regions(review, result):
     for side, chain in chains.items():
         if chain is None:
             continue
-        require(chain["convention"] == "native-tag-ordered-page-regions-v1",
+        require(chain["convention"] in ("native-tag-ordered-page-regions-v1",
+                                        "native-k-parent-bound-page-regions-v1"),
                 "unknown native transition profile")
         regions, transitions = chain["regions"], chain["transitions"]
         nodes = [node for region in regions for node in region["nodes"]]
