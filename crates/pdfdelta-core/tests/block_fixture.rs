@@ -48,6 +48,39 @@ fn groups_regular_lines_into_one_body_block() {
 }
 
 #[test]
+fn joins_a_full_indented_first_line_without_absorbing_the_next_paragraph() {
+    for scale in [0.5, 1.0, 3.0] {
+        for (indent, width, joined) in [
+            (12.0, 224.0, true),
+            (12.0, 100.0, false),
+            (30.0, 206.0, false),
+        ] {
+            let mut specs = vec![
+                LineSpec::column(1, 0, "indented first line", 50.0 + indent, 560.0, width),
+                LineSpec::column(2, 0, "full continuation line", 50.0, 546.0, 236.0),
+                LineSpec::column(3, 0, "short final line", 50.0, 532.0, 100.0),
+                LineSpec::column(4, 0, "next paragraph", 62.0, 518.0, 224.0),
+            ];
+            for spec in &mut specs {
+                spec.x *= scale;
+                spec.y *= scale;
+                spec.width *= scale;
+                spec.height *= scale;
+                spec.font_size *= scale;
+            }
+            let fixture = Fixture::new(specs);
+            let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+                .expect("first-line geometry");
+            assert_eq!(blocks.len(), if joined { 2 } else { 3 });
+            if joined {
+                assert_eq!(blocks[0].lines, [LineId(1), LineId(2), LineId(3)]);
+            }
+            assert_eq!(blocks.last().expect("last paragraph").lines, [LineId(4)]);
+        }
+    }
+}
+
+#[test]
 fn joins_a_ragged_hanging_indent_continuation_without_merging_the_next_item() {
     let fixture = Fixture::new(vec![
         LineSpec::column(

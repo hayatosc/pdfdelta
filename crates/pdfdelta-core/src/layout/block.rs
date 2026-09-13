@@ -31,6 +31,11 @@ const RAGGED_CONTINUATION_MAX_INDENT_RATIO: f64 = 1.5;
 // 0.5 ceiling keeps full-width lines (new paragraphs, block quotes) split
 // while admitting typical ragged tails (observed ~0.2).
 const RAGGED_CONTINUATION_MAX_WIDTH_RATIO: f64 = 0.5;
+// Observed first-line indents reach 1.4 line heights in justified prose. Require
+// near-full width and an aligned right edge before accepting the outdent.
+const FIRST_LINE_MAX_INDENT_RATIO: f64 = 1.5;
+const FIRST_LINE_MIN_WIDTH_RATIO: f64 = 0.8;
+const FIRST_LINE_MAX_RIGHT_EDGE_HEIGHT_RATIO: f64 = 0.1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockId(pub u64);
@@ -1672,12 +1677,20 @@ fn should_join(
     // the general ceiling without new errors.
     let previous_width = previous.inline_interval.1 - previous.inline_interval.0;
     let current_width = current.inline_interval.1 - current.inline_interval.0;
+    let right_edge_ratio = (previous.inline_interval.1 - current.inline_interval.1).abs() / height;
+    let first_line_continuation = previous.inline_start > current.inline_start
+        && indent_ratio > options.max_indent_height_ratio
+        && indent_ratio <= FIRST_LINE_MAX_INDENT_RATIO
+        && previous_width >= current_width * FIRST_LINE_MIN_WIDTH_RATIO
+        && right_edge_ratio <= FIRST_LINE_MAX_RIGHT_EDGE_HEIGHT_RATIO;
     let ragged_continuation = indent_ratio > options.max_indent_height_ratio
         && indent_ratio <= RAGGED_CONTINUATION_MAX_INDENT_RATIO
         && current_width <= previous_width * RAGGED_CONTINUATION_MAX_WIDTH_RATIO
         && current.inline_interval.0 >= previous.inline_interval.0
         && current.inline_interval.1 <= previous.inline_interval.1;
-    let effective_max_indent = if ragged_continuation {
+    let effective_max_indent = if first_line_continuation {
+        FIRST_LINE_MAX_INDENT_RATIO
+    } else if ragged_continuation {
         RAGGED_CONTINUATION_MAX_INDENT_RATIO
     } else {
         options.max_indent_height_ratio
@@ -1691,7 +1704,11 @@ fn should_join(
     }
 
     let vertical_proximity = closeness(vertical_gap_ratio, options.max_vertical_gap_height_ratio);
-    let indent_similarity = closeness(indent_ratio, effective_max_indent);
+    let indent_similarity = if first_line_continuation {
+        closeness(right_edge_ratio, FIRST_LINE_MAX_RIGHT_EDGE_HEIGHT_RATIO)
+    } else {
+        closeness(indent_ratio, effective_max_indent)
+    };
     let score = options.vertical_proximity_weight * vertical_proximity
         + options.horizontal_overlap_weight * horizontal_overlap
         + options.indent_similarity_weight * indent_similarity
