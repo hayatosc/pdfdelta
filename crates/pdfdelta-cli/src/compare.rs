@@ -374,42 +374,18 @@ pub fn compare_documents_traced<W: Write>(
         return Err(error);
     }
 
-    if let Some(output_path) = options.output_path {
-        let report = render_text(
+    let old_label = old_input.path.display().to_string();
+    let new_label = new_input.path.display().to_string();
+    let render_report = |color| {
+        render_text(
             &outcome.old_blocks,
             &outcome.new_blocks,
             &outcome.comparison,
             &outcome.extraction,
             &TextReportOptions {
-                old_label: &old_input.path.display().to_string(),
-                new_label: &new_input.path.display().to_string(),
-                color: matches!(options.color, ColorChoice::Always),
-            },
-        )
-        .map_err(|error| {
-            format!(
-                "cannot render comparison report for {} and {}: {error}",
-                old_input.path.display(),
-                new_input.path.display()
-            )
-        })?;
-
-        if let Err(error) = write_text_report_atomically(output_path, &report) {
-            trace.fail_message("report", None, "report", &error);
-            return Err(error);
-        }
-    }
-
-    if !options.quiet && options.json_path.is_none() && options.output_path.is_none() {
-        let report_result = render_text(
-            &outcome.old_blocks,
-            &outcome.new_blocks,
-            &outcome.comparison,
-            &outcome.extraction,
-            &TextReportOptions {
-                old_label: &old_input.path.display().to_string(),
-                new_label: &new_input.path.display().to_string(),
-                color: resolve_color(options.color),
+                old_label: &old_label,
+                new_label: &new_label,
+                color,
             },
         )
         .map_err(|error| {
@@ -419,7 +395,19 @@ pub fn compare_documents_traced<W: Write>(
                 new_input.path.display()
             )
         })
-        .and_then(|report| {
+    };
+
+    if let Some(output_path) = options.output_path {
+        let report = render_report(matches!(options.color, ColorChoice::Always))?;
+
+        if let Err(error) = write_text_report_atomically(output_path, &report) {
+            trace.fail_message("report", None, "report", &error);
+            return Err(error);
+        }
+    }
+
+    if !options.quiet && options.json_path.is_none() && options.output_path.is_none() {
+        let report_result = render_report(resolve_color(options.color)).and_then(|report| {
             let stdout = io::stdout();
             let mut stdout = stdout.lock();
             stdout
