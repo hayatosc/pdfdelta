@@ -906,7 +906,7 @@ fn visit_budget_error(limit: usize) -> BenchError {
 
 /// Nearest-rank percentile: the value at index `round((n - 1) * quantile)`
 /// of the sorted sample, without interpolation.
-fn percentile(values: &[usize], quantile: f64) -> usize {
+pub(crate) fn percentile(values: &[usize], quantile: f64) -> usize {
     if values.is_empty() {
         return 0;
     }

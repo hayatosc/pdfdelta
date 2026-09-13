@@ -93,7 +93,7 @@ use crate::{
         EvaluationSummary, ExpectedChangeMatchEvaluation, ManifestProvenanceEntry,
         PROVENANCE_COLUMNS, ProvenEvaluation, QualityEvaluation, ReviewedRecallEvaluation,
         ScopedEventEvaluation, ScopedTokenEvaluation, TokenResolutionCounts, TrialStatus,
-        sha256_hex, validate_manifest_provenance,
+        change_kind_name, ratio, sha256_hex, validate_manifest_provenance,
     },
 };
 
@@ -8922,14 +8922,6 @@ fn compute_scoped_reviewed_recall_metrics(
     .ok()
 }
 
-fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
-    if denominator == 0 {
-        None
-    } else {
-        Some(numerator as f64 / denominator as f64)
-    }
-}
-
 #[must_use]
 pub fn compute_quality(
     annotation: Annotation,
@@ -9064,15 +9056,6 @@ fn candidate_token_count(candidates: &[pdfdelta_core::diff::ChangeCandidate]) ->
                 .saturating_sub(span.comparable_range.start)
         })
         .sum()
-}
-
-fn change_kind_name(kind: ChangeKind) -> &'static str {
-    match kind {
-        ChangeKind::Replacement => "replacement",
-        ChangeKind::Insertion => "insertion",
-        ChangeKind::Deletion => "deletion",
-        ChangeKind::Move => "move",
-    }
 }
 
 fn issue_lines(extraction: &report::ExtractionStatus) -> Vec<IssueLine> {

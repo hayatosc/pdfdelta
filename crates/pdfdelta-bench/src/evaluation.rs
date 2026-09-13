@@ -12,6 +12,7 @@ use std::{
     path::Path,
 };
 
+use pdfdelta_core::diff::ChangeKind;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -1034,8 +1035,18 @@ fn mean(values: &[f64]) -> Option<f64> {
     (!values.is_empty()).then(|| values.iter().sum::<f64>() / values.len() as f64)
 }
 
-fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
+pub(crate) fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
     (denominator > 0).then(|| numerator as f64 / denominator as f64)
+}
+
+/// Stable lowercase name of an exact change kind for reports and summaries.
+pub(crate) fn change_kind_name(kind: ChangeKind) -> &'static str {
+    match kind {
+        ChangeKind::Replacement => "replacement",
+        ChangeKind::Insertion => "insertion",
+        ChangeKind::Deletion => "deletion",
+        ChangeKind::Move => "move",
+    }
 }
 
 /// Baseline identity recorded alongside the evaluation output.

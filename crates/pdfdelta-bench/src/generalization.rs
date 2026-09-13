@@ -12,7 +12,7 @@ use pdfdelta_core::document::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{BenchError, Result};
+use crate::{BenchError, Result, evaluation::ratio};
 
 pub const GENERALIZATION_SCHEMA_VERSION: u32 = 1;
 
@@ -212,10 +212,6 @@ impl AlternativeScore {
     pub fn recall(&self) -> Option<f64> {
         ratio(self.true_positive, self.true_positive + self.false_negative)
     }
-}
-
-fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
-    (denominator != 0).then(|| numerator as f64 / denominator as f64)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -20,6 +20,7 @@ use pdfdelta_core::{
 use crate::{
     BenchError, Result,
     cases::BenchmarkCase,
+    evaluation::change_kind_name,
     mutation::{ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange, RenderPlan},
     renderers::{RenderLimits, RendererKind},
 };
@@ -1022,15 +1023,6 @@ fn actual_label(actual: &[ChangeKind]) -> String {
         [] => "none".to_owned(),
         [kind] => change_kind_name(*kind).to_owned(),
         _ => format!("{} changes", actual.len()),
-    }
-}
-
-fn change_kind_name(kind: ChangeKind) -> &'static str {
-    match kind {
-        ChangeKind::Replacement => "replacement",
-        ChangeKind::Insertion => "insertion",
-        ChangeKind::Deletion => "deletion",
-        ChangeKind::Move => "move",
     }
 }
 

@@ -1366,9 +1366,9 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
             " extracted={} comparison={} coverage=old={},new={},comp={} unresolved={}",
             yes_no(record.extraction_complete),
             yes_no(record.comparison_complete),
-            optional_ratio(record.coverage_old),
-            optional_ratio(record.coverage_new),
-            optional_ratio(record.coverage_comparison),
+            ratio_label(record.coverage_old),
+            ratio_label(record.coverage_new),
+            ratio_label(record.coverage_comparison),
             record.unresolved_regions.unwrap_or_default()
         ));
         if let Some(quality) = &record.quality {
@@ -1376,10 +1376,10 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
                 " reported={} expected={} recall={} precision={} kind={} hunks/matched={} tinyFP={}",
                 quality.reported_changes,
                 quality.expected_changes,
-                optional_ratio(quality.recall),
-                optional_ratio(quality.precision),
-                optional_ratio(quality.kind_accuracy),
-                optional_ratio(quality.reported_hunks_per_matched_change),
+                ratio_label(quality.recall),
+                ratio_label(quality.precision),
+                ratio_label(quality.kind_accuracy),
+                ratio_label(quality.reported_hunks_per_matched_change),
                 quality.unmatched_tiny_changes
             ));
         }
@@ -1459,7 +1459,7 @@ fn yes_no(value: Option<bool>) -> &'static str {
     }
 }
 
-fn optional_ratio(ratio: Option<f64>) -> String {
+fn ratio_label(ratio: Option<f64>) -> String {
     ratio.map_or_else(|| "unknown".to_owned(), |ratio| format!("{ratio:.3}"))
 }
 
@@ -1487,8 +1487,8 @@ fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(
         record.renderer,
         record.expected.label(),
         actual_label(&record.actual_kinds),
-        coverage_label(record.old_coverage),
-        coverage_label(record.new_coverage),
+        ratio_label(record.old_coverage),
+        ratio_label(record.new_coverage),
         record.candidate_changes,
         record.proven_changed_regions,
         record.precision.matched_events,
@@ -1501,10 +1501,6 @@ fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(
         record.detail
     )
     .map_err(|error| format!("cannot write benchmark result: {error}"))
-}
-
-fn coverage_label(ratio: Option<f64>) -> String {
-    ratio.map_or_else(|| "unknown".to_owned(), |ratio| format!("{ratio:.3}"))
 }
 
 fn actual_label(kinds: &[ChangeKind]) -> String {

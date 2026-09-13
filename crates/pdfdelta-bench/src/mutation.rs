@@ -5,6 +5,7 @@ use crate::{
     canonical::{
         CanonicalDocument, CanonicalRenderDocument, Paragraph, validate_paragraph_id, validate_text,
     },
+    evaluation::change_kind_name,
 };
 
 pub const MIN_LINE_GAP: u16 = 8;
@@ -1855,15 +1856,6 @@ fn join_rendered_lines(plan: &RenderPlan) -> String {
         .map(String::as_str)
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn change_kind_name(kind: ChangeKind) -> &'static str {
-    match kind {
-        ChangeKind::Replacement => "replacement",
-        ChangeKind::Insertion => "insertion",
-        ChangeKind::Deletion => "deletion",
-        ChangeKind::Move => "move",
-    }
 }
 
 #[cfg(test)]

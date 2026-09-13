@@ -17,7 +17,7 @@ use pdfdelta_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{BenchError, Result};
+use crate::{BenchError, Result, candidate_eval::percentile};
 
 pub const DEFAULT_SYNTHETIC_PROFILE_BLOCKS: usize = 1_000;
 pub const MIN_SYNTHETIC_PROFILE_BLOCKS: usize = 2;
@@ -302,17 +302,6 @@ fn profile_with_generator<G: CandidateGenerator>(
             .peak_rss_bytes
             .saturating_sub(memory_before.rss_bytes),
     })
-}
-
-/// Nearest-rank percentile without interpolation.
-fn percentile(values: &[usize], quantile: f64) -> usize {
-    if values.is_empty() {
-        return 0;
-    }
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    let index = ((sorted.len() - 1) as f64 * quantile).round() as usize;
-    sorted[index]
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
