@@ -1092,29 +1092,6 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     hex_digest(Sha256::digest(bytes).as_slice())
 }
 
-/// Hashes a reproducibility input without accepting a directory or symlink.
-pub fn hash_file(path: &Path) -> Result<String> {
-    let metadata = fs::symlink_metadata(path).map_err(|error| {
-        BenchError::InvalidInput(format!(
-            "cannot inspect artifact input {}: {error}",
-            path.display()
-        ))
-    })?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
-        return Err(BenchError::InvalidInput(format!(
-            "artifact input {} must be a regular file",
-            path.display()
-        )));
-    }
-    let bytes = fs::read(path).map_err(|error| {
-        BenchError::InvalidInput(format!(
-            "cannot read artifact input {}: {error}",
-            path.display()
-        ))
-    })?;
-    Ok(sha256_hex(&bytes))
-}
-
 /// Publishes reproduction metadata atomically and refuses to overwrite an
 /// existing artifact.
 pub fn write_reproducible_artifact(path: &Path, artifact: &ReproducibleArtifact) -> Result<()> {
@@ -1593,7 +1570,12 @@ mod tests {
         fs::create_dir_all(&root).expect("temporary root");
         let path = root.join("run.json");
         write_reproducible_artifact(&path, &artifact()).expect("publish artifact");
+        let published = fs::read(&path).expect("published artifact is readable");
         assert!(write_reproducible_artifact(&path, &artifact()).is_err());
+        assert_eq!(
+            fs::read(&path).expect("artifact survives a refused overwrite"),
+            published
+        );
         let _ = fs::remove_dir_all(root);
     }
 
