@@ -170,6 +170,41 @@ fn default_spacing_preserves_cjk_latin_typographic_gaps() {
 }
 
 #[test]
+fn unrelated_wide_glyphs_do_not_suppress_a_word_space() {
+    let latin = |id: u64, text: &str, x: f64| glyph(id, text, 0, x, 0.0, 6.0, 12.0, 12.0, 0.0);
+    let cjk = |id: u64, text: &str, x: f64| glyph(id, text, 0, x, 0.0, 12.0, 12.0, 12.0, 0.0);
+
+    let latin_only = Document::new(vec![
+        latin(1, "T", 0.6),
+        latin(2, "h", 6.3),
+        latin(3, "i", 14.3),
+        latin(4, "s", 20.6),
+    ]);
+    let mixed = Document::new(vec![
+        latin(1, "T", 0.6),
+        latin(2, "h", 6.3),
+        latin(3, "i", 14.3),
+        latin(4, "s", 20.6),
+        cjk(5, "日", 30.0),
+        cjk(6, "本", 42.0),
+        cjk(7, "語", 54.0),
+    ]);
+
+    for document in [latin_only, mixed] {
+        let lines = reconstruct_lines(&document, LineOptions::default())
+            .expect("mixed-script line should be reconstructed");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(
+            lines[0].synthetic_spaces,
+            [SyntheticSpace {
+                preceding: GlyphId(2),
+                following: GlyphId(3),
+            }]
+        );
+    }
+}
+
+#[test]
 fn rejects_non_finite_glyph_geometry() {
     let document = Document::new(vec![glyph(1, "A", 0, 0.0, f64::NAN, 5.0, 10.0, 10.0, 0.0)]);
 
