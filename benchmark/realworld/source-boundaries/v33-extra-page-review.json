@@ -1,0 +1,649 @@
+{
+  "version": 1,
+  "scope": "Direct page-image review of all 137 previously unadjudicated frozen event identities; raw-source and strict-mask checks are retained separately. Page numbers are zero-based.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v33-panel-observations.json",
+    "sha256": "de2042e6385e0b518032bb4fe2a5c9bdd4af38063930ccf72a931e025162f2a6"
+  },
+  "pairs": {
+    "edpb-restrictions-v1-to-final": {
+      "reasons": {
+        "0": "The restriction-form sentence changes never reaching to may never reach and removes the provisions for the application of before restrictions. The rest of this finite paragraph portion is retained.",
+        "1": "Paragraph 13 changes which will be detailed below to which are detailed below. The surrounding Article 23(1) requirement is the same corresponding passage.",
+        "2": "The parenthetical heading expands Rec. 41 to Recital 41.",
+        "3": "The forensic-laboratories sentence changes footnote 9 to 10 and adds a terminal full stop.",
+        "4": "The investigation-notice passage changes footnote 10 to 11; the other selected wording is unchanged.",
+        "5": "The disasters sentence changes footnote 11 to 12.",
+        "10": "The example changes from a short investigation/victim/witness restriction to a longer administrative inquiry or workplace-harassment example, including access restrictions for the subject and the victim or witness. The paragraph label changes 33 to 34.",
+        "11": "The heading and adjacent paragraphs retain the Article 23(2) requirements while changing paragraph numbers 45/46/47 to 47/48/49 and footnote 17 to 20. The heading also changes literal parenthesis spacing. This range includes the next paragraph start, as the source projection records.",
+        "13": "Paragraphs 49/50 become 51/52, and grounds of the restrictions changes to grounds for the restrictions.",
+        "14": "Paragraphs 54/55 become 56/57, footnote 19 becomes 22, and national SA is expanded to national data protection supervisory authority with its SA abbreviation.",
+        "15": "Paragraph 57 becomes 59 and processing/categories of processing changes to processing or categories of processing.",
+        "19": "The passage removes the redundant and in corrective and powers and adjusts the preceding list punctuation. This is the corresponding controller-infringement passage despite its changed section location.",
+        "20": "Paragraph 86 replaces before the decision-making of applying a restriction by the legislator with before introducing in Union or Member State law restrictions on the rights of data subjects.",
+        "21": "The contents entries from Introduction through National security change printed destinations 4/5/6/8 to 5/6/7/9, expand Rec. to Recital, and change literal dot leaders. These are contents/reference changes, not another prose-target recovery.",
+        "22": "This finer contents view retains the changes of the preceding raw view and excludes only its new outer literal space.",
+        "23": "The contents continuation for criminal penalties and other important public-interest objectives changes destinations 8 to 9 and changes literal leaders; the raw view retains its new outer space.",
+        "24": "The finer view retains those contents changes and excludes only the new outer literal space.",
+        "25": "The judicial-independence contents entry changes destination 8 to 10 and its literal leaders, retaining the new outer space.",
+        "26": "The finer judicial-independence contents view excludes only the new outer literal space.",
+        "27": "The regulated-professions contents continuation changes destination 9 to 10 and its leaders; the next section label 3.3.6 remains within the recorded range.",
+        "28": "The finer regulated-professions contents view excludes only the new outer literal space.",
+        "29": "The monitoring and data-subject-protection contents entries change destinations 9 to 10 and 9 to 11, with changed literal leaders.",
+        "30": "The finer contents view retains those destination changes and excludes only the new outer literal space.",
+        "31": "Between the common HAS ADOPTED THE FOLLOWING GUIDELINES line and the INTRODUCTION heading, the old certified interval has no native glyph and the new interval contains one separately retained literal space. Both page images support the same surrounding text; the raw glyph census, not visible ink, supports this scoped whitespace presence. This is not a prose change or document-wide novelty claim.",
+        "6": "The corresponding first line changes paragraph label 28 to 29. The other selected prose remains the same; this is a numbering change.",
+        "7": "The corresponding first line changes paragraph label 30 to 31. The other selected prose remains the same; this is a numbering change.",
+        "8": "The corresponding first line changes paragraph label 31 to 32. The other selected prose remains the same; this is a numbering change.",
+        "9": "The corresponding first line changes paragraph label 32 to 33. The other selected prose remains the same; this is a numbering change.",
+        "12": "The corresponding first line changes paragraph label 48 to 50. The other selected prose remains the same; this is a numbering change.",
+        "16": "The corresponding first line changes paragraph label 58 to 60. The other selected prose remains the same; this is a numbering change.",
+        "17": "The corresponding first line changes paragraph label 62 to 64. The other selected prose remains the same; this is a numbering change.",
+        "18": "The corresponding first line changes paragraph label 63 to 65. The other selected prose remains the same; this is a numbering change."
+      },
+      "viewed_pages": {
+        "old": [
+          1,
+          3,
+          5,
+          7,
+          8,
+          10,
+          11,
+          12,
+          14,
+          15
+        ],
+        "new": [
+          2,
+          4,
+          6,
+          8,
+          9,
+          10,
+          12,
+          13,
+          14,
+          16,
+          17
+        ]
+      },
+      "source_directory": "benchmark/realworld/cache/source-boundaries-native-order-v33/review",
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/manifest.json",
+        "sha256": "00624481e75ccdf4c5c5a23cf938ff375b47582c03517b8d261b61c8f45e731a"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-1.png",
+            "sha256": "c8f3162577af8cfb3cd7f4f2aa5e2e3685623db7a994b061ccdc317760939446"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-5.png",
+            "sha256": "9bf44c854e4899c50d5aecf8e2416335171b1c39515b734050f54304f660ca93"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-7.png",
+            "sha256": "cb40dd83599987030aba3dce273c41595659ef7fb590033fb2a0da795b03f7ed"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-8.png",
+            "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-10.png",
+            "sha256": "cbb95aefa2a02f6e46de670cda460632e24b16540a8865a0185e8761c3bc3867"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-11.png",
+            "sha256": "0fef672ea48368353eac7d7a3b65db8def9f6d688e9cd74c40d4c3d96b296e44"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-12.png",
+            "sha256": "aa6d6d0db12a27e0e17859d89825d7588fc8e7cac806b96913acc5de2d94ea43"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-14.png",
+            "sha256": "6f7ddea8f7b0326ef9ac18cc70cce4af1fd9438bc1968cc45293cbb7ed9934fb"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-15.png",
+            "sha256": "32cd505b7d0cfdabff6f820220133fc1a5bdaa17bbc6bd5326233e3c5922824d"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-2.png",
+            "sha256": "378b2b267c6ef6fb344b29391889869ad2831f9e9e63498c447aa7560c14d36d"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-4.png",
+            "sha256": "69f9ea49d544a38fbb6e2ae3b5dabb838d0bfbb82a99b51cb5f4c71ecb181cd1"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-6.png",
+            "sha256": "9c3d460b4c8a26f2f32e3e4973884a6347892a157e7025cb81486f993d444628"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-8.png",
+            "sha256": "0e19e306227a225bfc9e54084f031f4225ca560cc1d9386c1452e453c1e1f963"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-9.png",
+            "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-10.png",
+            "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-12.png",
+            "sha256": "ef5b317b8fe31b0736564bbd6ebdc8bd4e68be772c2e21da93016058b283cae5"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-13.png",
+            "sha256": "5fe09560da180a5ae397f768a9089c49d585003bbb8e9ce0133aad70156cf671"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-14.png",
+            "sha256": "06aaeef21e16f70ae9b2f4d2c84499c26a7c3168d9207e5d52925135a5388eb9"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-16.png",
+            "sha256": "d8b2f6fcb4ce18219a26730b612ffb754afddeed3ae635c54502ff395c3ac91a"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-17.png",
+            "sha256": "dd72b764286a8f98c94c11ad4f5292639e48382e2256cc37e088b77c3f0b9e66"
+          }
+        ]
+      }
+    },
+    "edpb-social-targeting-v1-to-v2": {
+      "reasons": {
+        "0": "The cover changes Version 1.0 to Version 2.0 and the adoption date from 2 September 2020 to 13 April 2021. Both original cover images show these revisions.",
+        "1": "The corresponding inferred-data passage changes footnote reference 43 to 44. The selected prose about inferred interests is unchanged.",
+        "2": "This finer cover view retains only the Version 1.0 to Version 2.0 change from the already reported cover interval.",
+        "3": "This finer cover view retains only the adoption-date change from the already reported cover interval.",
+        "4": "The corresponding contents entries change printed destinations: Social media providers: 8 to 9. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "5": "The corresponding contents entries change printed destinations: Targeters: 9 to 10. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "6": "The corresponding contents entries change printed destinations: Other relevant actors: 9 to 10. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "7": "The corresponding contents entries change printed destinations: Roles and responsibilities: 10 to 11; Analysis and Overview: 12 to 13. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "8": "The corresponding contents entries change printed destinations: Targeting on provided data: 13 to 14. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "9": "The corresponding contents entries change printed destinations: Data provided to the provider and Roles: 13 to 14; Legal basis: 14 to 16. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "10": "The corresponding contents entries change printed destinations: Data provided to the targeter and Roles: 17 to 19; Legal basis: 18 to 20. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "11": "The corresponding contents entries change printed destinations: Observed-data targeting: 19 to 20. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "12": "The corresponding contents entries change printed destinations: Observed-data Roles: 20 to 22. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "13": "The corresponding contents entries change printed destinations: Observed-data Legal basis: 20 to 22. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "14": "The corresponding contents entries change printed destinations: Inferred-data targeting: 22 to 24. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "15": "The corresponding contents entries change printed destinations: Inferred-data Roles: 23 to 25. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "16": "The corresponding contents entries change printed destinations: Inferred-data Legal basis: 23 to 25; Transparency: 24 to 26; Essence of the arrangement: 25 to 27. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "17": "The corresponding contents entries change printed destinations: Right of access: 26 to 28; DPIA: 28 to 30; Special categories and its definition: 29 to 31. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "18": "The corresponding contents entries change printed destinations: Explicit special categories: 30 to 32. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery.",
+        "19": "The corresponding contents entries change printed destinations: Inferred and combined special categories: 30 to 32. Source-backed literal leaders remain part of the finite comparison. This is a reference change, not a new prose-target recovery."
+      },
+      "viewed_pages": {
+        "old": [
+          0,
+          1,
+          12
+        ],
+        "new": [
+          0,
+          2,
+          13
+        ]
+      },
+      "source_directory": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review",
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/sources.json",
+        "sha256": "db35cb68ab6103eadf358c41e5a930c2aa454459d55f0e0e167336c7e6dd93a9"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/manifest.json",
+        "sha256": "7d08dccb3891e34613a00b53fc6e5e676439b7a6cf7b6df5602f98e593a8a815"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/old-region-0.png",
+            "sha256": "ab10d337068156343c39bc5e4fc61351f428742c4dfc3ad10a8e539ac1eb65e0"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/old-region-1.png",
+            "sha256": "fe35f0241d663cc9b0a43550762acec6434dce4721cd487f791b95b97ac7e336"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/old-region-12.png",
+            "sha256": "da248a8f6c856ba7c395251d972b1cde4b0fa9526e2d9e9e7342a38a2777999a"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/new-region-0.png",
+            "sha256": "659f3ca683eee23980f4beb5e5d93af543c592941148e99e9a09eba648d209ee"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/new-region-2.png",
+            "sha256": "d21a60650b656d4f9e5ca2c308b0978c77e3a94380bc378f8103a2dadb507973"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/new-region-13.png",
+            "sha256": "10c3751ee6760dbaa0ef129fe4a14897756e6366c57782efb2a3ff9e899fbc7a"
+          }
+        ]
+      }
+    },
+    "irs-w9-2018-to-2024": {
+      "reasons": {
+        "0": "The corresponding nonresident-alien paragraph removes the quotation marks around saving clause. Other selected text remains the same.",
+        "1": "The scholarship example changes his or her to their in two places and capitalizes the second occurrence of Protocol.",
+        "2": "The backup-withholding passage inserts but are not limited to and hyphenates third-party. The retained following paragraph is unchanged.",
+        "3": "The preceding cross-reference changes from Special rules for partnerships to Establishing U.S. status for purposes of chapter 3 and chapter 4 withholding. The FATCA heading capitalizes Is, and United States becomes U.S. in the paragraph.",
+        "4": "The updating-information paragraph changes if you no longer are to if you are no longer and replaces the semicolon before for example with a comma.",
+        "5": "The instruction changes in line 4 to on line 4.",
+        "6": "The FATCA exemption-code passage changes written or printed on the line to entered on the line.",
+        "7": "The publicly traded corporation exemption citation gains its terminal full stop.",
+        "8": "The address instruction changes write NEW at the top to enter the quoted word NEW at the top.",
+        "9": "The TIN instruction adjusts commas, shortens individual taxpayer identification number (ITIN) to ITIN and changes social security number box to entry space for the Social security number.",
+        "10": "The corresponding disregarded-entity passage removes the sentence Do not enter the disregarded entity\u2019s EIN. The surrounding owner and corporation/partnership instructions remain.",
+        "11": "The other-payments passage changes third party network transactions to third-party network transactions. The recorded parent retains its outer literal space.",
+        "12": "The identity-theft paragraph adds a comma after personal information and removes the comma after without your permission."
+      },
+      "viewed_pages": {
+        "old": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "new": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "source_directory": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024",
+      "sources": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/sources.json",
+        "sha256": "d799ca8e220135d7b3cf7e2a58e994fd0fee6dc598c6a1b7d7124541440eee8f"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/manifest.json",
+        "sha256": "34f40dbbdb16c84b8f8e26eab18f3639ad3ffb43288f74eb173f006048496c34"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/old-region-1.png",
+            "sha256": "75356599a76c4ea4da3b36d1b1d55c98a971f2e9341b1e5e1bc555cc603e2e06"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/old-region-2.png",
+            "sha256": "820e790ba6a79d5fca20a809b1eedc752eb6be1969518f18b34cd4e987426ac5"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/old-region-3.png",
+            "sha256": "adefff850cd2fc7a4ad4a38e5dcc06982c838d004b38028c734162aab70e1333"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/old-region-4.png",
+            "sha256": "b0e47c3285d20d9dc1d3c7ca6a3b1b82cfb813a6a75a20e4371ca681a03a00bf"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/new-region-1.png",
+            "sha256": "841e4dc606d65030c5d4efda4f8659971dbe3097f049290e45dd842a39faf16f"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/new-region-2.png",
+            "sha256": "cf9d668bf211a7350863e5887343da9d99410c3919a8870172c343ef6d82ac69"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/new-region-3.png",
+            "sha256": "a2bae4c82a81f98ba456fa44c72cadc67b6f972c87b608843539caee327fc9f3"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/irs-w9-2018-to-2024/new-region-4.png",
+            "sha256": "2f1ccc5bc4e4d9923a735296e588390fe9d4d326d259ed8c3548b91bf5422f36"
+          }
+        ]
+      }
+    },
+    "irs-w4-english-2024-to-2025": {
+      "reasons": {
+        "0": "The matching first-page footer changes Form W-4 (2024) to Form W-4 (2025). The source mask selects only the final year digit: old 4 and new 5. Both page images place those digits in the corresponding footer, separate from the larger year in the page heading."
+      },
+      "viewed_pages": {
+        "old": [
+          0
+        ],
+        "new": [
+          0
+        ]
+      },
+      "source_directory": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review",
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review/sources.json",
+        "sha256": "fbd2de1f46e197584ba588b35fa263595d27db1d2f347cdb38547c37353d99f6"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review/manifest.json",
+        "sha256": "0f45572b397eeef924970bf2749ca17d0ee511c0527b2e27a60ff0ebb3e2bb13"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review/old-region-0.png",
+            "sha256": "e4c928521ef3e6b0e5b0b5a56b84f5341a1057e9484a301194495bf90162c846"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review/new-region-0.png",
+            "sha256": "3cf4c4017b4c37d13d7ec5a9ca613185127f3438a9532662ea46a7ff38a5682d"
+          }
+        ]
+      }
+    },
+    "arxiv-gpt3-v1-to-v4": {
+      "reasons": {
+        "0": "The corresponding training-filtering heading corrects Intial to Initial; the following finite first-line text is unchanged. This typo lies outside the frozen target."
+      },
+      "viewed_pages": {
+        "old": [
+          41
+        ],
+        "new": [
+          42
+        ]
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/arxiv-gpt3-v1-to-v4/sources.json",
+        "sha256": "ba123360ac70769bd3f8753b457901d939b3fae266e3f235c47f34aee3aaa73e"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/arxiv-gpt3-v1-to-v4/manifest.json",
+        "sha256": "a598af43b4e982ed10d8cf75a14bf7e933b0839ebabc2653c8a3f158f0388d1f"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/arxiv-gpt3-v1-to-v4/old-region-41.png",
+            "sha256": "e11f1ca394a2e7686218f497998fa0d6890c4ffb837fdf64d8e13989f1ef8257"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/remaining-target-diagnosis/arxiv-gpt3-v1-to-v4/new-region-42.png",
+            "sha256": "b5f41de598d665a7689410a766a01ba9852130cb41767def7b81426562c64ca6"
+          }
+        ]
+      }
+    },
+    "irs-w2-2024-to-2025": {
+      "reasons": {
+        "0": "The credit-for-excess-taxes paragraph changes 2024 to 2025, $10,453.20 to $10,918.20, and $6,129.90 to $6,409.20. The corresponding credit/refund instructions otherwise remain.",
+        "1": "The separate-booklet sentence changes the General Instructions year from 2024 to 2025; the finite range retains its outer literal space.",
+        "2": "The EITC eligibility line changes 2024 to 2025. Raw and refined views differ only in whether their proved outer literal space is retained.",
+        "5": "The EITC eligibility line changes 2024 to 2025. Raw and refined views differ only in whether their proved outer literal space is retained.",
+        "3": "The investment-income limit line changes its applicable year from 2024 to 2025. Raw and refined views share this same change.",
+        "6": "The investment-income limit line changes its applicable year from 2024 to 2025. Raw and refined views share this same change.",
+        "4": "The income-limits continuation line changes 2024 to 2025. Both views retain the same visible line content.",
+        "7": "The income-limits continuation line changes 2024 to 2025. Both views retain the same visible line content.",
+        "8": "The credit paragraph line changes 2024 to 2025 and $10,453.20 to $10,918.20; raw and refined views do not denote two author changes.",
+        "10": "The credit paragraph line changes 2024 to 2025 and $10,453.20 to $10,918.20; raw and refined views do not denote two author changes.",
+        "9": "The railroad-employer line changes $6,129.90 to $6,409.20; the two views share the same numeric change.",
+        "11": "The railroad-employer line changes $6,129.90 to $6,409.20; the two views share the same numeric change.",
+        "12": "The General Instructions booklet line changes 2024 to 2025; this is a finer view of the same booklet-year change.",
+        "13": "The General Instructions booklet line changes 2024 to 2025; this is a finer view of the same booklet-year change."
+      },
+      "viewed_pages": {
+        "old": [
+          4,
+          10
+        ],
+        "new": [
+          4,
+          10
+        ]
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/sources.json",
+        "sha256": "2967f35d496a252b5baa22abef13db9419208c3ee3f5bd2175c0f12e99050d3f"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/manifest.json",
+        "sha256": "3cb04329cdc5f968d5464dd524d9f69a75ec036ee180183b939823da3d498a00"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/old-region-4.png",
+            "sha256": "d74c84ff6aa6e855e6001c86f7bff7d2727c6a9eb6a2e1904759fed9361d4207"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/old-region-10.png",
+            "sha256": "45d4955f49a19e1eecae3254709789a0cc74f3b79a37250ccb465577a3f06222"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/new-region-4.png",
+            "sha256": "c9a99f8f6485557cd54b4982d643bc24ee4366c65c044bbc5189bbe6b531e9ce"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/new-region-10.png",
+            "sha256": "0f6195c7b3ab5cdbdfa54d4c5e9030e88aa221b1e278f480321f2167303b7da3"
+          }
+        ]
+      }
+    },
+    "arxiv-mask-rcnn-v1-to-v3": {
+      "reasons": {
+        "0": "The timing discussion citation changes [16] to [21].",
+        "1": "The pose-estimation paragraph changes citation [4] to [6] and removes but it is beyond the scope of this paper, terminating the retained simple-approach statement with a period.",
+        "2": "The bounding-box result paragraph changes the G-RMI citation [16] to [21].",
+        "3": "The previous single-model entry citation changes [30] to [39].",
+        "4": "The Faster R-CNN training citation changes [28] to [36].",
+        "5": "The Dai/He/Sun feature-masking reference is renumbered [6] to [9].",
+        "6": "The Hypercolumns reference is renumbered [12] to [16], a new Hayder/He/Salzmann Shape-aware instance segmentation entry [17] is inserted, and the spatial-pyramid reference changes [13] to [18]. The separately painted accent remains represented by the original node token projection.",
+        "7": "The deep-residual reference changes [14] to [19] and adds backreference page 10; the following Hosang reference changes [15] to [20].",
+        "8": "The Nair/Hinton rectified-linear reference changes [24] to [31].",
+        "9": "The Pinheiro/Lin/Collobert/Dollar reference changes [27] to [34].",
+        "10": "New Radosavovic Data distillation [35] and TPAMI Faster R-CNN [37] entries surround the retained NIPS Faster R-CNN reference, renumbered [28] to [36]; the following Shrivastava reference changes [29] to [38]."
+      },
+      "viewed_pages": {
+        "old": [
+          6,
+          8
+        ],
+        "new": [
+          6,
+          10
+        ]
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/resume-mask-spatial-bridge-review/sources.json",
+        "sha256": "1fc47027b75cede21199d578472c4595413da163c24b2700dfbedd010a7a8b76"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/resume-mask-spatial-bridge-review/manifest.json",
+        "sha256": "3c468b6a1b6fb278025f1e5b929a20a743f239e5bf2571e221718fd626d365f4"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/resume-mask-spatial-bridge-review/old-region-6.png",
+            "sha256": "1e5336740905a2db70cc0649aaba98a8c45f6129ab574ec4541f459be2de663d"
+          },
+          {
+            "path": "benchmark/realworld/cache/resume-mask-spatial-bridge-review/old-region-8.png",
+            "sha256": "e6760eaff424870b4d6665df95f0c5b417a45ff15e675bbc2994563694f0fb55"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/resume-mask-spatial-bridge-review/new-region-6.png",
+            "sha256": "0aeddfcb7be0bf1281301f6f01225fbe1939b87b872abb81b1c2f0f037c49a90"
+          },
+          {
+            "path": "benchmark/realworld/cache/resume-mask-spatial-bridge-review/new-region-10.png",
+            "sha256": "b81a786e5218a93d26d2a3619b187b8879fd8334bb759c456e48cf5f7d48fd56"
+          }
+        ]
+      }
+    },
+    "arxiv-ddpm-v1-to-v2": {
+      "reasons": {
+        "0": "The decoder/discretization passage changes citations [32, 49] to [34, 52].",
+        "1": "The model-name column retains the same five model names; their citations change 40/53/52/36 to 43/56/55/39 while EBM [11] is unchanged. This is a source-text range, not table recognition.",
+        "2": "The StyleGAN2 + ADA model label adds (v1) and changes [28] to [29].",
+        "3": "The related-work opening retains the same prose and renumbers its flow and VAE citations.",
+        "4": "The funding acknowledgement replaces Computational resources were provided by Google Cloud with the specific TensorFlow Research Cloud (TFRC) provision of Cloud TPUs.",
+        "5": "Two Gao bibliography entries are inserted as [12] and [13], before the retained first line of Goodfellow, which is renumbered [12] to [14].",
+        "6": "The corresponding bibliography fragment is unchanged except for reference number [15] becoming [17].",
+        "7": "The corresponding bibliography fragment is unchanged except for reference number [16] becoming [18].",
+        "8": "The corresponding bibliography fragment is unchanged except for reference number [17] becoming [19].",
+        "9": "The corresponding bibliography fragment is unchanged except for reference number [18] becoming [20].",
+        "10": "The corresponding bibliography fragment is unchanged except for reference number [19] becoming [21].",
+        "11": "The corresponding bibliography fragment is unchanged except for reference number [20] becoming [22].",
+        "12": "The corresponding bibliography fragment is unchanged except for reference number [21] becoming [23].",
+        "13": "The Huang lossy-compression entry changes the 2019 Bayesian Deep Learning workshop citation to ICML 2020 and is renumbered [22] to [24]; the following Kalchbrenner entry changes [23] to [25].",
+        "14": "The corresponding bibliography fragment is unchanged except for reference number [24] becoming [26].",
+        "15": "The corresponding bibliography fragment is unchanged except for reference number [25] becoming [27].",
+        "16": "The corresponding bibliography fragment is unchanged except for reference number [26] becoming [28].",
+        "17": "The two Karras entries exchange order, the limited-data arXiv identifier adds v1, and the StyleGAN image-quality entry gains the CVPR venue/pages and changes 2019 to 2020. Adam changes its 2014 arXiv citation to ICLR 2015. The retained Glow first line is renumbered [30] to [32]. This range contains reordered and edited bibliography text, not an inferred movement claim.",
+        "18": "The corresponding bibliography fragment is unchanged except for reference number [31] becoming [33].",
+        "19": "The corresponding bibliography fragment is unchanged except for reference number [32] becoming [34].",
+        "20": "The corresponding bibliography fragment is unchanged except for reference number [34] becoming [37].",
+        "21": "The corresponding bibliography fragment is unchanged except for reference number [35] becoming [38].",
+        "22": "The corresponding bibliography fragment is unchanged except for reference number [36] becoming [39].",
+        "23": "The corresponding bibliography fragment is unchanged except for reference number [39] becoming [42].",
+        "24": "The corresponding bibliography fragment is unchanged except for reference number [41] becoming [44].",
+        "25": "The corresponding bibliography fragment is unchanged except for reference number [42] becoming [45].",
+        "26": "The corresponding bibliography fragment is unchanged except for reference number [43] becoming [46].",
+        "27": "The corresponding bibliography fragment is unchanged except for reference number [44] becoming [47].",
+        "28": "The corresponding bibliography fragment is unchanged except for reference number [45] becoming [48].",
+        "29": "The corresponding bibliography fragment is unchanged except for reference number [49] becoming [52].",
+        "30": "The corresponding bibliography fragment is unchanged except for reference number [50] becoming [53].",
+        "31": "The corresponding bibliography fragment is unchanged except for reference number [51] becoming [54].",
+        "32": "The corresponding bibliography fragment is unchanged except for reference number [52] becoming [55].",
+        "33": "The corresponding bibliography fragment is unchanged except for reference number [53] becoming [56].",
+        "34": "The corresponding bibliography fragment is unchanged except for reference number [54] becoming [57].",
+        "35": "The corresponding bibliography fragment is unchanged except for reference number [55] becoming [58].",
+        "36": "The corresponding bibliography fragment is unchanged except for reference number [56] becoming [59].",
+        "37": "The corresponding bibliography fragment is unchanged except for reference number [57] becoming [60].",
+        "38": "The corresponding bibliography fragment is unchanged except for reference number [58] becoming [61].",
+        "39": "The CNN-generated-images reference expands CVPR to its full proceedings title and changes [59] to [62]; the following non-local-networks entry changes [60] to [63].",
+        "40": "The corresponding bibliography fragment is unchanged except for reference number [61] becoming [64].",
+        "41": "A new Stochastic normalizing flows entry [65] precedes the retained Group normalization entry, renumbered [62] to [66].",
+        "42": "Four Xie generative-convnet/descriptor references are inserted as [67] through [70], before the retained first line of LSUN, renumbered [63] to [71].",
+        "43": "The first diffusion-model introduction paragraph changes citation [50] to [53]; the retained line separator has source-backed endpoints on distinct baselines and does not denote an author change.",
+        "44": "The following diffusion-model paragraph changes citations [52, 58] to [55, 61]. The retained first-line separator has source-backed endpoints on distinct baselines."
+      },
+      "viewed_pages": {
+        "old": [
+          1,
+          3,
+          4,
+          7,
+          8,
+          9,
+          10
+        ],
+        "new": [
+          1,
+          3,
+          4,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/sources.json",
+        "sha256": "a2d0d073ea39a17898f64b683cc86f11cdcca9bd09dc5d95e3551f62b473cb2e"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/manifest.json",
+        "sha256": "f41edc1f3d3839b384f4f70464cfc9f83783b1ceae567f863f5f2b20f3626f7b"
+      },
+      "images": {
+        "old": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/old-region-1.png",
+            "sha256": "bee50f67f3cf91e45b289c2d0267490b194d48557dac72ca4288f20f2689515c"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/old-region-3.png",
+            "sha256": "dbc93aa8b81f7f7319048a2c43b2fc7c24f6971704e95128522e6f32efe95c12"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/old-region-4.png",
+            "sha256": "b65e4c6a3f822b4e30bdb84127a3dbde5ebafbe53152a22154aa07368ff6b36e"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/old-region-7.png",
+            "sha256": "bb043378f6713c83b8d88dc24015e867776c28706ce9d5481f36e69d865e558d"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/old-region-8.png",
+            "sha256": "e654978630aa5e11af95b20607475fcfd44fd22e9c672148c2a66fd2e38aa6ad"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/old-region-9.png",
+            "sha256": "2b3955d366b76ec85969489403d27a165a2a6fa0ce7f5b0eee7c75702f5b8afc"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/old-region-10.png",
+            "sha256": "9c734bf99b9fb2d741623e0d746fdee8a08dff46ad9d7389428c2b210e9e9b3f"
+          }
+        ],
+        "new": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-1.png",
+            "sha256": "2c3c33432c9456da7f3e66200aa72210c496da7c4432870d91ac90c5e5856620"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-3.png",
+            "sha256": "1fcf3b748dc2e15ffc414590e890f37bd3e82bbccabe72f798bd1008b71e7a0a"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-4.png",
+            "sha256": "fbd8d60410b92e2a6e9579e5ececc0d70f5aca8f9cb2c1f4f11504f272682af6"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-7.png",
+            "sha256": "df088d624fa8de93d33802508e4ed4a604f6421c6d0bae971d5413b9cfc5b1c1"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-8.png",
+            "sha256": "d542a5fbb61ffe1ce2e1f16b98c354c53553f2fa9586ce152cf540d22e3ea8b0"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-9.png",
+            "sha256": "2e610f35551c857274efb6cd318a0462c1d95610ef2776a15098205faf6d95e1"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-10.png",
+            "sha256": "6254d58617bebc5795a8a6884b4ae4e4f0247f52cbad765c801a70bafb996a64"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/new-region-11.png",
+            "sha256": "275fa85e24afdc5aa14426e394e49d5341ca542d722ed6980a4786c7010db75f"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/build.json",
+    "sha256": "aba0380575af65ad17a1a993ee3ea66d566fa27e3c36c6f8f374b5e9d3e53a3f"
+  },
+  "observations": [
+    {
+      "pair": "irs-schedule-c-storage",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-layout-r2/old-storage.pdf",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-layout-r2/new-storage.pdf",
+        "--channels",
+        "text",
+        "--quiet",
+        "--json",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review.json",
+        "--review",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review"
+      ],
+      "exit_code": 3,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review.json",
+        "sha256": "f0d8750acc945eac67422389aba9756ab7b187ce73ed1ea3d7b759110ba8e942"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/sources.json",
+        "sha256": "e876ad5a1548a3a624bd43e4c735167df4c40215e6dda2d2bdb9225fd9e82176"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/manifest.json",
+        "sha256": "722ff7227ffc15c3051731664703f12b1d124f8a1151de371205a10461aa80b9"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-layout-r2/old-page.pdf",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-layout-r2/new-page.pdf",
+        "--channels",
+        "text",
+        "--quiet",
+        "--json",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review.json",
+        "--review",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review"
+      ],
+      "exit_code": 3,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review.json",
+        "sha256": "82b3237b4129d053c0c4442efb43f56508634574f7e5fa549a4203aa95fb6e71"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/sources.json",
+        "sha256": "816443a37bb9203eccd775cafab41bc5275df994744c8242d9cef900023646a2"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/manifest.json",
+        "sha256": "73353f39ed1384dc8877b648da64a6561be76c0c5c86574bc6a45ef002124fb1"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf",
+        "--channels",
+        "text",
+        "--quiet",
+        "--json",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review.json",
+        "--review",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review"
+      ],
+      "exit_code": 3,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review.json",
+        "sha256": "de58f9fafc2e88b8b53944f1ddeddeda6feb7c70ae47c4ba3f0a2d1569fd06e2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/sources.json",
+        "sha256": "43c6dde9546267ba3846ee01fa2ed46743e9806b2c73d2d9519d19205d3d8309"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/manifest.json",
+        "sha256": "a27ec087030859a7e7c79d866e31c67a7ca54cfbe33163f86b02f10f7dcdbccb"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

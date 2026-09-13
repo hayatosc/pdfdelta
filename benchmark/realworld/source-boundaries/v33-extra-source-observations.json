@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/build.json",
+    "sha256": "aba0380575af65ad17a1a993ee3ea66d566fa27e3c36c6f8f374b5e9d3e53a3f"
+  },
+  "observations": [
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-old.pdf",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-new.pdf",
+        "--channels",
+        "text",
+        "--quiet",
+        "--json",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review.json",
+        "--review",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review"
+      ],
+      "exit_code": 3,
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review.json",
+        "sha256": "7f6f298b8089050e7da2d368d9dc7e9054ffa2551a6d6c0c30a38e61172bbd69"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review/sources.json",
+        "sha256": "fbd2de1f46e197584ba588b35fa263595d27db1d2f347cdb38547c37353d99f6"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w4-english-2024-to-2025-source-review/manifest.json",
+        "sha256": "0f45572b397eeef924970bf2749ca17d0ee511c0527b2e27a60ff0ebb3e2bb13"
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf",
+        "--channels",
+        "text",
+        "--quiet",
+        "--json",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review.json",
+        "--review",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review"
+      ],
+      "exit_code": 3,
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review.json",
+        "sha256": "301cdb6ba5cb046e0352fa79149ffe444e90bd1696c734677f8a867b77e3b0f4"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/sources.json",
+        "sha256": "2967f35d496a252b5baa22abef13db9419208c3ee3f5bd2175c0f12e99050d3f"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/manifest.json",
+        "sha256": "3cb04329cdc5f968d5464dd524d9f69a75ec036ee180183b939823da3d498a00"
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-old.pdf",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-new.pdf",
+        "--channels",
+        "text",
+        "--quiet",
+        "--json",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review.json",
+        "--review",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review"
+      ],
+      "exit_code": 3,
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review.json",
+        "sha256": "69e4b0d1be588a520a8b78f2980ec1d1fc217ab87a825ea0461a100812feecf4"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/sources.json",
+        "sha256": "a2d0d073ea39a17898f64b683cc86f11cdcca9bd09dc5d95e3551f62b473cb2e"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/arxiv-ddpm-v1-to-v2-source-review/manifest.json",
+        "sha256": "f41edc1f3d3839b384f4f70464cfc9f83783b1ceae567f863f5f2b20f3626f7b"
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-old.pdf",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-new.pdf",
+        "--channels",
+        "text",
+        "--quiet",
+        "--json",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review.json",
+        "--review",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review"
+      ],
+      "exit_code": 3,
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review.json",
+        "sha256": "1f26064b9e068f8eb50ce67e7e36b5ba822a562488683fdd8ce7bb55b92ecda5"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/sources.json",
+        "sha256": "db35cb68ab6103eadf358c41e5a930c2aa454459d55f0e0e167336c7e6dd93a9"
+      },
+      "manifest": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/edpb-social-targeting-v1-to-v2-source-review/manifest.json",
+        "sha256": "7d08dccb3891e34613a00b53fc6e5e676439b7a6cf7b6df5602f98e593a8a815"
+      }
+    }
+  ]
+}

@@ -41,8 +41,69 @@ def registration():
     }, "registered completion contract changed")
     panel = historical.registration()
     require(panel == sources["panel"], "historical panel differs from the registered panel")
-    historical.baseline_observations(panel)
+    replacement = DIRECTORY / "baseline-reacquisition.json"
+    if CONTRACT == "source-boundaries-v1" and replacement.exists():
+        sources["baseline-observations"] = reacquired_baseline(
+            record, sources, panel, historical.read(replacement))
+    else:
+        historical.baseline_observations(panel)
     return record, sources
+
+
+def reacquired_baseline(record, sources, panel, replacement):
+    """Replace only absent historical attempts with exact-binary fresh observations.
+
+    Existing files must still match their registered hashes. Surviving attempts,
+    including explicit failures, remain immutable; absence is not a successful run.
+    The historical checker never opts into this separate evidence overlay.
+    """
+    require(CONTRACT == "source-boundaries-v1" and replacement.get("version") == 1,
+            "baseline reacquisition requires the versioned source-boundary contract")
+    require(replacement["registration"] == {
+        "path": str((DIRECTORY / "registration.json").relative_to(ROOT)),
+        "sha256": hashlib.sha256((DIRECTORY / "registration.json").read_bytes()).hexdigest(),
+    }, "baseline reacquisition registration changed")
+    index = read_reference(replacement["observations"])
+    require(index["original_index"] == record["historical"]["baseline-observations"]
+            and index["binary"] == sources["baseline"]["binary"],
+            "baseline reacquisition changed the original index or executable")
+    read_reference(index["original_index"])
+    restoration = read_reference(index["restoration"])
+    require(restoration["restored_binary"] == index["binary"],
+            "baseline restoration identifies a different executable")
+    build = read_reference(restoration["build"])
+    require(build["exit_code"] == 0 and build["binary"]["sha256"] == index["binary"]["sha256"],
+            "baseline restoration build did not produce the registered executable")
+    historical.checked_path(build["binary"])
+    historical.checked_path(build["log"])
+    original = sources["baseline-observations"]["observations"]
+    key = lambda row: (row["pair"], row["repetition"])
+    before = {key(row): row for row in original}
+    after = {key(row): row for row in index["observations"]}
+    declared = {key(row): row for row in index["reacquired"]}
+    require(len(before) == len(original) and len(after) == len(index["observations"])
+            and len(declared) == len(index["reacquired"]) and before.keys() == after.keys(),
+            "baseline reacquisition duplicates or changes registered observation slots")
+    missing = {}
+    for identity, row in before.items():
+        absent = []
+        for reference in (row["capture"], row.get("report")):
+            if reference is None:
+                continue
+            try:
+                historical.checked_path(reference)
+            except FileNotFoundError:
+                absent.append(reference)
+        if absent:
+            missing[identity] = absent
+            require(after[identity] != row, "missing baseline attempt was not reacquired")
+        else:
+            require(after[identity] == row, "surviving baseline attempt was replaced")
+    require(missing.keys() == declared.keys() and all(
+        declared[identity]["missing_original_references"] == absent
+        for identity, absent in missing.items()), "baseline reacquisition absence proof differs")
+    observations(index, panel, index["binary"])
+    return index
 
 
 def complete(report, run):
@@ -665,6 +726,31 @@ def family_metrics(rows):
     return result
 
 
+def strict_control_evidence(detected, gold, target, maximum, reviews, partial_gold=False):
+    """Check exact gold locally and require source review outside partial gold.
+
+    The real-source mutations annotate one numeric target, not every change in
+    the two annual forms. Their other outputs are never implicitly accepted.
+    Authored numeric controls retain their complete event/source gold.
+    """
+    correct, counted, consumed = True, 0, set()
+    for event in detected:
+        if event["category"] != "A":
+            continue
+        covered = gold is not None and (not partial_gold or bool(event["sources"] & target))
+        if covered:
+            counted += 1
+            correct &= event["sources"] == gold
+        else:
+            review = reviews.get(event["pointer"])
+            correct &= bool(review and review["event_sha256"] == event_digest(event))
+            if review:
+                consumed.add(event["pointer"])
+    if gold is not None:
+        correct &= counted <= maximum
+    return correct, consumed
+
+
 def controls(record, registered, binary):
     """Score the immutable 60 generated and three real-source controls on all routes."""
     for reference in registered["references"]:
@@ -751,19 +837,16 @@ def controls(record, registered, binary):
         gold = expected[name]["strict_source_atoms"]
         gold = None if gold is None else {(item["side"], atom["id"]) for item in gold for atom in item["atoms"]}
         false_masks = len(strict & unchanged)
-        unproved_strict = False
-        for event in detected:
-            if event["category"] != "A" or (gold is not None and event["sources"] == gold):
-                continue
-            if gold is not None:
-                unproved_strict = True
-                continue
-            review = adjudicated.pop((name, route, event["pointer"]), None)
-            unproved_strict |= not review or review["event_sha256"] != event_digest(event)
+        strict_correct, consumed = strict_control_evidence(
+            detected, gold, target, expected[name]["strict_events"],
+            {pointer: review for (pair, channel, pointer), review in adjudicated.items()
+             if (pair, channel) == (name, route)},
+            partial_gold=CONTRACT == "source-boundaries-v1" and name in real)
+        for pointer in consumed:
+            adjudicated.pop((name, route, pointer))
+        unproved_strict = not strict_correct
         bad_ranges = sum(event["sources"] != target or not target
                          for event in detected if event["category"] == "B")
-        if gold is not None:
-            unproved_strict |= sum(event["category"] == "A" for event in detected) > expected[name]["strict_events"]
         row.update(correct=not false_masks and not unproved_strict and not bad_ranges,
                    false_strict_control_atoms=false_masks, unproved_strict=unproved_strict,
                    unsupported_B_ranges=bad_ranges, **Counter(event["category"] for event in detected))
