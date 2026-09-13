@@ -461,6 +461,7 @@ fn counterpart_axes_repartition_missing_borders_without_matching_values() {
             object: None,
             backend: 0,
             value: StructuredValue::StructureElement {
+                content: None,
                 role: "TD".into(),
                 identifier: None,
                 text: None,

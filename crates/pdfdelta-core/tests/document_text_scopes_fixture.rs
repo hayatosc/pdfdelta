@@ -45,6 +45,7 @@ fn tagged_page_break(fixture: &mut Fixture) {
         object: None,
         backend: 0,
         value: StructuredValue::StructureElement {
+            content: None,
             role: "P".into(),
             identifier: None,
             text: None,

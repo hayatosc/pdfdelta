@@ -1,0 +1,480 @@
+{
+  "version": 1,
+  "complete": true,
+  "repetitions": 1,
+  "scope": "All 36 registered development pairs; one exploratory observation each. Unreviewed outputs do not establish a recovery gate.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-content-v32/build.json",
+    "sha256": "7509fbdded07e4aa37493325bdd08cff55ab32a25bc342a363f07357de413ff7"
+  },
+  "observations": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-controller-processor-v1-to-v2-1-1/runs.json",
+        "sha256": "ab2d0dae031a13bdc43f71c034b12320542eaf01800c9d7a3a7246fb8a8d6d23"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "a119c0b6f64fbc1b281d48e4e09e12132588af9150c731b4244563c153005be2"
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-restrictions-v1-to-final-1/runs.json",
+        "sha256": "4ca2229e84b9ef651557dfbc5a06081068b53fd217ced0c2eb0f53cbf373c442"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "de2a0ddba0a5a7277c41e5a5c5cc8785737c6c25e700e16e9e7954a6a1c687e3"
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-design-default-v1-to-v2-1/runs.json",
+        "sha256": "6d90aeea92d5cd761fbe530b3c9c249f9203753bf020e0a43220bf07062fa59f"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-design-default-v1-to-v2-1/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "e89c000cf180ca2ae3113dfc42a9ec54d56508846f33bd87ef488b0b36d19565"
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-social-targeting-v1-to-v2-1/runs.json",
+        "sha256": "3899fc542c114131d66ed7c33465195e946a56cc257b835ac81a183b27eaeb38"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/edpb-social-targeting-v1-to-v2-1/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "49877b2859dc9a346d8c6403c5b17daed45582fc724101fa5bd08ef3363f09e8"
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-incident-handling-r2-to-r3-1/runs.json",
+        "sha256": "5b9aaa4c8a8aa5fac8ee9bd0bf403084028167bc124eda98361645c452a7d45f"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-incident-handling-r2-to-r3-1/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "34936168a86b2241eec90bb978dd215abe6aa6e8929c29249f33737c9f573080"
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-ssdf-draft-to-final-1/runs.json",
+        "sha256": "802aca81b95b5216f02ff0dc0c2fcd128eecfd6748dfd00408f965b4d12a087e"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "cb0899576fd3f67f4dac9e3fe64f99cf00073e64626ed8bd7f4a69f5c282b046"
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-ai-rmf-draft2-to-v1-1/runs.json",
+        "sha256": "5ffa460084e0ff3ff2a7b23cf1dd1bf07e0aebb801e915b98c0b2b4e2b9b6047"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-ai-rmf-draft2-to-v1-1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "f2f9022d05c46b3a10c54bd594213c6fd21e722137076efdca96e6212691af99"
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-authentication-63b-to-63b4-1/runs.json",
+        "sha256": "533d9081704b80c692ba7ebc520bcaed249036ade881602f5e8a85c92a1b95c5"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "3f803393d7c874f35e083928a0f1b234ae7ba5fb1391bdff2716717bb69b74db"
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-w9-2018-to-2024-1/runs.json",
+        "sha256": "76d3efc8a72935069500120926952fc39c874eb38e59cd582b5d3c514f3bc8c9"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-w9-2018-to-2024-1/irs-w9-2018-to-2024-text.json",
+        "sha256": "3210550fd6b2bed162e4e4b19d0db4aebe5756476d46f69c64a7dff21e6600bc"
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-w4-english-2024-to-2025-1/runs.json",
+        "sha256": "c341dd9bfd49479ca8b3d96256772a1644ea5e39417ce2a0c32c4b4bc9dd707c"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-w4-english-2024-to-2025-1/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "5fc028d54dbbc3cadf6efc3d40d0a3dc88d158200e2e5973086f8a73aaf4522a"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-schedule-c-2024-to-2025-1/runs.json",
+        "sha256": "8f13de28c38b072c21badf4fa022e7f4889a5af93858067f4e3fdf89d99b7474"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "604d05c9fc14cc3e755ec309668d639ca67f7eff34717b8a1bdbb3adcdeb7a6b"
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-schedule-se-2024-to-2025-1/runs.json",
+        "sha256": "3af11ffb51b496c0ac96cfe88e51544825d46960505f38d2e7e69602a320cf3f"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "22b1e8429c5ae61d0e9d36f27b92492b7be769bbde7fa7feddfab9f37d51fada"
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-bert-v1-to-v2-1/runs.json",
+        "sha256": "f9ffe86ec41c867847f8ed478ef332f55d941800b136f90a8ab72eaa4382c165"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "ac06f61a9fcca448b9a7d5cc1ab36879bd0da52caf7134dea7c4198962585e69"
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-gpt3-v1-to-v4-1/runs.json",
+        "sha256": "7a73194d9d71546e4b927fe5997722ba96df26ca7a7daebca5e2d2c9162750a2"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-gpt3-v1-to-v4-1/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "708cd31f52dfd2ad668b25b13b88e47378a685c0bc595d678e0ba801ac7b9c0f"
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mext-primary-japanese-2008-to-2017-1/runs.json",
+        "sha256": "d144a569bad1496747bdfdf35c343fdbf800e8a4f948aac036e944fd5c2a4909"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mext-primary-japanese-2008-to-2017-1/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "dfaa7d6b48930a78b1ba69f644d8f549d8e22afed71cdfb6682f10d202ecba3c"
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mext-lower-secondary-japanese-2008-to-2017-1/runs.json",
+        "sha256": "6f914424e761de3763f63e47fe26f19cbdcd9b2cabcc4e3593c92c7959f25a15"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mext-lower-secondary-japanese-2008-to-2017-1/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "03ca81da506d34d17b80fbb9617c8b77d6b57987ff03a858b64e6a4850899701"
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mext-upper-secondary-japanese-2009-to-2018-1/runs.json",
+        "sha256": "eab25e0a3cf67d83469d8f61d4fb5333b1c50f48b0c7ddb455b43f2b739119ee"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mext-upper-secondary-japanese-2009-to-2018-1/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "2f275da49145e7f1eb03f2e3676473c2e31277b759a682f1a941fd2c3a828042"
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mhlw-care-skills-original-to-revised-1/runs.json",
+        "sha256": "e3f844877f3995da9d3b2860539b4f9b89cb1f726bb1fc5b6fd84716012b7d74"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/mhlw-care-skills-original-to-revised-1/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "8291b8ad2ca087d07168f314b26ff58e30d977b2bbe26ece03d6974321d49d9d"
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nasa-buckling-8007-1968-to-2020-1/runs.json",
+        "sha256": "b7c291f0f7a66f553bec62f3ca30dc0c932dde622999ff4238f69364cecf6375"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nasa-buckling-8007-1968-to-2020-1/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "16ed7e52ad0b755a808adadd2039d6e28e65d66bb1d73105fcae8f7840cc7e1c"
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/ipcc-synthesis-ar5-to-ar6-1/runs.json",
+        "sha256": "435b890c0ae16f5b9d415914248268095d705c79594397f19a32b7fe4b866fdb"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/ipcc-synthesis-ar5-to-ar6-1/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "2a39f3fb6357bae4dc409b817b5157df9de9f6771965a973d3c498e6bd8b92e7"
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/ecb-annual-2023-to-2024-1/runs.json",
+        "sha256": "0e4b800517aaf494e2311809d13edd1496cf92a0ce045ba7164275054e55a1fe"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+        "sha256": "a534068b673292c1bda2dc09fe3af0073ab65e0090b61b59551cf9e0c3ce71a4"
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-sha-1803-to-1804-1/runs.json",
+        "sha256": "de64b71e79411ed8c4d06c98568f334bde1ad84242b8715db4a68530716b1955"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "584336a81d90de2729020cdce881b177ffce7b31fdf396689ab48277244afd18"
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-ddpm-v1-to-v2-1/runs.json",
+        "sha256": "56159df18113da4ff399efceef5ee2431b72a8d13637e12960fe6012784b8e46"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-ddpm-v1-to-v2-1/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "40e1428b4158a5a8273221eb146fb0d19d365d6977da4179fde11263dc3510ab"
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-llama2-v1-to-v2-1/runs.json",
+        "sha256": "5bfd0db1f947efdbbc5bd503c82154632d1d5173c00afeef2f80c4138a4734a5"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-llama2-v1-to-v2-1/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "c64aaf1a178537597552b4f8c939644c12f69d09f0a70ba3903d5a64b37c51d1"
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-risk-management-37-r1-to-r2-1/runs.json",
+        "sha256": "2a2163b0b58db8afed340f381afc011e7bde01eb8d0442d1a373e50b7afd4e31"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-risk-management-37-r1-to-r2-1/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "de7026071f9189ac9ea1cd0df7a373b78a473bb86e44c151f751a24ba4d1471b"
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-1099-misc-2024-to-2025-1/runs.json",
+        "sha256": "d65515ece3262eadf2a53a826e5dd0c62a9ec026904026c48f68789bedd466b1"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-1099-misc-2024-to-2025-1/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "9f52808e450c4e78ab0112488373c1f5a2f768cdf5b8b8b4867de378d983cc05"
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-w2-2024-to-2025-1/runs.json",
+        "sha256": "9031fc38a2f09545bc0db6b02a0db3a8de13724959ea515a869e47e3565d3445"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/irs-w2-2024-to-2025-1/irs-w2-2024-to-2025-text.json",
+        "sha256": "a339adc35a499a2ef2c70ac04273c08967a0b7bce57db26642b1a5c9bd1911ca"
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-mask-rcnn-v1-to-v3-1/runs.json",
+        "sha256": "ce8f887c5f9e05d262726b674c9e280ae293ad773da5776cb3baa5569baff4db"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-mask-rcnn-v1-to-v3-1/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "bd13c59d14722072cb67b8ad6984d7b34b4c63d0ac4b35aee2ec6fa30d0fac83"
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/bunka-official-writing-1952-to-2022-1/runs.json",
+        "sha256": "9b8e52f57296728e3eb968dd8712ca7375f02bbdadaa1ab95102d311ce3bcaa7"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/bunka-official-writing-1952-to-2022-1/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "3227ed30ed49b253b756487a54ddb098da730af1326d053c602177f3bb5d3324"
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/faa-thunderstorms-b-to-c-1/runs.json",
+        "sha256": "acec31421c3c0446d4f02a733eed62e858a0f821f23cafd8b835da34a6ade470"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/faa-thunderstorms-b-to-c-1/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "ee487683c82b7a6166480146bc22c9a54129adf23de352a0e0a6c601609f5ec6"
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/faa-maintenance-records-c-to-d-1/runs.json",
+        "sha256": "04806240f34042bcbab696a69474ebf158defa870666f49e2bdf8564147b2764"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/faa-maintenance-records-c-to-d-1/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "84079a6e9293b012002a3b495123bc93031cb3174b80fc907256fa982a0ffe6b"
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-faster-rcnn-v1-to-v3-1/runs.json",
+        "sha256": "21645168aa5086303578d8f095cc3ec179be66b9cf2812c59fa73d6db818264c"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/arxiv-faster-rcnn-v1-to-v3-1/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "879532dd385d30e94c1548ff2c18c2375ff26a6d780912e0aa1f67a522e360e5"
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/bunka-kana-1946-to-1986-1/runs.json",
+        "sha256": "546b1fce58ba3025007bcf094470f0622a2d7fe4bcfd97632cf99f52c2a408d1"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/bunka-kana-1946-to-1986-1/bunka-kana-1946-to-1986-text.json",
+        "sha256": "72d02318b3beadcd6d4fedc1e2631b0baf71b43cbfb14af4cdd48329bfcf62b6"
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-controls-53-r4-to-r5-1/runs.json",
+        "sha256": "16a5fc0f75a9936a58d8b88605b2d30634d22c32d799554be9dbc7d7f211683f"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-controls-53-r4-to-r5-1/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "3eec86ff15e028cbbb36f5de99b614ea7566e537f0c121683839eb7098d222c4"
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-risk-assessment-30-to-r1-1/runs.json",
+        "sha256": "e6844fbbd8b1ad308b18ee1491d4e03739cfea94f7962082da2fed7156faf89c"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-risk-assessment-30-to-r1-1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "9f72f76e7489c1a984f4b537ce4e25a2961d33a91ab3673f959ab42b9e4c1225"
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-contingency-34-to-r1-1/runs.json",
+        "sha256": "7ea69af74ffba08fff2435d2cfcbff29e9d8948f8ead8d391e9bc419f04f7a55"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-content-v32-full-panel/nist-contingency-34-to-r1-1/nist-contingency-34-to-r1-text.json",
+        "sha256": "5253169e93a4373311a1ced3581f403ad7c4d4ac13ac593685689dbfa1fa7105"
+      }
+    }
+  ]
+}

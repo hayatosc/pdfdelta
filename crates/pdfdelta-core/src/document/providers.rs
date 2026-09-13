@@ -149,6 +149,7 @@ impl DocumentGraph {
                     glyphs,
                     parent: owner,
                     order,
+                    ..
                 } => {
                     if let Some(identifier) = identifier.as_ref().filter(|id| !id.is_empty()) {
                         bounded(

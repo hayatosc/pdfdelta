@@ -1069,10 +1069,14 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
                 page: pdfdelta_core::model::PageId(1),
                 bounds: None,
             });
-            let StructuredValue::StructureElement { glyphs, .. } = &mut store.structured[2].value
+            let StructuredValue::StructureElement {
+                glyphs, content, ..
+            } = &mut store.structured[2].value
             else {
                 unreachable!()
             };
+            // This constructed replacement has no acquired marked-content inventory.
+            *content = None;
             glyphs.push(extra_id);
             store.structured[2].page = None;
             let graph = DocumentGraph::from_evidence(
@@ -1110,6 +1114,196 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
             }
         );
         assert!(!store.inventory_complete(None, Channel::Relations));
+    }
+    Ok(())
+}
+
+#[test]
+fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Result<()> {
+    use pdfdelta_core::document::{
+        BackendIdentity, BackendKind, Channel, EvidenceLimits, EvidenceStore, NativeStructureKid,
+        PageEvidence, StructureLimits, StructuredValue, extract_structure_evidence,
+    };
+    for fault in [
+        "none",
+        "duplicate",
+        "object",
+        "parent",
+        "mcid",
+        "depth",
+        "malformed",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let first = pdf.add_object(Stream::new(dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm /P << /MCID 0 >> BDC (A) Tj EMC /Span << /MCID 1 >> BDC (B) Tj EMC ET".to_vec()));
+        let second = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm /P << /MCID 0 >> BDC (C) Tj EMC ET".to_vec(),
+        ));
+        install_plain_pages(
+            &mut pdf,
+            &[first.into(), second.into()],
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        );
+        let pages = pdf.get_pages();
+        let root = pdf.new_object_id();
+        let parent = pdf.new_object_id();
+        let child = pdf.add_object(dictionary! {
+            "S" => "Span", "P" => if fault == "parent" { root } else { parent },
+            "K" => if fault == "mcid" { 99 } else { 1 },
+        });
+        let cross_page = Object::Dictionary(dictionary! {
+            "Type" => "MCR", "Pg" => pages[&2], "MCID" => 0,
+        });
+        let mut kids = vec![Object::Integer(0), child.into(), cross_page.clone()];
+        if fault == "duplicate" {
+            kids.push(cross_page);
+        }
+        if fault == "malformed" {
+            kids.insert(2, Object::Dictionary(dictionary! { "Type" => "MCR" }));
+        }
+        if fault == "object" {
+            kids.push(Object::Dictionary(dictionary! { "Type" => "OBJR" }));
+        }
+        pdf.objects.insert(
+            parent,
+            Object::Dictionary(dictionary! {
+                "S" => "P", "P" => root, "Pg" => pages[&1], "K" => kids,
+            }),
+        );
+        pdf.objects.insert(
+            root,
+            Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => parent }),
+        );
+        let catalog = pdf
+            .trailer
+            .get(b"Root")
+            .expect("fixture catalog")
+            .as_reference()
+            .expect("catalog reference");
+        pdf.get_object_mut(catalog)
+            .expect("fixture catalog object")
+            .as_dict_mut()
+            .expect("fixture catalog dictionary")
+            .set("StructTreeRoot", root);
+        let mut bytes = Vec::new();
+        pdf.save_to(&mut bytes).expect("mixed fixture bytes");
+        let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+        let outcome = ContentStreamGlyphExtractor
+            .extract_outcome(parsed.as_ref(), ExtractionLimits::default())?;
+        let mut store = EvidenceStore::from_native(
+            "mixed-tags".into(),
+            BackendIdentity {
+                kind: BackendKind::NativeParser,
+                name: "fixture".into(),
+                version: "1".into(),
+                profile: "mixed-tags".into(),
+                model: None,
+            },
+            (0..2)
+                .map(|page| PageEvidence {
+                    page: PageId(page),
+                    bounds: None,
+                })
+                .collect(),
+            outcome,
+            EvidenceLimits::default(),
+        )?;
+        let tags = extract_structure_evidence(
+            parsed.as_ref(),
+            &store.native,
+            0,
+            37,
+            StructureLimits {
+                max_depth: if fault == "depth" { 0 } else { 64 },
+                ..StructureLimits::default()
+            },
+        )?;
+        let StructuredValue::StructureElement {
+            glyphs,
+            content: Some(content),
+            ..
+        } = &tags.elements[0].value
+        else {
+            panic!("retained mixed content")
+        };
+        // The legacy flat view remains unproved; ordered raw membership survives.
+        assert!(glyphs.is_empty());
+        assert_eq!(
+            content[0],
+            NativeStructureKid::MarkedContent { sequence: 0 }
+        );
+        assert_eq!(
+            content[if fault == "malformed" { 3 } else { 2 }],
+            NativeStructureKid::MarkedContent { sequence: 2 }
+        );
+        if fault == "malformed" {
+            assert_eq!(content[2], NativeStructureKid::Unresolved);
+        }
+        assert_eq!(
+            content[1],
+            if matches!(fault, "parent" | "depth") {
+                NativeStructureKid::Unresolved
+            } else {
+                NativeStructureKid::Element { element: 38 }
+            }
+        );
+        if fault == "duplicate" {
+            assert_eq!(content[3], content[2]);
+        }
+        if fault == "object" {
+            assert_eq!(content[3], NativeStructureKid::Unresolved);
+        }
+        if fault == "mcid" {
+            let StructuredValue::StructureElement {
+                content: Some(content),
+                ..
+            } = &tags.elements[1].value
+            else {
+                panic!("failed binding")
+            };
+            assert_eq!(content, &[NativeStructureKid::Unresolved]);
+        }
+        store.structured = tags.elements;
+        store.issues.extend(tags.issues);
+        store.inventories.push(tags.inventory);
+        store.key_inventories.push(tags.key_inventory);
+        store.validate(EvidenceLimits::default())?;
+        assert!(!store.inventory_complete(None, Channel::Relations));
+        let restored: EvidenceStore =
+            serde_json::from_slice(&serde_json::to_vec(&store).expect("serialize mixed evidence"))
+                .expect("deserialize mixed evidence");
+        assert_eq!(store, restored);
+        if fault == "none" {
+            for mutation in ["sequence", "omission", "order", "child", "flat"] {
+                let mut bad = store.clone();
+                let StructuredValue::StructureElement {
+                    content: Some(content),
+                    glyphs,
+                    ..
+                } = &mut bad.structured[0].value
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    "sequence" => {
+                        content[0] = NativeStructureKid::MarkedContent {
+                            sequence: usize::MAX,
+                        }
+                    }
+                    "omission" => content[1] = NativeStructureKid::Unresolved,
+                    "order" => content.swap(0, 1),
+                    "child" => content[1] = NativeStructureKid::Element { element: u64::MAX },
+                    "flat" => glyphs.push(bad.native.items()[0].id),
+                    _ => unreachable!(),
+                }
+                assert!(
+                    bad.validate(EvidenceLimits::default()).is_err(),
+                    "{mutation}"
+                );
+            }
+        }
     }
     Ok(())
 }

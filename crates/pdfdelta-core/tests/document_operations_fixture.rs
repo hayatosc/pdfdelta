@@ -478,6 +478,7 @@ mod visual_supplier {
                     object: None,
                     backend: 0,
                     value: StructuredValue::StructureElement {
+                        content: None,
                         identifier: None,
                         glyphs: Vec::new(),
                         role: "paragraph".into(),

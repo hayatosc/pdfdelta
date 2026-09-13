@@ -171,6 +171,11 @@ pub enum StructuredValue {
         /// Native memberships are alternatives to layout views, not copied text.
         #[serde(default)]
         glyphs: Vec<GlyphId>,
+        /// Native `/K` entries in their declared order. Unlike `glyphs`, this
+        /// retains mixed children and unresolved slots without flattening them.
+        /// `None` means this evidence was not acquired; an empty list is known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        content: Option<Vec<NativeStructureKid>>,
         parent: Option<u64>,
         order: Option<u32>,
     },
@@ -179,6 +184,24 @@ pub enum StructuredValue {
         text: Option<String>,
         target: Option<String>,
     },
+}
+
+/// One native structure entry, located by its parent's object and list offset.
+/// References preserve raw source ownership; they do not establish semantic
+/// relations, reading intent, or closure over other structure declarations.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum NativeStructureKid {
+    /// Index into the retained native marked-content sequence inventory.
+    MarkedContent {
+        sequence: usize,
+    },
+    Element {
+        element: u64,
+    },
+    /// Acquisition failed or this entry's binding is unsupported. The parent's
+    /// relation issues retain the reason; the slot must never become empty text.
+    Unresolved,
 }
 
 /// A recognition candidate, not a native character or an exact source reading.
@@ -743,8 +766,60 @@ impl EvidenceStore {
                     text,
                     glyphs,
                     identifier,
+                    content,
                     ..
                 } => {
+                    add_bytes(
+                        &mut marked_memberships,
+                        glyphs.len(),
+                        limits.max_items,
+                        "structure glyph memberships",
+                    )?;
+                    if let Some(content) = content {
+                        if self.backends[element.backend].kind != BackendKind::NativeParser {
+                            return Err(invalid(
+                                "native structure content requires a native backend",
+                            ));
+                        }
+                        add_bytes(
+                            &mut marked_memberships,
+                            content.len(),
+                            limits.max_items,
+                            "native structure content entries",
+                        )?;
+                        let mut position = 0usize;
+                        for kid in content {
+                            if let NativeStructureKid::MarkedContent { sequence } = kid {
+                                let mark = self.native.marked_content().get(*sequence).ok_or_else(
+                                    || invalid("missing structure marked-content sequence"),
+                                )?;
+                                if !mark.complete {
+                                    return Err(invalid(
+                                        "structure references incomplete marked content",
+                                    ));
+                                }
+                                if !glyphs.is_empty() {
+                                    for glyph in &self.native.items()[mark.glyph_range.clone()] {
+                                        if glyphs.get(position) != Some(&glyph.id) {
+                                            return Err(invalid(
+                                                "flat structure membership disagrees with native content",
+                                            ));
+                                        }
+                                        position += 1;
+                                    }
+                                }
+                            } else if !glyphs.is_empty() {
+                                return Err(invalid(
+                                    "flat structure membership includes mixed or unresolved content",
+                                ));
+                            }
+                        }
+                        if position != glyphs.len() {
+                            return Err(invalid(
+                                "flat structure membership extends beyond native content",
+                            ));
+                        }
+                    }
                     if let Some(identifier) = identifier {
                         add_bytes(
                             &mut text_bytes,
@@ -758,12 +833,6 @@ impl EvidenceStore {
                             "structure text and native memberships are mutually exclusive",
                         ));
                     }
-                    add_bytes(
-                        &mut marked_memberships,
-                        glyphs.len(),
-                        limits.max_items,
-                        "structure glyph memberships",
-                    )?;
                     let mut seen = BTreeSet::new();
                     for glyph in glyphs {
                         let page = sources
@@ -925,6 +994,7 @@ impl EvidenceStore {
                 return Err(invalid("dangling structure parent"));
             }
         }
+        super::structures::validate_content(self)?;
         Ok(())
     }
 

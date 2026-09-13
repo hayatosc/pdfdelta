@@ -306,6 +306,7 @@ fn paragraphs(revision: &str, parent: Option<u64>) -> EvidenceStore {
             object: None,
             backend: 0,
             value: StructuredValue::StructureElement {
+                content: None,
                 identifier: Some(identifier.as_bytes().to_vec()),
                 role: role.into(),
                 glyphs: Vec::new(),
