@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-dpr-v1-to-v3",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Open-domainquestionansweringreliesonef-ﬁcientpassageretrievaltoselectcandidatecontexts,wheretraditionalsparsevectorspacemodels,suchasTF-IDForBM25,arethedefactomethod.Inthiswork,weshowthatretrievalcanbepracticallyimplementedus-ingdenserepresentationsalone,whereem-beddingsarelearnedfromasmallnumberofquestionsandpassagesbyasimpledual-encoderframework.Whenevaluatedonawiderangeofopen-domainQAdatasets,ourdenseretrieveroutperformsastrongLucene-BM25systemlargelyby9%-19%absoluteintermsoftop-20passageretrievalaccuracy,andhelpsourend-to-endQAsystemestablishnewstate-of-the-artonmultipleopen-domainQAbenchmarks.1",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Open-domainquestionansweringreliesonef-ﬁcientpassageretrievaltoselectcandidatecontexts,wheretraditionalsparsevectorspacemodels,suchasTF-IDForBM25,arethedefactomethod.Inthiswork,weshowthatretrievalcanbepracticallyimplementedus-ingdenserepresentationsalone,whereem-beddingsarelearnedfromasmallnumberofquestionsandpassagesbyasimpledual-encoderframework.Whenevaluatedonawiderangeofopen-domainQAdatasets,ourdenseretrieveroutperformsastrongLucene-BM25systemgreatlyby9%-19%absoluteintermsoftop-20passageretrievalaccuracy,andhelpsourend-to-endQAsystemestablishnewstate-of-the-artonmultipleopen-domainQAbenchmarks.1",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "2b03fbde33c88fcf82091e6325806bd2656ca777032471e182c602c76ccdab01",
+  "new_sha256": "3e67fc1a9977715acf722d85f0b7d124b03715e975f6310a4d6c12094190912f"
+}

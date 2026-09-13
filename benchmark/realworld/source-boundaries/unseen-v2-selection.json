@@ -1,0 +1,116 @@
+{
+  "version": 2,
+  "selection_started_utc": "2026-09-13T10:48:32.680202+00:00",
+  "comparison_performed": false,
+  "rule": "The first twelve series selected after the recorded implementation freeze. Edition availability and source annotations remain to be verified before comparison; any acquisition-only exclusion must be retained.",
+  "pairs": [
+    {
+      "id": "nist-161-original-to-r1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "language": "en",
+      "series": "SP 800-161 supply chain risk management",
+      "old_revision": "2015 original",
+      "new_revision": "2022 Revision 1"
+    },
+    {
+      "id": "nist-46-r1-to-r2",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "language": "en",
+      "series": "SP 800-46 enterprise telework and remote access",
+      "old_revision": "Revision 1",
+      "new_revision": "Revision 2"
+    },
+    {
+      "id": "nist-50-original-to-r1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "language": "en",
+      "series": "SP 800-50 cybersecurity learning program",
+      "old_revision": "2003 original",
+      "new_revision": "2024 Revision 1"
+    },
+    {
+      "id": "edpb-territorial-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "language": "en",
+      "series": "Guidelines 3/2018 territorial scope",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2"
+    },
+    {
+      "id": "edpb-voice-assistants-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "language": "en",
+      "series": "Guidelines 02/2021 virtual voice assistants",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2"
+    },
+    {
+      "id": "arxiv-deberta-v1-to-v6",
+      "family": "arxiv-research",
+      "independent_producer": "Microsoft",
+      "language": "en",
+      "series": "arXiv 2006.03654 DeBERTa",
+      "old_revision": "v1",
+      "new_revision": "v6"
+    },
+    {
+      "id": "arxiv-bart-v1-to-v2",
+      "family": "arxiv-research",
+      "independent_producer": "Facebook AI Research",
+      "language": "en",
+      "series": "arXiv 1910.13461 BART",
+      "old_revision": "v1",
+      "new_revision": "v2"
+    },
+    {
+      "id": "arxiv-roformer-v1-to-v5",
+      "family": "arxiv-research",
+      "independent_producer": "Zhuiyi Technology",
+      "language": "en",
+      "series": "arXiv 2104.09864 RoFormer",
+      "old_revision": "v1",
+      "new_revision": "v5"
+    },
+    {
+      "id": "faa-efb-76c-to-76d",
+      "family": "faa-advisory",
+      "independent_producer": "FAA",
+      "language": "en",
+      "series": "AC 120-76 electronic flight bags",
+      "old_revision": "Revision C",
+      "new_revision": "Revision D"
+    },
+    {
+      "id": "mhlw-telework-2018-to-2021",
+      "family": "japanese-policy",
+      "independent_producer": "MHLW",
+      "language": "ja",
+      "series": "Telework implementation guidelines",
+      "old_revision": "2018 guidelines",
+      "new_revision": "2021 guidelines"
+    },
+    {
+      "id": "ietf-edns-2671-to-6891",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "language": "en",
+      "series": "Extension Mechanisms for DNS (EDNS0)",
+      "old_revision": "RFC 2671",
+      "new_revision": "RFC 6891"
+    },
+    {
+      "id": "ietf-dkim-4871-to-6376",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "language": "en",
+      "series": "DomainKeys Identified Mail (DKIM) Signatures",
+      "old_revision": "RFC 4871",
+      "new_revision": "RFC 6376"
+    }
+  ]
+}

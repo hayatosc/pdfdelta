@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "edpb-territorial-v1-to-v2",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/documents/files/file1/edpb_guidelines_3_2018_territorial_scope_after_public_consultation_en_1.pdf",
+      "started_utc": "2026-09-13T10:53:43.317364+00:00",
+      "wall_seconds": 2.3176880169994547,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/edpb-territorial-v1-to-v2-new.pdf",
+        "sha256": "84e142c5fc7ccd14687dac11083e5a1a78c887af9f6278020f571984297e66b4"
+      },
+      "bytes": 542808
+    }
+  ]
+}

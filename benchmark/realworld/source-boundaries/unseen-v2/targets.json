@@ -1,0 +1,533 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "pair": "nist-161-original-to-r1",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The first abstract paragraph broadens federal ICT supply-chain risks to organizational products and services and changes the assurance objectives.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-161-original-to-r1.json",
+          "sha256": "9329dd5fea9ed9c4d9381b226b563c6f61d9beaf744657034143b00a76ec16a8"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-161-original-to-r1.resolved.json",
+          "sha256": "46305d8149bf8899bf251d5c6622bcdca1ba9b7e0e86a324c923101acfc718e6"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-161-original-to-r1.expectations.json",
+          "sha256": "19d9cda0f63a575e5809604c84612504c4092aeabdf32ad195ff8cd676528a03"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-46-r1-to-r2",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The first Executive Summary paragraph expands teleworker roles and describes external hosts and access risks. The older edition has no Abstract.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-46-r1-to-r2.json",
+          "sha256": "e39b9cb1ca3d4c7adb27c7f237acbdb6be3ce107a880cf81ff8425085b175ed7"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-46-r1-to-r2.resolved.json",
+          "sha256": "4eb7ac9d588f3c7fb80843758ebbdd4d03cdb6e40defcbb0350e49ff53c9ffe5"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-46-r1-to-r2.expectations.json",
+          "sha256": "6df8a8605902fdae73d17eeebf3a4382a19087787cd71061337f84843dbee942"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-50-original-to-r1",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The first Executive Summary paragraph replaces the former security awareness and training scope with a cybersecurity and privacy learning program. The older edition has no Abstract.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-50-original-to-r1.json",
+          "sha256": "63ad3f4a46c31ef7aa1bd743c8fadb652f79ce74067ce521cc9f6e8ed55abd17"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-50-original-to-r1.resolved.json",
+          "sha256": "05fc9fce31ab3edcd14b08ba0e7787df4e6654c09e84a34fcf72b39e1b216c46"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/nist-50-original-to-r1.expectations.json",
+          "sha256": "a716d7d4c6be4daa8b2ff76d95c15a9b9c73c91149b55ce662c13f98c351801b"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "edpb-territorial-v1-to-v2",
+      "publisher": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "The first Introduction paragraph adds the alternative name or the Regulation for GDPR; the full paragraph and raw footnote markers are retained.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-territorial-v1-to-v2.json",
+          "sha256": "8ab3402b8262699dee9355cea65769cc4bf8716d9f6439f48847e9f9a43ca3ea"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-territorial-v1-to-v2.resolved.json",
+          "sha256": "d79a28c4e4e27e83cf930d76dccc5e0c5c79dc49b68231eb14cc42c2b64e4de2"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-territorial-v1-to-v2.expectations.json",
+          "sha256": "42c13942019a8f9f086825bc472d6fd657451acd7db998993e1e13f01184dd5f"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "edpb-voice-assistants-v1-to-v2",
+      "publisher": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "The first Executive Summary paragraph changes recent years to latest years, within the full definition paragraph.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-voice-assistants-v1-to-v2.json",
+          "sha256": "9c7904ae1b03c44952063175528edc546918baa34dcd7fe9914e948bcd266303"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-voice-assistants-v1-to-v2.resolved.json",
+          "sha256": "d111e41fb9976e040167ea9d6e80e44eb904194b07d52f6071fd5adc450d2f87"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-voice-assistants-v1-to-v2.expectations.json",
+          "sha256": "e065e0fe188af9df25f5961bcd5d9dabce8df826373be29aed526dcbce45e6bc"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "arxiv-deberta-v1-to-v6",
+      "publisher": "Microsoft",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract changes the architecture, training and reported experimental outcomes; the following Introduction is outside the extent.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-deberta-v1-to-v6.json",
+          "sha256": "29d2b831212a970bbf13263aaf4ed6e3de6b64e39b63147a6c2199b922cae69a"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-deberta-v1-to-v6.resolved.json",
+          "sha256": "ec0a8b478bf3a01aa2ec70da21fe5358ce78666e79e2d09d9d947d787a1207de"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-deberta-v1-to-v6.expectations.json",
+          "sha256": "da6f8c8305f4a356044d037ec625c209e6b472bf3c41d58a3cdc5e569302d9dd"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Microsoft"
+    },
+    {
+      "pair": "arxiv-dpr-v1-to-v3",
+      "publisher": "Facebook AI Research",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract changes largely to greatly. The raw terminal footnote marker is retained on both sides.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-dpr-v1-to-v3.json",
+          "sha256": "7ee64991ae1f07c7635fa06793c03ccfde154b331caf546d2b6ef995d15d203d"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-dpr-v1-to-v3.resolved.json",
+          "sha256": "4ce9947f7cca2114e305fcb360fe07a3ec253b155b384c71417e1070eee102da"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-dpr-v1-to-v3.expectations.json",
+          "sha256": "445b503369c043e62faa8e6137e768aad2ae235a7aec28198f791f6d73129098"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Facebook AI Research"
+    },
+    {
+      "pair": "arxiv-roformer-v1-to-v5",
+      "publisher": "Zhuiyi Technology",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract changes the positional-encoding description, experiments and release information. The new Keywords line is outside the paragraph.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-roformer-v1-to-v5.json",
+          "sha256": "0cf2a3f58cde9e42d38986e518896c9b68f76634d5d6a367b969bbcd1ccf4f97"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-roformer-v1-to-v5.resolved.json",
+          "sha256": "bb327e9d4e1d30141208f1bcca5489f241ab4891b3bb14b3f1c71b24a7c32957"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-roformer-v1-to-v5.expectations.json",
+          "sha256": "6b20e805d56fb149a21c13fd4ef73f33d2abf0af15d55d67cc25afba307ae221"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Zhuiyi Technology"
+    },
+    {
+      "pair": "faa-efb-76c-to-76d",
+      "publisher": "FAA",
+      "body_eligible": true,
+      "eligibility_reason": "The complete first Purpose paragraph changes electronic-flight-bag authorization and scope. Inline numbered headings are excluded on both sides.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/faa-efb-76c-to-76d.json",
+          "sha256": "beee9d1fe61d65b0b33d9d0a050822079d7653302b2866326e8858f8cc4e8381"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/faa-efb-76c-to-76d.resolved.json",
+          "sha256": "30be3be7b214ccece067c01489ef37c5f3fcadf5debc4010bb7c2d297688a700"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/faa-efb-76c-to-76d.expectations.json",
+          "sha256": "2bcc9994e779b17b0fb4e903ad16c99e569f2ba76fe68669605e4c28adae21cb"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "FAA"
+    },
+    {
+      "pair": "mhlw-telework-2018-to-2021",
+      "publisher": "MHLW",
+      "body_eligible": true,
+      "eligibility_reason": "The worker-benefits paragraph changes the telework description and claimed benefits. It is paragraph two in the old Purpose section and paragraph one in the new section; the employer-benefits paragraph is outside the extent.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/mhlw-telework-2018-to-2021.json",
+          "sha256": "9be473da287e266f5d82f534adc8af5dba41f2cc244d048a405dc30d1496934e"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/mhlw-telework-2018-to-2021.resolved.json",
+          "sha256": "744e577d92e63dfce54f4f56efeb821e9d0bcaa1101aa9639fa5f4e1f5f533e7"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/mhlw-telework-2018-to-2021.expectations.json",
+          "sha256": "3b8fb0ee0e64233e16b7ee02786a5f9366e025f89aa22d794e9c8ccf75d50f81"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "MHLW"
+    },
+    {
+      "pair": "ietf-edns-2671-to-6891",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "The first abstract paragraph changes clients and servers to requestors and responders and adds a hyphen in backward-compatible.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-edns-2671-to-6891.json",
+          "sha256": "bb55292dcd1a7f2ba02adea7e5e05d8cc0ffb3ae85670cfbbd026d2537ef0ede"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-edns-2671-to-6891.resolved.json",
+          "sha256": "4958a47b3dd2bce8d527e6aaa8425c42c9d2dfe69f583dd4d38462fd279f7955"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-edns-2671-to-6891.expectations.json",
+          "sha256": "5052d662a7cee255990ada5d0099adba679e20e8a54cee52085503f6f43d0d6b"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    },
+    {
+      "pair": "ietf-dkim-4871-to-6376",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "The first abstract paragraph changes DKIM identity, responsibility, signature and validation descriptions. The new obsolescence paragraph is outside the extent.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-dkim-4871-to-6376.json",
+          "sha256": "b37ca314d9449081b3b06bdc039f5c80963648b486be2cd6d633403e4a1ebe8e"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-dkim-4871-to-6376.resolved.json",
+          "sha256": "0578761f1b643c7e5a4b0aafb229e8558fc94b3a5828b628e2a63458f4d20648"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-dkim-4871-to-6376.expectations.json",
+          "sha256": "369fde06132ae955712e67b90fa714f43133724afbed51a6ad6981bbc15cbd87"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    }
+  ]
+}

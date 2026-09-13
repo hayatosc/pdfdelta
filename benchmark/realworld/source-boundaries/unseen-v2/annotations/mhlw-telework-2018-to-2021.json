@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "mhlw-telework-2018-to-2021",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "いずれも、労働者が所属する事業場での勤務に比べて、働く時間や場所を柔軟に活用することが可能であり、通勤時間の短縮及びこれに伴う精神的・身体的負担の軽減、仕事に集中できる環境での就労による業務効率化及びこれに伴う時間外労働の削減、育児や介護と仕事の両立の一助となる等、労働者にとって仕事と生活の調和を図ることが可能となるといったメリットを有する。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "趣旨",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "労働者が情報通信技術を利用して行う事業場外勤務（以下「テレワーク」という。）には、オフィスでの勤務に比べて、働く時間や場所を柔軟に活用することが可能であり、通勤時間の短縮及びこれに伴う心身の負担の軽減、仕事に集中できる環境での業務の実施による業務効率化につながり、それに伴う時間外労働の削減、育児や介護と仕事の両立の一助となる等、労働者にとって仕事と生活の調和を図ることが可能となるといったメリットがある。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "趣旨",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "fdd9abf10c231bb7fb92f03d03ee63be5fefd736911c1dd32586e2d9ed8f8f12",
+  "new_sha256": "2715875fa38130cb2d306cef79e846168ff52a2d74670ad086a059d90c1c7223"
+}

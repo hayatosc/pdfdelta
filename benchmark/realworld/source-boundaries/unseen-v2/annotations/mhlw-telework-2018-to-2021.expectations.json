@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "mhlw-telework-2018-to-2021",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "9be473da287e266f5d82f534adc8af5dba41f2cc244d048a405dc30d1496934e",
+  "body_eligible": true,
+  "reason": "The worker-benefits paragraph changes the telework description and claimed benefits. It is paragraph two in the old Purpose section and paragraph one in the new section; the employer-benefits paragraph is outside the extent."
+}

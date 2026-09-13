@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "faa-efb-76c-to-76d",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "beee9d1fe61d65b0b33d9d0a050822079d7653302b2866326e8858f8cc4e8381",
+  "body_eligible": true,
+  "reason": "The complete first Purpose paragraph changes electronic-flight-bag authorization and scope. Inline numbered headings are excluded on both sides."
+}

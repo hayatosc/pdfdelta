@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-161-original-to-r1",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "9329dd5fea9ed9c4d9381b226b563c6f61d9beaf744657034143b00a76ec16a8",
+  "body_eligible": true,
+  "reason": "The first abstract paragraph broadens federal ICT supply-chain risks to organizational products and services and changes the assurance objectives."
+}

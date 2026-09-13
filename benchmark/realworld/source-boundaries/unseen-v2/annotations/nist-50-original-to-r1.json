@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "nist-50-original-to-r1",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "NIST Special Publication 800-50, Building An Information Technology Security Awareness and Training Program, provides guidance for building an effective information technology (IT) security program and supports requirements specified in the Federal Information Security Management Act (FISMA) of 2002 and the Office of Management and Budget (OMB) Circular A-130, Appendix III.  A strong IT security program cannot be put in place without significant attention given to training agency IT users on security policy, procedures, and techniques, as well as the various management, operational, and technical controls necessary and available to secure IT resources.  In addition, those in the agency who manage the IT infrastructure need to have the necessary skills to carry out their assigned duties effectively.  Failure to give attention to the area of security training puts an enterprise at great risk because security of agency resources is as much a human issue as it is a technology issue.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "Executive Summary",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "Ensuring that a federal organization’s workforce is aware of and prepared to respond appropriately and effectively to cybersecurity and privacy risks is an important effort that requires a strategic approach based on thoughtful planning, resource considerations, and leadership-driven decision-making. This long-awaited update to the 2003 NIST Special Publication (SP) 800-50, Building an Information Technology Security Awareness and Training Program, provides guidance to create and manage a program that includes cybersecurity and privacy awareness campaigns, role-based training, and other workforce education programs. These programs combine to create an overall Cybersecurity and Privacy Learning Program (CPLP) that is part of a larger organizational effort to reduce cybersecurity and privacy risks. The resulting CPLP supports federal requirements and incorporates industry-recognized best practices for risk management.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "Executive Summary",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "50a26f97c951896fda850baea55cc47e281c74f9fecaa981deca1d3152148d14",
+  "new_sha256": "a660833b49acc6e34728e9e224739f7fe169bcbc205d8769221583c5356af70c"
+}

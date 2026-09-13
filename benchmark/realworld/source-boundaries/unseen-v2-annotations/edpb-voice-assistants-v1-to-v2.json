@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-voice-assistants-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "A virtualvoiceassistant(VVA)isa servicethat understandsvoice commands andexecutes them ormediates with other IT systems if needed.VVAs are currentlyavailable on most smartphones andtablets, traditional computers, and,in therecentyears,even standalone devices likesmart speakers.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "EXECUTIVE SUMMARY",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "A virtualvoiceassistant(VVA)isa servicethat understandsvoice commands andexecutes them ormediates with other IT systems ifneeded.VVAs are currentlyavailable on most smartphones andtablets, traditional computers, and,in the latest years,even standalone devices likesmart speakers.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "EXECUTIVE SUMMARY",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "38ff6240c319f589ff72324e51ec473c5eef388ae0ca9d33720286fbe19fb072",
+  "new_sha256": "145c1e9297ef64079ee6bad86a31a8c00b3d155b64436245bed7c76db428bdcf"
+}

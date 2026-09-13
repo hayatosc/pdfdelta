@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "annotation_completed_utc": "2026-09-13T11:06:56.566345+00:00",
+  "implementation": {
+    "version": 2,
+    "freeze_utc": "2026-09-13T10:47:25.266657+00:00",
+    "production_sha256": "97a96894b83921acad4dfdd12ea86ed782af547712fb4012c5f6339f393ed80e",
+    "binary": {
+      "path": "benchmark/realworld/cache/source-boundaries-enclosing-v35b/pdfdelta",
+      "sha256": "55bc54c0807f6f182f7fbf25ab0b78d6c8bf2f7b6c65b89f0a70cbe10bf00d92"
+    },
+    "build": {
+      "path": "benchmark/realworld/cache/source-boundaries-enclosing-v35b/build.json",
+      "sha256": "c9c8b08196f860301d52a7285803b845de564480e6da6b4fffeab86913c6f58f"
+    },
+    "implementation_commit": "3c738588ae98cea7ca5ed36771e4666703301a55",
+    "lockfile_sha256": "8569dfacfce366a1f9ae51ce3ba9a4141a84e469bcd3e7dd09c37f3de9645ed7",
+    "development": {
+      "path": "benchmark/realworld/source-boundaries/v35-development.json",
+      "sha256": "27ac5a3a7247806af4a53aad9ab18fadfb7f59d54bedfdbd71b86a7b4861f579"
+    },
+    "development_verification": {
+      "path": "benchmark/realworld/source-boundaries/checks/v35-development-verification.log",
+      "sha256": "66b36cfad3fa3bcaad7e1a33782219d1213e3c1164393df70ce53dff6789a3f7"
+    },
+    "settings": {
+      "channels": [
+        "text"
+      ],
+      "timeout_seconds": 180,
+      "limit_scale": 1,
+      "repetitions": 2,
+      "native_timeout_seconds": 35,
+      "native_max_response_bytes": 134217728
+    },
+    "selection_rule": "Select twelve previously unexposed natural revision series from primary sources, at least six publication families, English and Japanese and at least three independent producers. Register source-resolved finite prose targets before any comparison. Prefer the first changed prose paragraph within a corresponding named section, including an abstract when changed; source annotations must retain its full finite extent. Retain all selected failures. No output-driven replacement. Any implementation/configuration change retires the full set.",
+    "prior_exposure": [
+      {
+        "path": "benchmark/realworld/source-boundaries/unseen-v1-intent.json",
+        "sha256": "efb67f3d96c9fc5f31f40c7e18283dcbbe7317445f9b5ec4c447c4aa99e58726"
+      },
+      {
+        "path": "benchmark/realworld/source-boundaries/unseen-v1-selection-resolved.json",
+        "sha256": "d605cfa29153514b291ba50420ebb01843342b9ce101246691e80988c17394d7"
+      },
+      {
+        "path": "benchmark/realworld/source-boundaries/unseen-v1-retirement.json",
+        "sha256": "d88b4c4bba86621d06fc6d69a8106b40fd79bfb06b10020086d1efa704ad7dbd"
+      }
+    ],
+    "chronology_note": "Written before any new series selection or primary-source search in this campaign. Historical exposed series, translations and edition aliases remain ineligible."
+  },
+  "inputs": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2/inputs.json",
+    "sha256": "23a3351a458fc9380a50945d0cf9a39fa82bbd20cf0c5c819aa9fde0a24ed41d"
+  },
+  "targets": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2/targets.json",
+    "sha256": "9df014bc04c18a7eba75bddfe0e9e0c90a46cf2700998609dd1647800d6a22ce"
+  },
+  "source_review": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2/source-review.json",
+    "sha256": "ad49a5c0e5cb49093b1a1a6458fcf45f3cdadc1f2788e02ee09bc4f3034680e4"
+  },
+  "selection": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2-selection-resolved.json",
+    "sha256": "b6759f719ab40c3b4dd759f1bf3d0ec4d58c29a0b49fb1bb0cb5b2c657a6785a"
+  },
+  "status": "Source annotation and visual review complete; awaiting immutable local registration; no comparison has run."
+}
