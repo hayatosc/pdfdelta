@@ -202,9 +202,9 @@ class StageTests(unittest.TestCase):
                     {"command": command, "exit_code": 0, "log": write(f"quality-{index}.log", "constructed pass")}
                     for index, command in enumerate(commands)]})
 
-            def run(stage):
+            def run(stage, contract="historical"):
                 output, errors = io.StringIO(), io.StringIO()
-                with patch("sys.argv", ["verify", "--stage", stage]), redirect_stdout(output), redirect_stderr(errors):
+                with patch("sys.argv", ["verify", "--stage", stage, "--contract", contract]), redirect_stdout(output), redirect_stderr(errors):
                     status = verify.main()
                 return status, output.getvalue(), errors.getvalue()
 
@@ -213,6 +213,31 @@ class StageTests(unittest.TestCase):
                     status, output, errors = run(stage)
                     self.assertEqual(status, 0, errors)
             self.assertIn('"G5": {\n    "passed": true', output)
+            registration_data = verify.historical.read(remaining / "registration.json")
+            registration_data["contract"] = "source-boundaries-phase-v1"
+            registration = write(remaining / "registration.json", registration_data)
+            diagnosis = verify.historical.read(remaining / "diagnosis.json")
+            diagnosis["registration"] = registration
+            for row in diagnosis["targets"]:
+                row["premises"] = {key: {"status": "not_evaluated", "reason": "Constructed observation", "evidence": []}
+                                   for key in ("acquisition", "normalization", "boundary_discovery", "boundary_correspondence",
+                                               "source_order_closure", "competitor_closure", "local_change_proof", "finite_extent")}
+            write(remaining / "diagnosis.json", diagnosis)
+            recovery_only = phase_records("recovery-only", panel, targets, binary, gains=6, completions=0)
+            recovery_only["controls"] = development["controls"]
+            write(remaining / "development.json", recovery_only)
+            for stage in ("development", "blind-freeze", "blind", "final"):
+                with self.subTest(stage=stage, contract="source-boundaries-v1"):
+                    status, output, errors = run(stage, "source-boundaries-v1")
+                    self.assertEqual(status, 0, errors)
+                    g3 = output.split('"G3": {', 1)[1].split('"G4":', 1)[0]
+                    self.assertIn('"passed": false', g3)
+            self.assertIn('"recovery_track_complete": true', output)
+            self.assertIn('"goal_complete": false', output)
+            status, _, errors = run("final")
+            self.assertEqual(status, 1)
+            self.assertIn("completion or correctness gate unmet", errors)
+            write(remaining / "development.json", development)
             adjudication = root / development["adjudications"]["path"]
             saved = adjudication.read_text()
             adjudication.write_text("{}")

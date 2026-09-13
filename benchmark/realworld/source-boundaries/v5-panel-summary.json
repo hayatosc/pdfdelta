@@ -1,0 +1,923 @@
+{
+  "version": 1,
+  "scope": "One exploratory observation per registered pair; not the two-observation development gate. Unadjudicated candidates are not accepted recovery.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v5-panel-observations.json",
+    "sha256": "ac82cd5b6652bb6dd77b78a1fa0654ef4043935607d79e1634b1f28a1a2f784e"
+  },
+  "pairs": 36,
+  "captured_reports": 36,
+  "comparison_complete_pairs": 0,
+  "counts": {
+    "A": 1,
+    "B": 126,
+    "C": 0
+  },
+  "reviewed_B": 11,
+  "rows": [
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "counts": {
+        "A": 0,
+        "B": 11,
+        "C": 0
+      },
+      "source_cut_B": 2,
+      "target_candidates": [
+        "/comparison/scopes/0/result/text_scope_reviews/10"
+      ],
+      "all_AB_adjudicated": true,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 46126,
+        "new": 54003
+      },
+      "cost": {
+        "wall_seconds": 9.87,
+        "peak_rss_kib": 126412,
+        "report_bytes": 2986755
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-bert-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "b73cc631dd2b0e80775143eeeab4351da6663f25272d5b81134be48a52b1ed51"
+      }
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "counts": {
+        "A": 0,
+        "B": 9,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 135788,
+        "new": 176992
+      },
+      "cost": {
+        "wall_seconds": 7.34,
+        "peak_rss_kib": 350348,
+        "report_bytes": 2430745
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "ecfbe81ef37a8805fbea9e3e1e53eb3a3b2268f7c35facb88d7c211b76ec37c1"
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "counts": {
+        "A": 0,
+        "B": 21,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 52431,
+        "new": 57738
+      },
+      "cost": {
+        "wall_seconds": 2.18,
+        "peak_rss_kib": 144924,
+        "report_bytes": 3391381
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "c06de779179543ae1801350415eb7726f7608210fdb45c9573cd113c537dd23d"
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "counts": {
+        "A": 0,
+        "B": 1,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 81687,
+        "new": 91083
+      },
+      "cost": {
+        "wall_seconds": 9.12,
+        "peak_rss_kib": 220088,
+        "report_bytes": 263887
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/edpb-design-default-v1-to-v2-1/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "a2146de502ac5eca2b5c51fd5a5cfe4e26717e7caa2ac583c0482b0eb08a1def"
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "counts": {
+        "A": 0,
+        "B": 1,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 137655,
+        "new": 144179
+      },
+      "cost": {
+        "wall_seconds": 5.06,
+        "peak_rss_kib": 281120,
+        "report_bytes": 926445
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/edpb-social-targeting-v1-to-v2-1/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "ada8230bbafd890be5d3f83af163fe043ce8e8b43fe153ad5fd094d92f393b78"
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 228231,
+        "new": 104993
+      },
+      "cost": {
+        "wall_seconds": 7.03,
+        "peak_rss_kib": 447176,
+        "report_bytes": 6927989
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-incident-handling-r2-to-r3-1/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "be3fb905601c2d416602962887550dea35189533121e33564fb3bf3a7984dbf6"
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 92494,
+        "new": 105512
+      },
+      "cost": {
+        "wall_seconds": 3.98,
+        "peak_rss_kib": 300524,
+        "report_bytes": 4255877
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "ff2a76c54b14981805b2ad1c0b13a6ff56eec85640291713bc97dd1340472441"
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 86136,
+        "new": 90392
+      },
+      "cost": {
+        "wall_seconds": 4.14,
+        "peak_rss_kib": 257800,
+        "report_bytes": 371869
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-ai-rmf-draft2-to-v1-1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "8508888df3bc027911c7c84c8b2639caa4125b6cdd4c0e91284089917ffa2525"
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 198793,
+        "new": 280783
+      },
+      "cost": {
+        "wall_seconds": 9.88,
+        "peak_rss_kib": 636448,
+        "report_bytes": 4373780
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "6564d86fbb381741b56968f5bfc0b37919324a43cf1459a6bf6f120a1a4f8f10"
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "counts": {
+        "A": 0,
+        "B": 11,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 34858,
+        "new": 37452
+      },
+      "cost": {
+        "wall_seconds": 1.1,
+        "peak_rss_kib": 86476,
+        "report_bytes": 2841199
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/irs-w9-2018-to-2024-1/irs-w9-2018-to-2024-text.json",
+        "sha256": "7c9d224b6a87b4bf4ca0079702f8534606eb96f2f27077c8cb41c51fb8ccf8a4"
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "counts": {
+        "A": 1,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 19817,
+        "new": 20974
+      },
+      "cost": {
+        "wall_seconds": 0.81,
+        "peak_rss_kib": 60788,
+        "report_bytes": 1774907
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/irs-w4-english-2024-to-2025-1/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "939ad86cd552bbfaf85adcf03f235e45733f3ec3e876c7cb1916776702bf65d2"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 6310,
+        "new": 6316
+      },
+      "cost": {
+        "wall_seconds": 0.31,
+        "peak_rss_kib": 31996,
+        "report_bytes": 918200
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "f407c8d68873b866b24cafdcf1829d956f6e31420b519d025611b1bfbdb90f72"
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 5158,
+        "new": 5175
+      },
+      "cost": {
+        "wall_seconds": 0.24,
+        "peak_rss_kib": 28276,
+        "report_bytes": 562010
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "79b4a5c6dbb012863b040d52d47ef90b887f76efa88c9a39d6d23df1961057a7"
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 183113,
+        "new": 188326
+      },
+      "cost": {
+        "wall_seconds": 11.33,
+        "peak_rss_kib": 456724,
+        "report_bytes": 14622219
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/arxiv-gpt3-v1-to-v4-1/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "2c2b6267fab546b5decb35f49c3fb49ed7d8e114ba506be2fc41b6f87239e0f4"
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 49016,
+        "new": 200257
+      },
+      "cost": {
+        "wall_seconds": 23.05,
+        "peak_rss_kib": 1143832,
+        "report_bytes": 862192
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/mext-primary-japanese-2008-to-2017-1/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "90c005bbf632c23cfa08d05b58fb6ef2c70ce7d89b015a6d1316152413805884"
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 33923,
+        "new": 158718
+      },
+      "cost": {
+        "wall_seconds": 13.72,
+        "peak_rss_kib": 589948,
+        "report_bytes": 748605
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/mext-lower-secondary-japanese-2008-to-2017-1/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "b5e0913dc6d5aa108062778d731fa1613a5aae240fa56e2aa07fdae7d38339d8"
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 9528,
+        "new": 260656
+      },
+      "cost": {
+        "wall_seconds": 15.48,
+        "peak_rss_kib": 595344,
+        "report_bytes": 599567
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/mext-upper-secondary-japanese-2009-to-2018-1/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "ee0e8138f79f1112b8bccf2fc3a4e15cd99d80248454eceefe0fc0a79625cc9b"
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 55188,
+        "new": 78050
+      },
+      "cost": {
+        "wall_seconds": 48.49,
+        "peak_rss_kib": 646520,
+        "report_bytes": 7407547
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/mhlw-care-skills-original-to-revised-1/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "a7183433819ddfe5147c5ea0c929ff02d43a801e90a7a928f0b4bd96a29376c7"
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 62811,
+        "new": 279728
+      },
+      "cost": {
+        "wall_seconds": 9.18,
+        "peak_rss_kib": 514512,
+        "report_bytes": 2256729
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nasa-buckling-8007-1968-to-2020-1/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "5bd843127b4029b6b3636c254fc9f21dc428e6e45cb2cffc20d09d82f4849523"
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 579754,
+        "new": 606167
+      },
+      "cost": {
+        "wall_seconds": 31.41,
+        "peak_rss_kib": 1228944,
+        "report_bytes": 2114066
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/ipcc-synthesis-ar5-to-ar6-1/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "1ad9e8031915bb5945bdf13595b6d31550165cc7618f51db9291014c040cc6b1"
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 0,
+        "new": 473275
+      },
+      "cost": {
+        "wall_seconds": 18.78,
+        "peak_rss_kib": 904696,
+        "report_bytes": 574968
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+        "sha256": "2fd7321ad4fcd3722e191dbe247398faf64173e23b5912bc97a7a9d44ac6b53e"
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "counts": {
+        "A": 0,
+        "B": 10,
+        "C": 0
+      },
+      "source_cut_B": 1,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 41495,
+        "new": 47831
+      },
+      "cost": {
+        "wall_seconds": 2.27,
+        "peak_rss_kib": 173548,
+        "report_bytes": 3903045
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "a1dd87b0ff4e503a1155cbb7abf921027aa39e98499e3039f19c0dd5b68ed217"
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "counts": {
+        "A": 0,
+        "B": 43,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 41561,
+        "new": 45486
+      },
+      "cost": {
+        "wall_seconds": 4.2,
+        "peak_rss_kib": 142472,
+        "report_bytes": 5019675
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/arxiv-ddpm-v1-to-v2-1/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "c1dc55d03d091556a332d182b5cb39fb63e97ad67a842d3543a787712f38af52"
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 220758,
+        "new": 221261
+      },
+      "cost": {
+        "wall_seconds": 16.3,
+        "peak_rss_kib": 496572,
+        "report_bytes": 6541822
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/arxiv-llama2-v1-to-v2-1/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "26aeed3dba42d9c3091828924a747e7321fbd2b1f7545206821bc30945732fa5"
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 379765,
+        "new": 643987
+      },
+      "cost": {
+        "wall_seconds": 20.25,
+        "peak_rss_kib": 1070760,
+        "report_bytes": 3249672
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-risk-management-37-r1-to-r2-1/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "f1ebe47cf3a8b8175917cc4209ba0ab314d8e9c2134c33a4c86e624b6d42bb42"
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 11030,
+        "new": 10779
+      },
+      "cost": {
+        "wall_seconds": 0.64,
+        "peak_rss_kib": 57720,
+        "report_bytes": 3378061
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/irs-1099-misc-2024-to-2025-1/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "1b34de67dfa44b3eb4bb7d3bde01214a0d81f8affbc335dbb42f258792b0853b"
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "counts": {
+        "A": 0,
+        "B": 8,
+        "C": 0
+      },
+      "source_cut_B": 6,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 20660,
+        "new": 20753
+      },
+      "cost": {
+        "wall_seconds": 1.44,
+        "peak_rss_kib": 82744,
+        "report_bytes": 2709021
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/irs-w2-2024-to-2025-1/irs-w2-2024-to-2025-text.json",
+        "sha256": "1a86d36ebd52b3bf449f7aeceea16545cbaf11147355444b81ea971216da3558"
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "counts": {
+        "A": 0,
+        "B": 11,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 39906,
+        "new": 52182
+      },
+      "cost": {
+        "wall_seconds": 3.4,
+        "peak_rss_kib": 136676,
+        "report_bytes": 5693620
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/arxiv-mask-rcnn-v1-to-v3-1/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "ba9cfdf01c5e9905ad39dbad5f5efcb402c94d4f7d210bf207f6461aa80772a1"
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 4867,
+        "new": 68870
+      },
+      "cost": {
+        "wall_seconds": 5.79,
+        "peak_rss_kib": 198652,
+        "report_bytes": 3016180
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/bunka-official-writing-1952-to-2022-1/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "ad23e34e1b057ce2d9fce38cc8b9b5cb8d0e262b9f017849d9b42ce7eaa71339"
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 15715,
+        "new": 25205
+      },
+      "cost": {
+        "wall_seconds": 1.21,
+        "peak_rss_kib": 74904,
+        "report_bytes": 134580
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/faa-thunderstorms-b-to-c-1/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "b339fe4c25b717390d159fbbdc94c4a5ef880830f7d8e94a49a05d5c44982d1e"
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 28756,
+        "new": 63192
+      },
+      "cost": {
+        "wall_seconds": 1.8,
+        "peak_rss_kib": 126340,
+        "report_bytes": 188040
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/faa-maintenance-records-c-to-d-1/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "bd2898d7974a0b439a0ccedb2f58d1bec2fbb6a2fa2bf6f800355c442676b38e"
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 31824,
+        "new": 50209
+      },
+      "cost": {
+        "wall_seconds": 1.9,
+        "peak_rss_kib": 103460,
+        "report_bytes": 782451
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/arxiv-faster-rcnn-v1-to-v3-1/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "64804f16799a965df48d1968291e78369374ca3a813ab42fc138d2c5cfba741b"
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 0,
+        "new": 0
+      },
+      "cost": {
+        "wall_seconds": 1.12,
+        "peak_rss_kib": 44700,
+        "report_bytes": 28605
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/bunka-kana-1946-to-1986-1/bunka-kana-1946-to-1986-text.json",
+        "sha256": "95185b7430e4b717afc7c05c3366dd3617104aa83f52d44a6677a1e1c741d673"
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 0,
+        "new": 0
+      },
+      "cost": {
+        "wall_seconds": 30.42,
+        "peak_rss_kib": 665068,
+        "report_bytes": 426520
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-controls-53-r4-to-r5-1/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "1cdb25ba738b16aedae7ab148cace7e9053e2979f99a120613b0b93dd45bb9ba"
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 102460,
+        "new": 317969
+      },
+      "cost": {
+        "wall_seconds": 20.93,
+        "peak_rss_kib": 566028,
+        "report_bytes": 1356305
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-risk-assessment-30-to-r1-1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "756fb3a3e639a78347fa69f1586398db6c09a9b134c6160f5f2dc992139f061f"
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "counts": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "source_cut_B": 0,
+      "target_candidates": [],
+      "all_AB_adjudicated": false,
+      "comparison_complete": false,
+      "native_glyphs": {
+        "old": 216916,
+        "new": 294101
+      },
+      "cost": {
+        "wall_seconds": 36.66,
+        "peak_rss_kib": 706248,
+        "report_bytes": 6073994
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v5-panel/nist-contingency-34-to-r1-1/nist-contingency-34-to-r1-text.json",
+        "sha256": "42f0c8a1ace54968aa56147619e0ecea8ba49f2208248b66bc1b26d0998acfc2"
+      }
+    }
+  ]
+}

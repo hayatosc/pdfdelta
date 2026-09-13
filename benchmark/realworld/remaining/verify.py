@@ -18,6 +18,7 @@ spec = importlib.util.spec_from_file_location(
 historical = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(historical)
 STAGES = ("registration", "diagnosis", "development", "blind-freeze", "blind", "final")
+CONTRACT = "historical"
 
 
 def read_reference(reference):
@@ -31,6 +32,9 @@ def require(condition, message):
 
 def registration():
     record = historical.read(DIRECTORY / "registration.json")
+    if CONTRACT == "source-boundaries-v1":
+        require(record.get("contract") == "source-boundaries-phase-v1",
+                "source-boundary evidence contract is missing or changed")
     sources = {key: read_reference(value) for key, value in record["historical"].items()}
     require(record["completion_contract"] == {
         "channels": ["text"], "timeout_seconds": 180, "limit_scale": 1, "repetitions": 2,
@@ -117,6 +121,129 @@ def gate_summary(development_pairs, blind_pairs, development_producers, blind_pr
     }
 
 
+def checked_boundary_proposal(result, index):
+    accepted = set(result["accepted_correspondences"]) | set(result["text_boundary_correspondences"])
+    mandatory = set(result["matching"]["source_only_mandatory"])
+    inferred = set(result["matching"]["inferred_proposals"])
+    proposals = result["candidates"]["proposals"]
+
+    require(type(index) is int and 0 <= index < len(proposals)
+            and index in accepted & mandatory and index not in inferred,
+            "interval depends on an unaccepted or inferred boundary")
+    value = proposals[index]
+    require(all(len(value[side]) == 1 for side in ("old", "new")),
+            "interval boundary is not a single retained node")
+    return value
+
+
+def checked_source_cuts(review, result):
+    """Bind the declared cut premises; geometric/source adjudication remains required."""
+    cuts = review["source_cuts"]
+    require(CONTRACT == "source-boundaries-v1"
+            and cuts["convention"] == "unique-native-fragment-cuts-v2"
+            and cuts["projection"] == "retained-glyph-ligatures-spacing-v1"
+            and not review["boundaries"], "unsupported source-cut contract")
+
+    population = cuts["population"]
+    require(population["kind"] in ("complete_page", "matched_interval"), "unknown cut population")
+    if population["kind"] == "matched_interval":
+        require(len(population["boundaries"]) == 2, "interval lacks outer boundaries")
+        outer = [checked_boundary_proposal(result, index) for index in population["boundaries"]]
+        for side in ("old", "new"):
+            members = population[side]
+            require(members and len(set(members)) == len(members)
+                    and all(type(node) is int and node >= 0 for node in members)
+                    and [members[0], members[-1]] == [value[side][0] for value in outer]
+                    and set(review["comparison"][side]) <= set(members),
+                    "review escapes its declared cut population")
+    for name in ("entry", "exit"):
+        boundary = cuts[name]
+        evidence = boundary["evidence"]
+        require(evidence["kind"] in ("accepted_boundary", "unique_native_fragment"),
+                "unknown cut evidence")
+        accepted_node = checked_boundary_proposal(result, evidence["proposal"]) if evidence["kind"] == "accepted_boundary" else None
+        for side in ("old", "new"):
+            cut = boundary[side]
+            require(type(cut["node"]) is int and cut["node"] >= 0
+                    and type(cut["token_boundary"]) is int and cut["token_boundary"] >= 0,
+                    "invalid source-cut location")
+            if population["kind"] == "matched_interval":
+                require(cut["node"] in population[side], "cut escapes its declared population")
+            if accepted_node is not None:
+                require(accepted_node[side] == [cut["node"]], "cut disagrees with accepted node")
+            else:
+                fragment = evidence[side]
+                extent = fragment["tokens"]
+                require(fragment["node"] == cut["node"] and len(extent) == 2
+                        and all(type(position) is int for position in extent)
+                        and 0 <= extent[0] < extent[1] and cut["token_boundary"] in extent
+                        and historical.native_sources(fragment["sources"], side),
+                        "cut lacks a finite source fragment")
+
+
+def checked_interval_presence(review, result):
+    presence = review["presence"]
+    require(CONTRACT == "source-boundaries-v1"
+            and presence["convention"] == "closed-native-interval-presence-v1"
+            and presence["present"] in ("old", "new"), "unsupported interval presence")
+    present = presence["present"]
+    absent = "new" if present == "old" else "old"
+    comparison = review["comparison"]
+    operation = comparison["operation"]
+    require(operation["kind"] == "text_changed" and operation[absent] == ""
+            and isinstance(operation[present], str) and operation[present]
+            and comparison[absent] == [] and comparison[present]
+            and review[absent + "_sources"] == [] and review[present + "_sources"],
+            "presence does not describe one empty source interval")
+    require(all(len(review[side + "_boundaries"]) == 2 and all(review[side + "_boundaries"])
+                for side in ("old", "new")), "empty interval lacks independent endpoints")
+    if review.get("source_cuts") is None:
+        require(len(review["boundaries"]) == 2 and len(set(review["boundaries"])) == 2,
+                "empty interval lacks distinct boundary correspondences")
+        for index in review["boundaries"]:
+            checked_boundary_proposal(result, index)
+
+
+def checked_spacing_change(review):
+    """Check the explicit partial-mask contract; source reviews still bind raw evidence."""
+    spacing = review.get("spacing")
+    comparison = review["comparison"]
+    operation = comparison["operation"]
+    require(spacing and spacing["convention"] == "source-space-interpretations-v1"
+            and operation["kind"] == "text_changed", "missing partial spacing proof contract")
+    for side in ("old", "new"):
+        text = operation[side]
+        require(isinstance(text, str), "partial spacing proof lacks literal review text")
+        positions = [boundary["position"] for boundary in spacing[side]]
+        require(positions == [index for index, scalar in enumerate(text) if scalar in " \t\n\r\x0c"],
+                "spacing provenance omits or duplicates a boundary")
+        sources = historical.native_sources(review[side + "_sources"], side)
+        for boundary in spacing[side]:
+            require(boundary["origin"] in ("literal_glyph", "reconstructed_gap", "line_separator",
+                                           "page_separator", "ambiguous")
+                    and boundary["sources"]
+                    and historical.native_sources(boundary["sources"], side) <= sources,
+                    "spacing provenance lies outside the review sources")
+    proof = comparison.get("text_change_proof")
+    if proof is not None:
+        token = proof["token"]
+        require(isinstance(token, dict) and set(token) == {"Scalar"}
+                and isinstance(token["Scalar"], str) and len(token["Scalar"]) == 1
+                and token["Scalar"] not in " \t\n\r\x0c",
+                "multiplicity witness has no reviewable scalar")
+        for side in ("old", "new"):
+            required, possible = proof[side + "_required"], proof[side + "_possible"]
+            require(type(required) is int and type(possible) is int
+                    and 0 <= required <= possible == operation[side].count(token["Scalar"]),
+                    "multiplicity counts disagree with review text")
+        require(proof["old_required"] > proof["new_possible"]
+                or proof["new_required"] > proof["old_possible"], "multiplicity witness does not prove change")
+    else:
+        mask = comparison.get("text_mask")
+        require(mask and mask["claims"]["changed_source_lower"] > 0,
+                "partial spacing claim has no independent content proof")
+
+
 def events(report):
     """Keep masks (A), finite review ranges (B), and inferred outputs separate."""
     if report is None:
@@ -169,10 +296,16 @@ def events(report):
             comparison = review["comparison"]
             if comparison["operation"] is None:
                 continue
+            if review.get("source_cuts") is not None:
+                checked_source_cuts(review, result)
+            if review.get("presence") is not None:
+                checked_interval_presence(review, result)
             category = "B" if comparison["interpretation"] == "conditional_on_correspondence" else "C"
             if category == "B":
-                require(comparison["compared"] and not comparison["unresolved"],
-                        "B operation retains unresolved comparison")
+                require(comparison["compared"], "B operation has no compared content")
+                if comparison["unresolved"]:
+                    require(CONTRACT == "source-boundaries-v1", "B operation retains unresolved comparison")
+                    checked_spacing_change(review)
             sources = set().union(*(historical.native_sources(review[side + "_sources"], side)
                                     for side in ("old", "new")))
             rows.append({"category": category, "sources": sources,
@@ -180,6 +313,14 @@ def events(report):
                          "source_projection": {key: review[key] for key in (
                              "old_sources", "new_sources", "old_boundaries", "new_boundaries", "convention")},
                          "pointer": f"{prefix}/text_scope_reviews/{index}"})
+            if review.get("spacing") is not None:
+                rows[-1]["source_projection"]["spacing"] = review["spacing"]
+            if review.get("source_cuts") is not None:
+                rows[-1]["source_projection"]["source_cuts"] = review["source_cuts"]
+            if review.get("presence") is not None:
+                rows[-1]["source_projection"]["presence"] = review["presence"]
+            if comparison.get("text_change_proof") is not None:
+                rows[-1]["source_projection"]["text_change_proof"] = comparison["text_change_proof"]
     counts = Counter(row["category"] for row in rows)
     require(counts["A"] == report["typed_changes"],
             "strict report contains an unhandled nonlocal event; extend the source adapter")
@@ -187,6 +328,28 @@ def events(report):
     require(counts["C"] == report.get("inferred_changes", 0) + report.get("inferred_scope_changes", 0),
             "inferred report contains an unhandled event; extend the source adapter")
     return rows
+
+
+def range_recovery(review, core, extent):
+    """Retain finite source bounds while separating spacing from the proved change."""
+    comparison = review["comparison"]
+    if CONTRACT == "source-boundaries-v1" and comparison["unresolved"]:
+        checked_spacing_change(review)
+        # Only the historical local-change eligibility predicate is supplied its
+        # separately checked premise. The report, boundaries and extents remain
+        # untouched, and this never affects inventory or document completion.
+        review = dict(review, comparison=dict(comparison, unresolved=[]))
+    result = historical.range_recovery(review, core, extent)
+    if CONTRACT == "source-boundaries-v1" and review.get("presence") is not None:
+        present = review["presence"]["present"]
+        sources = set().union(*(historical.native_sources(review[side + "_sources"], side)
+                                for side in ("old", "new")))
+        comparison = review["comparison"]
+        result["source_range_hit"] = bool(core and all(side == present for side, _ in core | extent)
+            and comparison["interpretation"] == "conditional_on_correspondence"
+            and comparison["compared"] and not comparison["unresolved"]
+            and comparison["operation"]["kind"] == "text_changed" and core <= sources <= extent)
+    return result
 
 
 def event_digest(event):
@@ -230,7 +393,7 @@ def pair_recovery(before, after, core, extent, controls, adjudications, strict_g
     def hits(rows):
         found = set()
         for event in rows:
-            if event["category"] == "B" and historical.range_recovery(
+            if event["category"] == "B" and range_recovery(
                     event["review"], core, extent)["source_range_hit"]:
                 found.add("B")
             if (event["category"] == "A" and strict_gold is not None
@@ -546,6 +709,18 @@ def diagnosis(sources):
     require(rows.keys() == {pair["id"] for pair in sources["panel"]["pairs"]},
             "diagnosis omits registered pairs")
     for row in rows.values():
+        if CONTRACT == "source-boundaries-v1":
+            premises = row.get("premises", {})
+            require(set(premises) == {"acquisition", "normalization", "boundary_discovery",
+                                     "boundary_correspondence", "source_order_closure", "competitor_closure",
+                                     "local_change_proof", "finite_extent"}, "independent target premises are missing")
+            for premise in premises.values():
+                require(premise["status"] in ("proved", "failed", "unresolved", "not_evaluated")
+                        and premise["reason"], "invalid independent premise status")
+                require(premise["status"] == "not_evaluated" or premise["evidence"],
+                        "observed premise has no evidence")
+                for reference in premise["evidence"]:
+                    historical.checked_path(reference)
         require(row["stage"] in ("acquisition", "normalization", "scope", "retrieval",
                                  "optimization", "counterpart", "localization", "reporting"),
                 "unknown earliest blocker stage")
@@ -570,9 +745,20 @@ def recovery_summary(rows):
 
 
 def main():
+    global DIRECTORY, CONTRACT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=STAGES, required=True)
+    parser.add_argument("--contract", choices=("historical", "source-boundaries-v1"), default="historical")
+    parser.add_argument("--evidence-dir", type=Path,
+                        help="Separate evidence directory for the source-boundaries contract")
     args = parser.parse_args()
+    CONTRACT = args.contract
+    if args.evidence_dir is not None:
+        if CONTRACT == "historical":
+            parser.error("historical evidence directory cannot be redirected")
+        DIRECTORY = args.evidence_dir.resolve()
+        if not DIRECTORY.is_relative_to(ROOT / "benchmark" / "realworld"):
+            parser.error("evidence directory must remain inside benchmark/realworld")
     gates = missing_gates()
     try:
         _, sources = registration()
@@ -591,7 +777,8 @@ def main():
                                    development["binary"])
         print(json.dumps({"controls": control_results}, indent=2))
         gates["G4"]["passed"] = control_results["correct"] and all(row["correct"] for row in rows) and quality()
-        require(all(gates[key]["passed"] for key in ("G1", "G3", "G4")),
+        development_gates = ("G1", "G4") if CONTRACT == "source-boundaries-v1" else ("G1", "G3", "G4")
+        require(all(gates[key]["passed"] for key in development_gates),
                 "development recovery, completion or correctness gate unmet")
         if args.stage == "development":
             print(json.dumps(gates, indent=2))
@@ -614,6 +801,10 @@ def main():
         require(gates["G2"]["passed"] and gates["G4"]["passed"], "blind recovery or correctness gate unmet")
         gates["G5"]["passed"] = True
         print(json.dumps(gates, indent=2))
+        if CONTRACT == "source-boundaries-v1":
+            print(json.dumps({"contract": CONTRACT, "recovery_track_complete": True,
+                              "equivalence_track_complete": False, "goal_complete": False,
+                              "note": "This entry point verifies R only; E and original-purpose cleanup remain separate."}))
         return 0
     except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
         print(json.dumps(gates, indent=2))

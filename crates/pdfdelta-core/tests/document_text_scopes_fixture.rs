@@ -21,6 +21,10 @@ fn fixture(interior: &str) -> Fixture {
 }
 
 fn fixture_with_boundaries(interior: &str, first: &str, last: &str) -> Fixture {
+    fixture_rows(&[first, interior, last])
+}
+
+fn fixture_rows(rows: &[&str]) -> Fixture {
     let mut graph = DocumentGraph::default();
     graph.nodes.push(GraphNode {
         id: NodeId(0),
@@ -32,7 +36,7 @@ fn fixture_with_boundaries(interior: &str, first: &str, last: &str) -> Fixture {
         content: NodeContent::Container,
     });
     let mut glyphs = Vec::new();
-    for (row, text) in [first, interior, last].into_iter().enumerate() {
+    for (row, text) in rows.iter().enumerate() {
         let mut sources = Vec::new();
         for (column, scalar) in text.chars().enumerate() {
             let id = glyphs.len() as u64;
@@ -221,14 +225,18 @@ fn native_interval_survives_unrelated_pages_storage_order_and_reversal() {
     let scope = &reordered.scopes[0].result;
     let mut actual = scope.text_scope_reviews.clone();
     assert_eq!(actual.len(), 1);
-    for (before, after) in reviews[0].boundaries.iter().zip(actual[0].boundaries) {
+    for (before, after) in reviews[0]
+        .boundaries
+        .iter()
+        .zip(actual[0].boundaries.iter().copied())
+    {
         assert_eq!(
             baseline.scopes[0].result.candidates.proposals[*before],
             scope.candidates.proposals[after]
         );
     }
     // Proposal indexes address their report-local array, not persistent identity.
-    actual[0].boundaries = reviews[0].boundaries;
+    actual[0].boundaries = reviews[0].boundaries.clone();
     assert_eq!(&actual, reviews);
 }
 
@@ -321,13 +329,18 @@ fn native_interval_does_not_turn_an_external_continuation_into_a_content_change(
 }
 
 #[test]
-fn native_interval_does_not_report_ascii_spacing_alone_as_content() {
-    for (a, b) in [("ab", "a b"), ("ab", "ab "), ("ab", " ac")] {
+fn native_interval_retains_literal_space_changes() {
+    for (a, b) in [
+        ("ab", "a b"),
+        ("ab", " ac"),
+        ("The file is now here.", "The file is nowhere."),
+        ("int x;", "intx;"),
+    ] {
         let old = fixture(a);
         let new = fixture(b);
         let comparison = compare(&old, &new);
         let scope = &comparison.scopes[0].result;
-        assert_eq!(scope.text_scope_reviews.len(), usize::from(b == " ac"));
+        assert_eq!(scope.text_scope_reviews.len(), 1, "{a:?} -> {b:?}");
         let coverage = pdfdelta_core::document::document_coverage(
             DocumentView {
                 evidence: &old.0,
@@ -349,6 +362,452 @@ fn native_interval_does_not_report_ascii_spacing_alone_as_content() {
             scope.text_scope_reviews.len()
         );
     }
+}
+
+fn merge_last_boundary(fixture: &mut Fixture) {
+    merge_following_node(fixture, 2);
+}
+
+fn merge_following_node(fixture: &mut Fixture, index: usize) {
+    let last = fixture.1.nodes.remove(index + 1);
+    let NodeContent::Text { view: last_view } = last.content else {
+        panic!("last boundary must contain text");
+    };
+    let interior = &mut fixture.1.nodes[index];
+    let NodeContent::Text { view } = &mut interior.content else {
+        panic!("interior must contain text");
+    };
+    view.tokens.extend(last_view.tokens);
+    view.origins.extend(last_view.origins);
+    view.source_backed.extend(last_view.source_backed);
+    interior.sources.extend(last.sources);
+    let retained = interior.id;
+    for edge in &mut fixture.1.edges {
+        if edge.from == last.id && edge.kind == EdgeKind::Precedes {
+            edge.from = retained;
+        }
+    }
+    fixture
+        .1
+        .edges
+        .retain(|edge| edge.from != last.id && edge.to != last.id);
+}
+
+#[test]
+fn source_cuts_use_a_closed_matched_population_with_unrelated_pages() {
+    let mut old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
+    let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);
+    let old_extent = old.1.nodes[2].sources.clone();
+    let new_extent = new.1.nodes[2].sources.clone();
+    merge_following_node(&mut new, 2);
+    for fixture in [&mut old, &mut new] {
+        append_unassigned(fixture, PageId(1), 0.0);
+        fixture
+            .0
+            .inventories
+            .last_mut()
+            .expect("unassigned page inventory")
+            .complete = false;
+    }
+    let result = compare(&old, &new);
+    let review = result.scopes[0]
+        .result
+        .text_scope_reviews
+        .iter()
+        .find(|review| review.source_cuts.is_some())
+        .expect("finite source cut inside accepted outer boundaries");
+    assert_eq!(review.old_sources, old_extent);
+    assert_eq!(review.new_sources, new_extent);
+    let population = &review
+        .source_cuts
+        .as_ref()
+        .expect("source cut review")
+        .population;
+    assert!(
+        matches!(population, pdfdelta_core::document::SourceCutPopulation::MatchedInterval { old, new, .. }
+        if old == &[NodeId(1), NodeId(2), NodeId(3), NodeId(4)] && new == &[NodeId(1), NodeId(2), NodeId(4)])
+    );
+    assert!(
+        compare(&old, &old).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
+}
+
+#[test]
+fn source_cut_subpaths_inherit_only_a_closed_outer_paint_band() {
+    for mutation in 0..4 {
+        let old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
+        let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);
+        merge_following_node(&mut new, 2);
+        with_paint(
+            &mut new,
+            (mutation != 2).then_some(Rect {
+                min: Vec2 {
+                    x: 0.0,
+                    y: if mutation == 1 { 50.0 } else { 200.0 },
+                },
+                max: Vec2 {
+                    x: 100.0,
+                    y: if mutation == 1 { 60.0 } else { 210.0 },
+                },
+            }),
+        );
+        if mutation == 3 {
+            append_unassigned(&mut new, PageId(0), 55.0);
+        }
+        let result = compare(&old, &new);
+        let cuts: Vec<_> = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .filter(|review| review.source_cuts.is_some())
+            .collect();
+        assert_eq!(
+            cuts.len(),
+            usize::from(mutation == 0),
+            "mutation {mutation}"
+        );
+        if let Some(review) = cuts.first() {
+            assert_eq!(review.old_sources, old.1.nodes[2].sources);
+            assert_eq!(review.new_sources.len(), "Budget 20.".len());
+        }
+    }
+}
+
+#[test]
+fn unmapped_font_identity_changes_are_not_native_content_changes() {
+    use pdfdelta_core::model::FontProgramHash;
+    let mut old = fixture("{abc}");
+    let mut new = fixture("{abc}");
+    for (side, fixture) in [&mut old, &mut new].into_iter().enumerate() {
+        let node = &mut fixture.1.nodes[2];
+        let NodeContent::Text { view } = &mut node.content else {
+            unreachable!()
+        };
+        let mut glyphs = fixture.0.native.items().to_vec();
+        for index in [0, 4] {
+            let font_hash = FontProgramHash(vec![side as u8; 32]);
+            let glyph_id = 102 + index as u16;
+            view.tokens[index] = ComparableToken::Unmapped {
+                font_hash: font_hash.clone(),
+                glyph_id,
+            };
+            let SourceRef::Native { glyph: id } = node.sources[index] else {
+                unreachable!()
+            };
+            glyphs
+                .iter_mut()
+                .find(|glyph| glyph.id == id)
+                .expect("retained brace glyph")
+                .text = DecodedText::Unmapped {
+                font_hash,
+                glyph_id,
+            };
+        }
+        fixture.0.native = Document::new(glyphs);
+    }
+    assert!(
+        compare(&old, &new).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
+    assert_eq!(old.0.native.items().len(), new.0.native.items().len());
+    assert!(
+        old.0
+            .native
+            .items()
+            .iter()
+            .any(|glyph| matches!(glyph.text, DecodedText::Unmapped { .. }))
+    );
+}
+
+#[test]
+fn closed_intervals_support_local_presence_with_whole_and_source_cut_boundaries() {
+    use pdfdelta_core::document::{PresenceSide, TypedOperation};
+    for text in ["New paragraph.", " "] {
+        let old = fixture_rows(&["BEGIN", "END"]);
+        let new = fixture_rows(&["BEGIN", text, "END"]);
+        let extent = new.1.nodes[2].sources.clone();
+        let mut merged = new.clone();
+        merge_following_node(&mut merged, 2);
+        for new in [&new, &merged] {
+            for (a, b, present) in [
+                (&old, new, PresenceSide::New),
+                (new, &old, PresenceSide::Old),
+            ] {
+                let result = compare(a, b);
+                let reviews = &result.scopes[0].result.text_scope_reviews;
+                assert_eq!(
+                    reviews.len(),
+                    1,
+                    "text {text:?}, present {present:?}, nodes {}, search {:?}, accepted {:?}",
+                    new.1.nodes.len(),
+                    result.scopes[0].result.source_cut_search,
+                    result.scopes[0].result.accepted_correspondences
+                );
+                let review = &reviews[0];
+                assert_eq!(
+                    review
+                        .presence
+                        .as_ref()
+                        .expect("closed interval presence")
+                        .present,
+                    present
+                );
+                let (old_text, new_text) = if present == PresenceSide::New {
+                    assert!(review.old_sources.is_empty());
+                    assert_eq!(review.new_sources, extent);
+                    ("", text)
+                } else {
+                    assert_eq!(review.old_sources, extent);
+                    assert!(review.new_sources.is_empty());
+                    (text, "")
+                };
+                assert_eq!(
+                    review.comparison.operation,
+                    Some(TypedOperation::TextChanged {
+                        old: Some(old_text.into()),
+                        new: Some(new_text.into())
+                    })
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn local_presence_requires_a_closed_empty_side_and_independent_endpoints() {
+    for mutation in 0..3 {
+        let mut old = fixture_rows(&["BEGIN", "END"]);
+        let new = if mutation == 2 {
+            fixture_rows(&["BEGIN", "X", "END", "END"])
+        } else {
+            fixture_rows(&["BEGIN", "X", "END"])
+        };
+        match mutation {
+            0 => old.0.inventories[0].complete = false,
+            1 => append_unassigned(&mut old, PageId(0), 85.0),
+            _ => {}
+        }
+        assert!(
+            compare(&old, &new).scopes[0]
+                .result
+                .text_scope_reviews
+                .is_empty(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn local_presence_does_not_claim_document_wide_novelty_of_a_copy() {
+    let old = fixture_rows(&["COPY", "BEGIN", "END"]);
+    let new = fixture_rows(&["COPY", "BEGIN", "COPY", "END"]);
+    let result = compare(&old, &new);
+    let review = result.scopes[0]
+        .result
+        .text_scope_reviews
+        .iter()
+        .find(|review| review.presence.is_some())
+        .expect("absence only inside the closed interval");
+    assert!(review.old_sources.is_empty());
+    assert_eq!(review.new_sources, new.1.nodes[3].sources);
+    assert_eq!(
+        review
+            .presence
+            .as_ref()
+            .expect("interval presence")
+            .convention,
+        "closed-native-interval-presence-v1"
+    );
+}
+
+#[test]
+fn source_cuts_preserve_exact_extent_under_raw_evidence_partition_changes() {
+    let old = fixture_with_boundaries("Budget 10.", "BEGIN", "END");
+    let new = fixture_with_boundaries("Budget 20.", "BEGIN", "END");
+    assert_eq!(
+        compare(&old, &new).scopes[0]
+            .result
+            .text_scope_reviews
+            .len(),
+        1
+    );
+    let mut merged_old = old.clone();
+    let mut merged_new = new.clone();
+    for fixture in [&mut merged_old, &mut merged_new] {
+        merge_last_boundary(fixture);
+    }
+    assert_eq!(old.0.native.items(), merged_old.0.native.items());
+    assert_eq!(new.0.native.items(), merged_new.0.native.items());
+    for (a, b) in [
+        (&old, &merged_new),
+        (&merged_old, &new),
+        (&merged_old, &merged_new),
+    ] {
+        let result = compare(a, b);
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        assert_eq!(reviews.len(), 1);
+        assert!(reviews[0].source_cuts.is_some());
+        assert_eq!(reviews[0].old_sources, old.1.nodes[2].sources);
+        assert_eq!(reviews[0].new_sources, new.1.nodes[2].sources);
+        assert_eq!(
+            reviews[0].comparison.operation,
+            Some(pdfdelta_core::document::TypedOperation::TextChanged {
+                old: Some("Budget 10.".into()),
+                new: Some("Budget 20.".into()),
+            })
+        );
+    }
+    assert!(
+        compare(&old, &merged_old).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
+}
+
+#[test]
+fn source_cut_population_rejects_copies_unknown_sources_and_unsafe_order() {
+    for mutation in 0..5 {
+        let mut old = fixture_with_boundaries("Budget 10.", "BEGIN", "END");
+        let mut new = fixture_with_boundaries(
+            if mutation == 0 {
+                "Budget 20. END"
+            } else {
+                "Budget 20."
+            },
+            "BEGIN",
+            "END",
+        );
+        merge_last_boundary(&mut old);
+        merge_last_boundary(&mut new);
+        match mutation {
+            0 => {}
+            1 => new.0.inventories[0].complete = false,
+            2 => append_unassigned(&mut new, PageId(0), 10.0),
+            3 => {
+                let mut glyphs = new.0.native.items().to_vec();
+                // Reverse two tokens' physical positions without changing text.
+                let x = glyphs[5].baseline.x;
+                glyphs[5].baseline.x = glyphs[6].baseline.x;
+                glyphs[6].baseline.x = x;
+                new.0.native = Document::new(glyphs);
+            }
+            4 => {
+                let NodeContent::Text { view } = &mut new.1.nodes[2].content else {
+                    unreachable!()
+                };
+                view.normalization = TextNormalization::Unresolved {
+                    reason: "unproved token projection".into(),
+                };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            compare(&old, &new).scopes[0]
+                .result
+                .text_scope_reviews
+                .is_empty(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+/// Replace drawn interior spaces with layout tokens whose two real neighbors
+/// retain the original geometric gap. No space glyph remains in the inventory.
+fn reconstruct_interior_spaces(fixture: &mut Fixture) {
+    let node = &mut fixture.1.nodes[2];
+    let NodeContent::Text { view } = &mut node.content else {
+        panic!("fixture interior must be text");
+    };
+    let mut removed = Vec::new();
+    for position in 1..view.tokens.len().saturating_sub(1) {
+        if view.tokens[position] != ComparableToken::Scalar(' ') {
+            continue;
+        }
+        removed.extend(view.origins[position].iter().copied());
+        view.origins[position] = vec![view.origins[position - 1][0], view.origins[position + 1][0]];
+        view.source_backed[position] = false;
+    }
+    node.sources.retain(|source| !removed.contains(source));
+    let glyphs = fixture
+        .0
+        .native
+        .items()
+        .iter()
+        .filter(|glyph| !removed.contains(&SourceRef::Native { glyph: glyph.id }))
+        .cloned()
+        .collect();
+    fixture.0.native = Document::new(glyphs);
+    for inventory in &mut fixture.0.inventories {
+        inventory.sources.retain(|source| !removed.contains(source));
+    }
+}
+
+#[test]
+fn reconstructed_spaces_do_not_erase_independent_source_changes() {
+    for (old_text, new_text, changed) in [
+        ("a b", "ab", false),
+        ("a b", "a b", false),
+        ("The file is now here.", "The file is nowhere.", false),
+        ("a b 10", "ab 20", true),
+    ] {
+        let mut old = fixture(old_text);
+        reconstruct_interior_spaces(&mut old);
+        let new = fixture(new_text);
+        for (a, b) in [(&old, &new), (&new, &old)] {
+            let comparison = compare(a, b);
+            let reviews = &comparison.scopes[0].result.text_scope_reviews;
+            assert_eq!(
+                reviews.len(),
+                usize::from(changed),
+                "{old_text:?} -> {new_text:?}"
+            );
+            if let Some(review) = reviews.first() {
+                assert!(
+                    review
+                        .comparison
+                        .unresolved
+                        .iter()
+                        .any(|reason| reason.contains("spacing"))
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn large_spacing_family_retains_a_proved_change_without_a_false_exact_mask() {
+    let mut old = fixture(&format!("{}10", "a b ".repeat(40)));
+    let mut new = fixture(&format!("{}20", "a b ".repeat(40)));
+    reconstruct_interior_spaces(&mut old);
+    reconstruct_interior_spaces(&mut new);
+    let result = compare(&old, &new);
+    let reviews = &result.scopes[0].result.text_scope_reviews;
+    assert_eq!(reviews.len(), 1);
+    assert!(reviews[0].comparison.compared);
+    assert!(reviews[0].comparison.text_mask.is_none());
+    assert!(
+        reviews[0]
+            .comparison
+            .unresolved
+            .iter()
+            .any(|reason| reason.contains("multiplicity"))
+    );
+    let mut fewer_spaces = fixture(&format!("{}10", "ab ".repeat(40)));
+    reconstruct_interior_spaces(&mut fewer_spaces);
+    let literal_spaces = fixture(&format!("{}10", "a b ".repeat(40)));
+    assert!(
+        compare(&fewer_spaces, &literal_spaces).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty(),
+        "implicit layout gaps cannot make a literal-space count a content witness"
+    );
 }
 
 #[test]

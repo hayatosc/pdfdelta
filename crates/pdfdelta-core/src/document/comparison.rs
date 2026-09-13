@@ -60,6 +60,8 @@ pub struct ScopeViewComparison {
     /// strict comparison iterators, coverage, and automatic change ownership.
     #[serde(default)]
     pub text_scope_reviews: Vec<super::TextScopeReview>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_cut_search: Option<super::SourceCutSearch>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -402,6 +404,7 @@ fn compare_validated_scope(
         unresolved: Vec::new(),
         extraction_dependencies: Vec::new(),
         text_scope_reviews: Vec::new(),
+        source_cut_search: None,
     };
     if !source_candidates_exhaustive && incomplete_source_nodes.is_none() {
         result

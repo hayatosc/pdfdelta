@@ -13,7 +13,13 @@ use super::{
 };
 use crate::Result;
 
+mod cuts;
 mod native;
+
+pub use cuts::{
+    CutCorrespondence, CutEvidence, SourceCut, SourceCutPopulation, SourceCutRange,
+    SourceCutSearch, SourceFragment,
+};
 
 /// Content of corresponding intervals under the stated comparison convention.
 /// The enclosing scope retains the parent correspondence. Boundary indexes
@@ -23,7 +29,15 @@ mod native;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextScopeReview {
     pub convention: String,
-    pub boundaries: [usize; 2],
+    /// Legacy whole-node proposal indexes. Source-cut ranges carry their two
+    /// explicit certificates in `source_cuts` instead of inventing proposal IDs.
+    pub boundaries: Vec<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_cuts: Option<SourceCutRange>,
+    /// Presence in this corresponding interval only. This does not establish
+    /// document-wide novelty, deletion or the absence of an external copy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presence: Option<TextScopePresence>,
     /// Complete interior evidence, including unchanged context. These lists are
     /// range locators, never changed masks or exclusive source ownership.
     pub old_sources: Vec<SourceRef>,
@@ -35,7 +49,53 @@ pub struct TextScopeReview {
     /// source-boundary decisions. Older reports leave this observation unknown.
     #[serde(default)]
     pub candidate_search_exhaustive: Option<bool>,
+    /// Space provenance in the concatenated review text. Layout-derived entries
+    /// retain both spacing interpretations; they are not literal space glyphs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spacing: Option<TextScopeSpacing>,
     pub comparison: LocalViewComparison,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TextScopeSpacing {
+    pub convention: String,
+    pub old: Vec<SpaceBoundary>,
+    pub new: Vec<SpaceBoundary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TextScopePresence {
+    pub convention: String,
+    pub present: super::PresenceSide,
+}
+
+fn interval_presence(old_empty: bool, new_empty: bool) -> Option<TextScopePresence> {
+    let present = match (old_empty, new_empty) {
+        (true, false) => super::PresenceSide::New,
+        (false, true) => super::PresenceSide::Old,
+        _ => return None,
+    };
+    Some(TextScopePresence {
+        convention: "closed-native-interval-presence-v1".into(),
+        present,
+    })
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpaceBoundary {
+    pub position: usize,
+    pub origin: SpaceOrigin,
+    pub sources: Vec<SourceRef>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpaceOrigin {
+    LiteralGlyph,
+    ReconstructedGap,
+    LineSeparator,
+    PageSeparator,
+    Ambiguous,
 }
 
 fn spend(remaining: &mut usize, work: usize) -> Option<()> {
@@ -254,7 +314,18 @@ pub(super) fn append(
     }
     anchors.sort_unstable();
     if anchors.len() < 2 {
-        return Ok(());
+        return cuts::append(
+            old,
+            new,
+            result,
+            parent,
+            limits,
+            &left,
+            &right,
+            sources.as_ref(),
+            &anchors,
+            &mut remaining,
+        );
     }
     let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
     for pair in anchors.windows(2) {
@@ -263,8 +334,9 @@ pub(super) fn append(
         };
         if ar0 != ar1
             || br0 != br1
-            || a1 <= &(a0 + 1)
-            || b1 <= &(b0 + 1)
+            || a1 <= a0
+            || b1 <= b0
+            || (a1 == &(a0 + 1) && b1 == &(b0 + 1))
             || new_anchors
                 .range((*br0, b0 + 1)..(*br1, *b1))
                 .next()
@@ -281,49 +353,68 @@ pub(super) fn append(
         }
         // The initial contract admits only the same declared text kind. It does
         // not silently interpret a semantic heading as a body paragraph.
-        if a.iter().chain(b).any(|node| node.kind != a[0].kind) {
+        let Some(kind) = a.first().or_else(|| b.first()).map(|node| node.kind) else {
             continue;
-        }
-        let mut bounded_paint = false;
-        if let Some((old_sources, new_sources)) = &sources {
-            let Some(old_closure) =
-                old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
-            else {
-                continue;
-            };
-            let Some(new_closure) =
-                new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining)
-            else {
-                continue;
-            };
-            bounded_paint = old_closure == native::Closure::BoundedPaint
-                || new_closure == native::Closure::BoundedPaint;
+        };
+        if a.iter().chain(b).any(|node| node.kind != kind) {
+            continue;
         }
         let padding_boundary = [*first, *last].into_iter().any(|index| {
             result.candidates.proposals[index].basis == ProposalBasis::LiteralContentWithPadding
         });
-        match compare_text_group_views(a, b, limits.local) {
+        let comparison = if native {
+            super::operations::compare_native_text_range(a, b, limits.local)
+        } else {
+            compare_text_group_views(a, b, limits.local)
+        };
+        match comparison {
             Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
-                // Native word spaces can be reconstructed from geometry on one
-                // side and explicit glyphs on the other. Such differences alone
-                // do not justify a content review; retain the uncompared interval
-                // without changing its text, masks, or strict source coverage.
+                // A failed normalization comparison cannot produce a review.
+                // Preserve the shared closure budget for admissible claims and
+                // later source-cut candidates; every emitted claim still needs
+                // the same complete source and paint checks.
+                let mut bounded_paint = false;
+                if let Some((old_sources, new_sources)) = &sources {
+                    let Some(old_closure) =
+                        old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
+                    else {
+                        continue;
+                    };
+                    let Some(new_closure) =
+                        new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining)
+                    else {
+                        continue;
+                    };
+                    bounded_paint = old_closure == native::Closure::BoundedPaint
+                        || new_closure == native::Closure::BoundedPaint;
+                }
+                let spacing = if let Some((old_sources, new_sources)) = &sources {
+                    let (Some(old_spacing), Some(new_spacing)) = (
+                        old_sources.spacing(a, &mut remaining),
+                        new_sources.spacing(b, &mut remaining),
+                    ) else {
+                        continue;
+                    };
+                    Some(TextScopeSpacing {
+                        convention: "source-space-interpretations-v1".into(),
+                        old: old_spacing,
+                        new: new_spacing,
+                    })
+                } else {
+                    None
+                };
+                // A continuation outside this range can defeat apparent local
+                // truncation. Spacing uncertainty is handled by the source-side
+                // interpretation family, never by deleting literal spaces here.
                 if native
+                    && !a.is_empty()
+                    && !b.is_empty()
                     && let Some(TypedOperation::TextChanged {
                         old: Some(old_text),
                         new: Some(new_text),
                     }) = &comparison.operation
-                    && (old_text
-                        .chars()
-                        .filter(|scalar| *scalar != ' ')
-                        .eq(new_text.chars().filter(|scalar| *scalar != ' '))
-                        || native::external_continuation(
-                            new,
-                            b,
-                            new_text,
-                            old_text,
-                            &mut remaining,
-                        ) != Some(false)
+                    && (native::external_continuation(new, b, new_text, old_text, &mut remaining)
+                        != Some(false)
                         || native::external_continuation(
                             old,
                             a,
@@ -350,7 +441,9 @@ pub(super) fn append(
                         "closed-retained-order-interval-v1"
                     }
                     .into(),
-                    boundaries: [*first, *last],
+                    boundaries: vec![*first, *last],
+                    source_cuts: None,
+                    presence: interval_presence(a.is_empty(), b.is_empty()),
                     old_sources: a
                         .iter()
                         .flat_map(|node| node.sources.iter().copied())
@@ -362,6 +455,7 @@ pub(super) fn append(
                     old_boundaries: [left[*a0].sources.clone(), left[*a1].sources.clone()],
                     new_boundaries: [right[*b0].sources.clone(), right[*b1].sources.clone()],
                     candidate_search_exhaustive: Some(result.candidates.exhaustive),
+                    spacing,
                     comparison,
                 });
             }
@@ -369,5 +463,16 @@ pub(super) fn append(
             Err(error) => return Err(error),
         }
     }
-    Ok(())
+    cuts::append(
+        old,
+        new,
+        result,
+        parent,
+        limits,
+        &left,
+        &right,
+        sources.as_ref(),
+        &anchors,
+        &mut remaining,
+    )
 }

@@ -1727,7 +1727,7 @@ fn expand_ligatures(atoms: Vec<Atom>) -> Vec<Atom> {
     expanded
 }
 
-fn ligature_expansion(scalar: char) -> Option<&'static str> {
+pub(crate) fn ligature_expansion(scalar: char) -> Option<&'static str> {
     match scalar {
         '\u{fb00}' => Some("ff"),
         '\u{fb01}' => Some("fi"),

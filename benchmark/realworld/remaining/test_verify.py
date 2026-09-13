@@ -6,11 +6,128 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import verify
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_local_presence_needs_an_empty_interval_and_scoped_gold(self):
+        report = self.report()
+        result = report["comparison"]["scopes"][0]["result"]
+        review = result["text_scope_reviews"][0]
+        review["old_sources"] = []
+        review["boundaries"] = [0, 1]
+        review["presence"] = {"convention": "closed-native-interval-presence-v1", "present": "new"}
+        review["comparison"].update(old=[], new=[2], operation={"kind": "text_changed", "old": "", "new": "new"})
+        for side in ("old", "new"):
+            review[side + "_boundaries"] = [[{"origin": "native", "glyph": 10}], [{"origin": "native", "glyph": 11}]]
+        result.update(accepted_correspondences=[0, 1], text_boundary_correspondences=[],
+                      matching={"source_only_mandatory": [0, 1], "inferred_proposals": []},
+                      candidates={"proposals": [{"old": [1], "new": [1]}, {"old": [3], "new": [3]}]})
+        with patch.object(verify, "CONTRACT", "historical"), self.assertRaises(ValueError):
+            verify.events(report)
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            event = verify.events(report)[0]
+            self.assertEqual(event["source_projection"]["presence"], review["presence"])
+            core = {("new", 2)}
+            self.assertTrue(verify.range_recovery(review, core, core)["source_range_hit"])
+            self.assertFalse(verify.range_recovery(review, core | {("old", 1)}, core | {("old", 1)})["source_range_hit"])
+            for mutation in ("not_empty", "no_endpoint", "unaccepted", "global_claim"):
+                invalid = copy.deepcopy(report)
+                scope = invalid["comparison"]["scopes"][0]["result"]
+                row = scope["text_scope_reviews"][0]
+                if mutation == "not_empty":
+                    row["old_sources"] = [{"origin": "native", "glyph": 1}]
+                elif mutation == "no_endpoint":
+                    row["old_boundaries"][1] = []
+                elif mutation == "unaccepted":
+                    scope["accepted_correspondences"] = [0]
+                else:
+                    row["presence"]["convention"] = "document-wide-insertion"
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
+    def test_source_cut_identity_binds_its_accepted_population(self):
+        report = self.report()
+        result = report["comparison"]["scopes"][0]["result"]
+        review = result["text_scope_reviews"][0]
+        review["boundaries"] = []
+        review["comparison"].update(old=[2], new=[5])
+        result.update(accepted_correspondences=[0, 1], text_boundary_correspondences=[],
+                      matching={"source_only_mandatory": [0, 1], "inferred_proposals": []},
+                      candidates={"proposals": [{"old": [1], "new": [4]}, {"old": [3], "new": [6]}]})
+        review["source_cuts"] = {
+            "convention": "unique-native-fragment-cuts-v2",
+            "projection": "retained-glyph-ligatures-spacing-v1",
+            "population": {"kind": "matched_interval", "boundaries": [0, 1], "old": [1, 2, 3], "new": [4, 5, 6]},
+            "entry": {"old": {"node": 2, "token_boundary": 1}, "new": {"node": 5, "token_boundary": 1},
+                      "evidence": {"kind": "unique_native_fragment", **{
+                          side: {"node": node, "tokens": [0, 1], "sources": [{"origin": "native", "glyph": 10}]}
+                          for side, node in (("old", 2), ("new", 5))}}},
+            "exit": {"old": {"node": 3, "token_boundary": 0}, "new": {"node": 6, "token_boundary": 0},
+                     "evidence": {"kind": "accepted_boundary", "proposal": 1}},
+        }
+        with patch.object(verify, "CONTRACT", "historical"), self.assertRaises(ValueError):
+            verify.events(report)
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            event = verify.events(report)[0]
+            self.assertEqual(event["source_projection"]["source_cuts"], review["source_cuts"])
+            for mutation in ("inferred", "unaccepted", "escaped", "split", "profile"):
+                invalid = copy.deepcopy(report)
+                result = invalid["comparison"]["scopes"][0]["result"]
+                row = result["text_scope_reviews"][0]
+                if mutation == "inferred":
+                    result["matching"]["inferred_proposals"] = [0]
+                elif mutation == "unaccepted":
+                    result["accepted_correspondences"] = [0]
+                elif mutation == "escaped":
+                    row["comparison"]["old"] = [99]
+                elif mutation == "split":
+                    row["source_cuts"]["entry"]["old"]["token_boundary"] = 2
+                else:
+                    row["source_cuts"]["projection"] = "unknown"
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
+    def test_partial_spacing_needs_a_versioned_independent_change_proof(self):
+        report = self.report()
+        review = report["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+        comparison = review["comparison"]
+        comparison["unresolved"] = ["spacing and exact masks remain unresolved"]
+        comparison["operation"] = {"kind": "text_changed", "old": "a 1", "new": "a 2"}
+        comparison["text_change_proof"] = {
+            "token": {"Scalar": "1"}, "old_required": 1, "old_possible": 1,
+            "new_required": 0, "new_possible": 0,
+        }
+        review["spacing"] = {"convention": "source-space-interpretations-v1", **{
+            side: [{"position": 1, "origin": "reconstructed_gap", "sources": copy.deepcopy(review[side + "_sources"])}]
+            for side in ("old", "new")}}
+        with patch.object(verify, "CONTRACT", "historical"), self.assertRaises(ValueError):
+            verify.events(report)
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            self.assertEqual(verify.events(report)[0]["category"], "B")
+            core = {("old", 1), ("new", 2)}
+            self.assertTrue(verify.range_recovery(review, core, core)["source_range_hit"])
+            self.assertFalse(verify.range_recovery(review, core, {("old", 1)})["source_range_hit"])
+            score = verify.pair_recovery(None, report, core, core, set(), self.adjudication(report))
+            self.assertEqual(score["additional_categories"], ["B"])
+            for mutation in ("no_witness", "wrong_count", "no_change", "missing_space", "external_source"):
+                invalid = copy.deepcopy(report)
+                row = invalid["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+                if mutation == "no_witness":
+                    del row["comparison"]["text_change_proof"]
+                elif mutation == "wrong_count":
+                    row["comparison"]["text_change_proof"]["old_possible"] = 2
+                elif mutation == "no_change":
+                    row["comparison"]["text_change_proof"]["old_required"] = 0
+                elif mutation == "missing_space":
+                    row["spacing"]["old"] = []
+                else:
+                    row["spacing"]["old"][0]["sources"][0]["glyph"] = 999
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
     @staticmethod
     def report(category="B", extra=False):
         review = {

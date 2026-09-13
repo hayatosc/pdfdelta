@@ -17,6 +17,8 @@ use crate::document::{
     BackendKind, Channel, EvidenceBoundary, EvidenceFailure, NodeKind, ViewBasis,
 };
 
+mod projection;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Closure {
     WholePage,
@@ -140,7 +142,7 @@ pub(super) fn runs<'a>(
             };
             cursor = *successor;
         }
-        if run.len() >= 3 {
+        if !run.is_empty() {
             runs.push(run);
         }
     }
@@ -160,6 +162,86 @@ struct NodeGeometry {
 }
 
 impl<'a> Sources<'a> {
+    pub(super) fn project(
+        &self,
+        node: &GraphNode,
+        remaining: &mut usize,
+    ) -> Option<(GraphNode, Vec<std::ops::Range<usize>>)> {
+        projection::checked(node, &self.glyphs, remaining)
+    }
+
+    /// Returns physical row boundaries for an exact, fully backed projection.
+    /// The local validator also supports reversible spacing families, which
+    /// require a separate occurrence census before supplying cut candidates.
+    pub(super) fn exact_rows(
+        &self,
+        node: &GraphNode,
+        remaining: &mut usize,
+    ) -> Option<Vec<std::ops::Range<usize>>> {
+        let NodeContent::Text { view } = &node.content else {
+            return None;
+        };
+        if view.optional_tokens()?.iter().any(|optional| *optional)
+            || view.source_backed.iter().any(|backed| !backed)
+        {
+            return None;
+        }
+        Some(projection::checked(node, &self.glyphs, remaining)?.1)
+    }
+
+    pub(super) fn spacing(
+        &self,
+        nodes: &[&GraphNode],
+        remaining: &mut usize,
+    ) -> Option<Vec<super::SpaceBoundary>> {
+        use super::SpaceOrigin;
+        let mut result = Vec::new();
+        let mut offset = 0;
+        for node in nodes {
+            let NodeContent::Text { view } = &node.content else {
+                return None;
+            };
+            spend(remaining, view.tokens.len())?;
+            for (position, token) in view.tokens.iter().enumerate() {
+                if !token
+                    .as_scalar()
+                    .is_some_and(|scalar| scalar.is_ascii_whitespace())
+                {
+                    continue;
+                }
+                let sources = &view.origins[position];
+                spend(remaining, sources.len())?;
+                let origin = if view.source_backed[position] {
+                    SpaceOrigin::LiteralGlyph
+                } else if let [
+                    SourceRef::Native { glyph: a },
+                    SourceRef::Native { glyph: b },
+                ] = sources.as_slice()
+                {
+                    let (a, b) = (self.glyphs.get(a)?, self.glyphs.get(b)?);
+                    if a.page != b.page {
+                        SpaceOrigin::PageSeparator
+                    } else if a.baseline.y != b.baseline.y {
+                        SpaceOrigin::LineSeparator
+                    } else if a.direction == b.direction {
+                        SpaceOrigin::ReconstructedGap
+                    } else {
+                        SpaceOrigin::Ambiguous
+                    }
+                } else {
+                    SpaceOrigin::Ambiguous
+                };
+                result.push(super::SpaceBoundary {
+                    position: offset + position,
+                    origin,
+                    sources: sources.clone(),
+                });
+            }
+            offset += view.tokens.len();
+        }
+        Some(result)
+    }
+
     fn geometry(&self, node: &GraphNode) -> Option<NodeGeometry> {
         let [page] = node.pages.as_slice() else {
             return None;

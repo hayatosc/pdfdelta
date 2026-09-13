@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Source boundaries and explicit comparison obligations</title>
+<style>
+/* Digital Agency Design System (DADS) v2.18.0 — inline this whole file into <style>.
+   Tokens: https://github.com/digital-go-jp/tailwind-theme-plugin
+   Full palette and rules: references/dads.md */
+
+:root {
+  /* Neutrals */
+  --white: #ffffff;
+  --black: #000000;
+  --gray-50: #f2f2f2;
+  --gray-100: #e6e6e6;
+  --gray-200: #cccccc;
+  --gray-300: #b3b3b3;
+  --gray-400: #999999;
+  --gray-420: #949494;
+  --gray-500: #7f7f7f;
+  --gray-536: #767676;
+  --gray-600: #666666;
+  --gray-700: #4d4d4d;
+  --gray-800: #333333;
+  --gray-900: #1a1a1a;
+
+  /* Key color (blue) */
+  --key-50: #e8f1fe;
+  --key-100: #d9e6ff;
+  --key-200: #c5d7fb;
+  --key-300: #9db7f9;
+  --key-400: #7096f8;
+  --key-500: #4979f5;
+  --key-600: #3460fb;
+  --key-700: #264af4;
+  --key-800: #0031d8;
+  --key-900: #0017c1;
+  --key-1000: #00118f;
+  --key-1100: #000071;
+  --key-1200: #000060;
+
+  /* Accent steps commonly used in callouts and diagrams */
+  --green-50: #e6f5ec;
+  --green-100: #c2e5d1;
+  --green-200: #9bd4b5;
+  --green-600: #259d63;
+  --green-800: #197a4b;
+  --green-900: #115a36;
+  --red-50: #fdeeee;
+  --red-100: #ffdada;
+  --red-200: #ffbbbb;
+  --red-700: #fa0000;
+  --red-800: #ec0000;
+  --red-900: #ce0000;
+  --yellow-50: #fbf5e0;
+  --yellow-100: #fff0b3;
+  --yellow-200: #ffe380;
+  --yellow-300: #ffd43d;
+  --yellow-700: #b78f00;
+  --yellow-900: #927200;
+  --orange-50: #ffeee2;
+  --orange-100: #ffdfca;
+  --orange-200: #ffc199;
+  --orange-600: #fb5b01;
+  --orange-800: #c74700;
+  --magenta-50: #f3e5f4;
+  --magenta-100: #ffd0ff;
+  --magenta-200: #ffaeff;
+  --magenta-800: #aa00aa;
+  --magenta-900: #8b008b;
+  --purple-50: #f1eafa;
+  --purple-100: #ecddff;
+  --purple-200: #ddc2ff;
+  --purple-800: #5c10be;
+  --purple-900: #5109ad;
+  --cyan-50: #e9f7f9;
+  --cyan-100: #c8f8ff;
+  --cyan-200: #99f2ff;
+  --cyan-800: #008299;
+  --cyan-900: #006f83;
+  --light-blue-50: #f0f9ff;
+  --light-blue-100: #dcf0ff;
+  --light-blue-200: #c0e4ff;
+  --light-blue-700: #0877d7;
+  --light-blue-800: #0066be;
+  --lime-50: #ebfad9;
+  --lime-100: #d0f5a2;
+  --lime-200: #c0f354;
+  --lime-800: #618e00;
+  --lime-900: #507500;
+
+  /* Semantic */
+  --success-1: var(--green-600);
+  --success-2: var(--green-800);
+  --error-1: var(--red-800);
+  --error-2: var(--red-900);
+  --warning-yellow-1: var(--yellow-700);
+  --warning-yellow-2: var(--yellow-900);
+  --warning-orange-1: var(--orange-600);
+  --warning-orange-2: var(--orange-800);
+  --focus-yellow: var(--yellow-300);
+
+  /* Roles */
+  --text: var(--black);
+  --text-secondary: var(--gray-700);
+  --text-muted: var(--gray-536);
+  --surface: var(--white);
+  --surface-subtle: var(--gray-50);
+  --border: var(--gray-420);
+  --border-strong: var(--gray-500);
+  --link: var(--key-1000);
+  --link-visited: var(--magenta-900);
+  --link-hover: var(--key-900);
+  --link-active: var(--orange-800);
+
+  /* Type */
+  --font-sans: "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Noto Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --leading-100: 1;
+  --leading-140: 1.4;
+  --leading-150: 1.5;
+  --leading-170: 1.7;
+
+  /* Shape */
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-24: 24px;
+  --radius-full: 9999px;
+
+  /* Elevation */
+  --elevation-1: 0 2px 8px 1px rgba(0, 0, 0, 0.1), 0 1px 5px 0 rgba(0, 0, 0, 0.3);
+  --elevation-2: 0 2px 12px 2px rgba(0, 0, 0, 0.1), 0 1px 6px 0 rgba(0, 0, 0, 0.3);
+  --elevation-3: 0 4px 16px 3px rgba(0, 0, 0, 0.1), 0 1px 6px 0 rgba(0, 0, 0, 0.3);
+  --elevation-4: 0 6px 20px 4px rgba(0, 0, 0, 0.1), 0 2px 6px 0 rgba(0, 0, 0, 0.3);
+  --elevation-5: 0 8px 24px 5px rgba(0, 0, 0, 0.1), 0 2px 10px 0 rgba(0, 0, 0, 0.3);
+  --elevation-6: 0 10px 30px 6px rgba(0, 0, 0, 0.1), 0 3px 12px 0 rgba(0, 0, 0, 0.3);
+  --elevation-7: 0 12px 36px 7px rgba(0, 0, 0, 0.1), 0 3px 14px 0 rgba(0, 0, 0, 0.3);
+  --elevation-8: 0 14px 40px 7px rgba(0, 0, 0, 0.1), 0 3px 16px 0 rgba(0, 0, 0, 0.3);
+
+  /* Spacing (8px base) */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-8: 64px;
+
+  /* Layout */
+  --measure: 42em;
+  --container: 72rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: var(--space-3);
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  line-height: var(--leading-170);
+  letter-spacing: 0.02em;
+}
+
+/* Headings — DADS Standard scale */
+h1, h2, h3, h4, h5, h6 { font-weight: 700; color: var(--text); }
+h1 { font-size: 36px; line-height: var(--leading-140); letter-spacing: 0.01em; margin: 0 0 var(--space-3); }
+h2 { font-size: 28px; line-height: var(--leading-150); letter-spacing: 0.01em; margin: var(--space-6) 0 var(--space-2); }
+h3 { font-size: 22px; line-height: var(--leading-150); letter-spacing: 0.02em; margin: var(--space-4) 0 var(--space-1); }
+h4 { font-size: 18px; line-height: var(--leading-150); letter-spacing: 0.02em; margin: var(--space-3) 0 var(--space-1); }
+h5, h6 { font-size: 16px; line-height: var(--leading-170); letter-spacing: 0.02em; margin: var(--space-3) 0 var(--space-1); }
+
+p { margin: 0 0 1.5em; }
+ul, ol { margin: 0 0 1.5em; padding-left: 1.5em; }
+li + li { margin-top: 0.25em; }
+hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-6) 0; }
+small, .dads-meta { font-size: 14px; line-height: 1.3; letter-spacing: 0; color: var(--text-muted); }
+strong { font-weight: 700; }
+figure { margin: var(--space-4) 0; }
+figcaption, .dads-caption { font-size: 14px; line-height: 1.5; letter-spacing: 0; color: var(--text-secondary); margin-top: var(--space-1); }
+img, svg { max-width: 100%; height: auto; }
+
+/* Links */
+a:any-link {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+a:visited { color: var(--link-visited); }
+@media (hover: hover) {
+  a:hover { color: var(--link-hover); text-decoration-thickness: 3px; }
+}
+a:active { color: var(--link-active); text-decoration-thickness: 1px; }
+
+/* Focus ring — never remove */
+:focus-visible {
+  outline: 4px solid var(--black);
+  outline-offset: 2px;
+  border-radius: var(--radius-4);
+  box-shadow: 0 0 0 2px var(--focus-yellow);
+}
+
+/* Layout */
+.dads-skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -100px;
+  z-index: 100;
+  padding: var(--space-1) var(--space-2);
+  background: var(--white);
+  color: var(--text);
+  border: 2px solid var(--black);
+  border-radius: var(--radius-4);
+}
+.dads-skip-link:focus { top: var(--space-2); }
+
+.dads-header { border-bottom: 1px solid var(--border); background: var(--surface); }
+.dads-header__inner {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding: var(--space-2) 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: baseline;
+  justify-content: space-between;
+}
+.dads-header__title { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+.dads-header__meta { font-size: 14px; letter-spacing: 0; color: var(--text-muted); }
+
+.dads-layout {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding: var(--space-3) 16px var(--space-8);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+@media (min-width: 768px) {
+  .dads-layout { padding-inline: 32px; }
+}
+@media (min-width: 1024px) {
+  .dads-layout { grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-6); }
+}
+.dads-prose { max-width: var(--measure); }
+
+/* Table of contents */
+.dads-toc { font-size: 14px; line-height: 1.6; letter-spacing: 0; }
+@media (min-width: 1024px) {
+  .dads-toc { position: sticky; top: var(--space-3); align-self: start; max-height: calc(100vh - var(--space-6)); overflow: auto; }
+}
+.dads-toc__title { font-size: 14px; font-weight: 700; margin: 0 0 var(--space-1); }
+.dads-toc ol { list-style: none; margin: 0; padding: 0; }
+.dads-toc li { margin: 0 0 var(--space-1); }
+.dads-toc a { display: block; padding: 4px 0; }
+
+/* Lead paragraph */
+.dads-lead { font-size: 18px; line-height: 1.6; letter-spacing: 0.02em; margin: 0 0 var(--space-4); }
+
+/* Cards */
+.dads-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-16);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+.dads-card > :last-child { margin-bottom: 0; }
+.dads-card__title { font-size: 18px; font-weight: 700; margin: 0 0 var(--space-1); }
+
+/* Callouts */
+.dads-callout {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+.dads-callout > :last-child { margin-bottom: 0; }
+.dads-callout__title { display: block; font-weight: 700; margin-bottom: var(--space-1); }
+.dads-callout--info { border-color: var(--key-700); background: var(--key-50); }
+.dads-callout--notice { border-color: var(--border); background: var(--gray-50); }
+.dads-callout--success { border-color: var(--success-2); background: var(--green-50); }
+.dads-callout--warning { border-color: var(--warning-yellow-2); background: var(--yellow-50); }
+.dads-callout--error { border-color: var(--error-2); background: var(--red-50); }
+.dads-callout--emphasis {
+  border: 0;
+  border-left: 4px solid var(--orange-600);
+  border-radius: 0;
+  background: var(--orange-50);
+}
+
+/* Badges */
+.dads-badge {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--radius-4);
+  border: 1px solid currentColor;
+}
+.dads-badge--success { color: var(--success-2); background: var(--green-50); }
+.dads-badge--error { color: var(--error-2); background: var(--red-50); }
+.dads-badge--warning { color: var(--warning-yellow-2); background: var(--yellow-50); }
+.dads-badge--info { color: var(--key-1000); background: var(--key-50); }
+.dads-badge--neutral { color: var(--gray-700); background: var(--gray-50); }
+
+/* Buttons */
+.dads-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: var(--leading-100);
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-8);
+  text-decoration: none;
+  cursor: pointer;
+}
+.dads-button--solid {
+  border: 1px solid var(--key-900);
+  background: var(--key-900);
+  color: var(--white);
+}
+@media (hover: hover) {
+  .dads-button--solid:hover { background: var(--key-1000); border-color: var(--key-1000); color: var(--white); text-decoration: underline; }
+}
+.dads-button--solid:active { background: var(--key-1200); border-color: var(--key-1200); }
+.dads-button--outline {
+  border: 1px solid currentColor;
+  background: var(--white);
+  color: var(--key-900);
+}
+@media (hover: hover) {
+  .dads-button--outline:hover { background: var(--key-200); color: var(--key-1000); text-decoration: underline; }
+}
+.dads-button--outline:active { background: var(--key-300); }
+.dads-button[aria-disabled="true"], .dads-button:disabled {
+  border-color: var(--gray-300);
+  background: var(--gray-300);
+  color: var(--gray-50);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* Tables */
+.dads-table { width: 100%; overflow-x: auto; margin: 0 0 var(--space-4); }
+.dads-table table { border-collapse: collapse; width: 100%; color: var(--gray-800); }
+.dads-table caption { text-align: left; font-weight: 700; font-size: 17px; line-height: 1.7; margin-bottom: var(--space-1); }
+.dads-table th, .dads-table td {
+  border: 1px solid var(--border);
+  padding: 20px 16px;
+  text-align: left;
+  vertical-align: baseline;
+}
+.dads-table thead th { border-color: var(--border-strong); background: var(--gray-100); color: var(--gray-900); }
+.dads-table--dense th, .dads-table--dense td { padding: 12px 16px; line-height: 1.3; }
+
+/* Code */
+code, pre, kbd { font-family: var(--font-mono); letter-spacing: 0; }
+:not(pre) > code {
+  font-size: 0.9em;
+  background: var(--gray-100);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-4);
+}
+pre {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-8);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* Disclosure */
+.dads-details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  padding: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+.dads-details > summary { cursor: pointer; font-weight: 700; padding: var(--space-1) 0; }
+.dads-details[open] > summary { margin-bottom: var(--space-1); }
+
+/* Tabs */
+.dads-tabs { margin: 0 0 var(--space-4); }
+.dads-tabs__list { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); padding: 0; margin: 0 0 var(--space-2); list-style: none; }
+.dads-tabs__list [role="tab"] {
+  font: inherit;
+  font-weight: 700;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-4) var(--radius-4) 0 0;
+  background: none;
+  color: var(--link);
+  cursor: pointer;
+}
+.dads-tabs__list [role="tab"][aria-selected="true"] {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  margin-bottom: -1px;
+}
+.dads-tabs__panel > :last-child { margin-bottom: 0; }
+
+/* Figures and diagrams */
+.dads-diagram { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-8); background: var(--white); }
+
+/* Two-column content blocks */
+@media (min-width: 768px) {
+  .dads-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .dads-grid-2 > * { margin-bottom: 0; }
+}
+
+/* Footer and utilities */
+.dads-footer {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-8);
+  padding: var(--space-3) 0;
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+.dads-footer a { color: inherit; }
+.dads-visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Print */
+@media print {
+  .dads-header, .dads-toc, .dads-skip-link { display: none; }
+  .dads-layout { display: block; padding: 0; }
+  .dads-prose { max-width: none; }
+  .dads-details { border: 0; padding: 0; }
+  /* closed disclosure content must still print */
+  .dads-details > *:not(summary) { display: block; }
+  .dads-details > summary { list-style: none; }
+  pre, table, .dads-diagram { break-inside: avoid; }
+  a:any-link { color: var(--text); }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.dads-prose { overflow-wrap: anywhere; }
+@media print { pre { white-space: pre-wrap; overflow-wrap: anywhere; } }
+</style>
+</head>
+<body><a class="dads-skip-link" href="#main">Skip to plan</a><header class="dads-header"><div class="dads-header__inner"><p class="dads-header__title">pdfdelta · Next-phase plan</p><p class="dads-header__meta">2026-09-13 JST · Baseline 599855d · Execution active</p></div></header><div class="dads-layout"><nav class="dads-toc" aria-label="Contents"><p class="dads-toc__title">Contents</p><ol><li><a href="#section-1">Original problem and desired outcome</a></li><li><a href="#section-2">Definition of done</a></li><li><a href="#section-3">Baseline evidence and interpretation</a></li><li><a href="#section-4">Constraints and authorized boundaries</a></li><li><a href="#section-5">Planning files owned by this run</a></li><li><a href="#section-6">Checkpoint 1 — establish counted evidence and isolate failures</a></li><li><a href="#section-7">Checkpoint 2 — recover with source cuts inside nodes</a></li><li><a href="#section-8">Checkpoint 3 — extend closure and scoped presence</a></li><li><a href="#section-9">Checkpoint 4 — test restricted opaque-effect equivalence</a></li><li><a href="#section-10">Verification and durable artifacts</a></li><li><a href="#section-11">Progress log</a></li><li><a href="#section-12">Original-purpose evaluation</a></li><li><a href="#section-13">Blockers and resumption</a></li><li><a href="#section-14">Completion report and cleanup</a></li><li><a href="#section-15">Runnable handoff</a></li></ol></nav><main id="main" tabindex="-1" class="dads-prose"><h1>Source boundaries and explicit comparison obligations</h1>
+<p>Status: execution active since 2026-09-13 JST; no recovery or completeness gate achieved. Prepared 2026-09-13 JST. Baseline: <code>599855dba3a4e3de8aa0a7dec23128bdf09412dc</code>. This Markdown is the execution source of truth; <a href="PLAN.html">PLAN.html</a> is its offline companion.</p>
+<h2 id="section-1">Original problem and desired outcome</h2>
+<p>The same source text can become incomparable when an unchanged endpoint is absorbed into a changed layout node. Better paragraph grouping has not recovered the selected missed prose changes. Separately, incomplete interpretation of non-text paint prevents the existing whole-document completion claim, even when a local text difference is proved.</p>
+<p>Make local text comparison depend on checked source boundaries and source order instead of whole unchanged paragraphs. Demonstrate automatic recovery with correct finite extents on real development targets and genuinely unseen series. Preserve uncertainty wherever a correspondence, order, spacing, or paint premise is missing. Establish exactly what a restricted opaque-effect equivalence experiment can prove without representing it as complete text interpretation.</p>
+<p>This is a new next-phase execution contract. It allows recovery evaluation to proceed independently of completeness research. It does not resume the old timed run, declare the old conjunctive goal achieved, or redefine the first practical release.</p>
+<h2 id="section-2">Definition of done</h2>
+<ul>
+<li>R development: retain the historical G1 threshold of at least six natural revision pairs from at least three independent producer/publisher families with additional A or B on frozen ID-free prose targets relative to the historical registered baseline. Count each pair once. Separately report incremental recovery relative to 599855d; the already observed EDPB hit is retained baseline capability, not a new source-cut gain. At least one previously missed real target must be automatically recovered through the new source-cut path with its original finite extent before expansion.</li>
+<li>R unseen evaluation: retain G2, a new 12-pair set after source/executable/configuration freeze, with additional A or B on at least three pairs from at least two independent producer/publisher families. No exposed series becomes unseen again.</li>
+<li>R correctness: all required source-space, partition, segmented-order and presence controls below pass. No known false A/B remains in evaluated targets or admitted outputs; strict masks claim no atoms on unchanged controls. Every new A/B in counted pairs is adjudicated. Existing acceptance and regression contracts pass.</li>
+<li>E experiment: record a declared versioned experimental profile, dependency inventory, supported boundaries, checked positive control, independent dependency mutations, and a source-bound W-2 applicability/adoption decision. A closed W-2 certificate is desirable but not assumed: a concrete missing dependency or real inequality must remain an explicit rejected/unresolved result. A generic trace match or a list of missing fields alone does not finish this experiment; implement and exercise the restricted validator and record why each premise is established or unavailable.</li>
+<li>Evidence: retain repeatable captures, both baselines, all 36 registered pairs, unchanged budgets, source review, per-family counts, failures, costs, report sizes and separate R/E/historical statuses. An incomplete E experiment cannot be marked complete merely because R passes.</li>
+<li>Historical G3 remains separately unmet unless at least two additional pairs become <code>comparison_complete: true</code> on the registered common <code>--channels text</code> panel, without losses, under identical bytes, budgets and the original contract. Opaque equivalence never sets inventory completeness or substitutes for this gate. Completing this phase is not full G1–G5 or release completion.</li>
+<li>Completion also requires evaluating the original problem, preserving durable evidence, deleting only this run&#x27;s two planning files and verifying their absence.</li>
+</ul>
+<h2 id="section-3">Baseline evidence and interpretation</h2>
+<ul>
+<li>HEAD and the reviewed revision match. Initial worktree has deletions of root <code>PLAN.md</code> and <code>PLAN.html</code>; preserve them. Existing <code>docs/plans/remaining/PLAN.md</code> and its companion are historical and not owned by this run.</li>
+<li><code>benchmark/realworld/next/RESULTS.md</code>: indexed retrieval completes 42/48 versus 36/48; retrieval plus optimization remains 24/48. At 128 elements, dense certification completes 12/12 and pricing 0/12. Keep P1 and the existing solver; P2 remains test-only.</li>
+<li>The prior 47 added B outputs, including 45 reviewed visible changes, are outside fixed targets. The exposed 12-series campaign supplies no new B recovery and cannot be reused as fresh holdout.</li>
+<li><code>benchmark/realworld/remaining/spatial-bridge-pilot.json</code>: five pairs, one retained EDPB target hit covering 986 atoms, four target misses and zero complete comparisons. Other B outputs include unadjudicated results. This is not a latest 36-pair rerun or formal G1 achievement.</li>
+<li>The historical 36-pair acquisition audit found non-text paint on at least one side of 35 pairs and a worker response failure on the remaining pair. These are versioned observations, not a universal impossibility result.</li>
+<li><code>crates/pdfdelta-core/src/document/text_scopes.rs</code> admits whole-node mandatory non-inferred boundaries using unchanged comparisons or accepted padding-boundary correspondences; both interiors must be nonempty. It also contains the unconditional ASCII-space-stripped equality veto. <code>text_scopes/native.rs</code> supplies same-page source-band closure and external-continuation guards. Discovery edges do not prove correspondence.</li>
+<li><code>document/coverage.rs</code> separately requires inventory, discovery and source accounting. Non-owning B ranges do not discharge strict coverage.</li>
+<li>The existing <code>remaining/verify.py</code> development gate requires G1, G3 and G4 together. Separating execution tracks therefore requires an explicit, tested checker entry point; merely changing the prose plan would still block blind evaluation.</li>
+<li>W-2 marker-free equality is retained in <code>remaining/paint-marker-probe.json</code> and <code>paint-marker-panel-probe.json</code>. Optional-content and other execution dependencies remain unproved. Schedule C/SE differences are negative evidence to retain.</li>
+<li>The supplied assessment and predicate probes are user-provided audit evidence. This planning pass inspected local source and saved results; it did not execute the Rust/PDF pipeline, reproduce those independent probes, or verify the supplied archive. Pasted source material is sufficient for planning; do not invent local archive paths. External compiler/display-list analogies are not acceptance evidence.</li>
+</ul>
+<h2 id="section-4">Constraints and authorized boundaries</h2>
+<p>Execution of the handoff authorizes local implementation, fixtures, evaluation and durable documentation in <code>crates/pdfdelta-core</code>, <code>crates/pdfdelta-cli</code>, <code>crates/pdfdelta-bench</code>, <code>benchmark/realworld</code>, <code>docs</code>, and relevant README/workspace configuration when required. Keep implementation changes tied to a diagnosed premise. Planning itself changes only the two files owned below. Load <code>coding-style</code> and the applicable language skill when implementation begins.</p>
+<ul>
+<li>Preserve raw PDF evidence → imperfect structure → robust alignment → exact diff. Keep parser-library types behind <code>PdfParser</code>/<code>ParsedPdf</code>; core remains a pure library, CLI owns filesystem/process concerns, bench owns fixtures and evaluation.</li>
+<li>Preserve glyph text, raw codes, scalar/glyph/atom multiplicity, geometry, render order/mode, object/operator provenance, normalization certificates, graph alternatives and exclusive source accounting. B remains non-owning and C remains inferred.</li>
+<li>Do not fabricate characters, separators, glyph IDs or semantic paragraph identities. Do not use annotation quotes, target IDs, masks or extents to generate or select production candidates. Hashes are indexes, followed by exact checked equality.</li>
+<li>Stable Rust, Edition 2024. No custom PDF object parser, OCR, semantic model, external analysis API, table recognition or replacement diff architecture. No parser migration based on a design analogy.</li>
+<li>Preserve explicit parser/item/time/byte/work limits. Native defaults remain 35 seconds and 128 MiB response limit; common-text captures remain 180 seconds and budget scale 1. Tool timeouts and budgets are operational limits, never goal deadlines. Missing, encrypted, unsupported, unresolved and resource-limited evidence must not become successful empty text.</li>
+<li>Preserve P1, exact assignment and dummy alternatives, source indexes, worker-context transport, failed-Form bounds and reusable literal hashes. Reopen pricing only with new full-certification cost evidence, including forbidden-edge ties. Do not continue global geometric threshold changes when the missing premise is boundary correspondence.</li>
+<li>Do not change production inventory/completion semantics. Publishing a new document-level equivalence contract requires a separate explicit approval and versioning decision after the experiment is reviewable. Its absence does not block R or the diagnostic E experiment.</li>
+<li>No push, PR publication, deployment, external messages or public preview is authorized. No subagents are requested. For immutable registration, use an isolated local Git registration commit if the existing checker requires one; executing the handoff authorizes only those necessary local registration commits, preserving unrelated changes. Other commits require an explicit request and all project quality gates.</li>
+<li>Keep historical manifests, annotations, results and plans immutable. New evidence goes under <code>benchmark/realworld/source-boundaries/</code>; reuse existing checker/review functions and cache conventions. Do not build another general evaluation framework.</li>
+<li>All repository documentation and code comments are English and self-contained; only README may refer to the separate specification document. Respond to the user in Japanese.</li>
+</ul>
+<h2 id="section-5">Planning files owned by this run</h2>
+<ul>
+<li>Markdown: <code>/home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-boundaries/PLAN.md</code></li>
+<li>HTML: <code>/home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-boundaries/PLAN.html</code></li>
+</ul>
+<p>Neither path existed at planning start. They are temporary; no other plans are eligible for cleanup. Preserve later user edits. Plan approved and execution started 2026-09-13 JST. Temporary public preview closed on approval. Owned server session 31550 and tunnel session 37840 both exited successfully. Removed /tmp/pdfdelta-plan-preview.aiKvyitZ/index.html and its empty directory; verified both absent. The former trycloudflare URL is inactive. Original planning files are retained for execution. If one is later authorized, record its URL, owned session handles, port and exact staged paths here; close it on plan approval, retaining these original files until goal completion.</p>
+<h2 id="section-6">Checkpoint 1 — establish counted evidence and isolate failures</h2>
+<ul>
+<li>[ ] Register the 36-pair panel, historical target/control hashes, exposure history, current source/binary/lockfile/configuration hashes and immutable budget profile before production edits. Distinguish historical-baseline gains from new gains over 599855d. Reuse only captures whose full identity matches; explicitly record missing cache files and reacquisition attempts.</li>
+<li>[ ] Recheck the EDPB 986-atom hit on a frozen current binary in two distinct attempts under the same flags. Review every A/B needed for that pair&#x27;s accounting against PDF pages, source spans, raw spaces and allowed extents. Retain outside-target findings separately. If the hit fails review, correct the result instead of making it a ceremonial milestone. Then return to the missed targets; do not turn this unit into open-ended evaluation infrastructure work.</li>
+<li>[ ] Extend existing diagnostics with independent acquisition/gap, normalization, cut discovery, cut correspondence, source-set/order closure, unresolved-competitor, local-proof and finite-extent statuses. Each is proved, failed, unresolved or not evaluated, with source/report references and budgets; never pretend later stages were measured after an earlier stop. Preserve multiple independent failures rather than only a first reason.</li>
+<li>[ ] Add source-backed fixtures for <code>The file is now here.</code> versus <code>The file is nowhere.</code>, <code>int x;</code> versus <code>intx;</code>, proven layout-only spacing and ambiguous spacing plus an independent numeric change. Demonstrate the predicate counterexample separately from end-to-end behavior. Replace the global ASCII-space veto with a checked spacing relation distinguishing literal glyphs, geometry reconstruction, line/page separators and ambiguity. Ambiguity remains local; independent certified changes survive. Keep external-continuation checks unless replaced by a stronger proved rule.</li>
+<li>[ ] Hold raw evidence and source order constant while splitting/merging <code>[BEGIN] [Budget 10.] [END]</code> versus <code>[BEGIN] [Budget 10. END]</code>, with <code>10</code> changing to <code>20</code>. Add the case where adjacent paragraphs also change. Record which premise fails; synthetic controls never count as real recovery.</li>
+<li>[ ] Add a versioned R-only evaluation entry point to the existing checker, reusing its validation and scoring. It gates blind freeze on R development plus correctness/evidence, not G3, and always emits unchanged historical G1–G5 values alongside phase status. Retain default historical behavior. Test that G3 false permits only the new R transition, not historical final success; stale hashes, duplicate attempts, widened extents and missing reviews still fail.</li>
+</ul>
+<p>Exit evidence: an adjudicated EDPB current-state record, meaningful-space production regression, partition counterexample, independently labeled blockers for selected misses, and a tested R evaluation contract. This unit alone is not phase completion.</p>
+<h2 id="section-7">Checkpoint 2 — recover with source cuts inside nodes</h2>
+<ul>
+<li>[ ] Introduce the smallest source-cut representation needed by the partition fixture: existing ordered source-view identity, token boundary, scalar/glyph/source-atom projection, and ordering/normalization dependencies. Keep original global nodes and source tables. Local views are reversible references, not copied documents or another matching pipeline.</li>
+<li>[ ] Discover paired cuts from checked equal source slices inside nodes, already matched scope entry/exit, or independently supported source-structure boundaries. Verify occurrence population completeness, exact equality, repeats, overlaps, move/copy competitors, alternative partitions, inferred parents and budgets. An inferred parent never yields an unconditional boundary. Unknown competitors prevent the dependent claim without suppressing independent proved results.</li>
+<li>[ ] Reject illegal cuts through shared-glyph ownership; preserve multiplicity, no duplicate source consumption and no invented separator. Charge all indexing, candidate and equality work to explicit budgets. Keep diagnostic supplied boundaries/order in separately labeled runs, injecting only one fact at a time and excluding these runs from recall.</li>
+<li>[ ] Demonstrate automatic discovery, checked correspondence and local closure on at least one previously missed natural target at its existing finite extent, with all its new A/B reviewed and no known false output. Begin with BERT&#x27;s documented boundary failure; if another premise blocks it, record the causal result and choose the next registered target without changing target extents. Show why correct order alone does not resolve the boundary counterexample.</li>
+</ul>
+<p>Exit evidence: equal raw source under alternative node partitions produces the same supported change; duplicate/moved boundary controls stay unresolved when necessary; a previously missed real target is recovered automatically. No geometric regrouping or gold injection may substitute for this result.</p>
+<h2 id="section-8">Checkpoint 3 — extend closure and scoped presence</h2>
+<ul>
+<li>[ ] Represent ranges crossing pages or columns as ordered page-local regions plus explicit transition certificates. Reuse each region&#x27;s source/paint closure, including failed-Form bounds. Prove transition order, matched scope support and absence of omitted/duplicated sources; page-number adjacency, nearby geometry and linguistic plausibility alone do not suffice.</li>
+<li>[ ] Keep headers, footers, other columns and sidebars as separate evidence. Off-band paint may be independent; touching paint, missing acquisition and unproved transitions remain unresolved. Preserve certified independent subregions without claiming a whole range over a gap.</li>
+<li>[ ] Permit an empty interior on either side after independent endpoint correspondence. Extend shared presence/relationship machinery for insertion/deletion within the range. Do not infer document-wide novelty/deletion, rule out movement or assign author intent from a dummy choice.</li>
+<li>[ ] Exercise natural reflow and programmatic fixtures: line/page reflow, block split/merge, render-object order variation with supported source order, one-sided insertion/deletion, moved/copied text, repeated boundary phrases, shared glyphs, inferred parents, alternative partitions, acquisition gaps, exhausted search, off-band/touching paint and invalid transitions. Accept valid transitions, reject insufficient evidence and verify no source duplication.</li>
+<li>[ ] Complete the R development gate using the full registered panel with two distinct observations per pair/revision, fixed budgets and all counted-pair A/B reviews. Freeze implementation, binary, lockfile and settings after development correctness passes. Select/register a genuinely new 12-series set from primary sources, bind annotations before comparison, and run the unseen gate. If results drive a code/configuration change, retire that set to exposed development and obtain a new holdout after refreeze.</li>
+</ul>
+<p>Exit evidence: G1/G2 numerical recovery criteria, finite-range and correctness criteria pass; segmented and empty-sided capabilities have positive/negative evidence. G3 remains visible and does not gate this sequence.</p>
+<h2 id="section-9">Checkpoint 4 — test restricted opaque-effect equivalence</h2>
+<p>This E track has its own dependencies: initial registration → declared profile → dependency acquisition → validator/mutations → W-2 decision. It can advance when R is blocked by a different premise. The numbered order is delivery order, not an instruction to wait for G3 or an authorization for parallel agents.</p>
+<ul>
+<li>[ ] Start from the retained W-2 trace experiment and the existing <code>crates/pdfdelta-bench/examples/paint_trace_probe.rs</code>. Enumerate the public observer/native provenance gaps before changing the interface. Treat native/hayro binding as proof work, not trivial wiring.</li>
+<li>[ ] Specify three separate claims: interpreted text inventory, relative opaque-effect equality under a declared profile, and whole-comparison completion under a declared contract. Add only a versioned experimental result/certificate; keep production inventory and <code>comparison_complete</code> unchanged.</li>
+<li>[ ] Close executable commands/operands, resolved resource contents, entry graphics state, transforms, clip, masks, opacity, blend, relevant backdrop, optional-content, nested Form invocation context, external overlaps, output footprint, backend/profile identity and complete acquisition of the dependency closure. Candidate fingerprints require exact structure/content checks. Unknown state, unsupported cycles or exceeded limits cannot certify equality. Cache keys must include all relevant dependency/profile versions.</li>
+<li>[ ] Implement a deliberately restricted validator with an explicit supported subset. Run a fully known positive control and independently mutate each dependency dimension, including unchanged <code>/Im1 Do</code> with changed image bytes, equal Form bytes under different clip/transform/alpha/background/visibility, nesting, overlap and missing dependencies. Reject or report unresolved when the profile cannot support the changed dimension. Do not use raw stream equality, object IDs, low-resolution raster equality or declared Artifact/ActualText alone as a certificate.</li>
+<li>[ ] Re-evaluate the existing W-2 candidate with hash-bound acquisition and the full declared closure. Retain Schedule C/SE parameter differences as negative cases. Record accepted, rejected or unresolved per region with the missing/changed dependency and provenance. Unknown state must not be silently projected away.</li>
+<li>[ ] Write an adoption decision covering scope, soundness evidence, unsupported dependencies, costs and applicability to registered inputs. Keep the experiment diagnostic unless a later, separate document-level contract is explicitly approved and versioned. An experiment showing W-2 is unsupported is a valid E finding when the validator and causal evidence are complete; it is not G3 success or universal impossibility.</li>
+</ul>
+<h2 id="section-10">Verification and durable artifacts</h2>
+<p>Use <code>benchmark/realworld/source-boundaries/</code> for versioned registration, baseline/current observations, diagnoses, source reviews, R development/freeze/blind results, E profile/mutations/results, quality logs and <code>RESULTS.md</code>. Store large captures in the existing bounded cache and hash-reference them. Keep essential evidence durable beyond deletion of these plans. Extend existing static review output with cut references, region transitions, exact masks, raw text and spacing provenance.</p>
+<p>Record A/B/C separately; fixed-target recall separately from posthoc output; strict event/source precision and recall separately from finite B extents; mask false positives, extent expansion, strict completeness, experimental equivalence, failures, unreviewed counts, attempts, time, peak RSS and report bytes separately. Undefined metrics remain undefined. Full 36-pair denominators include failed inputs. Do not count a large B merely because it contains the target.</p>
+<p>Run the affected fixture first, then the affected real pair, then the fixed panel when justified. Reuse valid passed checks when code and evidence identity match. These existing commands are available; new R/E stage names and schema versions must be recorded when implemented rather than pretending they already exist:</p>
+<pre><code>cargo test -p pdfdelta-core --test document_text_scopes_fixture
+cargo test -p pdfdelta-core --test document_groups_fixture
+PYTHON_UV=0 python -m unittest discover -s benchmark/realworld/remaining -p &#x27;test_*.py&#x27;
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage registration
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage diagnosis
+PYTHON_UV=0 python benchmark/realworld/remaining/verify.py --stage final
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo run -p pdfdelta-bench --locked -- verify</code></pre>
+<p>The historical final checker may correctly exit nonzero while historical gates remain unmet; retain that result beside the new phase verdict. Do not force it to pass. Before every requested commit run the required format, Clippy and workspace tests; the locked variants preserve the checker contract. Generated verification and tests must preserve all five first-release acceptance cases: no content changes under line wrapping or page breaks, exactly one text replacement, exactly one paragraph insertion, and exactly one paragraph deletion.</p>
+<p>For transport/performance changes, first show the measured blocker. Prefer shared immutable evidence IDs/tables and bounded sidecars over repeated full graphs. Chunk transport, if necessary, requires declared total inventory, terminal marker and per-chunk validation; truncated or duplicate chunks remain acquisition failures and no bound is silently bypassed. Do not make speculative performance work a prerequisite for source cuts.</p>
+<h2 id="section-11">Progress log</h2>
+<ul>
+<li>2026-09-13 JST — Planning: verified HEAD and local deletion state; inspected source-scope predicates, coverage, pilot records, prior plans and checker gate coupling. Chose independent R/E execution, unchanged historical thresholds, distinct task-owned paths and reuse of evaluator machinery. No production edits, corpus reruns, gate claims or goal activation. Next: execute Checkpoint 1 only when the user starts the handoff contract.</li>
+</ul>
+<ul>
+<li>2026-09-13 JST — Checkpoint 1: registered all 36 pairs and verified all 72 input hashes; bound the unchanged 599855d binary/source fingerprint. Completed and validated two distinct captures per pair: 72 reports, zero document-wide complete pairs. Report capture is not extraction completeness; the NIST controls pair still has missing native glyph acquisition inside its reports. Evidence: <code>benchmark/realworld/source-boundaries/registration.json</code>, <code>baseline-observations.json</code>, <code>baseline-summary.json</code>.</li>
+<li>2026-09-13 JST — EDPB: repeated the exact 986-atom hit and reviewed all four B outputs per attempt against source bundles and page images. Two prose changes and two numbering changes are supported; only the frozen first interval is target recovery. This retains current capability, not a new source-cut gain. Evidence: <code>baseline-edpb-adjudications.json</code> and <code>baseline-edpb-scores.json</code> in the new evidence directory.</li>
+<li>2026-09-13 JST — Spacing: removed the unconditional ASCII-space veto. Native non-owning views preserve literal glyphs and quantify over layout-space choices. A bounded non-space token-multiplicity witness retains independent changes without pretending to provide an exact mask when enumeration cannot complete. Rejected the intermediate space-count witness after it exposed the unchanged Article 4(7) quotation as an extra B; the corrected pilot retains the original four B outputs and exact target extent. Evidence: <code>spacing-pilot.json</code>, including both builds/reports and source review. No incremental target gain.</li>
+<li>2026-09-13 JST — Evaluation: added the opt-in <code>--contract source-boundaries-v1 --evidence-dir benchmark/realworld/source-boundaries</code> entry point to the existing checker. R can proceed with G3 false, while default historical final still fails. Added typed partial-spacing proof checks and independent premise fields; registration and diagnosis pass. Eight evaluator tests pass, including the complete constructed development/freeze/blind path with G3 false and rejection of unsupported partial claims.</li>
+<li>2026-09-13 JST — Verification: workspace tests pass (2348 passed, two existing ignored), followed by the separately added raw-evidence partition counterexample passing; format and Clippy pass, generated fixtures pass 48/48. The partition control currently demonstrates the limitation: merging END into the changed node preserves every raw glyph but removes B. It must be converted to a successful source-cut regression. Logs: <code>benchmark/realworld/source-boundaries/checks/</code>. Next: implement source cuts and recover the first missed natural target; other independent target premises remain explicitly not evaluated where evidence is missing.</li>
+</ul>
+<p>During execution append meaningful decisions, source/binary/input/configuration hashes, commands and exit codes, reviewed result references, rejected hypotheses and next missing premises. Update HTML after material plan changes. Keep R, E and historical G1–G5 statuses independent.</p>
+<ul>
+<li>2026-09-13 JST — Initial source cuts: the retained raw-evidence partition counterexample now recovers one B at the original source extent for old-only, new-only and both-side merges. The profile requires a complete single-page native population and checks physical row projection, occurrence uniqueness across node partitions, source closure and budgets. Copies, incomplete acquisition, unassigned glyphs, unsafe order and unproved normalization are negative controls. This restricted profile is not a real-target recovery. Next: establish a closed population inside existing accepted real-document boundaries and independently validate local raw projections; BERT still has normalization and boundary-granularity premises.</li>
+<li>2026-09-13 JST — E experiment: implemented <code>opaque-primitive-closure-v1</code> as a benchmark-only source-bound validator. The metadata-only positive, 18 other generated-PDF mutations and five labeled injected dependency controls all pass. Exact lexical command bytes prevent a demonstrated floating-point operand collision from certifying equality. The profile refuses dictionary reals without lexical provenance. W-2 remains unresolved on 11/11 page pairs; AcroForm and page-specific numeric, annotation, decoding and budget blockers are recorded. Retained W-2 and Schedule C/SE trace inputs/reports were hash-verified. No observer/native identity, inventory completeness or document completion is invented. Adoption decision, dependency inventory, build, results and costs: <code>benchmark/realworld/source-boundaries/opaque/</code>.</li>
+<li>2026-09-13 JST — Verification after initial cuts and E: format and workspace Clippy pass; workspace tests pass (2353 passed, two existing ignored). The E experiment has an explicit no-adoption W-2 finding; R and historical G3 remain unmet. Both planning files remain required. Next work is R source-cut recovery inside a checked real-document population, followed by segmented/empty-sided closure and the numerical development/unseen gates.</li>
+</ul>
+<ul>
+<li>2026-09-13 JST — First real source-cut recovery: the frozen local-cuts-v5 binary recovers BERT&#x27;s second abstract paragraph at exactly 703 original glyphs (343 old, 360 new), twice under the unchanged capture flags. Its lower cut is the unique source-backed suffix of the preceding changed paragraph; accepted Abstract/Introduction boundaries close the occurrence population. All eleven final B outputs were checked against retained sources and page images; strict control claims remain zero. Both historical and 599855d baselines miss the fixed target. This is one pair, not full G1/G2. Evidence: <code>bert-source-cut-pilot.json</code>, <code>bert-v5-observations.json</code>, <code>bert-v5-adjudications.json</code>, <code>bert-v5-scores.json</code> in the phase evidence directory.</li>
+<li>2026-09-13 JST — Correctness and budget findings: a retained email-address B was false because undecoded braces had different font identities; native non-owning content comparison now preserves that uncertainty. Raw projection checks preserve ligature multiplicity and synthetic context; sparse occurrence census agrees with exhaustive small spacing families. Closed contiguous subpaths inherit their outer proof. The work cap is unchanged; comparing content before closure and avoiding redundant candidate/closure work allow the new path to run. The rejected intermediate captures remain hash-bound. Workspace format/Clippy pass and tests pass (2361, two existing ignored); eighteen scope fixtures and nine evaluator tests pass. Next: evaluate the frozen current binary over the registered panel, complete segmented and empty-sided capabilities, then meet the full development/freeze/new-unseen gates. Both planning files remain required.</li>
+</ul>
+<h2 id="section-12">Original-purpose evaluation</h2>
+<p>Pending execution. At closeout compare the implemented behavior to the original failure: does changing only layout partition preserve automatic comparison, and do reviewed real finite targets demonstrate recovery rather than merely improved grouping? Does opaque handling state exactly what was proved while retaining incomplete interpretation? Include the unseen results and unresolved cases, not just test counts.</p>
+<p>If these outcomes are unresolved or unproven, update the plan and continue within scope. Do not lower extents, denominators, precision requirements or thresholds. A passing unit test suite, a new module, one new target or a diagnostic trace match alone is insufficient. Phase success and historical/release success must be reported separately.</p>
+<h2 id="section-13">Blockers and resumption</h2>
+<p>No material planning decision remains open. The E experiment is authorized as a diagnostic task by execution of this contract; production use of a new document-level claim remains outside scope. Actual input/cache access, fresh holdout availability and backend dependency visibility must be checked during execution, not assumed available from saved paths.</p>
+<p>For a concrete blocker record attempted approaches, exact evidence, missing access/dependency/decision, remaining work and a next action; retain both plans. Continue independent R or E work when possible. Change an unsuccessful hypothesis instead of blindly repeating it. Elapsed time, turn count, retry count, harness interruption and tool timeout never establish goal completion or a goal stopping rule. Preserve progress and resume when execution is available.</p>
+<ul>
+<li>2026-09-13 JST — The frozen v5 exploratory panel captured all 36 reports: A=1/B=126/C=0, nine source-cut B outputs, no complete document comparisons. Only BERT&#x27;s eleven B outputs are adjudicated; remaining outputs are unreviewed. Candidate target matches remain BERT and the retained EDPB baseline, so this does not meet G1. Evidence is retained in <code>v5-panel-observations.json</code> and <code>v5-panel-summary.json</code>.</li>
+<li>2026-09-13 JST — Added scoped empty-sided presence after v5. Whole-node and source-cut intervals support insertion/deletion, including literal spaces, only with a proved empty source interval and independent endpoints. External copies do not defeat this interval-only claim or imply global novelty. Twenty-one scope fixtures and ten evaluator tests pass. Real-panel evaluation of this change and segmented closure remain outstanding. The user now authorizes local progress commits; publication and production adoption of a completion contract remain outside scope.</li>
+</ul>
+<h2 id="section-14">Completion report and cleanup</h2>
+<p>After successful original-purpose evaluation, preserve the original problem, implemented result, evidence, limitations and independent historical statuses in durable results and the final report. Stop any recorded owned preview server/tunnel and remove its exact staged copy and empty temporary directory first.</p>
+<p>Delete only the two absolute planning paths in this plan and verify both are absent. Do not use wildcard/name-based search or recursive directory deletion. Preserve root deletions, historical plans and unrelated/later user edits. If ownership is unclear or cleanup fails, report cleanup unfinished and do not mark the goal complete. Retain plans when implementation/evaluation remains unresolved.</p>
+<p>Only after evaluation and cleanup report completion, supporting evidence, remaining historical/release limitations and removed paths. Do not link deleted plans as evidence.</p>
+<h2 id="section-15">Runnable handoff</h2>
+<pre><code>/goal Resolve layout-node-dependent prose comparison using checked source cuts, reversible local views, segmented closure and scoped empty-sided presence; fix provenance-sensitive whitespace handling and evaluate a separate restricted opaque-effect equivalence validator. Demonstrate automatic recovery at frozen finite extents: G1 at least 6 natural pairs/3 families and G2 at least 3 pairs/2 families in a new frozen 12-pair set, including a previously missed real target recovered through source cuts; preserve correctness and all five core acceptance cases. Complete the E dependency/mutation/W-2 applicability experiment without changing inventory or comparison_complete. Keep historical G3 and the old conjunctive goal explicitly separate and unmet unless their actual contracts pass.
+Follow /home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-boundaries/PLAN.md; the offline companion is /home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-boundaries/PLAN.html. Both are temporary planning files created for this run. Implement and record evidence within the plan&#x27;s local crate, benchmark and documentation boundaries, retaining the 36-pair panel, historical/current baselines, source provenance, A/B/C separation, exact ownership, budgets and exposed-set history. This authorizes necessary isolated local registration commits, but no publication or production completion-contract change. Do not stop for elapsed time, turn count or retry count.
+After the checkpoints evaluate whether the original comparison failure is resolved using real recovery, partition controls, unseen results and explicit E proof limits. If unresolved or unproven, continue independent work or report a concrete blocker with attempted evidence and retain both plans. After successful evaluation preserve results and evidence in durable artifacts and the final report, close any recorded preview sessions and remove their staged copies, then delete only the two exact run-owned plan files and verify their absence, preserving unrelated and later user edits. Mark complete only after evaluation and cleanup; report the original problem, resolution, evidence, limitations, historical gate status and deleted paths.</code></pre><footer class="dads-footer"><p>Source of truth: <a href="PLAN.md">Markdown execution plan</a>. Same plan content, rendered with the bundled Digital Agency Design System stylesheet. This file works offline.</p></footer></main></div></body></html>
