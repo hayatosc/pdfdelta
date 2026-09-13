@@ -1,0 +1,1306 @@
+{
+  "version": 1,
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v51-panel-observations.json",
+    "sha256": "71d76f060770130cde3f3da165deb6ec288732b63bfc3337807dfeb21f05aee3"
+  },
+  "helpers": [
+    {
+      "path": "benchmark/realworld/source-boundaries/review-v31.py",
+      "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/review-v33.py",
+      "sha256": "76597c965103b140630c93991682edb28719f2d2470d71c8e65e2189c049afd6"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+      "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+    }
+  ],
+  "checks": [
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/21",
+      "event_sha256": "530c29114fa88309368144080c8b05b2cea6d9f820518cbc48f0e63487e0bc0c",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "8d01f0b5ded2a2508501d146b9f10becd3e4f017309e6dce45604cf869b8b1e6",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The restriction-form sentence changes never reaching to may never reach and removes the provisions for the application of before restrictions. The rest of this finite paragraph portion is retained.",
+      "sides": {
+        "old": {
+          "pages": [
+            5
+          ],
+          "glyphs": 427,
+          "projection": {
+            "nodes": [
+              112
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-5.png",
+              "sha256": "9bf44c854e4899c50d5aecf8e2416335171b1c39515b734050f54304f660ca93"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            6
+          ],
+          "glyphs": 397,
+          "projection": {
+            "nodes": [
+              122
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-6.png",
+              "sha256": "9c3d460b4c8a26f2f32e3e4973884a6347892a157e7025cb81486f993d444628"
+            }
+          ]
+        }
+      },
+      "independent_mask": null,
+      "checked_multiplicity": {
+        "token": {
+          "Scalar": "a"
+        },
+        "old_required": 28,
+        "old_possible": 28,
+        "new_required": 27,
+        "new_possible": 27
+      },
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/22",
+      "event_sha256": "6b6235ac533edfd72eb1b97d8e70b46e1136a941d0a097326b19387e704f71d7",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "8d01f0b5ded2a2508501d146b9f10becd3e4f017309e6dce45604cf869b8b1e6",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The restriction-form sentence changes never reaching to may never reach and removes the provisions for the application of before restrictions. The rest of this finite paragraph portion is retained.",
+      "sides": {
+        "old": {
+          "pages": [
+            5
+          ],
+          "glyphs": 427,
+          "projection": {
+            "nodes": [
+              112
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-5.png",
+              "sha256": "9bf44c854e4899c50d5aecf8e2416335171b1c39515b734050f54304f660ca93"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            6
+          ],
+          "glyphs": 396,
+          "projection": {
+            "nodes": [
+              122
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-6.png",
+              "sha256": "9c3d460b4c8a26f2f32e3e4973884a6347892a157e7025cb81486f993d444628"
+            }
+          ]
+        }
+      },
+      "independent_mask": null,
+      "checked_multiplicity": {
+        "token": {
+          "Scalar": "a"
+        },
+        "old_required": 28,
+        "old_possible": 28,
+        "new_required": 27,
+        "new_possible": 27
+      },
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/23",
+      "event_sha256": "b32404b48df768945354b61729a7650a1973ef25be9aff56f580e0e4ef7365af",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "9554476ae60b40b0845985fc83b14c38a844e440b0e8f8a2845f1ccc826674f1",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "Paragraph 13 changes which will be detailed below to which are detailed below. The surrounding Article 23(1) requirement is the same corresponding passage.",
+      "sides": {
+        "old": {
+          "pages": [
+            5
+          ],
+          "glyphs": 171,
+          "projection": {
+            "nodes": [
+              114,
+              115
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-5.png",
+              "sha256": "9bf44c854e4899c50d5aecf8e2416335171b1c39515b734050f54304f660ca93"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            6
+          ],
+          "glyphs": 170,
+          "projection": {
+            "nodes": [
+              124,
+              125
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-6.png",
+              "sha256": "9c3d460b4c8a26f2f32e3e4973884a6347892a157e7025cb81486f993d444628"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 2,
+        "source_lower": 10,
+        "source_upper": 11,
+        "mandatory_positions": {
+          "old": [
+            61,
+            62,
+            63,
+            64,
+            66
+          ],
+          "new": [
+            61,
+            62,
+            90,
+            169
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/24",
+      "event_sha256": "c4491564daefbe60ff2e8c5ff643acbc3e2fe94d5c34de81e4e78e8512f3a3cc",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "9554476ae60b40b0845985fc83b14c38a844e440b0e8f8a2845f1ccc826674f1",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "Paragraph 13 changes which will be detailed below to which are detailed below. The surrounding Article 23(1) requirement is the same corresponding passage.",
+      "sides": {
+        "old": {
+          "pages": [
+            5
+          ],
+          "glyphs": 171,
+          "projection": {
+            "nodes": [
+              114,
+              115
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-5.png",
+              "sha256": "9bf44c854e4899c50d5aecf8e2416335171b1c39515b734050f54304f660ca93"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            6
+          ],
+          "glyphs": 169,
+          "projection": {
+            "nodes": [
+              124,
+              125
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-6.png",
+              "sha256": "9c3d460b4c8a26f2f32e3e4973884a6347892a157e7025cb81486f993d444628"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 2,
+        "source_lower": 9,
+        "source_upper": 10,
+        "mandatory_positions": {
+          "old": [
+            61,
+            62,
+            63,
+            64,
+            66
+          ],
+          "new": [
+            61,
+            62,
+            90
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/25",
+      "event_sha256": "34c077a17958dbcc20c8885ffbec0687394fa7327032c2dfde0c38932f1964cc",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "f4addb2f7fc44c1a66d9b799a95edc3f61fd836c355827c48da60d5b7c8b37aa",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The parenthetical heading expands Rec. 41 to Recital 41.",
+      "sides": {
+        "old": {
+          "pages": [
+            5
+          ],
+          "glyphs": 27,
+          "projection": {
+            "nodes": [
+              122
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-5.png",
+              "sha256": "9bf44c854e4899c50d5aecf8e2416335171b1c39515b734050f54304f660ca93"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            6
+          ],
+          "glyphs": 31,
+          "projection": {
+            "nodes": [
+              132
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-6.png",
+              "sha256": "9c3d460b4c8a26f2f32e3e4973884a6347892a157e7025cb81486f993d444628"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 1,
+        "source_lower": 6,
+        "source_upper": 6,
+        "mandatory_positions": {
+          "old": [
+            4
+          ],
+          "new": [
+            4,
+            5,
+            6,
+            7,
+            30
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/26",
+      "event_sha256": "e9e6e32c869d27d9b12bb1d04b6a8d476da26ca5c1871ff6ecfb4e69bab001bd",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "f4addb2f7fc44c1a66d9b799a95edc3f61fd836c355827c48da60d5b7c8b37aa",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The parenthetical heading expands Rec. 41 to Recital 41.",
+      "sides": {
+        "old": {
+          "pages": [
+            5
+          ],
+          "glyphs": 27,
+          "projection": {
+            "nodes": [
+              122
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-5.png",
+              "sha256": "9bf44c854e4899c50d5aecf8e2416335171b1c39515b734050f54304f660ca93"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            6
+          ],
+          "glyphs": 30,
+          "projection": {
+            "nodes": [
+              132
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-6.png",
+              "sha256": "9c3d460b4c8a26f2f32e3e4973884a6347892a157e7025cb81486f993d444628"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 1,
+        "source_lower": 5,
+        "source_upper": 5,
+        "mandatory_positions": {
+          "old": [
+            4
+          ],
+          "new": [
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/27",
+      "event_sha256": "877bce1478e3e90ae198f154e5d7a120b71a077aaceb6a3246614b6ba103e0b7",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "fd3f7fee9bb4d23b3bb06b40e91305c820cf0cfaf15f9fd6935976ca68008f0f",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 28 to 29. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            7
+          ],
+          "glyphs": 105,
+          "projection": {
+            "nodes": [
+              166
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-7.png",
+              "sha256": "cb40dd83599987030aba3dce273c41595659ef7fb590033fb2a0da795b03f7ed"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            9
+          ],
+          "glyphs": 107,
+          "projection": {
+            "nodes": [
+              183
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-9.png",
+              "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 2,
+        "source_lower": 3,
+        "source_upper": 4,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1,
+            106
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/28",
+      "event_sha256": "2715d65612860da006cf7f357547ed986d023d17e88da19231307f976f67ce53",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "fd3f7fee9bb4d23b3bb06b40e91305c820cf0cfaf15f9fd6935976ca68008f0f",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 28 to 29. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            7
+          ],
+          "glyphs": 105,
+          "projection": {
+            "nodes": [
+              166
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-7.png",
+              "sha256": "cb40dd83599987030aba3dce273c41595659ef7fb590033fb2a0da795b03f7ed"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            9
+          ],
+          "glyphs": 106,
+          "projection": {
+            "nodes": [
+              183
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-9.png",
+              "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 2,
+        "source_lower": 2,
+        "source_upper": 3,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/29",
+      "event_sha256": "e77aa8cfa7e5c63eecd6f0f7a13f5679a1b0480ee5b714da876739156f25a199",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "54ae744f45cdc22466eae3154f7805630f86bea6c9d9ac4842c1d3ff6379f645",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 30 to 31. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            8
+          ],
+          "glyphs": 103,
+          "projection": {
+            "nodes": [
+              174
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-8.png",
+              "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            9
+          ],
+          "glyphs": 105,
+          "projection": {
+            "nodes": [
+              188
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-9.png",
+              "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 2,
+        "source_lower": 3,
+        "source_upper": 4,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1,
+            104
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/30",
+      "event_sha256": "adc42922d9e9373ca878e95bb88fb1c48f61d6da68c1b22bfc9c8f60e873cd8e",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "54ae744f45cdc22466eae3154f7805630f86bea6c9d9ac4842c1d3ff6379f645",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 30 to 31. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            8
+          ],
+          "glyphs": 103,
+          "projection": {
+            "nodes": [
+              174
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-8.png",
+              "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            9
+          ],
+          "glyphs": 104,
+          "projection": {
+            "nodes": [
+              188
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-9.png",
+              "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 2,
+        "source_lower": 2,
+        "source_upper": 3,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/31",
+      "event_sha256": "7a7edec2d5810eb0880e3007499609639b04429aedea108a53eaed6c5c5a5d4f",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "240251e8a8f14d4b236550120970aed2b48a9c4858d29a317eed4b9418ab60da",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 31 to 32. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            8
+          ],
+          "glyphs": 103,
+          "projection": {
+            "nodes": [
+              176
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-8.png",
+              "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            9
+          ],
+          "glyphs": 108,
+          "projection": {
+            "nodes": [
+              190
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-9.png",
+              "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 16,
+        "source_lower": 3,
+        "source_upper": 7,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1,
+            107
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/32",
+      "event_sha256": "3f2b2706372bb490f0215aeb00ed66dae5b4a6d9f586166365f64d8dc29cc791",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "240251e8a8f14d4b236550120970aed2b48a9c4858d29a317eed4b9418ab60da",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 31 to 32. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            8
+          ],
+          "glyphs": 103,
+          "projection": {
+            "nodes": [
+              176
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-8.png",
+              "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            9
+          ],
+          "glyphs": 107,
+          "projection": {
+            "nodes": [
+              190
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-9.png",
+              "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 16,
+        "source_lower": 2,
+        "source_upper": 6,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/33",
+      "event_sha256": "d4963bc4a161ffde4bca9d9095e9d8dd2d3e9087da9d6c83e8049dccc46b4725",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "78a544b9fa7fca6fdef755776b59b78202b89fe737d2b0cfe677d71066280bc2",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 32 to 33. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            8
+          ],
+          "glyphs": 107,
+          "projection": {
+            "nodes": [
+              182
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-8.png",
+              "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            10
+          ],
+          "glyphs": 113,
+          "projection": {
+            "nodes": [
+              200
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-10.png",
+              "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 32,
+        "source_lower": 3,
+        "source_upper": 8,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            112
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/34",
+      "event_sha256": "bad53db5b859ed227f397502312707a220fc90d12610f47b951e594fec43ba12",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "ba445e2aa7775d0242dbdf1b14b40a1d9bacdd99b5be54bde87dc6ab5318f0a2"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/sources.json",
+        "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+      },
+      "reviewed_parent_digest": "78a544b9fa7fca6fdef755776b59b78202b89fe737d2b0cfe677d71066280bc2",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding first line changes paragraph label 32 to 33. The other selected prose remains the same; this is a numbering change.",
+      "sides": {
+        "old": {
+          "pages": [
+            8
+          ],
+          "glyphs": 107,
+          "projection": {
+            "nodes": [
+              182
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-8.png",
+              "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            10
+          ],
+          "glyphs": 112,
+          "projection": {
+            "nodes": [
+              200
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-10.png",
+              "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 32,
+        "source_lower": 2,
+        "source_upper": 7,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": []
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/10",
+      "event_sha256": "9c5f3702fa4ead322ebfa40d18bd6ccb253c769432dc9274e3ea2b2d077fbfe8",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "b6e49f41fdda2cfc9bdc3e401c78ba5469acff949cc70b3580d94acef6d7e84e"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/sources.json",
+        "sha256": "abe5b9f4c99bddc355abfbd2e7c704be2ee9bafb5756255cf5ba79503236a9db"
+      },
+      "reviewed_parent_digest": "94e2a2bb983fdcb2bf8663a22b6b66fc00f62430f01f28f3c222c48702c8d785",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding message-block item adds SHA-512/224 and SHA-512/256. Page images verify the addition. Retained normalization contracts some spaces, but the added non-space algorithm names are source-backed.",
+      "sides": {
+        "old": {
+          "pages": [
+            13
+          ],
+          "glyphs": 126,
+          "projection": {
+            "nodes": [
+              270,
+              271,
+              272,
+              273
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/old-region-13.png",
+              "sha256": "8c0c30c358fc9964215d2eb419a9637aafac2ed19f75f9bed6b4945483de25f8"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            12
+          ],
+          "glyphs": 151,
+          "projection": {
+            "nodes": [
+              307,
+              308,
+              309,
+              310
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/new-region-12.png",
+              "sha256": "7ec4125211c693ea0a4f07138b9384ffba8a1c831214c3c379dfee1f483be204"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 1,
+        "source_lower": 27,
+        "source_upper": 27,
+        "mandatory_positions": {
+          "old": [
+            27
+          ],
+          "new": [
+            15,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            49,
+            51,
+            52
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/11",
+      "event_sha256": "ab3e00544b567ea1097a77e8f58267460da9d1312aef2b8752b2807af1a391f9",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-page-edges-v51-full-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "b6e49f41fdda2cfc9bdc3e401c78ba5469acff949cc70b3580d94acef6d7e84e"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/sources.json",
+        "sha256": "abe5b9f4c99bddc355abfbd2e7c704be2ee9bafb5756255cf5ba79503236a9db"
+      },
+      "reviewed_parent_digest": "94e2a2bb983fdcb2bf8663a22b6b66fc00f62430f01f28f3c222c48702c8d785",
+      "reviewed_parent": {
+        "path": "benchmark/realworld/source-boundaries/v40-adjudications.json",
+        "sha256": "f035265ea88118224ce97989191bc7b3489fb3d44dfd733ece07c7b01a995e45"
+      },
+      "source_content_rationale": "The corresponding message-block item adds SHA-512/224 and SHA-512/256. Page images verify the addition. Retained normalization contracts some spaces, but the added non-space algorithm names are source-backed.",
+      "sides": {
+        "old": {
+          "pages": [
+            13
+          ],
+          "glyphs": 122,
+          "projection": {
+            "nodes": [
+              271,
+              272
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/old-region-13.png",
+              "sha256": "8c0c30c358fc9964215d2eb419a9637aafac2ed19f75f9bed6b4945483de25f8"
+            }
+          ]
+        },
+        "new": {
+          "pages": [
+            12
+          ],
+          "glyphs": 147,
+          "projection": {
+            "nodes": [
+              308,
+              309
+            ],
+            "glyph_projection_checked": true,
+            "layout_newlines": [],
+            "profile": "Original native node order with the seven declared Latin presentation-ligature folds; source spaces retain separate provenance."
+          },
+          "images": [
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/new-region-12.png",
+              "sha256": "7ec4125211c693ea0a4f07138b9384ffba8a1c831214c3c379dfee1f483be204"
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 1,
+        "source_lower": 27,
+        "source_upper": 27,
+        "mandatory_positions": {
+          "old": [
+            26
+          ],
+          "new": [
+            14,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            48,
+            50,
+            51
+          ]
+        }
+      },
+      "checked_multiplicity": null,
+      "verdict": "source_checks_passed_pending_page_review"
+    }
+  ]
+}

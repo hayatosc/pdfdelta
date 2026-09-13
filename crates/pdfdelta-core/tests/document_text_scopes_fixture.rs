@@ -1932,6 +1932,194 @@ fn an_anchored_complete_page_can_supply_a_missing_second_outer_boundary() {
 }
 
 #[test]
+fn page_edges_recover_body_outside_multiple_accepted_anchors() {
+    for before in [false, true] {
+        let mut old_rows = vec![
+            "Status",
+            "Memo",
+            "Abstract",
+            "  Clients advertise capabilities.",
+            "Earlier section",
+        ];
+        let mut new_rows = vec![
+            "Status",
+            "Memo",
+            "Abstract",
+            "  Requestors advertise capabilities.",
+            "Later section",
+        ];
+        if before {
+            old_rows.reverse();
+            new_rows.reverse();
+        }
+        let mut old = fixture_rows(&old_rows);
+        let mut new = fixture_rows(&new_rows);
+        for fixture in [&mut old, &mut new] {
+            append_unassigned(fixture, PageId(1), 70.0);
+        }
+        let index = if before { 2 } else { 4 };
+        for (a, b) in [(&old, &new), (&new, &old)] {
+            let result = compare(a, b);
+            let review = result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .find(|review| {
+                    review.old_sources == a.1.nodes[index].sources[2..]
+                        && review.new_sources == b.1.nodes[index].sources[2..]
+                })
+                .expect("changed body beyond outermost accepted page anchor");
+            let pdfdelta_core::document::SourceCutPopulation::AnchoredPage { edge, .. } =
+                &review.source_cuts.as_ref().expect("source cuts").population
+            else {
+                panic!("page population");
+            };
+            assert_eq!(
+                *edge,
+                Some(if before {
+                    pdfdelta_core::document::SourceCutPageEdge::Before
+                } else {
+                    pdfdelta_core::document::SourceCutPageEdge::After
+                })
+            );
+        }
+    }
+}
+
+#[test]
+fn page_edge_occurrence_census_keeps_pruned_context() {
+    for before in [false, true] {
+        let mut old_rows = vec![
+            "Former capabilities.",
+            "Status",
+            "Abstract",
+            "  Clients advertise capabilities.",
+            "Earlier section",
+        ];
+        let mut new_rows = vec![
+            "Recent capabilities.",
+            "Status",
+            "Abstract",
+            "  Requestors advertise capabilities.",
+            "Later section",
+        ];
+        if before {
+            old_rows.reverse();
+            new_rows.reverse();
+        }
+        let mut old = fixture_rows(&old_rows);
+        let mut new = fixture_rows(&new_rows);
+        for fixture in [&mut old, &mut new] {
+            append_unassigned(fixture, PageId(1), 70.0);
+        }
+        let index = if before { 2 } else { 4 };
+        for (a, b) in [(&old, &new), (&new, &old)] {
+            let result = compare(a, b);
+            // The other page side contains a second physical copy of this
+            // suffix even though it cannot supply candidates for this edge.
+            let body = &a.1.nodes[index];
+            let repeated_suffix = &body.sources[body.sources.len() - "capabilities.".len()..];
+            for cuts in result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .filter_map(|review| review.source_cuts.as_ref())
+            {
+                for boundary in [&cuts.entry, &cuts.exit].into_iter().chain(
+                    cuts.edge_refinement
+                        .iter()
+                        .flat_map(|refinement| &refinement.enclosing),
+                ) {
+                    if let pdfdelta_core::document::CutEvidence::UniqueNativeFragment {
+                        old: fragment,
+                        ..
+                    } = &boundary.evidence
+                    {
+                        assert!(fragment.node != body.id || fragment.sources != repeated_suffix);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn page_edges_do_not_bypass_source_closure_or_interior_boundaries() {
+    for mutation in 0..5 {
+        let mut old = fixture_rows(&[
+            "Status",
+            "Abstract",
+            "  Clients advertise capabilities.",
+            "Earlier section",
+        ]);
+        let mut new = fixture_rows(&[
+            "Status",
+            "Abstract",
+            "  Requestors advertise capabilities.",
+            "Later section",
+        ]);
+        append_unassigned(&mut old, PageId(1), 70.0);
+        if mutation != 1 {
+            append_unassigned(&mut new, PageId(1), 70.0);
+        }
+        match mutation {
+            0 => new.0.inventories[0].complete = false,
+            1 => {
+                append_unassigned(&mut new, PageId(0), 10.0);
+                new.0.pages.push(PageEvidence {
+                    page: PageId(1),
+                    bounds: None,
+                });
+            }
+            2 => with_paint(&mut new, None),
+            3 => {
+                // A later accepted boundary makes this an interior comparison.
+                old = fixture_rows(&[
+                    "Status",
+                    "Abstract",
+                    "  Clients advertise capabilities.",
+                    "Conclusion",
+                ]);
+                new = fixture_rows(&[
+                    "Status",
+                    "Abstract",
+                    "  Requestors advertise capabilities.",
+                    "Conclusion",
+                ]);
+                append_unassigned(&mut old, PageId(1), 70.0);
+                append_unassigned(&mut new, PageId(1), 70.0);
+            }
+            4 => {
+                new = fixture_rows(&[
+                    "Abstract",
+                    "Status",
+                    "  Requestors advertise capabilities.",
+                    "Later section",
+                ]);
+                append_unassigned(&mut new, PageId(1), 70.0);
+            }
+            _ => unreachable!(),
+        }
+        let result = compare(&old, &new);
+        assert!(
+            !result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| {
+                    review.old_sources == old.1.nodes[3].sources[2..]
+                        && review.new_sources == new.1.nodes[3].sources[2..]
+                        && matches!(
+                            review.source_cuts.as_ref().map(|cuts| &cuts.population),
+                            Some(pdfdelta_core::document::SourceCutPopulation::AnchoredPage { .. })
+                        )
+                }),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn anchored_page_ranges_can_include_unchanged_interior_rows() {
     let mut old = fixture_rows(&[
         "Abstract",
@@ -2149,6 +2337,62 @@ fn reconstructed_spaces_do_not_erase_independent_source_changes() {
             }
         }
     }
+}
+
+#[test]
+fn native_multiplicity_reservation_preserves_a_near_budget_exact_mask() {
+    let old = fixture(&"a".repeat(737));
+    let new = fixture(&"b".repeat(654));
+    let result = compare(&old, &new);
+    let review = result.scopes[0]
+        .result
+        .text_scope_reviews
+        .iter()
+        .find(|review| {
+            review.old_sources == old.1.nodes[2].sources
+                && review.new_sources == new.1.nodes[2].sources
+        })
+        .expect("full source-backed range");
+    let mask = review.comparison.text_mask.as_ref().expect("exact mask");
+    assert_eq!(mask.claims.changed_source_lower, 1391);
+    assert_eq!(mask.claims.changed_source_upper, 1391);
+}
+
+#[test]
+fn long_exact_native_ranges_retain_a_change_when_mask_work_is_exhausted() {
+    let old = fixture(&"a".repeat(800));
+    let new = fixture(&"b".repeat(800));
+    let result = compare(&old, &new);
+    let review = result.scopes[0]
+        .result
+        .text_scope_reviews
+        .iter()
+        .find(|review| {
+            review.old_sources == old.1.nodes[2].sources
+                && review.new_sources == new.1.nodes[2].sources
+        })
+        .expect("full source-backed range");
+    assert!(review.comparison.compared);
+    assert!(review.comparison.text_mask.is_none());
+    assert!(review.comparison.text_change_proof.is_some());
+    assert!(
+        compare(&old, &old).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
+    let mut unknown = new.clone();
+    if let NodeContent::Text { view } = &mut unknown.1.nodes[2].content {
+        view.normalization = TextNormalization::Unresolved {
+            reason: "unproved projection".into(),
+        };
+    }
+    assert!(
+        compare(&old, &unknown).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
 }
 
 #[test]

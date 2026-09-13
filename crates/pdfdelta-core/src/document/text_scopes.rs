@@ -19,8 +19,8 @@ pub use native::{NativeRegion, NativeRegionChain, NativeRegionChains, NativeTran
 
 pub use cuts::{
     CutCorrespondence, CutEvidence, SourceCut, SourceCutBoundaryPadding, SourceCutEdgeRefinement,
-    SourceCutPopulation, SourceCutRange, SourceCutRowEndpoint, SourceCutRowOrder, SourceCutSearch,
-    SourceFragment,
+    SourceCutPageEdge, SourceCutPopulation, SourceCutRange, SourceCutRowEndpoint,
+    SourceCutRowOrder, SourceCutSearch, SourceFragment,
 };
 
 /// Content of corresponding intervals under the stated comparison convention.
@@ -434,6 +434,36 @@ fn append_pass(
     // empty-sided claims. All stages still share the same finite work cap.
     for empty_sided in [false, true] {
         if empty_sided {
+            if sources.is_some()
+                && result
+                    .text_scope_reviews
+                    .iter()
+                    .any(|review| review.source_cuts.is_none())
+            {
+                // A raw cut certificate can support finer literal-space edges even
+                // when a whole-node review already covers the same source interval.
+                // Reuse the acquired sources after all nonempty whole-node reviews,
+                // before new boundary searches spend their shared remaining budget.
+                let prior = result.source_cut_search.take();
+                let before = *remaining;
+                cuts::append(
+                    old,
+                    new,
+                    result,
+                    parent,
+                    limits,
+                    &left,
+                    &right,
+                    sources.as_ref(),
+                    &anchors,
+                    false,
+                    cuts::Pass::RefineExisting,
+                    remaining,
+                )?;
+                merge_cut_search(result, prior, before - *remaining);
+            }
+            let prior = result.source_cut_search.take();
+            let before = *remaining;
             cuts::append(
                 old,
                 new,
@@ -448,6 +478,7 @@ fn append_pass(
                 cuts::Pass::Standard,
                 remaining,
             )?;
+            merge_cut_search(result, prior, before - *remaining);
         }
         for pair in anchors.windows(2) {
             let [((ar0, a0), (br0, b0), first), ((ar1, a1), (br1, b1), last)] = pair else {
@@ -612,34 +643,6 @@ fn append_pass(
                 Err(error) => return Err(error),
             }
         }
-    }
-    if sources.is_some()
-        && result
-            .text_scope_reviews
-            .iter()
-            .any(|review| review.source_cuts.is_none())
-    {
-        // A raw cut certificate can support finer literal-space edges even
-        // when a whole-node review already covers the same source interval.
-        // Reuse the acquired sources and defer this work until prior reviews
-        // are complete, under the same remaining budget.
-        let prior = result.source_cut_search.take();
-        let before = *remaining;
-        cuts::append(
-            old,
-            new,
-            result,
-            parent,
-            limits,
-            &left,
-            &right,
-            sources.as_ref(),
-            &anchors,
-            false,
-            cuts::Pass::RefineExisting,
-            remaining,
-        )?;
-        merge_cut_search(result, prior, before - *remaining);
     }
     // Existing whole-node and content-edge reviews retain priority. Additional
     // paint-order closure shares their source index and remaining work cap.

@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "development_only": true,
+  "unseen_claim": false,
+  "adjudication_complete": false,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-page-edges-v48/build.json",
+    "sha256": "82081102138d21a43592ab1817fe0460b7c980d8915f50ac4cde6188c70289db"
+  },
+  "checks": [
+    {
+      "path": "benchmark/realworld/source-boundaries/checks/v48-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/checks/v48-clippy.log",
+      "sha256": "7abea1cb848eb5da7d8e6996fb16f1b368bb85c612a1fa61d68abebd058e3386"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/checks/v48-test.log",
+      "sha256": "c95d06fb6bb56fdf0271dd8a790317ec72fbb6a68e985a3e2da66905c9dfc006"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/checks/v48-generated.log",
+      "sha256": "4f7475113364c37d39aa1b0545abcbaaca6afcb38cebfed260387324eb7004b0"
+    }
+  ],
+  "rows": [
+    {
+      "pair": "ietf-uri-2396-to-3986",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/diagnosis-v48/ietf-uri-2396-to-3986/report.json",
+        "sha256": "883a3ca2f5f7f253a4e158de49057424f8f67c75bf2e6e0b0a58ca4fb89f705e"
+      },
+      "categories": {
+        "B": 14
+      },
+      "target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/5"
+      ],
+      "lost_v40_identities": 14,
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "pair": "ietf-json-4627-to-8259",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/diagnosis-v48/ietf-json-4627-to-8259/report.json",
+        "sha256": "8cc83bf319f027cfc3b6f850dd211a11f8ad07e26eb8486a6a0cf1c26b0d6c61"
+      },
+      "categories": {
+        "B": 7
+      },
+      "target_hits": [],
+      "lost_v40_identities": 19,
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "pair": "arxiv-albert-v1-to-v6",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/diagnosis-v48/arxiv-albert-v1-to-v6/report.json",
+        "sha256": "ac4f9efc9f4444ca67460bd077688988c8930c3f28adc59c9e2a1cb44b14c6a6"
+      },
+      "categories": {
+        "B": 7
+      },
+      "target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "lost_v40_identities": 0,
+      "strict_control_atoms": 0,
+      "complete": false
+    }
+  ],
+  "finding": "The combined census and candidate-generation savings still recover the URI abstract at the cost of the prior JSON target. Existing whole-interval literal-space refinement runs after this new page work and can be starved. Next diagnose prioritizing refinement of already established nonempty comparisons before new boundary searches.",
+  "adoption": false,
+  "workspace_tests_passed": 2396,
+  "workspace_tests_ignored": 2,
+  "generated_passed": "48/48",
+  "strict_author_intent": "42/48"
+}

@@ -30,6 +30,8 @@ pub struct LocalTextClaims {
 /// Returned masks contain only source-backed positions; synthetic layout
 /// separators participate in alignment but never become changed source tokens.
 /// `None` means a proof did not finish, not that the pair is equal.
+/// An exact grid declined before evaluation leaves its unspent work available;
+/// completed setup and LCS work remain charged.
 ///
 /// # Errors
 /// Rejects inconsistent mask dimensions and reports resource/allocation limits
@@ -76,7 +78,7 @@ pub fn local_text_claims(
             normalization_pairs: claim.completed_hypothesis_pairs,
         }
     } else {
-        let Some(claim) = claims::literal_claims(
+        let Some(claim) = claims::literal_claims_retaining_unspent_grid_work(
             old.tokens,
             new.tokens,
             old.source,

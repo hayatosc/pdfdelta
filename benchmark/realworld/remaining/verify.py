@@ -243,12 +243,35 @@ def checked_source_cuts(review, result):
                      if all(len(result["candidates"]["proposals"][index][side]) == 1
                             and result["candidates"]["proposals"][index][side][0] in population[side]
                             for side in ("old", "new"))}
-        require(contained == {population["boundary"]}, "page fallback has multiple accepted anchors")
+        edge = population.get("edge")
+        require(edge in (None, "before", "after"), "unknown page edge")
+        if edge is None:
+            require(contained == {population["boundary"]}, "page fallback has multiple accepted anchors")
+        else:
+            require(len(contained) > 1, "page edge lacks multiple local anchors")
+            for side in ("old", "new"):
+                positions = {node: index for index, node in enumerate(population[side])}
+                boundary_position = positions[anchor[side][0]]
+                other_positions = [positions[result["candidates"]["proposals"][index][side][0]]
+                                   for index in contained]
+                require(boundary_position == (max(other_positions) if edge == "after" else min(other_positions)),
+                        "page edge is not the agreed outermost anchor")
+                require(all((positions[node] > boundary_position if edge == "after"
+                             else positions[node] < boundary_position)
+                            for node in review["comparison"][side]),
+                        "page edge consumes an anchor or interior content")
+                require(all(cuts[name][side]["node"] in positions for name in ("entry", "exit")),
+                        "page edge cut escapes its population")
+                require(all((positions[cuts[name][side]["node"]] >= boundary_position if edge == "after"
+                             else positions[cuts[name][side]["node"]] <= boundary_position)
+                            for name in ("entry", "exit")), "page edge cut enters an interior interval")
         external = {index for index in accepted
                     if all(len(result["candidates"]["proposals"][index][side]) == 1
                            for side in ("old", "new"))
                     and ((result["candidates"]["proposals"][index]["old"][0] in population["old"])
                          != (result["candidates"]["proposals"][index]["new"][0] in population["new"]))}
+        if edge is not None:
+            external |= contained - {population["boundary"]}
         require(len(population["external_boundaries"]) == len(external)
                 and set(population["external_boundaries"]) == external,
                 "page fallback omits or duplicates external correspondences")

@@ -52,8 +52,8 @@ pub use text_candidates::{TextCandidateLimits, TextCandidateSearch};
 pub use text_scopes::{
     CutCorrespondence, CutEvidence, NativeRegion, NativeRegionChain, NativeRegionChains,
     NativeTransition, SourceCut, SourceCutBoundaryPadding, SourceCutEdgeRefinement,
-    SourceCutPopulation, SourceCutRange, SourceCutRowEndpoint, SourceCutRowOrder, SourceCutSearch,
-    SourceFragment, SpaceBoundary, SpaceOrigin, TextScopePresence, TextScopeReview,
-    TextScopeSpacing,
+    SourceCutPageEdge, SourceCutPopulation, SourceCutRange, SourceCutRowEndpoint,
+    SourceCutRowOrder, SourceCutSearch, SourceFragment, SpaceBoundary, SpaceOrigin,
+    TextScopePresence, TextScopeReview, TextScopeSpacing,
 };
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};

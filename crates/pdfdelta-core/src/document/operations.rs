@@ -151,9 +151,10 @@ pub fn compare_local_views(
         unresolved: Vec::new(),
         compared: false,
     };
+    let mut remaining_work = limits.proof_work;
     match (&old.content, &new.content) {
         (NodeContent::Text { view: a }, NodeContent::Text { view: b }) => {
-            compare_text_content(&mut result, a, b, limits)?;
+            compare_text_content(&mut result, a, b, limits, &mut remaining_work)?;
         }
         (NodeContent::Value { value: a }, NodeContent::Value { value: b }) => {
             if matches!(a, FieldValue::Unresolved { .. })
@@ -173,7 +174,8 @@ pub fn compare_local_views(
                 if let (FieldValue::Text(a), FieldValue::Text(b)) = (a, b) {
                     let a = field_text(a, &old.sources, limits)?;
                     let b = field_text(b, &new.sources, limits)?;
-                    result.text_mask = compare_text(&a, &b, limits, &mut result.unresolved)?;
+                    result.text_mask =
+                        compare_text(&a, &b, limits, &mut remaining_work, &mut result.unresolved)?;
                 }
             }
         }
@@ -254,7 +256,7 @@ pub(super) fn private_use_scalar(scalar: char) -> bool {
 fn compare_text_groups(
     old: &[&GraphNode],
     new: &[&GraphNode],
-    mut limits: LocalComparisonLimits,
+    limits: LocalComparisonLimits,
     layout_space_alternatives: bool,
 ) -> Result<LocalViewComparison> {
     if !layout_space_alternatives && (old.is_empty() || new.is_empty()) {
@@ -265,6 +267,7 @@ fn compare_text_groups(
     let mut a = concatenate_text(old, limits, &mut tokens, &mut references)?;
     let mut b = concatenate_text(new, limits, &mut tokens, &mut references)?;
     let mut uncertain_spacing = false;
+    let mut optional_normalization = false;
     if layout_space_alternatives {
         for view in [&mut a, &mut b] {
             let mut optional = view.optional_tokens().ok_or_else(|| {
@@ -289,6 +292,7 @@ fn compare_text_groups(
                     *position = true;
                     uncertain_spacing = true;
                 }
+                optional_normalization |= *position;
             }
             if uncertain_spacing {
                 view.bind_optional_positions(
@@ -316,19 +320,23 @@ fn compare_text_groups(
         unresolved: Vec::new(),
         compared: false,
     };
-    // A large spacing family can exceed the exact enumeration budget. Reserve
-    // a bounded, independent multiplicity proof first; it can establish change
-    // without inventing a literal-minimal mask or selecting a normalization.
-    let multiplicity_change = uncertain_spacing
-        .then(|| source_multiplicity_change(&a, &b, &mut limits.proof_work))
+    // Optional families reserve a count witness before exploring masks. Exact
+    // ranges retain their full mask budget and use only unspent grid work for
+    // a fallback after the exact kernel declines an unaffordable grid.
+    let mut remaining_work = limits.proof_work;
+    let mut multiplicity_change = (layout_space_alternatives && optional_normalization)
+        .then(|| source_multiplicity_change(&a, &b, &mut remaining_work))
         .flatten();
-    match compare_text_content(&mut result, &a, &b, limits) {
+    match compare_text_content(&mut result, &a, &b, limits, &mut remaining_work) {
         Err(error @ (crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)))
-            if uncertain_spacing =>
+            if layout_space_alternatives =>
         {
             result.unresolved.push(error.to_string());
         }
         outcome => outcome?,
+    }
+    if !result.compared && layout_space_alternatives && !optional_normalization {
+        multiplicity_change = source_multiplicity_change(&a, &b, &mut remaining_work);
     }
     if !result.compared
         && let Some(proof) = multiplicity_change
@@ -462,8 +470,9 @@ fn compare_text_content(
     old: &TextView,
     new: &TextView,
     limits: LocalComparisonLimits,
+    remaining_work: &mut usize,
 ) -> Result<()> {
-    result.text_mask = compare_text(old, new, limits, &mut result.unresolved)?;
+    result.text_mask = compare_text(old, new, limits, remaining_work, &mut result.unresolved)?;
     if let Some(mask) = &result.text_mask {
         result.compared = true;
         if mask.claims.changed_source_lower > 0 {
@@ -506,6 +515,7 @@ fn compare_text(
     old: &TextView,
     new: &TextView,
     limits: LocalComparisonLimits,
+    remaining_work: &mut usize,
     unresolved: &mut Vec<String>,
 ) -> Result<Option<ExactTextMask>> {
     bounded(
@@ -526,7 +536,6 @@ fn compare_text(
             .push("local text normalization has no source-validated interpretation family".into());
         return Ok(None);
     };
-    let mut remaining_work = limits.proof_work;
     let claims = local_text_claims(
         LocalTextSide {
             tokens: &old.tokens,
@@ -538,7 +547,7 @@ fn compare_text(
             source: &new.source_backed,
             optional: &new_optional,
         },
-        &mut remaining_work,
+        remaining_work,
     )?;
     let Some(claims) = claims else {
         unresolved.push("local character proof did not finish within its work budget".into());

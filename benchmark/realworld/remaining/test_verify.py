@@ -148,6 +148,38 @@ class EvidenceTests(unittest.TestCase):
         }
         with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
             self.assertEqual(verify.events(page_paired)[0]["category"], "B")
+            edge_page = copy.deepcopy(page_paired)
+            scope = edge_page["comparison"]["scopes"][0]["result"]
+            scope["candidates"]["proposals"].append({"old": [7], "new": [9]})
+            scope["accepted_correspondences"].append(2)
+            scope["matching"]["source_only_mandatory"].append(2)
+            population = scope["text_scope_reviews"][0]["source_cuts"]["population"]
+            population["old"].insert(0, 7)
+            population["new"].insert(0, 9)
+            population.update(edge="after", external_boundaries=[2])
+            self.assertEqual(verify.events(edge_page)[0]["category"], "B")
+            before_page = copy.deepcopy(edge_page)
+            population = before_page["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]["source_cuts"]["population"]
+            population.update(edge="before", old=[2, 3, 1, 7], new=[5, 6, 4, 9])
+            self.assertEqual(verify.events(before_page)[0]["category"], "B")
+            for mutation in ("edge", "outermost", "excluded", "interior", "cut", "undeclared"):
+                invalid = copy.deepcopy(edge_page)
+                row = invalid["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+                population = row["source_cuts"]["population"]
+                if mutation == "edge":
+                    population["edge"] = "unknown"
+                elif mutation == "outermost":
+                    population["boundary"] = 2
+                elif mutation == "excluded":
+                    population["external_boundaries"] = []
+                elif mutation == "interior":
+                    row["comparison"]["old"] = [1]
+                elif mutation == "cut":
+                    row["source_cuts"]["entry"]["old"]["node"] = 99
+                else:
+                    del population["edge"]
+                with self.subTest(edge_mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
             for mutation in ("anchor", "membership", "page", "cut", "duplicate", "second_anchor"):
                 invalid = copy.deepcopy(page_paired)
                 scope = invalid["comparison"]["scopes"][0]["result"]

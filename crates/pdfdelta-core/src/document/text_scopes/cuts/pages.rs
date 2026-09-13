@@ -74,6 +74,7 @@ pub(super) fn append(
     right: &[Vec<&GraphNode>],
     sources: Option<&(native::Sources<'_>, native::Sources<'_>)>,
     anchors: &[Anchor],
+    outer_edges: bool,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
@@ -105,10 +106,7 @@ pub(super) fn append(
             .push((old_node.id, new_node.id, proposal));
     }
     for ((a, b), paired_anchors) in pairs {
-        // Existing two-boundary comparisons have their own closure and
-        // external-continuation guards. This fallback must not bypass a
-        // rejected interval by including its anchors inside a wider range.
-        if paired_anchors.len() != 1 {
+        if (paired_anchors.len() > 1) != outer_edges {
             continue;
         }
         let (Some(old_path), Some(new_path)) = (old_paths.get(&a), new_paths.get(&b)) else {
@@ -157,73 +155,115 @@ pub(super) fn append(
                 ))
             })
             .collect();
-        let Some(&(_, _, boundary)) = page_anchors.first() else {
-            continue;
-        };
-        let accepted: BTreeSet<_> = result
-            .accepted_correspondences
-            .iter()
-            .chain(&result.text_boundary_correspondences)
-            .copied()
-            .collect();
-        if spend(remaining, accepted.len()).is_none() {
+        let mut choices = Vec::new();
+        if page_anchors.len() > 1
+            && spend(remaining, page_anchors.len().saturating_mul(4)).is_none()
+        {
             break;
         }
-        let mut external_boundaries = Vec::new();
-        let mut another_anchor = false;
-        for index in accepted {
-            if !result.matching.source_only_mandatory.contains(&index)
-                || result.matching.inferred_proposals.contains(&index)
-            {
-                continue;
+        let local_boundaries: BTreeSet<_> = page_anchors.iter().map(|anchor| anchor.2).collect();
+        if page_anchors.len() == 1 {
+            choices.push((page_anchors[0], None));
+        } else {
+            // Both source paths must agree on their outermost anchor. An
+            // interior interval retains its existing continuation guards.
+            for (edge, reverse) in [
+                (SourceCutPageEdge::After, true),
+                (SourceCutPageEdge::Before, false),
+            ] {
+                let select = |side: bool| {
+                    page_anchors
+                        .iter()
+                        .min_by_key(|&&(a, b, _)| {
+                            let position = if side { b.1 } else { a.1 };
+                            if reverse {
+                                usize::MAX - position
+                            } else {
+                                position
+                            }
+                        })
+                        .copied()
+                };
+                if let (Some(a), Some(b)) = (select(false), select(true))
+                    && a == b
+                {
+                    choices.push((a, Some(edge)));
+                }
             }
-            let proposal = &result.candidates.proposals[index];
-            let ([old_node], [new_node]) = (proposal.old.as_slice(), proposal.new.as_slice())
-            else {
-                continue;
-            };
-            let included = (
-                old_positions.contains_key(old_node),
-                new_positions.contains_key(new_node),
-            );
-            if included == (true, true) && index != boundary {
-                another_anchor = true;
+        }
+        let maps = CutMaps {
+            old: old_maps,
+            new: new_maps,
+        };
+        for (anchor, edge) in choices {
+            let boundary = anchor.2;
+            let accepted: BTreeSet<_> = result
+                .accepted_correspondences
+                .iter()
+                .chain(&result.text_boundary_correspondences)
+                .copied()
+                .collect();
+            if spend(remaining, accepted.len()).is_none() {
                 break;
             }
-            if included.0 != included.1 {
-                external_boundaries.push(index);
+            let mut external_boundaries = Vec::new();
+            let mut another_anchor = false;
+            for index in accepted {
+                if !result.matching.source_only_mandatory.contains(&index)
+                    || result.matching.inferred_proposals.contains(&index)
+                {
+                    continue;
+                }
+                let proposal = &result.candidates.proposals[index];
+                let ([old_node], [new_node]) = (proposal.old.as_slice(), proposal.new.as_slice())
+                else {
+                    continue;
+                };
+                let included = (
+                    old_positions.contains_key(old_node),
+                    new_positions.contains_key(new_node),
+                );
+                if included == (true, true) && index != boundary {
+                    if edge.is_some() && local_boundaries.contains(&index) {
+                        external_boundaries.push(index);
+                    } else {
+                        another_anchor = true;
+                        break;
+                    }
+                }
+                if included.0 != included.1 {
+                    external_boundaries.push(index);
+                }
             }
+            if another_anchor {
+                continue;
+            }
+            let population = SourceCutPopulation::AnchoredPage {
+                boundary,
+                edge,
+                old_page: a,
+                new_page: b,
+                old: old_nodes.iter().map(|node| node.id).collect(),
+                new: new_nodes.iter().map(|node| node.id).collect(),
+                external_boundaries,
+            };
+            compare_population(
+                old,
+                new,
+                result,
+                parent,
+                limits,
+                &[old_nodes.iter().collect()],
+                &[new_nodes.iter().collect()],
+                sources,
+                &[anchor],
+                population,
+                &maps,
+                false,
+                false,
+                remaining,
+            )?;
         }
-        if another_anchor {
-            continue;
-        }
-        let population = SourceCutPopulation::AnchoredPage {
-            boundary,
-            old_page: a,
-            new_page: b,
-            old: old_nodes.iter().map(|node| node.id).collect(),
-            new: new_nodes.iter().map(|node| node.id).collect(),
-            external_boundaries,
-        };
-        compare_population(
-            old,
-            new,
-            result,
-            parent,
-            limits,
-            &[old_nodes.iter().collect()],
-            &[new_nodes.iter().collect()],
-            sources,
-            &page_anchors,
-            population,
-            &CutMaps {
-                old: old_maps,
-                new: new_maps,
-            },
-            false,
-            false,
-            remaining,
-        )?;
     }
     Ok(())
 }
