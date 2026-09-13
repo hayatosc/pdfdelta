@@ -962,16 +962,36 @@ impl Mutation {
     }
 }
 
+/// Returns each section's flattened paragraph start index and paragraph count.
+///
+/// The flattened index includes the title paragraph at position zero and one
+/// heading paragraph before each section's body paragraphs.
+fn section_flattened_starts(document: &CanonicalRenderDocument) -> Result<Vec<(usize, usize)>> {
+    let mut starts = Vec::with_capacity(document.sections().len());
+    let mut flattened = 1usize;
+    for section in document.sections() {
+        flattened = flattened
+            .checked_add(1)
+            .ok_or_else(structured_index_overflow)?;
+        starts.push((flattened, section.paragraphs().len()));
+        flattened = flattened
+            .checked_add(section.paragraphs().len())
+            .ok_or_else(structured_index_overflow)?;
+    }
+    Ok(starts)
+}
+
+fn structured_index_overflow() -> BenchError {
+    BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+}
+
 fn structured_insertion_index(
     document: &CanonicalRenderDocument,
     section_id: &str,
     section_index: usize,
 ) -> Result<usize> {
-    let mut flattened_index = 1usize;
-    for section in document.sections() {
-        flattened_index = flattened_index.checked_add(1).ok_or_else(|| {
-            BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-        })?;
+    let starts = section_flattened_starts(document)?;
+    for (section, &(section_start, _)) in document.sections().iter().zip(&starts) {
         if section.id() == section_id {
             if section_index > section.paragraphs().len() {
                 return Err(BenchError::InvalidInput(format!(
@@ -979,15 +999,10 @@ fn structured_insertion_index(
                     section.paragraphs().len()
                 )));
             }
-            return flattened_index.checked_add(section_index).ok_or_else(|| {
-                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-            });
+            return section_start
+                .checked_add(section_index)
+                .ok_or_else(structured_index_overflow);
         }
-        flattened_index = flattened_index
-            .checked_add(section.paragraphs().len())
-            .ok_or_else(|| {
-                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-            })?;
     }
     Err(BenchError::InvalidInput(format!(
         "unknown structured section id {section_id:?}"
@@ -1001,11 +1016,8 @@ fn apply_structured_paragraph_move(
     line_gap: u16,
 ) -> Result<MutationPlan> {
     validate_paragraph_id(paragraph_id)?;
-    let mut section_start = 1usize;
-    for section in document.sections() {
-        section_start = section_start.checked_add(1).ok_or_else(|| {
-            BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-        })?;
+    let starts = section_flattened_starts(document)?;
+    for (section, &(section_start, _)) in document.sections().iter().zip(&starts) {
         if let Some(from_index) = section
             .paragraphs()
             .iter()
@@ -1023,20 +1035,15 @@ fn apply_structured_paragraph_move(
                     "paragraph move for {paragraph_id:?} must change its section-local index"
                 )));
             }
-            let flattened_index = section_start.checked_add(to_index).ok_or_else(|| {
-                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-            })?;
+            let flattened_index = section_start
+                .checked_add(to_index)
+                .ok_or_else(structured_index_overflow)?;
             return Mutation::ParagraphMove {
                 paragraph_id: paragraph_id.to_owned(),
                 to_index: flattened_index,
             }
             .apply(&document.mutation_document()?, line_gap);
         }
-        section_start = section_start
-            .checked_add(section.paragraphs().len())
-            .ok_or_else(|| {
-                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-            })?;
     }
     Err(BenchError::InvalidInput(format!(
         "unknown structured paragraph id {paragraph_id:?}"
@@ -1051,32 +1058,24 @@ fn apply_structured_paragraph_move_to_section(
     line_gap: u16,
 ) -> Result<MutationPlan> {
     validate_paragraph_id(paragraph_id)?;
-    let mut section_start = 1usize;
+    let starts = section_flattened_starts(document)?;
     let mut source = None;
     let mut destination = None;
 
-    for section in document.sections() {
-        section_start = section_start.checked_add(1).ok_or_else(|| {
-            BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-        })?;
+    for (section, &(section_start, section_len)) in document.sections().iter().zip(&starts) {
         if section.id() == to_section_id {
-            destination = Some((section_start, section.paragraphs().len()));
+            destination = Some((section_start, section_len));
         }
         if let Some(local_index) = section
             .paragraphs()
             .iter()
             .position(|paragraph| paragraph.id() == paragraph_id)
         {
-            let flattened_index = section_start.checked_add(local_index).ok_or_else(|| {
-                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-            })?;
-            source = Some((section.id(), section.paragraphs().len(), flattened_index));
+            let flattened_index = section_start
+                .checked_add(local_index)
+                .ok_or_else(structured_index_overflow)?;
+            source = Some((section.id(), section_len, flattened_index));
         }
-        section_start = section_start
-            .checked_add(section.paragraphs().len())
-            .ok_or_else(|| {
-                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-            })?;
     }
 
     let (source_section_id, source_len, from_index) = source.ok_or_else(|| {
@@ -1108,9 +1107,9 @@ fn apply_structured_paragraph_move_to_section(
     } else {
         destination_start
     };
-    let flattened_index = destination_start.checked_add(to_index).ok_or_else(|| {
-        BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
-    })?;
+    let flattened_index = destination_start
+        .checked_add(to_index)
+        .ok_or_else(structured_index_overflow)?;
     Mutation::ParagraphMove {
         paragraph_id: paragraph_id.to_owned(),
         to_index: flattened_index,
