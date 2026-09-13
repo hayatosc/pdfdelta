@@ -44,6 +44,53 @@ fn make_vector_line(id: u64, from: Vec2, to: Vec2) -> VectorLine {
 }
 
 #[test]
+fn inadmissible_largest_gutter_does_not_hide_a_valid_column_partition() -> Result<()> {
+    for scale in [0.5, 1.0, 3.0] {
+        let intervals = [
+            (0.0, 10.0),
+            (90.0, 100.0),
+            (90.0, 100.0),
+            (160.0, 170.0),
+            (160.0, 170.0),
+        ];
+        let lines = intervals
+            .into_iter()
+            .enumerate()
+            .map(|(index, (start, end))| {
+                let offset = (index % 2) as f64 * 15.0;
+                make_line(
+                    index as u64,
+                    start * scale,
+                    offset * scale,
+                    end * scale,
+                    (offset + 10.0) * scale,
+                )
+            })
+            .collect::<Vec<_>>();
+        let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+        let mut groups = graph
+            .regions
+            .iter()
+            .map(|region| {
+                let mut ids = region.line_ids.clone();
+                ids.sort_by_key(|id| id.0);
+                ids
+            })
+            .collect::<Vec<_>>();
+        groups.sort_by_key(|ids| ids[0].0);
+        assert_eq!(
+            groups,
+            vec![
+                vec![LineId(0), LineId(1), LineId(2)],
+                vec![LineId(3), LineId(4)]
+            ],
+            "scale={scale}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn two_column_page_partitions_into_left_and_right_regions() -> Result<()> {
     // Left column lines (x from 50 to 250)
     let l1 = make_line(1, 50.0, 700.0, 250.0, 712.0);

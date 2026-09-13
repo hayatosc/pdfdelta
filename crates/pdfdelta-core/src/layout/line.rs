@@ -72,7 +72,7 @@ impl Default for LineOptions {
             max_baseline_distance_ratio: 0.25,
             min_cross_axis_overlap_ratio: 0.25,
             min_direction_similarity: 0.98,
-            max_inline_gap_font_size_ratio: 4.0,
+            max_inline_gap_font_size_ratio: 1.5,
             // Justification can shrink word gaps below half a glyph advance.
             // Both relative metrics remain above small kerning offsets.
             space_gap_font_size_ratio: 0.125,

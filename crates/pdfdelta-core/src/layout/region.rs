@@ -1423,16 +1423,19 @@ fn try_vertical_cut(
         .collect();
     intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
 
-    // Find the largest vertical whitespace gap across the whole height.
+    // Choose only gaps that can leave the required line count on both sides.
     let mut max_gap = 0.0;
     let mut best_split_x = 0.0;
 
     let mut current_max_x = intervals[0].1;
-    for window in intervals.windows(2) {
+    for (index, window) in intervals.windows(2).enumerate() {
         current_max_x = current_max_x.max(window[0].1);
         let next_min_x = window[1].0;
         let gap = next_min_x - current_max_x;
-        if gap > max_gap {
+        if gap > max_gap
+            && index + 1 >= options.min_partition_lines
+            && intervals.len() - index > options.min_partition_lines
+        {
             max_gap = gap;
             best_split_x = current_max_x + gap / 2.0;
         }
