@@ -1,0 +1,74 @@
+{
+  "version": 5,
+  "retired_utc": "2026-09-13T16:34:46.642903+00:00",
+  "reason": "G2 fails even at the unadjudicated upper bound of two additional pairs and two producers. All twelve evaluated series and the seven source-only rejections remain exposed before any subsequent implementation/configuration change.",
+  "summary": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v5-summary.json",
+    "sha256": "991c6f4cc3d53caecc0901630cf6debfa07aba9289a0719d15b0bc93cbecae8d"
+  },
+  "selection": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v5-selection-resolved.json",
+    "sha256": "60707f5b6337aa170b98cb5c915a66cd487336f48bc490eebc225351f4d93061"
+  },
+  "retired_series": [
+    {
+      "pair": "nist-40-r3-to-r4",
+      "series": "SP 800-40 enterprise patch management"
+    },
+    {
+      "pair": "nist-56a-r2-to-r3",
+      "series": "SP 800-56A pair-wise key establishment schemes"
+    },
+    {
+      "pair": "nist-70-r3-to-r4",
+      "series": "SP 800-70 national checklist program"
+    },
+    {
+      "pair": "edpb-certification-transfers-v1-to-v2",
+      "series": "Guidelines 07/2022 certification as a tool for transfers"
+    },
+    {
+      "pair": "edpb-codes-transfers-v1-to-v2",
+      "series": "Guidelines 04/2021 codes of conduct as tools for transfers"
+    },
+    {
+      "pair": "arxiv-mamba-v1-to-v2",
+      "series": "arXiv 2312.00752 Mamba"
+    },
+    {
+      "pair": "arxiv-dpo-v1-to-v2",
+      "series": "arXiv 2305.18290 Direct Preference Optimization"
+    },
+    {
+      "pair": "arxiv-deit-v1-to-v2",
+      "series": "arXiv 2012.12877 DeiT"
+    },
+    {
+      "pair": "faa-crm-51d-to-51e",
+      "series": "AC 120-51 Crew Resource Management Training"
+    },
+    {
+      "pair": "mhlw-medical-security-v5-1-to-v5-2",
+      "series": "Guidelines for safety management of medical information systems"
+    },
+    {
+      "pair": "ietf-tcp-793-to-9293",
+      "series": "Transmission Control Protocol"
+    },
+    {
+      "pair": "ietf-pkix-3280-to-5280",
+      "series": "Internet X.509 PKI certificate and CRL profile"
+    }
+  ],
+  "source_only_rejections": [
+    "arxiv-qlora-v1-to-v2",
+    "faa-aqp-54-to-54a",
+    "meti-cyber-management-v2-to-v3",
+    "nist-83-original-to-r1",
+    "arxiv-flashattention-v1-to-v2",
+    "arxiv-palm-v1-to-v2",
+    "arxiv-uniter-v1-to-v2"
+  ],
+  "targets_remain_immutable": true,
+  "reuse_as_unseen_allowed": false
+}

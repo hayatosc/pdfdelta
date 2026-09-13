@@ -729,6 +729,105 @@ fn append_unassigned(fixture: &mut Fixture, page: PageId, y: f64) {
 }
 
 #[test]
+fn exact_masks_do_not_expand_into_unchanged_preceding_paragraphs() {
+    let old = fixture_rows(&[
+        "HEADER",
+        "INTRO",
+        "Same opening.",
+        "old body",
+        "END",
+        "TAIL",
+    ]);
+    let new = fixture_rows(&[
+        "HEADER",
+        "INTRO",
+        "Same opening.",
+        "new body",
+        "END",
+        "TAIL",
+    ]);
+    for (old, new) in [(&old, &new), (&new, &old)] {
+        let result = compare(old, new);
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        assert!(!reviews.is_empty());
+        assert!(reviews.iter().all(|review| {
+            review.old_sources == old.1.nodes[4].sources
+                && review.new_sources == new.1.nodes[4].sources
+        }));
+    }
+}
+
+#[test]
+fn unresolved_opening_rows_remain_inside_the_enclosing_source_interval() {
+    for opening in [
+        &["Same opening."][..],
+        &["Same opening.", "Same continuation."][..],
+    ] {
+        for merged in [false, true] {
+            let setup = |body| {
+                fixture_rows(
+                    &["HEADER", "INTRO"]
+                        .into_iter()
+                        .chain(opening.iter().copied())
+                        .chain([body, "END", "TAIL"])
+                        .collect::<Vec<_>>(),
+                )
+            };
+            let old_body = "a".repeat(800);
+            let new_body = "b".repeat(800);
+            let mut old = setup(&old_body);
+            let mut new = setup(&new_body);
+            for fixture in [&mut old, &mut new] {
+                let NodeContent::Text { view } = &mut fixture.1.nodes[opening.len() + 3].content
+                else {
+                    unreachable!()
+                };
+                view.normalization = TextNormalization::Unresolved {
+                    reason: "Raw body projection requires source validation".into(),
+                };
+            }
+            append_unassigned(&mut old, PageId(1), 70.0);
+            append_unassigned(&mut new, PageId(1), 70.0);
+            let old_target: Vec<_> = old.1.nodes[3..=opening.len() + 3]
+                .iter()
+                .flat_map(|n| n.sources.iter().copied())
+                .collect();
+            let new_target: Vec<_> = new.1.nodes[3..=opening.len() + 3]
+                .iter()
+                .flat_map(|n| n.sources.iter().copied())
+                .collect();
+            if merged {
+                for _ in opening {
+                    merge_following_node(&mut old, 3);
+                    merge_following_node(&mut new, 3);
+                }
+            }
+            for reversed in [false, true] {
+                let result = if reversed {
+                    compare(&new, &old)
+                } else {
+                    compare(&old, &new)
+                };
+                assert!(
+                    result.scopes[0]
+                        .result
+                        .text_scope_reviews
+                        .iter()
+                        .any(|review| {
+                            if reversed {
+                                review.old_sources == new_target && review.new_sources == old_target
+                            } else {
+                                review.old_sources == old_target && review.new_sources == new_target
+                            }
+                        }),
+                    "opening {opening:?}, merged {merged}, reversed {reversed}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn native_interval_survives_unrelated_pages_storage_order_and_reversal() {
     let mut old = fixture("a");
     let mut new = fixture("aa");

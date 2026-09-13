@@ -515,6 +515,7 @@ fn same_raw_text(left: &[&GraphNode], right: &[&GraphNode], remaining: &mut usiz
 pub(super) enum Pass {
     Standard,
     WholeIntervals,
+    EnclosingIntervals,
     RefineExisting,
     Paint,
 }
@@ -538,7 +539,8 @@ pub(super) fn append(
         return Ok(());
     };
     let refine_existing = pass == Pass::RefineExisting;
-    let whole_intervals = pass == Pass::WholeIntervals;
+    let enclosing = pass == Pass::EnclosingIntervals;
+    let whole_intervals = pass == Pass::WholeIntervals || enclosing;
     let initial = *remaining;
     if pass == Pass::Standard
         && population(old, result.matching.scope.old, left, old_sources, remaining).is_some()
@@ -593,11 +595,52 @@ pub(super) fn append(
         }
     }
     let mut deferred = Vec::new();
+    let mut supported_intervals = BTreeSet::new();
+    if enclosing {
+        let count = result.text_scope_reviews.len();
+        if spend(
+            remaining,
+            count.saturating_mul(count.saturating_add(1).ilog2() as usize + 1),
+        )
+        .is_none()
+        {
+            aggregate.exhaustive = false;
+            aggregate.work = initial - *remaining;
+            result.source_cut_search = Some(aggregate);
+            return Ok(());
+        }
+        for review in &result.text_scope_reviews {
+            // Preserve the finite extents of already exact comparisons.
+            // Enclosing discovery is only for unresolved raw source views.
+            if review.comparison.text_mask.is_some() {
+                continue;
+            }
+            let Some(cuts) = &review.source_cuts else {
+                continue;
+            };
+            if let SourceCutPopulation::MatchedInterval { boundaries, .. } = &cuts.population
+                && cuts.edge_refinement.is_none()
+                && matches!(cuts.entry.evidence, CutEvidence::AcceptedBoundary { .. })
+                && matches!(cuts.exit.evidence, CutEvidence::AcceptedBoundary { .. })
+            {
+                supported_intervals.insert(*boundaries);
+            }
+        }
+        // An enclosing view needs an established comparison of its inner
+        // interval. Missing views retain the original fragment search.
+        if supported_intervals.is_empty() {
+            aggregate.work = initial - *remaining;
+            result.source_cut_search = Some(aggregate);
+            return Ok(());
+        }
+    }
     let mut new_anchors = BTreeSet::new();
     if whole_intervals {
-        let work = anchors
-            .len()
-            .saturating_mul(anchors.len().saturating_add(1).ilog2() as usize + 1);
+        let work = anchors.len().saturating_mul(
+            anchors.len().saturating_add(1).ilog2() as usize
+                + supported_intervals.len().saturating_add(1).ilog2() as usize
+                + 1,
+        );
         if spend(remaining, work).is_none() {
             aggregate.work = initial - *remaining;
             result.source_cut_search = Some(aggregate);
@@ -605,10 +648,35 @@ pub(super) fn append(
         }
         new_anchors.extend(anchors.iter().map(|anchor| anchor.1));
     }
-    for pair in anchors.windows(2) {
-        let [(a, b, entry), (c, d, exit)] = pair else {
-            unreachable!()
-        };
+    let adjacent = |first: usize, last: usize| {
+        let (a, b, _) = anchors[first];
+        let (c, d, _) = anchors[last];
+        a.0 == c.0 && b.0 == d.0 && a.1 + 1 == c.1 && b.1 + 1 == d.1
+    };
+    let ends = 0..anchors.len().saturating_sub(1);
+    // An unchanged opening row can be an accepted match inside a paragraph.
+    // After established intervals, retain enclosing views across a consecutive
+    // chain of matched nodes present in the same order on both sides.
+    let wider = ends
+        .clone()
+        .filter(|&last| {
+            enclosing
+                && !adjacent(last, last + 1)
+                && supported_intervals.contains(&[anchors[last].2, anchors[last + 1].2])
+        })
+        .flat_map(|last| {
+            (0..last)
+                .rev()
+                .take_while(move |&first| adjacent(first, first + 1))
+                .map(move |first| (first, last + 1))
+        });
+    for (first, last) in ends
+        .filter(|_| !enclosing)
+        .map(|first| (first, first + 1))
+        .chain(wider)
+    {
+        let (a, b, entry) = &anchors[first];
+        let (c, d, exit) = &anchors[last];
         if a.0 != c.0 || b.0 != d.0 || a.1 >= c.1 || b.1 >= d.1 {
             continue;
         }
@@ -618,7 +686,16 @@ pub(super) fn append(
         if whole_intervals {
             // An accepted counterpart inside only one side prevents this whole
             // interval from having the same boundary order on both revisions.
-            if new_anchors.range((b.0, b.1 + 1)..*d).next().is_some() {
+            if spend(remaining, last - first).is_none() {
+                aggregate.exhaustive = false;
+                break;
+            }
+            if new_anchors
+                .range((b.0, b.1 + 1)..*d)
+                .take(last - first)
+                .count()
+                != last - first - 1
+            {
                 continue;
             }
             if spend(remaining, result.text_scope_reviews.len()).is_none() {

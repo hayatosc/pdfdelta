@@ -1,0 +1,19 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.71s
+     Running tests/document_text_scopes_fixture.rs (target/debug/deps/document_text_scopes_fixture-7f742ad567f64beb)
+
+running 1 test
+
+thread 'equal_boundary_nodes_retain_inner_source_cuts' (417) panicked at crates/pdfdelta-core/tests/document_text_scopes_fixture.rs:773:13:
+merged true, reversed false
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test equal_boundary_nodes_retain_inner_source_cuts ... FAILED
+
+failures:
+
+failures:
+    equal_boundary_nodes_retain_inner_source_cuts
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 48 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p pdfdelta-core --test document_text_scopes_fixture`

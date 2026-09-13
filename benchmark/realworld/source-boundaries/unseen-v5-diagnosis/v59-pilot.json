@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "status": "V59 six-pair pilot retains all V54 event identities and full review payloads. It retains the exact 1881-atom DeiT interval and adds two W-2 ranges. New-output adjudication and full-panel evaluation remain pending.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-matched-prefix-v59/build.json",
+    "sha256": "0bb9c25c3856dea7ae7f4d16ea9d3117281f9868cbf6bb59b8c7973eea402df2"
+  },
+  "rows": [
+    {
+      "pair": "arxiv-deit-v1-to-v2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-deit-v1-to-v2/report.json",
+        "sha256": "edf24acf18c2a1f6cfd0241150f8d2bca7a6aa84955f078a08a481da313a2709"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/arxiv-deit-v1-to-v2-text.json",
+        "sha256": "9f27b02d1bc55124c27cb20e8b82dd458820870141af6be919e2b2f817641e18"
+      },
+      "command": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-deit-v1-to-v2/command.json",
+        "sha256": "357f1b4e5f491a9f958db77ad7e4746a220f95fc43e4dbe961d33dfb47ff1110"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-deit-v1-to-v2/source-review/sources.json",
+        "sha256": "cacad660e0cba55d37b4ec8fff4e04dbea036b0fdf9e0dd3ddf943eda4606447"
+      },
+      "events": 37,
+      "added": [
+        "3eb958e193d18aca56de20f6dd80af75e456cdccd1aa447d9b05ebaf996f4f65"
+      ],
+      "lost": [],
+      "formal_adjudication_complete": false,
+      "retained_full_review_payloads_equal": true
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-bert-v1-to-v2/report.json",
+        "sha256": "763adc9843affbe722a1f44a9632ea7401296e48a45b6d7ef5211b7a23734f22"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-intervals-v54/pilot/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "5c10d03c90e35efeadfb5e399472a0e06079b93d095a943c0b96845e970f167f"
+      },
+      "command": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-bert-v1-to-v2/command.json",
+        "sha256": "72812f573881d12a9a23fcf523b055f04c0df4523e3dc17c181b0d20b1f745e0"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-bert-v1-to-v2/source-review/sources.json",
+        "sha256": "06f61cb9059d06e13f1f2dd351a3fdd6298f6b37479fbca6dbcb2b3dda8b71af"
+      },
+      "events": 11,
+      "added": [],
+      "lost": [],
+      "formal_adjudication_complete": false,
+      "retained_full_review_payloads_equal": true
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/nist-sha-1803-to-1804/report.json",
+        "sha256": "aae5f2780fb9050ae724a6c864837415c3138bd3e4d98f29de9e5f78d06cbd80"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-intervals-v54-full-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "f29c0f35ff93252464bb4ab1dee7f9b96c47a6fe78642d768db262de85641c81"
+      },
+      "command": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/nist-sha-1803-to-1804/command.json",
+        "sha256": "2b7525467618132dd0561cd13c30a6d1a08fbe299d748f7d19321afb01f6aee1"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/nist-sha-1803-to-1804/source-review/sources.json",
+        "sha256": "37e5df995006c5d267310a473da6a76356ce2b9a7398b68b7293eadc6004458a"
+      },
+      "events": 29,
+      "added": [],
+      "lost": [],
+      "formal_adjudication_complete": false,
+      "retained_full_review_payloads_equal": true
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/report.json",
+        "sha256": "a93b4ee355e81342abad5948344d52beceee1d2758b8d4fb043198f930e7c913"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-intervals-v54-full-panel/irs-w2-2024-to-2025-1/irs-w2-2024-to-2025-text.json",
+        "sha256": "f197046e7a96fa30a22536ca455e8213925a55422c64a50333af52e5cc84beaf"
+      },
+      "command": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/command.json",
+        "sha256": "6af2c301fad7fa61a82e11575cc5a57b4b0d6e99b33aca49c3329789d7bd1b12"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/source-review/sources.json",
+        "sha256": "2967f35d496a252b5baa22abef13db9419208c3ee3f5bd2175c0f12e99050d3f"
+      },
+      "events": 20,
+      "added": [
+        "61175c38bd5cb843b8e6f4cfb6d46ffb168f905fd6762299dead340f36ab3eaa",
+        "f27b06dc391b8c9f5b77a59ac6a380b01159da791165eef43a0a1595d3bfe13e"
+      ],
+      "lost": [],
+      "formal_adjudication_complete": false,
+      "retained_full_review_payloads_equal": true
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/nist-ssdf-draft-to-final/report.json",
+        "sha256": "79e5e28c1b00db526eec304cabb288d40f03ee46a3537fb6effd3dfa8d0b2e2f"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-intervals-v54-full-panel/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "24d5bccf91ab8d409254ce6c088b202cf7199d6ccc62a0a27763848de8f4f594"
+      },
+      "command": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/nist-ssdf-draft-to-final/command.json",
+        "sha256": "7b3bcff14d1a51c2156a0fe7bfd08f1582863c2adf3b43c218096d82816cd9b4"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/nist-ssdf-draft-to-final/source-review/sources.json",
+        "sha256": "2806c72e027eaddec5c3231b462fceab28a8e4df8c1a11d0a10f8cf30619273e"
+      },
+      "events": 5,
+      "added": [],
+      "lost": [],
+      "formal_adjudication_complete": false,
+      "retained_full_review_payloads_equal": true
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/edpb-social-targeting-v1-to-v2/report.json",
+        "sha256": "6cde342918c33c25a393aa60d79448dee645f641e64c3c3054e34bc0f3198e0f"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-native-intervals-v54-full-panel/edpb-social-targeting-v1-to-v2-1/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "15eb625575f8cc117fa801c39ce8203cbde611fe3aa62bba7f77638268d4a274"
+      },
+      "command": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/edpb-social-targeting-v1-to-v2/command.json",
+        "sha256": "f1e01c52d26ed3dd23bf2cd53e2999fbce895a4a0dc817b1699739bc726eb1aa"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/edpb-social-targeting-v1-to-v2/source-review/sources.json",
+        "sha256": "db35cb68ab6103eadf358c41e5a930c2aa454459d55f0e0e167336c7e6dd93a9"
+      },
+      "events": 14,
+      "added": [],
+      "lost": [],
+      "formal_adjudication_complete": false,
+      "retained_full_review_payloads_equal": true
+    }
+  ],
+  "next_premise": "Every lost W-2/SSDF range had an exact mask in V54. Early enclosing work must be restricted to unmasked raw parents; all other enclosing work remains last."
+}

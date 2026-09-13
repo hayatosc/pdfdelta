@@ -1,5 +1,5 @@
 {
-  "source_sha256": "daf83cfd26ade93033b14f2d8e98673aa9108ac91da69c8c0a8fc75521cddc97",
+  "source_sha256": "1d15a497bdd0e6e7c6145c82de6c7ca9dc279b062530ae94370a8bdd7737dca0",
   "checks": [
     {
       "command": [
@@ -11,7 +11,7 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v60-fmt.log",
+        "path": "benchmark/realworld/source-boundaries/checks/v57-fmt.log",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -28,8 +28,8 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v60-locked-clippy.log",
-        "sha256": "71e9fce9776a40e493ef1bffe1d229eb5a1631f920ad1724583f9cff457eb89f"
+        "path": "benchmark/realworld/source-boundaries/checks/v57-locked-clippy.log",
+        "sha256": "32d47f791eadf1ea833d9f8c84fbfea5cab1f438e113e93be05bd5b908e1c2ac"
       }
     },
     {
@@ -41,8 +41,8 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v60-locked-tests.log",
-        "sha256": "c9ad39507c03ff483bdc77fc7ce6800917176143d5b9223f8459782184e8d846"
+        "path": "benchmark/realworld/source-boundaries/checks/v57-locked-tests.log",
+        "sha256": "18fa6b622ab586b46b733caf662ae2dfee2d306d935e7c9ff80f3b6effcaf994"
       }
     },
     {
@@ -57,10 +57,10 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v60-generated.log",
-        "sha256": "eb3d5a1a19fad1e00bba9f77d33c7a35fe3f3bc5a6ab8f59f44400e373856edb"
+        "path": "benchmark/realworld/source-boundaries/checks/v57-generated.log",
+        "sha256": "4779d8c32bba1113aa388fb46bab4483e91d48ec04e60b2fbb8a3f830bc8a239"
       }
     }
   ],
-  "reuse_note": "All four canonical commands completed successfully against the frozen V60 Rust and Cargo sources."
+  "scope": "V57 prototype checks. Real development regression remains unresolved; not an adoption or goal claim."
 }

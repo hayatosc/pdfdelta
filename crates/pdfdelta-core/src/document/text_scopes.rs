@@ -490,6 +490,32 @@ fn append_pass(
                 )?;
                 merge_cut_search(result, prior, before - *remaining);
             }
+            // Unmasked raw intervals need a turn before general page and
+            // lexical discovery exhausts the remaining work. Keep half of that
+            // work for those established searches; the total cap is unchanged.
+            let prior = result.source_cut_search.take();
+            let before = *remaining;
+            let allowance = before / 2;
+            let mut enclosing_remaining = allowance;
+            cuts::append(
+                old,
+                new,
+                result,
+                parent,
+                limits,
+                &left,
+                &right,
+                sources.as_ref(),
+                &anchors,
+                rows,
+                cuts::Pass::EnclosingIntervals,
+                &mut enclosing_remaining,
+            )?;
+            *remaining -= allowance - enclosing_remaining;
+            if let Some(search) = &mut result.source_cut_search {
+                search.budget_at_entry = before;
+            }
+            merge_cut_search(result, prior, before - *remaining);
             let prior = result.source_cut_search.take();
             let before = *remaining;
             cuts::append(
