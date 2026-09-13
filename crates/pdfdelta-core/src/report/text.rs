@@ -609,7 +609,8 @@ fn edited_runs<'a>(spans: &[&'a TextSpan]) -> Vec<EditedRuns<'a>> {
         }) {
             match group.runs.last_mut() {
                 Some((_, last_end))
-                    if span.comparable_range.start <= *last_end + COALESCE_MAX_EQUAL_TOKENS =>
+                    if span.comparable_range.start
+                        <= last_end.saturating_add(COALESCE_MAX_EQUAL_TOKENS) =>
                 {
                     *last_end = (*last_end).max(span.comparable_range.end);
                 }
@@ -635,7 +636,8 @@ fn merged_edited_ranges<'a>(spans: impl Iterator<Item = &'a TextSpan>) -> Vec<(u
     for span in spans {
         match merged.last_mut() {
             Some((_, last_end))
-                if span.comparable_range.start <= *last_end + COALESCE_MAX_EQUAL_TOKENS =>
+                if span.comparable_range.start
+                    <= last_end.saturating_add(COALESCE_MAX_EQUAL_TOKENS) =>
             {
                 *last_end = (*last_end).max(span.comparable_range.end);
             }
