@@ -1,0 +1,375 @@
+{
+  "version": 1,
+  "evaluator": {
+    "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v12-evaluator/verify.py",
+    "sha256": "9cdd8b8b74f2e97f0cd9622cae1f676fd99604f26cd8927bfe8ae19c2fa50113"
+  },
+  "adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v12-adjudications.json",
+    "sha256": "c8441a1ff9a214dc0b3174dc3b2246a0045d5b7d130e4c66b1adad69f10ecc7e"
+  },
+  "target_references": {
+    "arxiv-bert-v1-to-v2": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/arxiv-bert-v1-to-v2.json",
+        "sha256": "faa8d39f3f801ed77f185bb277e7185a768d8884fa266efee3695bd9bff8ffcd"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/arxiv-bert-v1-to-v2.resolved.json",
+        "sha256": "78e2b5b47f9fe732d5a280be78a4e93d610069da24932ac348d951036e2f5242"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/arxiv-bert-v1-to-v2.expectations.json",
+        "sha256": "5f9cdbfd030afc58afb26d0cfccdb9392301aed0e2072cbe984f920e82ece9e3"
+      }
+    },
+    "nist-sha-1803-to-1804": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-sha-1803-to-1804.json",
+        "sha256": "6e3bac06b49736c7acc0e47c15daa0b103d3c58bb9994c288c3a2a8cce1f31c1"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/nist-sha-1803-to-1804.resolved.json",
+        "sha256": "cfe4f8057a8fb0a0f28257b18214fd9e1c014437f3d4cdd9e25ff5654e2e7013"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-sha-1803-to-1804.expectations.json",
+        "sha256": "6b8a33d4f7ad645753d2fc226271bc2d746338aa8534d09af12b85eec6a0521b"
+      }
+    },
+    "edpb-controller-processor-v1-to-v2-1": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+        "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+        "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.expectations.json",
+        "sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f"
+      }
+    }
+  },
+  "scores": [
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "2e3028c1db62651ffe0f17fb16cf27b185db71f4ce874b1da8672c04accd9ef1"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "278f523427f10ae185bb2380b922890124baa349da1ea76390bf009ca0da80d0"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 11,
+      "C": 0,
+      "new_AB_outputs": 11,
+      "adjudicated_AB_outputs": 11,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "c7b47a88cafe79548b601ee8e3c76c26a04b7041edd929ff9ccf1de12cedd3ed"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 11,
+      "C": 0,
+      "new_AB_outputs": 11,
+      "adjudicated_AB_outputs": 11,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/two-final-current/nist-sha-1803-to-1804-text.json",
+        "sha256": "720c4ebee01e6e5456ad3b84f6c80fcdb04e9c30803c4cc68bc406795c2fa3fa"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-sha-1803-to-1804-text.json",
+        "sha256": "bf6eef5d3f46b8bdde6638a440b5faa113bfa32c70c38a2b1e472831100629e5"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 20,
+      "C": 0,
+      "new_AB_outputs": 20,
+      "adjudicated_AB_outputs": 20,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "aba3ccd96e1ca29103c8d350386aedf9ae714541d25d4d34648ce7ea56c63252"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 20,
+      "C": 0,
+      "new_AB_outputs": 20,
+      "adjudicated_AB_outputs": 20,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "278f523427f10ae185bb2380b922890124baa349da1ea76390bf009ca0da80d0"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 11,
+      "C": 0,
+      "new_AB_outputs": 11,
+      "adjudicated_AB_outputs": 11,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/arxiv-bert-v1-to-v2-2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "f6b36dccf329866e6bbbac6b0c3facd5484d2f4c07292c99da6041a96d05522f"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 11,
+      "C": 0,
+      "new_AB_outputs": 11,
+      "adjudicated_AB_outputs": 11,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-sha-1803-to-1804-text.json",
+        "sha256": "bf6eef5d3f46b8bdde6638a440b5faa113bfa32c70c38a2b1e472831100629e5"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 20,
+      "C": 0,
+      "new_AB_outputs": 20,
+      "adjudicated_AB_outputs": 20,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-sha-1803-to-1804-2/nist-sha-1803-to-1804-text.json",
+        "sha256": "656669bee9bd0d319d1e570544857be9f852800542f66c4d90d49730d6ca8a0b"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 20,
+      "C": 0,
+      "new_AB_outputs": 20,
+      "adjudicated_AB_outputs": 20,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/two-final-current/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "f9e0145a76af78cd4353c90f5be3a3248421d33f7052c33265728b4fa93eef8f"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "1740023a101f1bda8835480486ab413df774cc33fcc77dc25e8a59c39718224d"
+      },
+      "target_atoms": 986,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 9,
+      "C": 0,
+      "new_AB_outputs": 9,
+      "adjudicated_AB_outputs": 9,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "107dc4dee36fc25dccb9cfeddafa15b16b544ddcfb90b7c9be4886e556c203c4"
+      },
+      "target_atoms": 986,
+      "additional_categories": [],
+      "correct": true,
+      "A": 0,
+      "B": 9,
+      "C": 0,
+      "new_AB_outputs": 9,
+      "adjudicated_AB_outputs": 9,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "1740023a101f1bda8835480486ab413df774cc33fcc77dc25e8a59c39718224d"
+      },
+      "target_atoms": 986,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 9,
+      "C": 0,
+      "new_AB_outputs": 9,
+      "adjudicated_AB_outputs": 9,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-2/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "53cfb188f44a1cc5ded31163a69f1c2502f0b7ab08ce894d93dfbf368014af49"
+      },
+      "target_atoms": 986,
+      "additional_categories": [],
+      "correct": true,
+      "A": 0,
+      "B": 9,
+      "C": 0,
+      "new_AB_outputs": 9,
+      "adjudicated_AB_outputs": 9,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    }
+  ],
+  "status": "Three reviewed natural pairs from three producers score B against the surviving historical repetition 2. EDPB is retained baseline capability, BERT is retained source-cut recovery, and NIST is one additional pair with a fixed 383-atom target. Repetitions and baselines are not additional pairs. The six-pair development and new unseen gates remain unmet."
+}

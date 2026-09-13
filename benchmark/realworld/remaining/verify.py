@@ -174,10 +174,64 @@ def checked_source_cuts(review, result):
                     and [members[0], members[-1]] == [value[side][0] for value in outer]
                     and set(review["comparison"][side]) <= set(members),
                     "review escapes its declared cut population")
+    refinement = cuts.get("edge_refinement")
+    if refinement is not None:
+        require(refinement["convention"] == "mandatory-literal-space-content-edges-v1"
+                and len(refinement["enclosing"]) == 2, "unsupported content edge refinement")
+        parents = [candidate for candidate in result.get("text_scope_reviews", [])
+                   if candidate.get("source_cuts") is not None
+                   and candidate["source_cuts"].get("edge_refinement") is None
+                   and candidate["source_cuts"]["population"] == population
+                   and [candidate["source_cuts"][name] for name in ("entry", "exit")]
+                   == refinement["enclosing"]]
+        require(len(parents) == 1, "content edge lacks its retained enclosing comparison")
+        parent_review = parents[0]
+        checked_source_cuts(parent_review, result)
+        for side in ("old", "new"):
+            padding_fragments = refinement[side + "_padding"]
+            require(len(padding_fragments) == 2, "content edge lacks both padding partitions")
+            refs = []
+            for fragments in padding_fragments:
+                for fragment in fragments:
+                    require(type(fragment["node"]) is int and fragment["node"] >= 0
+                            and len(fragment["tokens"]) == 2
+                            and all(type(index) is int for index in fragment["tokens"])
+                            and 0 <= fragment["tokens"][0] < fragment["tokens"][1]
+                            and fragment["sources"], "invalid content edge fragment")
+                    refs.extend(fragment["sources"])
+            removed = historical.native_sources(refs, side)
+            body = historical.native_sources(review[side + "_sources"], side)
+            enclosing = historical.native_sources(parent_review[side + "_sources"], side)
+            require(len(removed) == len(refs) and body and not removed & body
+                    and removed | body == enclosing, "content edge loses or reuses enclosing sources")
+            before = parent_review["comparison"]["operation"].get(side)
+            after = review["comparison"]["operation"].get(side)
+            require(isinstance(before, str) and isinstance(after, str)
+                    and before.strip(" ") == after.strip(" ") and len(before) >= len(after)
+                    and (padding_fragments[0] or before.startswith(after))
+                    and (padding_fragments[1] or before.endswith(after)),
+                    "content edge changes interior text")
+        for index, name in enumerate(("entry", "exit")):
+            changed = bool(refinement["old_padding"][index] or refinement["new_padding"][index])
+            require((cuts[name]["evidence"]["kind"] == "corresponding_content_edge") if changed
+                    else cuts[name] == refinement["enclosing"][index],
+                    "content edge evidence disagrees with its padding")
+            for side in ("old", "new"):
+                fragments = refinement[side + "_padding"][index]
+                if fragments:
+                    fragment = fragments[-1] if index == 0 else fragments[0]
+                    expected = {"node": fragment["node"],
+                                "token_boundary": fragment["tokens"][1 if index == 0 else 0]}
+                else:
+                    expected = refinement["enclosing"][index][side]
+                require(cuts[name][side] == expected, "content cut is not its padding edge")
+        require(any(refinement["old_padding"]) or any(refinement["new_padding"]),
+                "content refinement has no removed padding")
     for name in ("entry", "exit"):
         boundary = cuts[name]
         evidence = boundary["evidence"]
-        require(evidence["kind"] in ("accepted_boundary", "unique_native_fragment"),
+        require(evidence["kind"] in ("accepted_boundary", "unique_native_fragment")
+                or (refinement is not None and evidence["kind"] == "corresponding_content_edge"),
                 "unknown cut evidence")
         accepted_node = checked_boundary_proposal(result, evidence["proposal"]) if evidence["kind"] == "accepted_boundary" else None
         for side in ("old", "new"):
@@ -189,7 +243,7 @@ def checked_source_cuts(review, result):
                 require(cut["node"] in population[side], "cut escapes its declared population")
             if accepted_node is not None:
                 require(accepted_node[side] == [cut["node"]], "cut disagrees with accepted node")
-            else:
+            elif evidence["kind"] == "unique_native_fragment":
                 fragment = evidence[side]
                 if padding is not None:
                     require(not historical.native_sources(fragment["sources"], side)

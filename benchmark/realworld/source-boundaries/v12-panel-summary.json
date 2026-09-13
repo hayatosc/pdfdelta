@@ -1,0 +1,331 @@
+{
+  "version": 1,
+  "scope": "All 36 registered development pairs; candidate extent matches are not reviewed recovery except for separately adjudicated selected pairs.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v12-panel-observations.json",
+    "sha256": "d6ad11efb4f7989a28e290bb3440a69dce4bd03f8c73a4357cb5a721615f3dfa"
+  },
+  "categories": {
+    "B": 142,
+    "A": 1
+  },
+  "complete_pairs": 0,
+  "pairs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "categories": {
+        "B": 9
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "categories": {
+        "B": 21
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "categories": {
+        "B": 1
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "categories": {
+        "B": 1
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "categories": {
+        "B": 11
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "categories": {
+        "A": 1
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "categories": {
+        "B": 11
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/10"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "categories": {
+        "B": 20
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/12"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 11,
+      "edge_refinements": 2
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "categories": {
+        "B": 43
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "categories": {
+        "B": 14
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 12,
+      "edge_refinements": 6
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "categories": {
+        "B": 11
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0
+    }
+  ]
+}

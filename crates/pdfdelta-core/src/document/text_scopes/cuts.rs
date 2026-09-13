@@ -4,6 +4,8 @@ use super::*;
 use crate::document::{TextNormalization, TextView};
 use crate::normalize::ComparableToken;
 
+mod edges;
+
 /// A token boundary in an existing retained source view.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceCut {
@@ -29,6 +31,8 @@ pub enum CutEvidence {
         old: SourceFragment,
         new: SourceFragment,
     },
+    /// A mandatory literal-space edge inside the declared enclosing cuts.
+    CorrespondingContentEdge,
 }
 
 /// Equality and occurrence closure are local to the declared source universe;
@@ -47,6 +51,18 @@ pub struct SourceCutRange {
     pub population: SourceCutPopulation,
     pub entry: CutCorrespondence,
     pub exit: CutCorrespondence,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge_refinement: Option<Box<SourceCutEdgeRefinement>>,
+}
+
+/// A second, non-owning comparison of the content between literal edge spaces.
+/// The original interval remains reported, including any space-only change.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceCutEdgeRefinement {
+    pub convention: String,
+    pub enclosing: [CutCorrespondence; 2],
+    pub old_padding: [Vec<SourceFragment>; 2],
+    pub new_padding: [Vec<SourceFragment>; 2],
 }
 
 /// The finite universe in which cut occurrences were counted. An interval's
@@ -101,6 +117,7 @@ fn original_boundary(maps: &OriginalCuts, node: NodeId, position: usize) -> Opti
         .map_or(Some(position), |map| map.get(position).copied().flatten())
 }
 
+#[derive(Clone)]
 struct Boundary {
     old: Position,
     new: Position,
@@ -588,11 +605,16 @@ fn compare_population(
     search.work = initial - *remaining;
     search.paired_boundaries = boundaries.len();
     result.source_cut_search = Some(search);
-    for pair in boundaries.windows(2) {
+    // Refinements are queued after every original interval so a finer view
+    // cannot consume the work needed to establish its enclosing comparisons.
+    let mut agenda: std::collections::VecDeque<_> = boundaries
+        .windows(2)
+        .map(|pair| (pair[0].clone(), pair[1].clone(), None))
+        .collect();
+    while let Some((entry, exit, refinement)) = agenda.pop_front() {
         if spend(remaining, boundaries.len()).is_none() {
             break;
         }
-        let [entry, exit] = pair else { unreachable!() };
         if entry.new > exit.new
             || entry.old.0 != exit.old.0
             || entry.new.0 != exit.new.0
@@ -731,6 +753,7 @@ fn compare_population(
                 population: population.clone(),
                 entry: entry.certificate.clone(),
                 exit: exit.certificate.clone(),
+                edge_refinement: refinement.clone(),
             }),
             old_sources: old_extent,
             presence: interval_presence(a.is_empty(), b.is_empty()),
@@ -751,6 +774,11 @@ fn compare_population(
             }),
             comparison,
         });
+        if refinement.is_none()
+            && let Some(refined) = edges::refine(left, right, &entry, &exit, maps, remaining)
+        {
+            agenda.push_back(refined);
+        }
     }
     Ok(())
 }

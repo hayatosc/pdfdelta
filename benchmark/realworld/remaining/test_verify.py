@@ -152,6 +152,43 @@ class EvidenceTests(unittest.TestCase):
                 with self.subTest(padding_mutation=mutation), self.assertRaises(ValueError):
                     verify.events(invalid)
 
+        refined = copy.deepcopy(report)
+        result = refined["comparison"]["scopes"][0]["result"]
+        parent = result["text_scope_reviews"][0]
+        inner = copy.deepcopy(parent)
+        for side in ("old", "new"):
+            parent[side + "_sources"].append({"origin": "native", "glyph": 99})
+            parent["comparison"]["operation"][side] += " "
+        inner["source_cuts"]["edge_refinement"] = {
+            "convention": "mandatory-literal-space-content-edges-v1",
+            "enclosing": [copy.deepcopy(parent["source_cuts"][name]) for name in ("entry", "exit")],
+            **{side + "_padding": [[], [{"node": node, "tokens": [2, 3],
+                                         "sources": [{"origin": "native", "glyph": 99}]}]]
+               for side, node in (("old", 2), ("new", 5))},
+        }
+        inner["source_cuts"]["exit"] = {
+            "old": {"node": 2, "token_boundary": 2}, "new": {"node": 5, "token_boundary": 2},
+            "evidence": {"kind": "corresponding_content_edge"},
+        }
+        result["text_scope_reviews"].append(inner)
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            verify.checked_source_cuts(inner, result)
+            for mutation in ("parent", "overlap", "text", "certificate", "empty"):
+                invalid = copy.deepcopy(result)
+                row = invalid["text_scope_reviews"][1]
+                if mutation == "parent":
+                    invalid["text_scope_reviews"].pop(0)
+                elif mutation == "overlap":
+                    row["old_sources"].append({"origin": "native", "glyph": 99})
+                elif mutation == "text":
+                    row["comparison"]["operation"]["new"] += "x"
+                elif mutation == "certificate":
+                    del row["source_cuts"]["edge_refinement"]
+                else:
+                    row["source_cuts"]["edge_refinement"]["old_padding"] = [[], []]
+                with self.subTest(edge_mutation=mutation), self.assertRaises(ValueError):
+                    verify.checked_source_cuts(row, invalid)
+
     def test_partial_spacing_needs_a_versioned_independent_change_proof(self):
         report = self.report()
         review = report["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]

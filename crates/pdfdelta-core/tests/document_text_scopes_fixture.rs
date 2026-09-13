@@ -699,6 +699,89 @@ fn merge_following_node(fixture: &mut Fixture, index: usize) {
 }
 
 #[test]
+fn source_content_edges_preserve_coarse_space_changes_and_exact_body_sources() {
+    for (a, b, refined) in [
+        ("Value 10.   ", "Value 20.  ", true),
+        ("  Value 10. ", " Value 20.  ", true),
+        ("Value 10.", "Value 20.  ", true),
+        ("Value 10.   ", "Value 10.  ", false),
+        ("The file is now here.  ", "The file is nowhere. ", true),
+        ("  ", " ", false),
+    ] {
+        let old = fixture_rows(&["BEGIN", a, "END", "STOP"]);
+        let mut new = fixture_rows(&["BEGIN", b, "END", "STOP"]);
+        let old_sources = old.1.nodes[2].sources.clone();
+        let new_sources = new.1.nodes[2].sources.clone();
+        merge_following_node(&mut new, 2);
+        let result = compare(&old, &new);
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        if !a.trim_matches(' ').is_empty() {
+            assert!(
+                reviews
+                    .iter()
+                    .any(|review| review.old_sources == old_sources
+                        && review.new_sources == new_sources),
+                "coarse {a:?} -> {b:?}"
+            );
+        }
+        let inner: Vec<_> = reviews
+            .iter()
+            .filter(|review| {
+                review
+                    .source_cuts
+                    .as_ref()
+                    .is_some_and(|cuts| cuts.edge_refinement.is_some())
+            })
+            .collect();
+        assert_eq!(inner.len(), usize::from(refined), "{a:?} -> {b:?}");
+        if let Some(review) = inner.first() {
+            let old_start = a.len() - a.trim_start_matches(' ').len();
+            let new_start = b.len() - b.trim_start_matches(' ').len();
+            assert_eq!(
+                review.old_sources,
+                old_sources[old_start..a.trim_end_matches(' ').len()]
+            );
+            assert_eq!(
+                review.new_sources,
+                new_sources[new_start..b.trim_end_matches(' ').len()]
+            );
+            let proof = review
+                .source_cuts
+                .as_ref()
+                .expect("source cut interval")
+                .edge_refinement
+                .as_ref()
+                .expect("content edge refinement");
+            for (padding, sources, body, start) in [
+                (
+                    &proof.old_padding,
+                    &old_sources,
+                    &review.old_sources,
+                    old_start,
+                ),
+                (
+                    &proof.new_padding,
+                    &new_sources,
+                    &review.new_sources,
+                    new_start,
+                ),
+            ] {
+                let prefix: Vec<_> = padding[0]
+                    .iter()
+                    .flat_map(|fragment| fragment.sources.iter().copied())
+                    .collect();
+                assert_eq!(prefix, sources[..start]);
+                let rest: Vec<_> = padding[1]
+                    .iter()
+                    .flat_map(|fragment| fragment.sources.iter().copied())
+                    .collect();
+                assert_eq!(rest, sources[start + body.len()..]);
+            }
+        }
+    }
+}
+
+#[test]
 fn source_cuts_use_a_closed_matched_population_with_unrelated_pages() {
     let mut old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
     let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);

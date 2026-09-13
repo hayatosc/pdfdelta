@@ -1,0 +1,318 @@
+{
+  "version": 1,
+  "scope": "Current local availability audit. Missing historical captures are not recreated or relabeled. Selected scores explicitly bind the surviving historical repetition 2.",
+  "historical_executable": {
+    "path": "benchmark/realworld/cache/next-execution/pdfdelta-9093cab",
+    "expected_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+    "available": false,
+    "same_hash_cache_search_match": false
+  },
+  "indices": [
+    {
+      "index": "benchmark/realworld/followup/baseline-observations.json",
+      "observations": 72,
+      "present_and_hash_verified": 35,
+      "unavailable": [
+        {
+          "pair": "irs-schedule-c-2024-to-2025",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-c-2024-to-2025-text.json",
+            "sha256": "9218c8c42995c2089c62819b34f6f449f0bd313e905d84023a2204b65be32d1b"
+          }
+        },
+        {
+          "pair": "irs-schedule-se-2024-to-2025",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-schedule-se-2024-to-2025-text.json",
+            "sha256": "243492d0b5b6286071b314bb0b439878bbf902e392f4ae2923d2953a978f58ee"
+          }
+        },
+        {
+          "pair": "irs-w9-2018-to-2024",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/irs-w9-2018-to-2024-text.json",
+            "sha256": "4d723c7e0788d57a86120f26c5058a79c52b0b713b8199cf365d6e6259c6ec38"
+          }
+        },
+        {
+          "pair": "arxiv-ddpm-v1-to-v2",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-ddpm-v1-to-v2-text.json",
+            "sha256": "4d90ca4977230b7a08ef0c4cca847945a6988858189cd58216a46bc9f222bdad"
+          }
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-bert-v1-to-v2-text.json",
+            "sha256": "2e3028c1db62651ffe0f17fb16cf27b185db71f4ce874b1da8672c04accd9ef1"
+          }
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-incident-handling-r2-to-r3-text.json",
+            "sha256": "8f522b2b5d135ed77cd6796514f3f0b0e289bb9aeee21fcf71c59e501d66a879"
+          }
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ssdf-draft-to-final-text.json",
+            "sha256": "20a1b4f67b829d5718d13da1a996ad1f98fa4e4d078eace35fcc716b6f13c8e1"
+          }
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-authentication-63b-to-63b4-text.json",
+            "sha256": "71218e81b114d85f24a1ce5dd5e976b334ca7b641b950d180ebe6a4b3c7963a3"
+          }
+        },
+        {
+          "pair": "nist-ai-rmf-draft2-to-v1",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ai-rmf-draft2-to-v1-text.json",
+            "sha256": "3a2bff9ecedcbf14d7f666afe9e7ecd4d791e8d2da18cf35abfcedc0fd6cfc99"
+          }
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-design-default-v1-to-v2-text.json",
+            "sha256": "6ac2804b57d4e32eaf67541753134782186510773e7b286b17758b84f093f99e"
+          }
+        },
+        {
+          "pair": "edpb-restrictions-v1-to-final",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-restrictions-v1-to-final-text.json",
+            "sha256": "ab09ea5f910b0b5946f25a68f8eb72ab4f3e6524ab0154154b2a149a07973ce4"
+          }
+        },
+        {
+          "pair": "edpb-social-targeting-v1-to-v2",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-social-targeting-v1-to-v2-text.json",
+            "sha256": "49208e843c42231ffea75ff8505fca6eec7b4580f9d4881be9cd0422cb1744c8"
+          }
+        },
+        {
+          "pair": "mext-primary-japanese-2008-to-2017",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-primary-japanese-2008-to-2017-text.json",
+            "sha256": "935915a6c193e03d0f695bcf229e975b650f260606cdf52f1347e461a639bea1"
+          }
+        },
+        {
+          "pair": "mext-lower-secondary-japanese-2008-to-2017",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-lower-secondary-japanese-2008-to-2017-text.json",
+            "sha256": "6af6ed90146f9063abb00accba9a3cff783235a1fcc2f60be81c00521aaf48df"
+          }
+        },
+        {
+          "pair": "mext-upper-secondary-japanese-2009-to-2018",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/mext-upper-secondary-japanese-2009-to-2018-text.json",
+            "sha256": "96fff5bc4211fef586c47f9eef6a0b926168ea8e86154e7cc010a9de9888594a"
+          }
+        },
+        {
+          "pair": "mhlw-care-skills-original-to-revised",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/mhlw-care-skills-original-to-revised-text.json",
+            "sha256": "ee6db1fe4abc39671fa7500de3afd61366fa6a914145d534f7f086ca3351d81b"
+          }
+        },
+        {
+          "pair": "arxiv-gpt3-v1-to-v4",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/arxiv-gpt3-v1-to-v4-text.json",
+            "sha256": "7b8a299555f7f1881c2b8879eb0dd1aa76b377a2c056a930b404ca30dde8ae79"
+          }
+        },
+        {
+          "pair": "arxiv-llama2-v1-to-v2",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/arxiv-llama2-v1-to-v2-text.json",
+            "sha256": "be56980865eae8c91a3eda02196ce1c958c24dd5a068bdd3262194f488f3e9f7"
+          }
+        },
+        {
+          "pair": "nasa-buckling-8007-1968-to-2020",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/nasa-buckling-8007-1968-to-2020-text.json",
+            "sha256": "9ab257248f3239fbacbc2202bd2efdc0845b4e60a8a3eb6b41212e46f564c19d"
+          }
+        },
+        {
+          "pair": "ipcc-synthesis-ar5-to-ar6",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/ipcc-synthesis-ar5-to-ar6-text.json",
+            "sha256": "b44e99882aec0076a7ff93564dac6275bb19193eb9a2a52e329ce0ad486fa0dc"
+          }
+        },
+        {
+          "pair": "ecb-annual-2023-to-2024",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/nine-9093cab/ecb-annual-2023-to-2024-text.json",
+            "sha256": "f1acac9ed1d62e6ce99e15e15625d8098b2e341ed441c2ddbe2c0435e4271692"
+          }
+        },
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/two-final-current/edpb-controller-processor-v1-to-v2-1-text.json",
+            "sha256": "f9e0145a76af78cd4353c90f5be3a3248421d33f7052c33265728b4fa93eef8f"
+          }
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-execution/two-final-current/nist-sha-1803-to-1804-text.json",
+            "sha256": "720c4ebee01e6e5456ad3b84f6c80fcdb04e9c30803c4cc68bc406795c2fa3fa"
+          }
+        },
+        {
+          "pair": "nist-risk-management-37-r1-to-r2",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/nist-risk-management-37-r1-to-r2-text.json",
+            "sha256": "ca061eef6de9fb3bb9db986aa9b7c15c0237dfeed60650719124088cccef91f2"
+          }
+        },
+        {
+          "pair": "irs-1099-misc-2024-to-2025",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/irs-1099-misc-2024-to-2025-text.json",
+            "sha256": "e0af10947a7b3479c9d53b6f54df8573c692c29f6b98b4853d2fd0f24e3bb5fb"
+          }
+        },
+        {
+          "pair": "irs-w2-2024-to-2025",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/irs-w2-2024-to-2025-text.json",
+            "sha256": "b19f54c3729b9f3f26099803934b1559d3ccea9e8dee6a352de6c82b46657d45"
+          }
+        },
+        {
+          "pair": "arxiv-mask-rcnn-v1-to-v3",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/arxiv-mask-rcnn-v1-to-v3-text.json",
+            "sha256": "6219e060f16042f6c065360c6d2a52486b98720815639fabd00a9fbc906acc61"
+          }
+        },
+        {
+          "pair": "bunka-official-writing-1952-to-2022",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/bunka-official-writing-1952-to-2022-text.json",
+            "sha256": "4d60eccfb35c35f963a9cd39a84c1bad3fcb8cdc7fc97b301b1343a41f1d2022"
+          }
+        },
+        {
+          "pair": "faa-thunderstorms-b-to-c",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/faa-thunderstorms-b-to-c-text.json",
+            "sha256": "6a39efec81093133dbb36e61934860faf2f1156d4a2ee08d62bc4516378c0deb"
+          }
+        },
+        {
+          "pair": "faa-maintenance-records-c-to-d",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/faa-maintenance-records-c-to-d-text.json",
+            "sha256": "95348d10238aabe183315f3058f0d13463d35be5e9797a02906b067626ab927b"
+          }
+        },
+        {
+          "pair": "arxiv-faster-rcnn-v1-to-v3",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/arxiv-faster-rcnn-v1-to-v3-text.json",
+            "sha256": "c83f19c8c8189c0e09d5299478fc59b6a7bbfd525c618412537829209b9fdc84"
+          }
+        },
+        {
+          "pair": "bunka-kana-1946-to-1986",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/bunka-kana-1946-to-1986-text.json",
+            "sha256": "5983d3f397e621c4a26869663b3fffadf4ece7b9b289b84b3576eedb36bb0194"
+          }
+        },
+        {
+          "pair": "nist-controls-53-r4-to-r5",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/nist-controls-53-r4-to-r5-text.json",
+            "sha256": "d92430789818c8341e430d293790c3f7748de9127bb884a1b2fa8b397cc8e503"
+          }
+        },
+        {
+          "pair": "nist-risk-assessment-30-to-r1",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/nist-risk-assessment-30-to-r1-text.json",
+            "sha256": "6cc917695c96102e629bfdd9ebe54ad7f22f7a12c613ca3206c80803f4b385c0"
+          }
+        },
+        {
+          "pair": "nist-contingency-34-to-r1",
+          "repetition": 1,
+          "report": {
+            "path": "benchmark/realworld/cache/next-blind-results/current/nist-contingency-34-to-r1-text.json",
+            "sha256": "2e7d2f20c9fd8f1810b887bb9bb0c9ea17fadc4b331acff43c2649455cf24842"
+          }
+        }
+      ],
+      "hash_mismatches": [],
+      "no_report_registered": [
+        {
+          "pair": "irs-w4-english-2024-to-2025",
+          "repetition": 1
+        },
+        {
+          "pair": "irs-w4-english-2024-to-2025",
+          "repetition": 2
+        }
+      ]
+    },
+    {
+      "index": "benchmark/realworld/source-boundaries/baseline-observations.json",
+      "observations": 72,
+      "present_and_hash_verified": 72,
+      "unavailable": [],
+      "hash_mismatches": [],
+      "no_report_registered": []
+    }
+  ]
+}
