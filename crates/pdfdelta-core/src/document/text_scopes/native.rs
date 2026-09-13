@@ -19,10 +19,26 @@ use crate::document::{
 
 mod census;
 mod hanging;
+mod paint_rows;
 mod projection;
 mod segments;
 
 pub use segments::{NativeRegion, NativeRegionChain, NativeRegionChains, NativeTransition};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum RowOrder {
+    Spatial,
+    Paint,
+}
+
+impl RowOrder {
+    pub(super) fn convention(self) -> &'static str {
+        match self {
+            Self::Spatial => "horizontal-row-boundaries-v1",
+            Self::Paint => "horizontal-paint-row-boundaries-v1",
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) enum Closure {
@@ -127,6 +143,7 @@ pub(super) fn runs<'a>(
     let mut previous: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
     let mut blocked = BTreeSet::new();
     let mut connected = BTreeSet::new();
+    let mut paint_pages = BTreeSet::new();
     for edge in &view.graph.edges {
         if edge.kind != EdgeKind::Precedes {
             continue;
@@ -137,6 +154,10 @@ pub(super) fn runs<'a>(
         if edge.basis != ViewBasis::NativeLayout {
             blocked.extend([edge.from, edge.to]);
         } else if nodes.contains_key(&edge.from) && nodes.contains_key(&edge.to) {
+            if let Some(page) = paint_rows::reverse_row(sources, nodes[&edge.from], nodes[&edge.to])
+            {
+                paint_pages.insert(page);
+            }
             connected.extend([edge.from, edge.to]);
             next.entry(edge.from).or_default().insert(edge.to);
             previous.entry(edge.to).or_default().insert(edge.from);
@@ -177,6 +198,7 @@ pub(super) fn runs<'a>(
             runs.push(run);
         }
     }
+    let _ = paint_rows::repair(sources, &mut runs, &paint_pages, remaining);
     if rows {
         let _ = hanging::attach(sources, &mut runs, &connected, remaining);
     }
@@ -205,17 +227,20 @@ impl<'a> Sources<'a> {
         path: &[&GraphNode],
         remaining: &mut usize,
         rows: bool,
-    ) -> Option<(Closure, Vec<SourceRef>, bool)> {
-        census::checked(self, view, root, path, remaining, rows)
+        paint: bool,
+    ) -> Option<(Closure, Vec<SourceRef>, Option<RowOrder>)> {
+        census::checked(self, view, root, path, remaining, rows, paint)
     }
 
     pub(super) fn project_census(
         &self,
         node: &GraphNode,
         padding: &[SourceRef],
+        paint_order: bool,
         remaining: &mut usize,
     ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
-        let (mut projected, boundaries) = projection::expanded(node, &self.glyphs, remaining)?;
+        let (mut projected, boundaries) =
+            projection::expanded(node, &self.glyphs, remaining, paint_order)?;
         if !padding.is_empty() {
             let NodeContent::Text { view } = &mut projected.content else {
                 return None;
@@ -245,9 +270,10 @@ impl<'a> Sources<'a> {
     pub(super) fn project(
         &self,
         node: &GraphNode,
+        paint_order: bool,
         remaining: &mut usize,
     ) -> Option<(GraphNode, Vec<std::ops::Range<usize>>)> {
-        projection::checked(node, &self.glyphs, remaining)
+        projection::checked_order(node, &self.glyphs, remaining, paint_order)
     }
 
     /// Returns physical row boundaries for an exact, fully backed projection.
@@ -507,7 +533,7 @@ impl<'a> Sources<'a> {
         path: &[&GraphNode],
         remaining: &mut usize,
     ) -> Option<Closure> {
-        self.closed_page_with_padding(view, root, path, &BTreeSet::new(), false, remaining)
+        self.closed_page_with_padding(view, root, path, &BTreeSet::new(), None, remaining)
     }
 
     fn closed_page_with_padding(
@@ -516,7 +542,7 @@ impl<'a> Sources<'a> {
         root: NodeId,
         path: &[&GraphNode],
         census_padding: &BTreeSet<SourceRef>,
-        row_edges: bool,
+        row_order: Option<RowOrder>,
         remaining: &mut usize,
     ) -> Option<Closure> {
         let [page] = path[0].pages.as_slice() else {
@@ -529,6 +555,11 @@ impl<'a> Sources<'a> {
                 .len()
                 .saturating_add(view.evidence.issues.len()),
         )?;
+        let row_edges = row_order.is_some();
+        let paint_order = row_order == Some(RowOrder::Paint);
+        if paint_order {
+            paint_rows::separated(self, path, remaining)?;
+        }
         let mut sources = BTreeSet::new();
         let mut min_x = f64::INFINITY;
         let mut max_x = f64::NEG_INFINITY;
@@ -539,8 +570,17 @@ impl<'a> Sources<'a> {
         let mut previous_bottom = f64::INFINITY;
         let mut previous_top = f64::INFINITY;
         let mut previous_right = f64::INFINITY;
+        let mut previous_render = None;
+        let mut previous_baseline = f64::INFINITY;
         let mut entry_left = f64::NEG_INFINITY;
+        let mut entry_right = f64::INFINITY;
+        let mut exit_left = f64::NEG_INFINITY;
         let mut exit_right = f64::INFINITY;
+        let mut entry_render = u32::MAX;
+        let mut exit_render = 0;
+        let mut first_row = None;
+        let mut first_row_bounds = (f64::INFINITY, f64::NEG_INFINITY);
+        let mut last_row_bounds = (f64::INFINITY, f64::NEG_INFINITY);
         for (index, node) in path.iter().enumerate() {
             if node.pages != [*page]
                 || node.sources.is_empty()
@@ -557,6 +597,39 @@ impl<'a> Sources<'a> {
                     return None;
                 };
                 let glyph = self.glyphs.get(glyph)?;
+                if paint_order {
+                    if previous_render.is_some_and(|order| order >= glyph.render_order)
+                        || !glyph.baseline.y.is_finite()
+                        || (glyph.baseline.y > previous_baseline
+                            && !paint_rows::same_baseline(glyph.baseline.y, previous_baseline))
+                        || ![
+                            glyph.bbox.min.x,
+                            glyph.bbox.min.y,
+                            glyph.bbox.max.x,
+                            glyph.bbox.max.y,
+                        ]
+                        .iter()
+                        .all(|value| value.is_finite())
+                    {
+                        return None;
+                    }
+                    previous_render = Some(glyph.render_order);
+                    if !paint_rows::same_baseline(previous_baseline, glyph.baseline.y) {
+                        last_row_bounds = (f64::INFINITY, f64::NEG_INFINITY);
+                        previous_baseline = glyph.baseline.y;
+                    }
+                    last_row_bounds.0 = last_row_bounds.0.min(glyph.bbox.min.x);
+                    last_row_bounds.1 = last_row_bounds.1.max(glyph.bbox.max.x);
+                    if paint_rows::same_baseline(
+                        *first_row.get_or_insert(glyph.baseline.y),
+                        glyph.baseline.y,
+                    ) {
+                        first_row_bounds.0 = first_row_bounds.0.min(glyph.bbox.min.x);
+                        first_row_bounds.1 = first_row_bounds.1.max(glyph.bbox.max.x);
+                    }
+                    entry_render = entry_render.min(glyph.render_order);
+                    exit_render = exit_render.max(glyph.render_order);
+                }
                 if glyph.page != *page
                     || glyph.direction != (Vec2 { x: 1.0, y: 0.0 })
                     || glyph.crop_status != GlyphCropStatus::Inside
@@ -591,17 +664,19 @@ impl<'a> Sources<'a> {
                 && previous_top == previous_bottom
                 && top == previous_bottom
                 && previous_right < left;
-            if top >= previous_bottom && !same_row_prefix {
+            if !paint_order && top >= previous_bottom && !same_row_prefix {
                 return None;
             }
             if row_edges && (index == 0 || index + 1 == path.len()) {
-                if top != bottom {
+                if top != bottom && !(paint_order && paint_rows::same_baseline(top, bottom)) {
                     return None;
                 }
                 if index == 0 {
                     entry_left = left;
+                    entry_right = right;
                 }
                 if index + 1 == path.len() {
+                    exit_left = left;
                     exit_right = right;
                 }
             }
@@ -611,19 +686,49 @@ impl<'a> Sources<'a> {
             min_y = min_y.min(bottom);
             max_y = max_y.max(top);
         }
+        if paint_order {
+            (entry_left, entry_right) = first_row_bounds;
+            (exit_left, exit_right) = last_row_bounds;
+        }
         for glyph in self.pages.get(page).into_iter().flatten() {
             spend(remaining, 1)?;
+            let outside_row = if paint_order {
+                let before = paint_rows::same_baseline(glyph.baseline.y, max_y)
+                    && glyph.render_order < entry_render
+                    && (glyph.bbox.max.x < entry_left || glyph.bbox.min.x > entry_right);
+                let after = paint_rows::same_baseline(glyph.baseline.y, min_y)
+                    && glyph.render_order > exit_render
+                    && (glyph.bbox.max.x < exit_left || glyph.bbox.min.x > exit_right);
+                (before || after)
+                    && matches!(&glyph.text, crate::model::DecodedText::Mapped(_))
+                    && glyph.direction == (Vec2 { x: 1.0, y: 0.0 })
+                    && glyph.crop_status == GlyphCropStatus::Inside
+                    && matches!(
+                        glyph.path_clip_status,
+                        GlyphPathClipStatus::Unclipped | GlyphPathClipStatus::Inside
+                    )
+                    && matches!(
+                        glyph.render_mode,
+                        TextRenderMode::Fill
+                            | TextRenderMode::Stroke
+                            | TextRenderMode::FillAndStroke
+                    )
+            } else {
+                row_edges
+                    && ((glyph.baseline.y == max_y && glyph.bbox.max.x < entry_left)
+                        || (glyph.baseline.y == min_y && glyph.bbox.min.x > exit_right))
+            };
             // In the row profile, known glyphs strictly outside the two outer
             // row cuts are not omissions. Touching or interior glyphs still
             // have to belong to the path; paint keeps the full band check.
-            if glyph.baseline.y >= min_y
-                && glyph.baseline.y <= max_y
+            if (glyph.baseline.y >= min_y
+                || (paint_order && paint_rows::same_baseline(glyph.baseline.y, min_y)))
+                && (glyph.baseline.y <= max_y
+                    || (paint_order && paint_rows::same_baseline(glyph.baseline.y, max_y)))
                 && glyph.bbox.max.x >= min_x
                 && glyph.bbox.min.x <= max_x
                 && !sources.contains(&SourceRef::Native { glyph: glyph.id })
-                && !(row_edges
-                    && ((glyph.baseline.y == max_y && glyph.bbox.max.x < entry_left)
-                        || (glyph.baseline.y == min_y && glyph.bbox.min.x > exit_right)))
+                && !outside_row
             {
                 return None;
             }

@@ -11,9 +11,10 @@ pub(super) fn checked(
     path: &[&GraphNode],
     remaining: &mut usize,
     rows: bool,
-) -> Option<(Closure, Vec<SourceRef>, bool)> {
+    paint: bool,
+) -> Option<(Closure, Vec<SourceRef>, Option<RowOrder>)> {
     if let Some(closure) = sources.closed(view, root, path, remaining) {
-        return Some((closure, Vec::new(), false));
+        return Some((closure, Vec::new(), None));
     }
     if path.len() < 2 || path.iter().any(|node| node.pages != path[0].pages) {
         return None;
@@ -77,13 +78,63 @@ pub(super) fn checked(
     }
     if !padding.is_empty()
         && let Some(closure) =
-            sources.closed_page_with_padding(view, root, path, &padding, false, remaining)
+            sources.closed_page_with_padding(view, root, path, &padding, None, remaining)
     {
-        return Some((closure, padding.into_iter().collect(), false));
+        return Some((closure, padding.into_iter().collect(), None));
     }
-    if !rows {
+    if rows
+        && let Some(closure) = sources.closed_page_with_padding(
+            view,
+            root,
+            path,
+            &padding,
+            Some(RowOrder::Spatial),
+            remaining,
+        )
+    {
+        return Some((
+            closure,
+            padding.into_iter().collect(),
+            Some(RowOrder::Spatial),
+        ));
+    }
+    if !paint || !sources.has_ordered_row(path, remaining)? {
         return None;
     }
-    let closure = sources.closed_page_with_padding(view, root, path, &padding, true, remaining)?;
-    Some((closure, padding.into_iter().collect(), true))
+    let closure = sources.closed_page_with_padding(
+        view,
+        root,
+        path,
+        &padding,
+        Some(RowOrder::Paint),
+        remaining,
+    )?;
+    Some((
+        closure,
+        padding.into_iter().collect(),
+        Some(RowOrder::Paint),
+    ))
+}
+
+impl Sources<'_> {
+    pub(in super::super) fn has_ordered_row(
+        &self,
+        path: &[&GraphNode],
+        remaining: &mut usize,
+    ) -> Option<bool> {
+        spend(remaining, path.len())?;
+        Some(path.windows(2).any(|pair| {
+            let (Some(SourceRef::Native { glyph: a }), Some(SourceRef::Native { glyph: b })) =
+                (pair[0].sources.last(), pair[1].sources.first())
+            else {
+                return false;
+            };
+            let (Some(a), Some(b)) = (self.glyphs.get(a), self.glyphs.get(b)) else {
+                return false;
+            };
+            a.page == b.page
+                && paint_rows::same_baseline(a.baseline.y, b.baseline.y)
+                && (a.bbox.min.x > b.bbox.max.x || a.bbox.max.x < b.bbox.min.x)
+        }))
+    }
 }

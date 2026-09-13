@@ -902,6 +902,212 @@ fn isolated_same_row_prefixes_preserve_source_cuts_and_reject_gaps_or_overlap() 
 }
 
 #[test]
+fn paint_order_rows_keep_labels_after_boundaries_and_reject_unsafe_exclusions() {
+    let setup = |old: bool, padded: bool| {
+        let mut fixture = if old {
+            fixture_rows(&["BEGIN", "101 ", "Budget 10.", "102 ", "END", "103 ", "STOP"])
+        } else {
+            fixture_rows(&[
+                if padded { "BEGIN " } else { "BEGIN" },
+                "Budget 20.",
+                "END",
+                "STOP",
+            ])
+        };
+        let mut glyphs = fixture.0.native.items().to_vec();
+        for (index, node) in fixture.1.nodes.iter().enumerate().skip(1) {
+            let row = if old { (index - 1) / 2 } else { index - 1 };
+            for source in &node.sources {
+                let SourceRef::Native { glyph } = source else {
+                    unreachable!()
+                };
+                let glyph = glyphs
+                    .iter_mut()
+                    .find(|g| g.id == *glyph)
+                    .expect("fixture evidence");
+                let x = if old && index % 2 == 0 { 0.0 } else { 60.0 };
+                let y = 100.0 - row as f64 * 30.0 - glyph.baseline.y;
+                glyph.baseline.x += x;
+                glyph.bbox.min.x += x;
+                glyph.bbox.max.x += x;
+                glyph.baseline.y += y;
+                glyph.bbox.min.y += y;
+                glyph.bbox.max.y += y;
+            }
+        }
+        fixture.0.native = Document::new(glyphs);
+        fixture
+    };
+    let new = setup(false, false);
+    for mutation in 0..10 {
+        let mut old = setup(true, false);
+        let target: Vec<_> = old.1.nodes[2..=4]
+            .iter()
+            .flat_map(|node| node.sources.iter().copied())
+            .collect();
+        if mutation == 6 {
+            append_unassigned(&mut old, PageId(0), 70.0);
+        } else if mutation == 8 {
+            old.0.inventories[0].complete = false;
+        } else if mutation != 0 {
+            let node = match mutation {
+                3 | 9 => 6,
+                7 => 5,
+                _ => 2,
+            };
+            let SourceRef::Native { glyph } = old.1.nodes[node].sources[0] else {
+                unreachable!()
+            };
+            let mut glyphs = old.0.native.items().to_vec();
+            let glyph = glyphs
+                .iter_mut()
+                .find(|g| g.id == glyph)
+                .expect("fixture evidence");
+            match mutation {
+                1 | 3 => glyph.bbox.max.x = 60.0,
+                2 => glyph.render_order = 0,
+                4 => glyph.baseline.y += 0.01,
+                5 => glyph.path_clip_status = GlyphPathClipStatus::PartiallyOutside,
+                9 => {
+                    glyph.text = DecodedText::Unmapped {
+                        font_hash: pdfdelta_core::model::FontProgramHash(vec![0; 32]),
+                        glyph_id: 1,
+                    }
+                }
+                7 => {
+                    let y = f64::from_bits(glyph.baseline.y.to_bits() + 3);
+                    let delta = y - glyph.baseline.y;
+                    glyph.baseline.y = y;
+                    glyph.bbox.min.y += delta;
+                    glyph.bbox.max.y += delta;
+                }
+                _ => unreachable!(),
+            }
+            old.0.native = Document::new(glyphs);
+        }
+        for reversed in [false, true] {
+            let comparison = if reversed {
+                compare(&new, &old)
+            } else {
+                compare(&old, &new)
+            };
+            let review = comparison.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .find(|review| {
+                    if reversed {
+                        review.new_sources == target && review.old_sources == new.1.nodes[2].sources
+                    } else {
+                        review.old_sources == target && review.new_sources == new.1.nodes[2].sources
+                    }
+                });
+            assert_eq!(
+                review.is_some(),
+                mutation == 0 || mutation == 7,
+                "mutation {mutation}, reversed {reversed}"
+            );
+            if let Some(review) = review {
+                let pdfdelta_core::document::SourceCutPopulation::MatchedInterval {
+                    row_order: Some(order),
+                    ..
+                } = &review
+                    .source_cuts
+                    .as_ref()
+                    .expect("fixture evidence")
+                    .population
+                else {
+                    panic!("paint-order proof")
+                };
+                assert_eq!(order.convention, "horizontal-paint-row-boundaries-v1");
+            }
+        }
+    }
+
+    for merged in [vec![2], vec![2, 2], vec![4], vec![3, 3]] {
+        for merge_new in [false, true] {
+            let mut old = setup(true, false);
+            let mut new = setup(false, false);
+            let target: Vec<_> = old.1.nodes[2..=4]
+                .iter()
+                .flat_map(|node| node.sources.iter().copied())
+                .collect();
+            let new_target = new.1.nodes[2].sources.clone();
+            for index in &merged {
+                merge_following_node(&mut old, *index);
+            }
+            if merge_new {
+                merge_following_node(&mut new, 2);
+            }
+            for reversed in [false, true] {
+                let result = if reversed {
+                    compare(&new, &old)
+                } else {
+                    compare(&old, &new)
+                };
+                assert!(
+                    result.scopes[0]
+                        .result
+                        .text_scope_reviews
+                        .iter()
+                        .any(|review| {
+                            if reversed {
+                                review.old_sources == new_target && review.new_sources == target
+                            } else {
+                                review.old_sources == target && review.new_sources == new_target
+                            }
+                        }),
+                    "merged nodes {merged:?}, new boundary {merge_new}, reversed {reversed}"
+                );
+            }
+        }
+    }
+
+    let old = setup(true, false);
+    let new = setup(false, true);
+    let comparison = compare(&old, &new);
+    let target: Vec<_> = old.1.nodes[2..=4]
+        .iter()
+        .flat_map(|node| node.sources.iter().copied())
+        .collect();
+    assert!(
+        comparison.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| {
+                review.old_sources == target && review.new_sources == new.1.nodes[2].sources
+            }),
+        "padded outer boundary retains its interior comparison"
+    );
+    for review in &comparison.scopes[0].result.text_scope_reviews {
+        let Some(cuts) = &review.source_cuts else {
+            continue;
+        };
+        let pdfdelta_core::document::SourceCutPopulation::MatchedInterval {
+            row_order: Some(order),
+            ..
+        } = &cuts.population
+        else {
+            continue;
+        };
+        for (endpoints, body) in [
+            (&order.old, &review.old_sources),
+            (&order.new, &review.new_sources),
+        ] {
+            assert!(
+                endpoints
+                    .iter()
+                    .flatten()
+                    .flat_map(|end| &end.sources)
+                    .all(|source| !body.contains(source)),
+                "outer endpoint entered a paint interval"
+            );
+        }
+    }
+}
+
+#[test]
 fn whole_node_intervals_can_retain_a_raw_parent_for_content_edge_refinement() {
     let old = fixture_rows(&["BEGIN", "Budget 10.  ", "END"]);
     let new = fixture_rows(&["BEGIN", "Budget 20.", "END"]);

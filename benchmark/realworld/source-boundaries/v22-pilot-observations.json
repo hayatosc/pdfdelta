@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "complete": true,
+  "repetitions": 1,
+  "scope": "Selected development diagnostics. Not the full panel or a recovery gate.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22/build.json",
+    "sha256": "254d6aa89b6b16cde13e201c46b1293aadaceb70167136a3db92eac2e05655a8"
+  },
+  "observations": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/edpb-controller-processor-v1-to-v2-1-1/runs.json",
+        "sha256": "0a05d6af85e27ea48ad14f988bdc9600b8e45ecc3e61b270e56fcadb716f47b2"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "d8f2ea1ae028ef1c1a0d83b0d4abe813931bac869f02c2d6adb3ce571c09a89b"
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/edpb-design-default-v1-to-v2-1/runs.json",
+        "sha256": "37b0047b947d4e84abcf3d4d2714c74d291491df8445f813398f30773ffe82f4"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/edpb-design-default-v1-to-v2-1/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "34ddf797303e86aa617571378accdd94b02e4e21585c42950f2e65dcedd74179"
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-incident-handling-r2-to-r3-1/runs.json",
+        "sha256": "51da00ae12fcecd0e717db33a3c1e9d95aca687c98c99dad404c2140b9b3221a"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-incident-handling-r2-to-r3-1/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "7b213098b81ea432dbef2e28256755a4e05e6c2c673061f1f885fe13fdfaaf4a"
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-ssdf-draft-to-final-1/runs.json",
+        "sha256": "1d25558a80ab271611c74b14817badceb3e53249952609e36967d66fb1d2f512"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "d458f3b2634742899645cd102b4166723a0f1b11ec43eac7427c75d2522d86e8"
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-authentication-63b-to-63b4-1/runs.json",
+        "sha256": "343b1b304149bc46cf3f53f6acc84c3b0ff6ccd59665031146793c0573d933e2"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "fc91eb05e908cfaf4dc49ee59c2b4c3d2ae74f2883f46d0ceaadd96be96a162f"
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/arxiv-bert-v1-to-v2-1/runs.json",
+        "sha256": "ff0a56fb39b92d64522f216eb000cd83c78f301aa92b2dbf93bd95ad2d2b5102"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "cf2e423ca525245aeccb068912b12f0a704856a20dd4d7e11e15b5b8417027ec"
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-sha-1803-to-1804-1/runs.json",
+        "sha256": "69deec16ac7abb8585b7ab571becb2d234019fb6f4fd76e7d665e0d67c784903"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v22-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "747c403051ae5695aef4ca73b35776b2abf4f25c1abfbff78272153c2da60aee"
+      }
+    }
+  ]
+}

@@ -84,10 +84,12 @@ pub enum SourceCutPopulation {
     },
 }
 
-/// Monoline outer endpoints of a horizontal source interval. Exact baseline
-/// equality permits an independently painted prefix before a disjoint body;
-/// glyphs strictly before/after the endpoint positions on those rows remain
-/// outside the census interval. The intervening source band must still close.
+/// Monoline outer endpoints of a horizontal source interval. Spatial prefix
+/// order uses exact baselines; raw paint order permits an eight-machine-epsilon
+/// relative envelope for row classification without rounding any coordinates.
+/// The convention selects the order of disjoint row pieces. Only glyphs
+/// outside the endpoint cuts in that declared order may leave the census;
+/// the intervening source and paint band must still close.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceCutRowOrder {
     pub convention: String,
@@ -158,6 +160,7 @@ fn rows<'a>(
     runs: &[Vec<&'a GraphNode>],
     sources: &native::Sources<'_>,
     word_edges: bool,
+    paint_order: bool,
     excluded: &BTreeSet<NodeId>,
     remaining: &mut usize,
 ) -> Option<Vec<Row<'a>>> {
@@ -167,7 +170,7 @@ fn rows<'a>(
             if excluded.contains(&node.id) {
                 continue;
             }
-            let (_, rows) = sources.project(node, remaining)?;
+            let (_, rows) = sources.project(node, paint_order, remaining)?;
             let NodeContent::Text { view } = &node.content else {
                 continue;
             };
@@ -418,6 +421,13 @@ fn same_raw_text(left: &[&GraphNode], right: &[&GraphNode], remaining: &mut usiz
     )
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Pass {
+    Standard,
+    RefineExisting,
+    Paint,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append(
     old: DocumentView<'_>,
@@ -430,14 +440,15 @@ pub(super) fn append(
     sources: Option<&(native::Sources<'_>, native::Sources<'_>)>,
     anchors: &[Anchor],
     rows: bool,
-    refine_existing: bool,
+    pass: Pass,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
         return Ok(());
     };
+    let refine_existing = pass == Pass::RefineExisting;
     let initial = *remaining;
-    if !refine_existing
+    if pass == Pass::Standard
         && population(old, result.matching.scope.old, left, old_sources, remaining).is_some()
         && population(
             new,
@@ -461,6 +472,7 @@ pub(super) fn append(
             SourceCutPopulation::CompletePage,
             &CutMaps::default(),
             false,
+            false,
             remaining,
         )?;
         if let Some(search) = &mut result.source_cut_search {
@@ -476,6 +488,7 @@ pub(super) fn append(
         work: 0,
         budget_at_entry: initial,
     };
+    let mut deferred = Vec::new();
     for pair in anchors.windows(2) {
         let [(a, b, entry), (c, d, exit)] = pair else {
             unreachable!()
@@ -508,6 +521,18 @@ pub(super) fn append(
         }
         let left = [left[a.0][a.1..=c.1].to_vec()];
         let right = [right[b.0][b.1..=d.1].to_vec()];
+        if pass == Pass::Paint {
+            let (Some(old_hint), Some(new_hint)) = (
+                old_sources.has_ordered_row(&left[0], remaining),
+                new_sources.has_ordered_row(&right[0], remaining),
+            ) else {
+                aggregate.exhaustive = false;
+                break;
+            };
+            if !old_hint && !new_hint {
+                continue;
+            }
+        }
         match same_raw_text(&left[0], &right[0], remaining) {
             Some(true) => continue,
             None => {
@@ -520,13 +545,38 @@ pub(super) fn append(
             Some((old_closure, old_padding, old_rows)),
             Some((new_closure, new_padding, new_rows)),
         ) = (
-            old_sources.census(old, result.matching.scope.old, &left[0], remaining, rows),
-            new_sources.census(new, result.matching.scope.new, &right[0], remaining, rows),
+            old_sources.census(
+                old,
+                result.matching.scope.old,
+                &left[0],
+                remaining,
+                rows,
+                pass != Pass::RefineExisting,
+            ),
+            new_sources.census(
+                new,
+                result.matching.scope.new,
+                &right[0],
+                remaining,
+                rows,
+                pass != Pass::RefineExisting,
+            ),
         )
         else {
             aggregate.exhaustive = false;
             continue;
         };
+        if old_rows.is_some() && new_rows.is_some() && old_rows != new_rows {
+            // Mixed conventions require a separate certificate on each side.
+            aggregate.exhaustive = false;
+            continue;
+        }
+        if pass == Pass::Paint
+            && old_rows != Some(native::RowOrder::Paint)
+            && new_rows != Some(native::RowOrder::Paint)
+        {
+            continue;
+        }
         let (old_chain, new_chain) = (old_closure.chain(), new_closure.chain());
         let native_regions =
             (old_chain.is_some() || new_chain.is_some()).then_some(Box::new(NativeRegionChains {
@@ -549,7 +599,7 @@ pub(super) fn append(
                     new: new_padding.clone(),
                 }),
             ),
-            row_order: (old_rows || new_rows).then(|| {
+            row_order: old_rows.or(new_rows).map(|order| {
                 let endpoints = |nodes: &[&GraphNode]| {
                     [0, nodes.len() - 1].map(|index| SourceCutRowEndpoint {
                         node: nodes[index].id,
@@ -557,19 +607,30 @@ pub(super) fn append(
                     })
                 };
                 Box::new(SourceCutRowOrder {
-                    convention: "horizontal-row-boundaries-v1".into(),
-                    old: old_rows.then(|| endpoints(&left[0])),
-                    new: new_rows.then(|| endpoints(&right[0])),
+                    convention: order.convention().into(),
+                    old: old_rows.map(|_| endpoints(&left[0])),
+                    new: new_rows.map(|_| endpoints(&right[0])),
                 })
             }),
         };
+        let paint_frame =
+            old_rows == Some(native::RowOrder::Paint) || new_rows == Some(native::RowOrder::Paint);
+        let deferred_population = (paint_frame && pass == Pass::Paint).then(|| population.clone());
         let project = |nodes: &[&GraphNode],
                        sources: &native::Sources<'_>,
                        padding: &[SourceRef],
                        remaining: &mut usize| {
             nodes
                 .iter()
-                .map(|node| sources.project_census(node, padding, remaining))
+                .map(|node| {
+                    sources.project_census(
+                        node,
+                        padding,
+                        old_rows == Some(native::RowOrder::Paint)
+                            || new_rows == Some(native::RowOrder::Paint),
+                        remaining,
+                    )
+                })
                 .collect::<Option<Vec<_>>>()
         };
         let (Some(old_projected), Some(new_projected)) = (
@@ -600,6 +661,8 @@ pub(super) fn append(
             .collect();
         let left = vec![old_nodes.iter().collect()];
         let right = vec![new_nodes.iter().collect()];
+        let existing_population =
+            (pass == Pass::Standard && !paint_frame).then(|| population.clone());
         compare_population(
             old,
             new,
@@ -613,7 +676,51 @@ pub(super) fn append(
             population,
             &maps,
             refine_existing,
+            paint_frame && !refine_existing,
             remaining,
+        )?;
+        if let Some(search) = result.source_cut_search.take() {
+            aggregate.exhaustive &= search.exhaustive;
+            aggregate.examined_fragments += search.examined_fragments;
+            aggregate.paired_boundaries += search.paired_boundaries;
+        }
+        // Reuse this frame's charged census and projection for an existing
+        // whole-node review before moving to another frame. Reacquiring the
+        // same proof in a later pass can exhaust the shared work budget.
+        if let Some(population) = existing_population {
+            if spend(remaining, result.text_scope_reviews.len()).is_none() {
+                aggregate.exhaustive = false;
+                break;
+            }
+            if result
+                .text_scope_reviews
+                .iter()
+                .any(|review| review.source_cuts.is_none() && review.boundaries == [*entry, *exit])
+            {
+                compare_population(
+                    old, new, result, parent, limits, &left, &right, sources, &anchors, population,
+                    &maps, true, false, remaining,
+                )?;
+                if let Some(search) = result.source_cut_search.take() {
+                    aggregate.exhaustive &= search.exhaustive;
+                    aggregate.examined_fragments += search.examined_fragments;
+                    aggregate.paired_boundaries += search.paired_boundaries;
+                }
+            }
+        }
+        if let Some(population) = deferred_population {
+            deferred.push((old_nodes, new_nodes, anchors, population, maps));
+        }
+    }
+    // Every eligible paint interval gets its whole comparison before any one
+    // such interval can exhaust the budget with lexical fragment discovery.
+    // Keep the already charged projections and enclosing closure certificates.
+    for (old_nodes, new_nodes, anchors, population, maps) in deferred {
+        let left = vec![old_nodes.iter().collect()];
+        let right = vec![new_nodes.iter().collect()];
+        compare_population(
+            old, new, result, parent, limits, &left, &right, sources, &anchors, population, &maps,
+            false, false, remaining,
         )?;
         if let Some(search) = result.source_cut_search.take() {
             aggregate.exhaustive &= search.exhaustive;
@@ -640,11 +747,15 @@ fn compare_population(
     population: SourceCutPopulation,
     maps: &CutMaps,
     refine_existing: bool,
+    whole_only: bool,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
         return Ok(());
     };
+    let paint_boundaries = matches!(&population,
+        SourceCutPopulation::MatchedInterval { row_order: Some(order), .. }
+            if order.convention == native::RowOrder::Paint.convention());
     let initial = *remaining;
     let mut search = SourceCutSearch {
         convention: "unique-native-fragment-cuts-v2".into(),
@@ -662,7 +773,8 @@ fn compare_population(
         anchors,
         matches!(population, SourceCutPopulation::MatchedInterval { .. }),
         maps,
-        refine_existing,
+        refine_existing || whole_only,
+        paint_boundaries,
         &mut search,
         remaining,
     );
@@ -679,7 +791,7 @@ fn compare_population(
         result.source_cut_search = Some(search);
         return Ok(());
     }
-    search.exhaustive = !refine_existing;
+    search.exhaustive = !refine_existing && !whole_only;
     boundaries.sort_by_key(|boundary| boundary.old);
     boundaries.dedup_by(|a, b| a.old == b.old && a.new == b.new);
     search.work = initial - *remaining;
@@ -689,9 +801,54 @@ fn compare_population(
     // cannot consume the work needed to establish its enclosing comparisons.
     let mut agenda: std::collections::VecDeque<_> = boundaries
         .windows(2)
-        .map(|pair| (pair[0].clone(), pair[1].clone(), None, None))
+        .map(|pair| (pair[0].clone(), pair[1].clone(), None, None, false))
         .collect();
-    while let Some((entry, exit, refinement, pending_parent)) = agenda.pop_front() {
+    let mut spanning = std::collections::VecDeque::new();
+    if paint_boundaries && !whole_only {
+        // This interval has no legacy whole-node closure. Retain its complete
+        // raw comparison before lexical cuts and reversible edge refinements.
+        let (NodeContent::Text { view: a }, NodeContent::Text { view: b }) =
+            (&left[0][0].content, &right[0][0].content)
+        else {
+            return Ok(());
+        };
+        let entry = boundaries.iter().find(|cut| {
+            cut.old == (0, 0, a.tokens.len())
+                && cut.new == (0, 0, b.tokens.len())
+                && matches!(
+                    cut.certificate.evidence,
+                    CutEvidence::AcceptedBoundary { .. }
+                )
+        });
+        let exit = boundaries.iter().find(|cut| {
+            cut.old == (0, left[0].len() - 1, 0)
+                && cut.new == (0, right[0].len() - 1, 0)
+                && matches!(
+                    cut.certificate.evidence,
+                    CutEvidence::AcceptedBoundary { .. }
+                )
+        });
+        if let (Some(entry), Some(exit)) = (entry, exit) {
+            agenda.push_front((entry.clone(), exit.clone(), None, None, true));
+            // A separately painted label may precede a lexical prefix in the
+            // interior. Keep anchor-to-cut views so that merging a later
+            // boundary into a body node does not discard that label's extent.
+            // Established adjacent views and their refinements run first.
+            for cut in &boundaries {
+                if cut.old > entry.old
+                    && cut.old < exit.old
+                    && cut.new >= entry.new
+                    && cut.new <= exit.new
+                {
+                    spanning.push_back((entry.clone(), cut.clone(), None, None, false));
+                    spanning.push_back((cut.clone(), exit.clone(), None, None, false));
+                }
+            }
+        }
+    }
+    while let Some((entry, exit, refinement, pending_parent, whole_frame)) =
+        agenda.pop_front().or_else(|| spanning.pop_front())
+    {
         if spend(remaining, boundaries.len()).is_none() {
             break;
         }
@@ -699,6 +856,7 @@ fn compare_population(
             || entry.old.0 != exit.old.0
             || entry.new.0 != exit.new.0
             || (!refine_existing
+                && !paint_boundaries
                 && matches!(
                     (&entry.certificate.evidence, &exit.certificate.evidence),
                     (
@@ -709,12 +867,29 @@ fn compare_population(
         {
             continue;
         }
+        if paint_boundaries {
+            let interior_cut = |runs: &[Vec<&GraphNode>], cut: Position| {
+                let NodeContent::Text { view } = &runs[0][0].content else {
+                    return false;
+                };
+                cut >= (0, 0, view.tokens.len()) && cut <= (0, runs[0].len() - 1, 0)
+            };
+            if !interior_cut(left, entry.old)
+                || !interior_cut(left, exit.old)
+                || !interior_cut(right, entry.new)
+                || !interior_cut(right, exit.new)
+            {
+                continue;
+            }
+        }
         // Crossing paired cuts mean this range lacks a consistent ordering.
-        if boundaries.iter().any(|other| {
-            other.new > entry.new
-                && other.new < exit.new
-                && (other.old <= entry.old || other.old >= exit.old)
-        }) {
+        if !whole_frame
+            && boundaries.iter().any(|other| {
+                other.new > entry.new
+                    && other.new < exit.new
+                    && (other.old <= entry.old || other.old >= exit.old)
+            })
+        {
             continue;
         }
         let sliced;
@@ -936,7 +1111,7 @@ fn compare_population(
             // The extra raw parent is useful only when its finer comparison
             // proves a change. Space-only outer differences keep their original
             // review without an unused duplicate certificate.
-            agenda.push_back((entry, exit, refinement, Some(review)));
+            agenda.push_back((entry, exit, refinement, Some(review), whole_frame));
             continue;
         }
         if let Some(parent) = pending_parent {
@@ -946,7 +1121,7 @@ fn compare_population(
         if refinement.is_none()
             && let Some(refined) = edges::refine(left, right, &entry, &exit, maps, remaining)
         {
-            agenda.push_back((refined.0, refined.1, refined.2, None));
+            agenda.push_back((refined.0, refined.1, refined.2, None, whole_frame));
         }
     }
     Ok(())
@@ -962,6 +1137,7 @@ fn discover(
     word_edges: bool,
     maps: &CutMaps,
     anchors_only: bool,
+    paint_order: bool,
     search: &mut SourceCutSearch,
     remaining: &mut usize,
 ) -> Option<Vec<Boundary>> {
@@ -1032,8 +1208,22 @@ fn discover(
     if anchors_only {
         return Some(boundaries);
     }
-    let a = rows(left, old_sources, word_edges, &old_anchors, remaining)?;
-    let b = rows(right, new_sources, word_edges, &new_anchors, remaining)?;
+    let a = rows(
+        left,
+        old_sources,
+        word_edges,
+        paint_order,
+        &old_anchors,
+        remaining,
+    )?;
+    let b = rows(
+        right,
+        new_sources,
+        word_edges,
+        paint_order,
+        &new_anchors,
+        remaining,
+    )?;
     search.examined_fragments = a.len() + b.len();
     for a in &a {
         let mut old_unique = None;

@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "scope": "Seven selected development pairs. Identity preservation is not new source adjudication; additional outputs, if any, remain unreviewed. Candidate hits are not a recovery gate.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v26-pilot-observations.json",
+    "sha256": "e368aaf64e43fd699107a791f4db7f03541e17c5e33286a23b9c01abd23eb5e5"
+  },
+  "baseline": {
+    "path": "benchmark/realworld/source-boundaries/v19-pilot-observations.json",
+    "sha256": "b78a8e925c7b0b7ff9f95ada1b4cd64c720bc3936a4ae497d95e08d1bf2499ab"
+  },
+  "categories": {
+    "B": 61
+  },
+  "complete_pairs": 0,
+  "pairs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "categories": {
+        "B": 10
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 6.88,
+      "peak_rss_kib": 350388,
+      "report_bytes": 2606245
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "categories": {
+        "B": 3
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 9.6,
+      "peak_rss_kib": 219688,
+      "report_bytes": 415761
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "categories": {
+        "B": 3
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 6.5,
+      "peak_rss_kib": 446064,
+      "report_bytes": 8129692
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "categories": {
+        "B": 4
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/3"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 4,
+      "edge_refinements": 2,
+      "row_profiles": 4,
+      "added_event_digests": [
+        "2d20764e0e231666c1b40db1c0035645bf0d04a175e0644be9b5743f4aded4aa",
+        "866abc1877ff6f893673cfeb2ec7746699608b4302c6a99cde8734bac3bc7f30",
+        "97104d080d32757fdd08c643dbdc94930c4f763f55a8d1ab5a58e9ad27156b20",
+        "dca7980d8d4497fd434dbf4110c4d670cfe7c765a97b5f2d0f7db6fcc7ebb389"
+      ],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 3.73,
+      "peak_rss_kib": 303088,
+      "report_bytes": 5732536
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 9.26,
+      "peak_rss_kib": 636824,
+      "report_bytes": 4373782
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "categories": {
+        "B": 11
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/10"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 1.64,
+      "peak_rss_kib": 126688,
+      "report_bytes": 2986755
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "categories": {
+        "B": 30
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/12"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 21,
+      "edge_refinements": 7,
+      "row_profiles": 6,
+      "added_event_digests": [
+        "30f3ede6efc264bd54c03090bbc66d8bcfe0043459c1b5434502cfe096b0c1d8",
+        "337a46260ed1dad0c487743863ced6bc89e9be28669febbfead8e4275f9752f5",
+        "3cba2b4b6152b9286501c9f04470585b7438fbb97564b6dbec0a158f34cd7f81",
+        "6ae11ef68ad59b409f91db24512a9ec6e295704663f8b56735de5d9dd2fe2663",
+        "94f0bbdd2a82ca8b8c06da1c46ed436ce65854d3b227de1e16dd2bd79fe2a167",
+        "ebb50509af55d35d831b8faa8aee176ced4a7e0b89a6a7f86d93f00f42fc9496"
+      ],
+      "lost_event_digests": [
+        "2f81b496692aeab5480afca5c353b572658608853eaaefec07953123a439966e",
+        "6c9e41abcace9c4498e4f42918c4d65db1592857c3cdc182d3040d9c9d8b7872",
+        "75341842239e3bca61d03c158706d10d2e5aadc05b669d8a387863a000876298",
+        "ba6ae17dcda5183f2284c4881766aba9ff090fd4022e92ea29ef0c2c60cce288"
+      ],
+      "status": "captured",
+      "wall_seconds": 2.84,
+      "peak_rss_kib": 174720,
+      "report_bytes": 5268070
+    }
+  ]
+}

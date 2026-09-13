@@ -356,20 +356,26 @@ fn append_pass(
     }
     anchors.sort_unstable();
     if rows || anchors.len() < 2 {
-        return cuts::append(
-            old,
-            new,
-            result,
-            parent,
-            limits,
-            &left,
-            &right,
-            sources.as_ref(),
-            &anchors,
-            rows,
-            false,
-            remaining,
-        );
+        for pass in [cuts::Pass::Standard, cuts::Pass::Paint] {
+            let prior = result.source_cut_search.take();
+            let before = *remaining;
+            cuts::append(
+                old,
+                new,
+                result,
+                parent,
+                limits,
+                &left,
+                &right,
+                sources.as_ref(),
+                &anchors,
+                rows,
+                pass,
+                remaining,
+            )?;
+            merge_cut_search(result, prior, before - *remaining);
+        }
+        return Ok(());
     }
     let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
     // Preserve the existing two-sided recovery budget before attempting new
@@ -387,7 +393,7 @@ fn append_pass(
                 sources.as_ref(),
                 &anchors,
                 rows,
-                false,
+                cuts::Pass::Standard,
                 remaining,
             )?;
         }
@@ -578,10 +584,30 @@ fn append_pass(
             sources.as_ref(),
             &anchors,
             false,
-            true,
+            cuts::Pass::RefineExisting,
             remaining,
         )?;
         merge_cut_search(result, prior, before - *remaining);
     }
+    // Existing whole-node and content-edge reviews retain priority. Additional
+    // paint-order closure shares their source index and remaining work cap.
+    let prior = result.source_cut_search.take();
+    let before = *remaining;
+    cuts::append(
+        old,
+        new,
+        result,
+        parent,
+        limits,
+        &left,
+        &right,
+        sources.as_ref(),
+        &anchors,
+        rows,
+        cuts::Pass::Paint,
+        remaining,
+    )?;
+    merge_cut_search(result, prior, before - *remaining);
+
     Ok(())
 }

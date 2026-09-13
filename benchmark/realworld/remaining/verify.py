@@ -177,7 +177,8 @@ def checked_source_cuts(review, result):
     row_order = population.get("row_order")
     if row_order is not None:
         require(population["kind"] == "matched_interval"
-                and row_order["convention"] == "horizontal-row-boundaries-v1"
+                and row_order["convention"] in (
+                    "horizontal-row-boundaries-v1", "horizontal-paint-row-boundaries-v1")
                 and (row_order["old"] is not None or row_order["new"] is not None),
                 "unsupported row source order")
         for side in ("old", "new"):

@@ -1,0 +1,22 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.54s
+     Running tests/document_text_scopes_fixture.rs (target/debug/deps/document_text_scopes_fixture-7f742ad567f64beb)
+
+running 1 test
+test paint_order_rows_keep_labels_after_boundaries_and_reject_unsafe_exclusions ... FAILED
+
+failures:
+
+---- paint_order_rows_keep_labels_after_boundaries_and_reject_unsafe_exclusions stdout ----
+
+thread 'paint_order_rows_keep_labels_after_boundaries_and_reject_unsafe_exclusions' (411) panicked at crates/pdfdelta-core/tests/document_text_scopes_fixture.rs:1081:13:
+outer endpoint entered a paint interval
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    paint_order_rows_keep_labels_after_boundaries_and_reject_unsafe_exclusions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 32 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `-p pdfdelta-core --test document_text_scopes_fixture`
