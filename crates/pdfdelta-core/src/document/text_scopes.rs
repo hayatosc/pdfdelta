@@ -19,7 +19,8 @@ pub use native::{NativeRegion, NativeRegionChain, NativeRegionChains, NativeTran
 
 pub use cuts::{
     CutCorrespondence, CutEvidence, SourceCut, SourceCutBoundaryPadding, SourceCutEdgeRefinement,
-    SourceCutPopulation, SourceCutRange, SourceCutSearch, SourceFragment,
+    SourceCutPopulation, SourceCutRange, SourceCutRowEndpoint, SourceCutRowOrder, SourceCutSearch,
+    SourceFragment,
 };
 
 /// Content of corresponding intervals under the stated comparison convention.
@@ -234,26 +235,58 @@ pub(super) fn append(
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
 ) -> Result<()> {
+    let mut remaining = limits.matching.max_ownership_visits;
+    append_pass(old, new, result, parent, limits, false, &mut remaining)?;
+    if remaining == 0 || !limits.matching.channels.text {
+        return Ok(());
+    }
+    // Additional row discovery cannot spend the budget reserved for established
+    // comparisons. Both passes share one cap and retain the earlier reviews.
+    let prior = result.source_cut_search.take();
+    let before = remaining;
+    append_pass(old, new, result, parent, limits, true, &mut remaining)?;
+    if let Some(mut prior) = prior {
+        if let Some(additional) = result.source_cut_search.take() {
+            prior.exhaustive &= additional.exhaustive;
+            prior.examined_fragments += additional.examined_fragments;
+            prior.paired_boundaries += additional.paired_boundaries;
+        } else {
+            prior.exhaustive = false;
+        }
+        prior.work = prior.work.saturating_add(before - remaining);
+        result.source_cut_search = Some(prior);
+    }
+    Ok(())
+}
+
+fn append_pass(
+    old: DocumentView<'_>,
+    new: DocumentView<'_>,
+    result: &mut ScopeViewComparison,
+    parent: InterpretationStatus,
+    limits: DocumentComparisonLimits,
+    rows: bool,
+    remaining: &mut usize,
+) -> Result<()> {
     if !limits.matching.channels.text {
         return Ok(());
     }
-    let mut remaining = limits.matching.max_ownership_visits;
     let scope = result.matching.scope;
     let (left, right, sources) = match (
-        closed_order(old, scope.old, limits, &mut remaining)?,
-        closed_order(new, scope.new, limits, &mut remaining)?,
+        closed_order(old, scope.old, limits, remaining)?,
+        closed_order(new, scope.new, limits, remaining)?,
     ) {
         (Some(left), Some(right)) => (vec![left], vec![right], None),
         _ => {
             let (Some(old_sources), Some(new_sources)) = (
-                native::Sources::new(old, &mut remaining),
-                native::Sources::new(new, &mut remaining),
+                native::Sources::new(old, remaining),
+                native::Sources::new(new, remaining),
             ) else {
                 return Ok(());
             };
             (
-                native::runs(old, scope.old, &old_sources, limits, &mut remaining)?,
-                native::runs(new, scope.new, &new_sources, limits, &mut remaining)?,
+                native::runs(old, scope.old, &old_sources, limits, rows, remaining)?,
+                native::runs(new, scope.new, &new_sources, limits, rows, remaining)?,
                 Some((old_sources, new_sources)),
             )
         }
@@ -318,7 +351,7 @@ pub(super) fn append(
         }
     }
     anchors.sort_unstable();
-    if anchors.len() < 2 {
+    if rows || anchors.len() < 2 {
         return cuts::append(
             old,
             new,
@@ -329,7 +362,8 @@ pub(super) fn append(
             &right,
             sources.as_ref(),
             &anchors,
-            &mut remaining,
+            rows,
+            remaining,
         );
     }
     let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
@@ -347,7 +381,8 @@ pub(super) fn append(
                 &right,
                 sources.as_ref(),
                 &anchors,
-                &mut remaining,
+                rows,
+                remaining,
             )?;
         }
         for pair in anchors.windows(2) {
@@ -409,12 +444,12 @@ pub(super) fn append(
                     let mut native_regions = None;
                     if let Some((old_sources, new_sources)) = &sources {
                         let Some(old_closure) =
-                            old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
+                            old_sources.closed(old, scope.old, &left[*a0..=*a1], remaining)
                         else {
                             continue;
                         };
                         let Some(new_closure) =
-                            new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining)
+                            new_sources.closed(new, scope.new, &right[*b0..=*b1], remaining)
                         else {
                             continue;
                         };
@@ -426,8 +461,8 @@ pub(super) fn append(
                     }
                     let spacing = if let Some((old_sources, new_sources)) = &sources {
                         let (Some(old_spacing), Some(new_spacing)) = (
-                            old_sources.spacing(a, &mut remaining),
-                            new_sources.spacing(b, &mut remaining),
+                            old_sources.spacing(a, remaining),
+                            new_sources.spacing(b, remaining),
                         ) else {
                             continue;
                         };
@@ -449,20 +484,10 @@ pub(super) fn append(
                             old: Some(old_text),
                             new: Some(new_text),
                         }) = &comparison.operation
-                        && (native::external_continuation(
-                            new,
-                            b,
-                            new_text,
-                            old_text,
-                            &mut remaining,
-                        ) != Some(false)
-                            || native::external_continuation(
-                                old,
-                                a,
-                                old_text,
-                                new_text,
-                                &mut remaining,
-                            ) != Some(false))
+                        && (native::external_continuation(new, b, new_text, old_text, remaining)
+                            != Some(false)
+                            || native::external_continuation(old, a, old_text, new_text, remaining)
+                                != Some(false))
                     {
                         continue;
                     }
@@ -508,7 +533,7 @@ pub(super) fn append(
                                 .saturating_add(review.new_sources.len())
                                 .saturating_add(1),
                         );
-                        if spend(&mut remaining, work).is_none()
+                        if spend(remaining, work).is_none()
                             || result.text_scope_reviews.iter().any(|previous| {
                                 previous.old_sources == review.old_sources
                                     && previous.new_sources == review.new_sources

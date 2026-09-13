@@ -18,6 +18,7 @@ use crate::document::{
 };
 
 mod census;
+mod hanging;
 mod projection;
 mod segments;
 
@@ -95,6 +96,7 @@ pub(super) fn runs<'a>(
     root: NodeId,
     sources: &Sources<'a>,
     limits: DocumentComparisonLimits,
+    rows: bool,
     remaining: &mut usize,
 ) -> Result<Vec<Vec<&'a GraphNode>>> {
     if spend(
@@ -120,6 +122,7 @@ pub(super) fn runs<'a>(
     let mut next: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
     let mut previous: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
     let mut blocked = BTreeSet::new();
+    let mut connected = BTreeSet::new();
     for edge in &view.graph.edges {
         if edge.kind != EdgeKind::Precedes {
             continue;
@@ -130,6 +133,7 @@ pub(super) fn runs<'a>(
         {
             blocked.extend([edge.from, edge.to]);
         } else {
+            connected.extend([edge.from, edge.to]);
             next.entry(edge.from).or_default().insert(edge.to);
             previous.entry(edge.to).or_default().insert(edge.from);
         }
@@ -169,6 +173,9 @@ pub(super) fn runs<'a>(
             runs.push(run);
         }
     }
+    if rows {
+        let _ = hanging::attach(sources, &mut runs, &connected, remaining);
+    }
     Ok(runs)
 }
 
@@ -182,6 +189,8 @@ struct NodeGeometry {
     bounds: Rect,
     first_render: u32,
     last_render: u32,
+    top: f64,
+    bottom: f64,
 }
 
 impl<'a> Sources<'a> {
@@ -191,8 +200,9 @@ impl<'a> Sources<'a> {
         root: NodeId,
         path: &[&GraphNode],
         remaining: &mut usize,
-    ) -> Option<(Closure, Vec<SourceRef>)> {
-        census::checked(self, view, root, path, remaining)
+        rows: bool,
+    ) -> Option<(Closure, Vec<SourceRef>, bool)> {
+        census::checked(self, view, root, path, remaining, rows)
     }
 
     pub(super) fn project_census(
@@ -328,12 +338,16 @@ impl<'a> Sources<'a> {
                 current.bounds.max.y = current.bounds.max.y.max(glyph.bbox.max.y);
                 current.first_render = current.first_render.min(glyph.render_order);
                 current.last_render = current.last_render.max(glyph.render_order);
+                current.top = current.top.max(glyph.baseline.y);
+                current.bottom = current.bottom.min(glyph.baseline.y);
             } else {
                 geometry = Some(NodeGeometry {
                     page: *page,
                     bounds: glyph.bbox,
                     first_render: glyph.render_order,
                     last_render: glyph.render_order,
+                    top: glyph.baseline.y,
+                    bottom: glyph.baseline.y,
                 });
             }
         }
@@ -489,7 +503,7 @@ impl<'a> Sources<'a> {
         path: &[&GraphNode],
         remaining: &mut usize,
     ) -> Option<Closure> {
-        self.closed_page_with_padding(view, root, path, &BTreeSet::new(), remaining)
+        self.closed_page_with_padding(view, root, path, &BTreeSet::new(), false, remaining)
     }
 
     fn closed_page_with_padding(
@@ -498,6 +512,7 @@ impl<'a> Sources<'a> {
         root: NodeId,
         path: &[&GraphNode],
         census_padding: &BTreeSet<SourceRef>,
+        row_edges: bool,
         remaining: &mut usize,
     ) -> Option<Closure> {
         let [page] = path[0].pages.as_slice() else {
@@ -518,7 +533,11 @@ impl<'a> Sources<'a> {
         let mut ink_bottom = f64::INFINITY;
         let mut ink_top = f64::NEG_INFINITY;
         let mut previous_bottom = f64::INFINITY;
-        for node in path {
+        let mut previous_top = f64::INFINITY;
+        let mut previous_right = f64::INFINITY;
+        let mut entry_left = f64::NEG_INFINITY;
+        let mut exit_right = f64::INFINITY;
+        for (index, node) in path.iter().enumerate() {
             if node.pages != [*page]
                 || node.sources.is_empty()
                 || spend(remaining, node.sources.len()).is_none()
@@ -527,6 +546,8 @@ impl<'a> Sources<'a> {
             }
             let mut top = f64::NEG_INFINITY;
             let mut bottom = f64::INFINITY;
+            let mut left = f64::INFINITY;
+            let mut right = f64::NEG_INFINITY;
             for source in &node.sources {
                 let SourceRef::Native { glyph } = source else {
                     return None;
@@ -556,24 +577,49 @@ impl<'a> Sources<'a> {
                 ink_top = ink_top.max(glyph.bbox.max.y);
                 top = top.max(glyph.baseline.y);
                 bottom = bottom.min(glyph.baseline.y);
+                left = left.min(glyph.bbox.min.x);
+                right = right.max(glyph.bbox.max.x);
             }
-            // Deliberate: the first native convention admits strictly descending
-            // horizontal blocks; rotated or interleaved baselines need another
-            // source closure, not a guessed order or a pixel-distance threshold.
-            if top >= previous_bottom {
+            // The legacy band remains strictly descending. A census-only row
+            // profile also admits a monoline prefix wholly left of the next
+            // block on the exact same baseline, without a distance tolerance.
+            let same_row_prefix = row_edges
+                && previous_top == previous_bottom
+                && top == previous_bottom
+                && previous_right < left;
+            if top >= previous_bottom && !same_row_prefix {
                 return None;
             }
+            if row_edges && (index == 0 || index + 1 == path.len()) {
+                if top != bottom {
+                    return None;
+                }
+                if index == 0 {
+                    entry_left = left;
+                }
+                if index + 1 == path.len() {
+                    exit_right = right;
+                }
+            }
+            previous_top = top;
             previous_bottom = bottom;
+            previous_right = right;
             min_y = min_y.min(bottom);
             max_y = max_y.max(top);
         }
         for glyph in self.pages.get(page).into_iter().flatten() {
             spend(remaining, 1)?;
+            // In the row profile, known glyphs strictly outside the two outer
+            // row cuts are not omissions. Touching or interior glyphs still
+            // have to belong to the path; paint keeps the full band check.
             if glyph.baseline.y >= min_y
                 && glyph.baseline.y <= max_y
                 && glyph.bbox.max.x >= min_x
                 && glyph.bbox.min.x <= max_x
                 && !sources.contains(&SourceRef::Native { glyph: glyph.id })
+                && !(row_edges
+                    && ((glyph.baseline.y == max_y && glyph.bbox.max.x < entry_left)
+                        || (glyph.baseline.y == min_y && glyph.bbox.min.x > exit_right)))
             {
                 return None;
             }

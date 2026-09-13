@@ -10,9 +10,10 @@ pub(super) fn checked(
     root: NodeId,
     path: &[&GraphNode],
     remaining: &mut usize,
-) -> Option<(Closure, Vec<SourceRef>)> {
+    rows: bool,
+) -> Option<(Closure, Vec<SourceRef>, bool)> {
     if let Some(closure) = sources.closed(view, root, path, remaining) {
-        return Some((closure, Vec::new()));
+        return Some((closure, Vec::new(), false));
     }
     if path.len() < 2 || path.iter().any(|node| node.pages != path[0].pages) {
         return None;
@@ -50,9 +51,6 @@ pub(super) fn checked(
             padding.insert(SourceRef::Native { glyph: glyph.id });
         }
     }
-    if padding.is_empty() {
-        return None;
-    }
     // Partial boundary ink must be disjoint from the interior text's bounds.
     // Touching ink is not rounded away or made safe by the padding convention.
     for source in &padding {
@@ -77,6 +75,15 @@ pub(super) fn checked(
             }
         }
     }
-    let closure = sources.closed_page_with_padding(view, root, path, &padding, remaining)?;
-    Some((closure, padding.into_iter().collect()))
+    if !padding.is_empty()
+        && let Some(closure) =
+            sources.closed_page_with_padding(view, root, path, &padding, false, remaining)
+    {
+        return Some((closure, padding.into_iter().collect(), false));
+    }
+    if !rows {
+        return None;
+    }
+    let closure = sources.closed_page_with_padding(view, root, path, &padding, true, remaining)?;
+    Some((closure, padding.into_iter().collect(), true))
 }

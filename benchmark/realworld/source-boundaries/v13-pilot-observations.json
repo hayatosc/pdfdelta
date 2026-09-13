@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "complete": true,
+  "repetitions": 1,
+  "scope": "Selected development diagnostics. Not the full panel or a recovery gate.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13/build.json",
+    "sha256": "e0838347f6a57f6e2967a3883597e1830ee8864d4191a1bab03afbd57d1b1605"
+  },
+  "observations": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/edpb-controller-processor-v1-to-v2-1-1/runs.json",
+        "sha256": "99a4dab4d8b33d008cbffb3bb17751c77e19c3e822b2708197ed95c319f8364c"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "1680fc0f777013e83628045382116741dd9231fe0253e4eb463b00f244acf788"
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/edpb-design-default-v1-to-v2-1/runs.json",
+        "sha256": "2fb4ca1772a03356d5299098b9e2aee368b0cc3503be01c79a74e501af76ffa6"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/edpb-design-default-v1-to-v2-1/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "ce3a70b40de354ad87e2fa9ffc830c0cd18e6b8f0c00a8f72d678f7477bc2795"
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/arxiv-bert-v1-to-v2-1/runs.json",
+        "sha256": "1af9d3c8bd616019043073c3eb6b0ca62d38393672c2c543f1121fa40e969e1d"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "635daebbc103479bfd2ac6f2ae8e6afc3bdee8efe3c07d0655c9764725c2be53"
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/nist-sha-1803-to-1804-1/runs.json",
+        "sha256": "644b91f272cfec968384898f0c2be2993b6c817cde27724f95f77d0a0b01aeb7"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v13-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "4cbb4887f325c63e927988c95a6f25ce233f7ea89ae1f6ad926224fb8feea17d"
+      }
+    }
+  ]
+}

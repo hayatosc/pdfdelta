@@ -782,6 +782,118 @@ fn source_content_edges_preserve_coarse_space_changes_and_exact_body_sources() {
 }
 
 #[test]
+fn isolated_same_row_prefixes_preserve_source_cuts_and_reject_gaps_or_overlap() {
+    fn setup(text: &str, detached: bool) -> Fixture {
+        let heading = if detached {
+            "NEXT revised section"
+        } else {
+            "NEXT section"
+        };
+        let mut fixture = fixture_rows(&["BEGIN", "1.", text, heading, "2.", "TAIL", "STOP"]);
+        let mut glyphs = fixture.0.native.items().to_vec();
+        for node in [3, 6] {
+            for source in &fixture.1.nodes[node].sources {
+                let SourceRef::Native { glyph } = source else {
+                    unreachable!()
+                };
+                let glyph = glyphs
+                    .iter_mut()
+                    .find(|g| g.id == *glyph)
+                    .expect("fixture source");
+                glyph.baseline.x += 50.0;
+                glyph.bbox.min.x += 50.0;
+                glyph.bbox.max.x += 50.0;
+                glyph.baseline.y += 30.0;
+                glyph.bbox.min.y += 30.0;
+                glyph.bbox.max.y += 30.0;
+            }
+        }
+        if detached {
+            fixture.1.edges.retain(|edge| {
+                edge.kind != EdgeKind::Precedes
+                    || ![NodeId(2), NodeId(5)]
+                        .iter()
+                        .any(|id| edge.from == *id || edge.to == *id)
+            });
+            for (from, to) in [(1, 3), (4, 6)] {
+                fixture.1.edges.push(GraphEdge {
+                    from: NodeId(from),
+                    to: NodeId(to),
+                    kind: EdgeKind::Precedes,
+                    sources: vec![],
+                    basis: ViewBasis::NativeLayout,
+                });
+            }
+            let prefixes: Vec<_> = [2, 5]
+                .into_iter()
+                .flat_map(|index| fixture.1.nodes[index].sources.iter().copied())
+                .collect();
+            let mut order = 0;
+            for prefix in [true, false] {
+                for glyph in &mut glyphs {
+                    if prefixes.contains(&SourceRef::Native { glyph: glyph.id }) == prefix {
+                        glyph.render_order = order;
+                        order += 1;
+                    }
+                }
+            }
+        }
+        fixture.0.native = Document::new(glyphs);
+        fixture
+    }
+    let old = setup("Budget 10.  ", false);
+    for mutation in 0..5 {
+        let mut new = setup("Budget 20. ", true);
+        if mutation == 3 {
+            append_unassigned(&mut new, PageId(0), 70.0);
+        } else if mutation != 0 {
+            let mut glyphs = new.0.native.items().to_vec();
+            let node = if mutation == 1 { 2 } else { 3 };
+            let SourceRef::Native { glyph } = new.1.nodes[node].sources[0] else {
+                unreachable!()
+            };
+            let glyph = glyphs
+                .iter_mut()
+                .find(|g| g.id == glyph)
+                .expect("mutated fixture source");
+            match mutation {
+                1 => glyph.bbox.max.x = 50.0,
+                2 => {
+                    glyph.baseline.y += 0.01;
+                    glyph.bbox.min.y += 0.01;
+                    glyph.bbox.max.y += 0.01;
+                }
+                4 => glyph.path_clip_status = GlyphPathClipStatus::PartiallyOutside,
+                _ => unreachable!(),
+            }
+            new.0.native = Document::new(glyphs);
+        }
+        let result = compare(&old, &new);
+        let target = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .find(|review| {
+                review.old_sources == old.1.nodes[3].sources[..10]
+                    && review.new_sources == new.1.nodes[3].sources[..10]
+            });
+        assert_eq!(target.is_some(), mutation == 0, "mutation {mutation}");
+        if let Some(review) = target {
+            let cuts = review.source_cuts.as_ref().expect("source cut recovery");
+            let pdfdelta_core::document::SourceCutPopulation::MatchedInterval {
+                row_order: Some(order),
+                ..
+            } = &cuts.population
+            else {
+                panic!("row source-order certificate");
+            };
+            assert_eq!(order.convention, "horizontal-row-boundaries-v1");
+            assert!(order.old.is_some() && order.new.is_some());
+        }
+    }
+}
+
+#[test]
 fn source_cuts_use_a_closed_matched_population_with_unrelated_pages() {
     let mut old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
     let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);

@@ -79,7 +79,26 @@ pub enum SourceCutPopulation {
         native_regions: Option<Box<NativeRegionChains>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         boundary_padding: Option<Box<SourceCutBoundaryPadding>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        row_order: Option<Box<SourceCutRowOrder>>,
     },
+}
+
+/// Monoline outer endpoints of a horizontal source interval. Exact baseline
+/// equality permits an independently painted prefix before a disjoint body;
+/// glyphs strictly before/after the endpoint positions on those rows remain
+/// outside the census interval. The intervening source band must still close.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceCutRowOrder {
+    pub convention: String,
+    pub old: Option<[SourceCutRowEndpoint; 2]>,
+    pub new: Option<[SourceCutRowEndpoint; 2]>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceCutRowEndpoint {
+    pub node: NodeId,
+    pub sources: Vec<SourceRef>,
 }
 
 /// Partially clipped outer padding participates in the occurrence census with
@@ -396,6 +415,7 @@ pub(super) fn append(
     right: &[Vec<&GraphNode>],
     sources: Option<&(native::Sources<'_>, native::Sources<'_>)>,
     anchors: &[Anchor],
+    rows: bool,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
@@ -466,10 +486,14 @@ pub(super) fn append(
             }
             Some(false) => {}
         }
-        let (Some((old_closure, old_padding)), Some((new_closure, new_padding))) = (
-            old_sources.census(old, result.matching.scope.old, &left[0], remaining),
-            new_sources.census(new, result.matching.scope.new, &right[0], remaining),
-        ) else {
+        let (
+            Some((old_closure, old_padding, old_rows)),
+            Some((new_closure, new_padding, new_rows)),
+        ) = (
+            old_sources.census(old, result.matching.scope.old, &left[0], remaining, rows),
+            new_sources.census(new, result.matching.scope.new, &right[0], remaining, rows),
+        )
+        else {
             aggregate.exhaustive = false;
             continue;
         };
@@ -495,6 +519,19 @@ pub(super) fn append(
                     new: new_padding.clone(),
                 }),
             ),
+            row_order: (old_rows || new_rows).then(|| {
+                let endpoints = |nodes: &[&GraphNode]| {
+                    [0, nodes.len() - 1].map(|index| SourceCutRowEndpoint {
+                        node: nodes[index].id,
+                        sources: nodes[index].sources.clone(),
+                    })
+                };
+                Box::new(SourceCutRowOrder {
+                    convention: "horizontal-row-boundaries-v1".into(),
+                    old: old_rows.then(|| endpoints(&left[0])),
+                    new: new_rows.then(|| endpoints(&right[0])),
+                })
+            }),
         };
         let project = |nodes: &[&GraphNode],
                        sources: &native::Sources<'_>,

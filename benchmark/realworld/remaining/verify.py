@@ -174,6 +174,27 @@ def checked_source_cuts(review, result):
                     and [members[0], members[-1]] == [value[side][0] for value in outer]
                     and set(review["comparison"][side]) <= set(members),
                     "review escapes its declared cut population")
+    row_order = population.get("row_order")
+    if row_order is not None:
+        require(population["kind"] == "matched_interval"
+                and row_order["convention"] == "horizontal-row-boundaries-v1"
+                and (row_order["old"] is not None or row_order["new"] is not None),
+                "unsupported row source order")
+        for side in ("old", "new"):
+            endpoints = row_order[side]
+            if endpoints is None:
+                continue
+            require(len(endpoints) == 2 and [endpoint["node"] for endpoint in endpoints]
+                    == [population[side][0], population[side][-1]],
+                    "row endpoints escape the enclosing population")
+            refs = [ref for endpoint in endpoints for ref in endpoint["sources"]]
+            require(all(endpoint["sources"] for endpoint in endpoints)
+                    and all(ref.get("origin") == "native" and type(ref.get("glyph")) is int
+                            and ref["glyph"] >= 0 for ref in refs)
+                    and len(historical.native_sources(refs, side)) == len(refs)
+                    and not historical.native_sources(refs, side)
+                    & historical.native_sources(review[side + "_sources"], side),
+                    "row endpoints lack distinct native source evidence")
     refinement = cuts.get("edge_refinement")
     if refinement is not None:
         require(refinement["convention"] == "mandatory-literal-space-content-edges-v1"

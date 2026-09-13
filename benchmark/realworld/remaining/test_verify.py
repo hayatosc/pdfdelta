@@ -129,6 +129,30 @@ class EvidenceTests(unittest.TestCase):
                 with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                     verify.events(invalid)
 
+        row_ordered = copy.deepcopy(report)
+        row = row_ordered["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+        row["source_cuts"]["population"]["row_order"] = {
+            "convention": "horizontal-row-boundaries-v1",
+            "old": [{"node": node, "sources": [{"origin": "native", "glyph": glyph}]}
+                    for node, glyph in ((1, 21), (3, 23))], "new": None,
+        }
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            self.assertEqual(verify.events(row_ordered)[0]["category"], "B")
+            for mutation in ("node", "source", "profile", "body"):
+                invalid = copy.deepcopy(row_ordered)
+                row = invalid["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+                proof = row["source_cuts"]["population"]["row_order"]
+                if mutation == "node":
+                    proof["old"][0]["node"] = 2
+                elif mutation == "source":
+                    proof["old"][0]["sources"] = []
+                elif mutation == "profile":
+                    proof["convention"] = "unknown"
+                else:
+                    proof["old"][0]["sources"] = copy.deepcopy(row["old_sources"])
+                with self.subTest(row_mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
         padded = copy.deepcopy(report)
         row = padded["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
         row["source_cuts"]["projection"] = "retained-glyph-boundary-padding-v1"
