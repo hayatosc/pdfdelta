@@ -324,18 +324,16 @@ fn collect(
         crate::render::collect(&mut store, &bytes, &page_refs, password.is_some());
     }
     crate::widgets::collect(&mut store);
-    for channel in [Channel::Presentation] {
-        if options.channels.contains(&channel) {
-            for page in &store.pages {
-                store.issues.push(EvidenceIssue {
-                    page: Some(page.page),
-                    channel,
-                    sources: Vec::new(),
-                    kind: EvidenceFailure::Unsupported,
-                    reason: "presentation interpretation is not implemented; retained page pixels do not establish presentation coverage"
-                        .into(),
-                });
-            }
+    if options.channels.contains(&Channel::Presentation) {
+        for page in &store.pages {
+            store.issues.push(EvidenceIssue {
+                page: Some(page.page),
+                channel: Channel::Presentation,
+                sources: Vec::new(),
+                kind: EvidenceFailure::Unsupported,
+                reason: "presentation interpretation is not implemented; retained page pixels do not establish presentation coverage"
+                    .into(),
+            });
         }
     }
     store.validate(limits).map_err(|error| error.to_string())?;
