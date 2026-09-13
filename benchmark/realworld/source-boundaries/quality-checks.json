@@ -1,6 +1,5 @@
 {
-  "version": 1,
-  "source_sha256": "790493ab52266f12a64511172eb73d42a443c550d8e55b4085fcf23a0a86beb8",
+  "source_sha256": "baec3b656c77587adb99f4d74c8c5423e0c664371cebfdd019c64099798c9a78",
   "checks": [
     {
       "command": [
@@ -11,8 +10,10 @@
         "--check"
       ],
       "exit_code": 0,
+      "started_utc": "2026-09-13T11:58:34.864048+00:00",
+      "finished_utc": "2026-09-13T11:58:41.953918+00:00",
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/enclosing-v35-format.log",
+        "path": "benchmark/realworld/source-boundaries/checks/anchored-page-v40-format.log",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -28,9 +29,11 @@
         "warnings"
       ],
       "exit_code": 0,
+      "started_utc": "2026-09-13T11:58:41.954272+00:00",
+      "finished_utc": "2026-09-13T11:59:01.505781+00:00",
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/enclosing-v35-clippy.log",
-        "sha256": "58731ef2f98d51221e42d64510066cfba2e6e8c33b6fdc1126fc117cb057d14b"
+        "path": "benchmark/realworld/source-boundaries/checks/anchored-page-v40-clippy.log",
+        "sha256": "66699229145add0b12f1d970613e694fb430ebd0856837f6aa4d63a838e82280"
       }
     },
     {
@@ -41,9 +44,11 @@
         "--locked"
       ],
       "exit_code": 0,
+      "started_utc": "2026-09-13T11:59:01.506187+00:00",
+      "finished_utc": "2026-09-13T12:00:42.714281+00:00",
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/enclosing-v35-workspace-tests.log",
-        "sha256": "fc029cca9f0810e49580d1e38342bb9e18c5f26431a7cce93c803e050865437d"
+        "path": "benchmark/realworld/source-boundaries/checks/anchored-page-v40-workspace-tests.log",
+        "sha256": "a79ce022b9574aded5fe6297fdb1d78333c95451b3736b6d06bfd4ba1287efd8"
       }
     },
     {
@@ -57,9 +62,11 @@
         "verify"
       ],
       "exit_code": 0,
+      "started_utc": "2026-09-13T12:00:42.714856+00:00",
+      "finished_utc": "2026-09-13T12:00:54.245667+00:00",
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/enclosing-v35-generated.log",
-        "sha256": "208f40884b02d93f3781dc45ecd057a6b050d1a7c297eb309cb80972bb1b29b8"
+        "path": "benchmark/realworld/source-boundaries/checks/anchored-page-v40-generated.log",
+        "sha256": "76989f07cdf934f2cfc9019ff31cecd86e1f2ce1ec3a545fd221b5f1c587d458"
       }
     }
   ]
