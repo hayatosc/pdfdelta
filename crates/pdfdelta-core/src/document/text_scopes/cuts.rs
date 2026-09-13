@@ -514,6 +514,7 @@ fn same_raw_text(left: &[&GraphNode], right: &[&GraphNode], remaining: &mut usiz
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Pass {
     Standard,
+    WholeIntervals,
     RefineExisting,
     Paint,
 }
@@ -537,6 +538,7 @@ pub(super) fn append(
         return Ok(());
     };
     let refine_existing = pass == Pass::RefineExisting;
+    let whole_intervals = pass == Pass::WholeIntervals;
     let initial = *remaining;
     if pass == Pass::Standard
         && population(old, result.matching.scope.old, left, old_sources, remaining).is_some()
@@ -572,7 +574,7 @@ pub(super) fn append(
     }
     let mut aggregate = SourceCutSearch {
         convention: "matched-interval-native-fragment-cuts-v2".into(),
-        exhaustive: anchors.len() >= 2,
+        exhaustive: !whole_intervals && anchors.len() >= 2,
         examined_fragments: 0,
         paired_boundaries: 0,
         work: 0,
@@ -591,6 +593,18 @@ pub(super) fn append(
         }
     }
     let mut deferred = Vec::new();
+    let mut new_anchors = BTreeSet::new();
+    if whole_intervals {
+        let work = anchors
+            .len()
+            .saturating_mul(anchors.len().saturating_add(1).ilog2() as usize + 1);
+        if spend(remaining, work).is_none() {
+            aggregate.work = initial - *remaining;
+            result.source_cut_search = Some(aggregate);
+            return Ok(());
+        }
+        new_anchors.extend(anchors.iter().map(|anchor| anchor.1));
+    }
     for pair in anchors.windows(2) {
         let [(a, b, entry), (c, d, exit)] = pair else {
             unreachable!()
@@ -600,6 +614,24 @@ pub(super) fn append(
         }
         if c.1 == a.1 + 1 && d.1 == b.1 + 1 {
             continue;
+        }
+        if whole_intervals {
+            // An accepted counterpart inside only one side prevents this whole
+            // interval from having the same boundary order on both revisions.
+            if new_anchors.range((b.0, b.1 + 1)..*d).next().is_some() {
+                continue;
+            }
+            if spend(remaining, result.text_scope_reviews.len()).is_none() {
+                aggregate.exhaustive = false;
+                break;
+            }
+            if result
+                .text_scope_reviews
+                .iter()
+                .any(|review| review.source_cuts.is_none() && review.boundaries == [*entry, *exit])
+            {
+                continue;
+            }
         }
         if refine_existing {
             if spend(remaining, result.text_scope_reviews.len()).is_none() {
@@ -805,7 +837,7 @@ pub(super) fn append(
             population,
             &maps,
             refine_existing,
-            paint_frame && !refine_existing,
+            whole_intervals || (paint_frame && !refine_existing),
             remaining,
         )?;
         if let Some(search) = result.source_cut_search.take() {
@@ -1149,6 +1181,7 @@ fn compare_population(
             || entry.old.0 != exit.old.0
             || entry.new.0 != exit.new.0
             || (!refine_existing
+                && !whole_only
                 && !paint_boundaries
                 && !matches!(population, SourceCutPopulation::AnchoredPage { .. })
                 && matches!(

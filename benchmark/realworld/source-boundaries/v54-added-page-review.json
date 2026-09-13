@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "source_checks": {
+    "path": "benchmark/realworld/source-boundaries/v54-added-source-checks.json",
+    "sha256": "c8b086720090b8ea7067743827adb32332a17bd04f887812bf9786c2855d3d01"
+  },
+  "validator": {
+    "path": "benchmark/realworld/source-boundaries/review-v54.py",
+    "sha256": "333690b5fb858c06b611a508e6512d07bae0fb81ed57bae05fb90aed804dd9e5"
+  },
+  "viewed_images": [
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/old-region-1.png",
+      "sha256": "c8f3162577af8cfb3cd7f4f2aa5e2e3685623db7a994b061ccdc317760939446"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/review/new-region-2.png",
+      "sha256": "378b2b267c6ef6fb344b29391889869ad2831f9e9e63498c447aa7560c14d36d"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/old-region-3.png",
+      "sha256": "1f4fc8b154e8d9b3e56b12fa1e2c9f379c912b6f4f6af4755c59bb7ed38fbb66"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/new-region-2.png",
+      "sha256": "1ecbe4646839d69d1f2d2642533c9ad628afd52dd3f82964c677033706e3d8be"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/old-region-31.png",
+      "sha256": "12b17557b6d884196ac5cc3ad5cb17a02fdaf02d04fafcba8b726bb6b5666ab3"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-sha-v9-review/new-region-32.png",
+      "sha256": "0b850c51e9b60ee6a11f4e7fdd838dc92677809b0367d11a8a7bc8b5194f8aec"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/old-region-4.png",
+      "sha256": "d74c84ff6aa6e855e6001c86f7bff7d2727c6a9eb6a2e1904759fed9361d4207"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-w2-2024-to-2025-source-review/new-region-4.png",
+      "sha256": "c9a99f8f6485557cd54b4982d643bc24ee4366c65c044bbc5189bbe6b531e9ce"
+    }
+  ],
+  "events": [
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "event_sha256": "62a9be6b51da3fe3b25bc05057a6032f89f58303368132d146797982a5025055",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/21",
+      "verdict": "source_supported",
+      "rationale": "The corresponding first seven table-of-contents entries retain the same headings, change their page references by one, and expand Rec. 41 to Recital 41. Both full displayed ranges end before the unchanged 3.3.2 label. Native paint order and complete source projection retain all intervening rows; this is a finite contents-list interval, not a body-target recovery."
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "event_sha256": "a6715c96fcd014a3a8ba45e858c7f8c27130afdd13f8ca736852235b663536cc",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/8",
+      "verdict": "source_supported",
+      "rationale": "The abstract deletes five before hash algorithms and retains the keyword list. The source-backed spaces also differ. Independent masks establish seven changed sources in the full interval and six after removing only the literal trailing spaces; the repeated spaces are not all mandatory edit positions."
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "event_sha256": "d8c0a7940a4f4b2c723e9a26963210002ef3e5118dea10df2012061185a224b9",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/9",
+      "verdict": "source_supported",
+      "rationale": "The abstract deletes five before hash algorithms and retains the keyword list. The source-backed spaces also differ. Independent masks establish seven changed sources in the full interval and six after removing only the literal trailing spaces; the repeated spaces are not all mandatory edit positions."
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "event_sha256": "b713f64c45c3b09f79dca8e176b161cc8cfd846574317c63a673f603e2662ed8",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/10",
+      "verdict": "source_supported",
+      "rationale": "Between corresponding Appendix A and A.1 headings, the old source contains one decoded literal space glyph (40533) and the new interval is empty. This is a source-space presence difference under the finite interval convention. The image supports the enclosing headings; it does not establish a visible character deletion. Raw provenance, complete cuts and the independently checked one-source mask establish the stated claim."
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "event_sha256": "d88d81de5b5122a025cd760898c99d767e1cd869b6a7891c02e32a1a30a821bd",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/2",
+      "verdict": "source_supported",
+      "rationale": "The employee EITC notice changes three literal occurrences of 2024 to 2025. The following SSN heading fragment remains equal. The retained line separator has both spacing interpretations, and independent all-optimal masks prove six changed source tokens. The finer view removes only the checked final literal space."
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "event_sha256": "f11e05294325da2a365d13bbb4b9aa51a752e9ab065e54fc26d892fa4a868373",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/3",
+      "verdict": "source_supported",
+      "rationale": "The employee EITC notice changes three literal occurrences of 2024 to 2025. The following SSN heading fragment remains equal. The retained line separator has both spacing interpretations, and independent all-optimal masks prove six changed source tokens. The finer view removes only the checked final literal space."
+    }
+  ]
+}

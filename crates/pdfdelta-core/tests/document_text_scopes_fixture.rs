@@ -1452,6 +1452,95 @@ fn native_context_outside_an_interval_keeps_its_adjacent_boundaries() {
 }
 
 #[test]
+fn accepted_intervals_recheck_raw_sources_when_group_normalization_is_unresolved() {
+    let mut old = fixture("Earlier 10.");
+    let mut new = fixture("Updated 20.");
+    for fixture in [&mut old, &mut new] {
+        append_unassigned(fixture, PageId(1), 0.0);
+    }
+    let NodeContent::Text { view } = &mut new.1.nodes[2].content else {
+        unreachable!()
+    };
+    view.normalization = TextNormalization::Unresolved {
+        reason: "global normalization retains competing interpretations".into(),
+    };
+    for (a, b) in [(&old, &new), (&new, &old)] {
+        let result = compare(a, b);
+        assert!(
+            result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| {
+                    review.source_cuts.is_some()
+                        && review.old_sources == a.1.nodes[2].sources
+                        && review.new_sources == b.1.nodes[2].sources
+                })
+        );
+    }
+    for fault in ["unmapped", "wrong-token", "unsafe-order"] {
+        let mut bad = new.clone();
+        match fault {
+            "unmapped" => {
+                let source = bad.1.nodes[2].sources[0];
+                bad.0.native = bad.0.native.map_items(|mut glyph| {
+                    if source == (SourceRef::Native { glyph: glyph.id }) {
+                        glyph.text = DecodedText::Unmapped {
+                            font_hash: pdfdelta_core::model::FontProgramHash(vec![0; 32]),
+                            glyph_id: 1,
+                        };
+                    }
+                    glyph
+                });
+            }
+            "wrong-token" => {
+                let NodeContent::Text { view } = &mut bad.1.nodes[2].content else {
+                    unreachable!()
+                };
+                view.tokens[0] = ComparableToken::Scalar('X');
+            }
+            "unsafe-order" => {
+                let source = bad.1.nodes[2].sources[0];
+                bad.0.native = bad.0.native.map_items(|mut glyph| {
+                    if source == (SourceRef::Native { glyph: glyph.id }) {
+                        glyph.baseline.y = 110.0;
+                    }
+                    glyph
+                });
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            compare(&old, &bad).scopes[0]
+                .result
+                .text_scope_reviews
+                .is_empty(),
+            "{fault}"
+        );
+    }
+    assert!(
+        compare(&new, &new).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
+}
+
+#[test]
+fn raw_intervals_reject_an_accepted_boundary_crossing_their_new_side() {
+    let old = fixture_rows(&["BEGIN", "Earlier 10.", "END", "Moved boundary"]);
+    let mut new = fixture_rows(&["BEGIN", "Moved boundary", "Updated 20.", "END"]);
+    let NodeContent::Text { view } = &mut new.1.nodes[3].content else {
+        unreachable!()
+    };
+    view.normalization = TextNormalization::Unresolved {
+        reason: "global normalization retains competing interpretations".into(),
+    };
+    let result = compare(&old, &new);
+    assert!(result.scopes[0].result.text_scope_reviews.is_empty());
+}
+
+#[test]
 fn source_cuts_use_a_closed_matched_population_with_unrelated_pages() {
     let mut old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
     let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);
@@ -2386,6 +2475,7 @@ fn long_exact_native_ranges_retain_a_change_when_mask_work_is_exhausted() {
         view.normalization = TextNormalization::Unresolved {
             reason: "unproved projection".into(),
         };
+        view.tokens[0] = ComparableToken::Scalar('c');
     }
     assert!(
         compare(&old, &unknown).scopes[0]

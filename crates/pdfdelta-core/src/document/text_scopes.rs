@@ -434,6 +434,34 @@ fn append_pass(
     // empty-sided claims. All stages still share the same finite work cap.
     for empty_sided in [false, true] {
         if empty_sided {
+            // A global normalization failure need not invalidate the retained
+            // raw interval. Recheck its source projection and closure before
+            // lexical searches spend the shared budget on finer boundaries.
+            // Preserve three quarters for established finer ranges: a coarse
+            // recovery must not consume their entire discovery budget.
+            let prior = result.source_cut_search.take();
+            let before = *remaining;
+            let allowance = before / 4;
+            let mut raw_remaining = allowance;
+            cuts::append(
+                old,
+                new,
+                result,
+                parent,
+                limits,
+                &left,
+                &right,
+                sources.as_ref(),
+                &anchors,
+                rows,
+                cuts::Pass::WholeIntervals,
+                &mut raw_remaining,
+            )?;
+            *remaining -= allowance - raw_remaining;
+            if let Some(search) = &mut result.source_cut_search {
+                search.budget_at_entry = before;
+            }
+            merge_cut_search(result, prior, before - *remaining);
             if sources.is_some()
                 && result
                     .text_scope_reviews

@@ -1,0 +1,133 @@
+--- crates/pdfdelta-core/src/document/text_scopes/native.rs
++++ crates/pdfdelta-core/src/document/text_scopes/native.rs
+@@ -595,7 +595,7 @@
+         remaining: &mut usize,
+     ) -> Option<Closure> {
+         let [page] = path[0].pages.as_slice() else {
+-            return None;
++            eprintln!("DIAG closure reject original line 598"); return None;
+         };
+         spend(
+             remaining,
+@@ -635,7 +635,7 @@
+                 || node.sources.is_empty()
+                 || spend(remaining, node.sources.len()).is_none()
+             {
+-                return None;
++                eprintln!("DIAG closure reject original line 638"); return None;
+             }
+             let mut top = f64::NEG_INFINITY;
+             let mut bottom = f64::INFINITY;
+@@ -643,7 +643,7 @@
+             let mut right = f64::NEG_INFINITY;
+             for source in &node.sources {
+                 let SourceRef::Native { glyph } = source else {
+-                    return None;
++                    eprintln!("DIAG closure reject original line 646"); return None;
+                 };
+                 let glyph = self.glyphs.get(glyph)?;
+                 if paint_order {
+@@ -660,7 +660,7 @@
+                         .iter()
+                         .all(|value| value.is_finite())
+                     {
+-                        return None;
++                        eprintln!("DIAG closure reject original line 663"); return None;
+                     }
+                     previous_render = Some(glyph.render_order);
+                     if !paint_rows::same_baseline(previous_baseline, glyph.baseline.y) {
+@@ -695,7 +695,7 @@
+                     )
+                     || !sources.insert(*source)
+                 {
+-                    return None;
++                    eprintln!("DIAG closure reject original line 698"); return None;
+                 }
+                 min_x = min_x.min(glyph.bbox.min.x);
+                 max_x = max_x.max(glyph.bbox.max.x);
+@@ -714,11 +714,11 @@
+                 && top == previous_bottom
+                 && previous_right < left;
+             if !paint_order && top >= previous_bottom && !same_row_prefix {
+-                return None;
++                eprintln!("DIAG closure reject original line 717"); return None;
+             }
+             if row_edges && (index == 0 || index + 1 == path.len()) {
+                 if top != bottom && !(paint_order && paint_rows::same_baseline(top, bottom)) {
+-                    return None;
++                    eprintln!("DIAG closure reject original line 721"); return None;
+                 }
+                 if index == 0 {
+                     entry_left = left;
+@@ -785,19 +785,19 @@
+                 && !sources.contains(&SourceRef::Native { glyph: glyph.id })
+                 && !outside_row
+             {
+-                return None;
++                eprintln!("DIAG closure reject original line 788"); return None;
+             }
+         }
+         let members: BTreeSet<_> = path.iter().map(|node| node.id).collect();
+         for alternative in &view.graph.alternatives {
+             if alternative.parent == root || members.contains(&alternative.parent) {
+-                return None;
++                eprintln!("DIAG closure reject original line 794"); return None;
+             }
+             for partition in &alternative.partitions {
+                 if spend(remaining, partition.len()).is_none()
+                     || partition.iter().any(|id| members.contains(id))
+                 {
+-                    return None;
++                    eprintln!("DIAG closure reject original line 800"); return None;
+                 }
+             }
+         }
+@@ -808,7 +808,7 @@
+                     .iter()
+                     .any(|source| sources.contains(source))
+             {
+-                return None;
++                eprintln!("DIAG closure reject original line 811"); return None;
+             }
+         }
+         if view.evidence.inventory_complete(Some(*page), Channel::Text) {
+@@ -860,7 +860,7 @@
+                                 .is_some_and(|paint| paint.page == page && paint.bounds.is_some())))
+             })
+         {
+-            return None;
++            eprintln!("DIAG closure reject original line 863"); return None;
+         }
+         let glyphs = self.pages.get(&page)?;
+         spend(remaining, glyphs.iter().map(|run| run.len()).sum())?;
+@@ -882,18 +882,18 @@
+             if inventory.page != Some(page)
+                 || evidence.backends.get(inventory.backend)?.kind != BackendKind::NativeParser
+             {
+-                return None;
++                eprintln!("DIAG closure reject original line 885"); return None;
+             }
+             spend(remaining, inventory.sources.len())?;
+             if inventory.sources.len() != expected.len()
+                 || inventory.sources.iter().copied().collect::<BTreeSet<_>>() != expected
+             {
+-                return None;
++                eprintln!("DIAG closure reject original line 891"); return None;
+             }
+             found = true;
+         }
+         if !found {
+-            return None;
++            eprintln!("DIAG closure reject original line 896"); return None;
+         }
+         for paint in paints {
+             spend(remaining, 1)?;
+@@ -906,7 +906,7 @@
+                 && bounds.max.y >= band.min.y
+                 && bounds.min.y <= band.max.y
+             {
+-                return None;
++                eprintln!("DIAG closure reject original line 909"); return None;
+             }
+         }
+         Some(Closure::BoundedPaint)

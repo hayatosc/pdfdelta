@@ -1,0 +1,22 @@
+[
+  {
+    "active": {
+      "path": "benchmark/realworld/source-boundaries/development.json",
+      "sha256": "73cdff3ffa0994253396ddbc32fa0f95d2cadf02fb55fcc5270ed2839864eecd"
+    },
+    "archive": {
+      "path": "benchmark/realworld/source-boundaries/v54-superseded-development.json",
+      "sha256": "73cdff3ffa0994253396ddbc32fa0f95d2cadf02fb55fcc5270ed2839864eecd"
+    }
+  },
+  {
+    "active": {
+      "path": "benchmark/realworld/source-boundaries/quality-checks.json",
+      "sha256": "f4b3e15bcb06983b64b176a05454628a5d1bad100470463556bc00d3e85da6c3"
+    },
+    "archive": {
+      "path": "benchmark/realworld/source-boundaries/v54-superseded-quality-checks.json",
+      "sha256": "f4b3e15bcb06983b64b176a05454628a5d1bad100470463556bc00d3e85da6c3"
+    }
+  }
+]
