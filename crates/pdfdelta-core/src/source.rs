@@ -104,6 +104,43 @@ impl ExternalFontIdentities {
         Ok(())
     }
 
+    /// Inserts a precomputed identity hash for callers that only transport the
+    /// digest, such as a bounded child-process request.
+    ///
+    /// Enforces the same `BaseFont` name and entry-count bounds as
+    /// [`Self::insert`], and requires a non-empty SHA-256-sized digest.
+    ///
+    /// # Errors
+    /// Rejects empty or oversized `BaseFont` names, empty or non-32-byte
+    /// digests, duplicate names, and entries beyond [`Self::MAX_ENTRIES`].
+    pub fn insert_hash(&mut self, base_font: &[u8], identity: FontProgramHash) -> Result<()> {
+        if base_font.is_empty() || base_font.len() > Self::MAX_BASE_FONT_BYTES {
+            return Err(Error::InvalidConfiguration(format!(
+                "external BaseFont names must contain 1..={} bytes",
+                Self::MAX_BASE_FONT_BYTES
+            )));
+        }
+        if identity.0.len() != 32 {
+            return Err(Error::InvalidConfiguration(
+                "precomputed external font identities must be 32-byte SHA-256 digests".to_owned(),
+            ));
+        }
+        if self.identities.contains_key(base_font) {
+            return Err(Error::InvalidConfiguration(format!(
+                "duplicate external font identity for /{}",
+                String::from_utf8_lossy(base_font)
+            )));
+        }
+        if self.identities.len() == Self::MAX_ENTRIES {
+            return Err(Error::LimitExceeded {
+                resource: "external font identity entries",
+                limit: Self::MAX_ENTRIES,
+            });
+        }
+        self.identities.insert(base_font.to_vec(), identity);
+        Ok(())
+    }
+
     pub(crate) fn get(&self, base_font: &[u8]) -> Option<&FontProgramHash> {
         self.identities.get(base_font)
     }
@@ -454,5 +491,37 @@ mod tests {
                 limit,
             } if limit == ExternalFontIdentities::MAX_ENTRIES
         ));
+    }
+
+    #[test]
+    fn precomputed_font_identities_are_validated_and_match_inserted_digests() {
+        let mut identities = ExternalFontIdentities::default();
+        identities
+            .insert(b"BaseFont", b"identity")
+            .expect("source identity");
+        let digest = identities
+            .iter()
+            .find(|(name, _)| *name == b"BaseFont")
+            .map(|(_, hash)| hash.clone())
+            .expect("inserted identity");
+
+        let mut transported = ExternalFontIdentities::default();
+        transported
+            .insert_hash(b"BaseFont", digest.clone())
+            .expect("precomputed digest");
+        assert_eq!(transported.get(b"BaseFont"), Some(&digest));
+        assert!(
+            transported
+                .insert_hash(b"BaseFont", digest.clone())
+                .is_err()
+        );
+        assert!(transported.insert_hash(b"", digest.clone()).is_err());
+        assert!(
+            transported
+                .insert_hash(b"Other", FontProgramHash(vec![0; 31]),)
+                .is_err()
+        );
+        let oversized = vec![b'A'; ExternalFontIdentities::MAX_BASE_FONT_BYTES + 1];
+        assert!(transported.insert_hash(&oversized, digest).is_err());
     }
 }
