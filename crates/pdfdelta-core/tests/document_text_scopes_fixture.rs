@@ -635,17 +635,25 @@ fn native_interval_does_not_turn_an_external_continuation_into_a_content_change(
 
 #[test]
 fn native_interval_retains_literal_space_changes() {
-    for (a, b) in [
-        ("ab", "a b"),
-        ("ab", " ac"),
-        ("The file is now here.", "The file is nowhere."),
-        ("int x;", "intx;"),
+    for (a, b, reviews) in [
+        ("ab", "a b", 1),
+        ("ab", " ac", 3),
+        ("The file is now here.", "The file is nowhere.", 1),
+        ("int x;", "intx;", 1),
     ] {
         let old = fixture(a);
         let new = fixture(b);
         let comparison = compare(&old, &new);
         let scope = &comparison.scopes[0].result;
-        assert_eq!(scope.text_scope_reviews.len(), 1, "{a:?} -> {b:?}");
+        assert_eq!(scope.text_scope_reviews.len(), reviews, "{a:?} -> {b:?}");
+        assert_eq!(
+            scope
+                .text_scope_reviews
+                .iter()
+                .filter(|review| review.source_cuts.is_none())
+                .count(),
+            1
+        );
         let coverage = pdfdelta_core::document::document_coverage(
             DocumentView {
                 evidence: &old.0,
@@ -890,6 +898,71 @@ fn isolated_same_row_prefixes_preserve_source_cuts_and_reject_gaps_or_overlap() 
             assert_eq!(order.convention, "horizontal-row-boundaries-v1");
             assert!(order.old.is_some() && order.new.is_some());
         }
+    }
+}
+
+#[test]
+fn whole_node_intervals_can_retain_a_raw_parent_for_content_edge_refinement() {
+    let old = fixture_rows(&["BEGIN", "Budget 10.  ", "END"]);
+    let new = fixture_rows(&["BEGIN", "Budget 20.", "END"]);
+    let original_old = &old.1.nodes[2].sources;
+    let original_new = &new.1.nodes[2].sources;
+    let result = compare(&old, &new);
+    let reviews = &result.scopes[0].result.text_scope_reviews;
+    assert!(reviews.iter().any(|review| review.source_cuts.is_none()
+        && review.old_sources == *original_old
+        && review.new_sources == *original_new));
+    assert!(reviews.iter().any(|review| {
+        review
+            .source_cuts
+            .as_ref()
+            .is_some_and(|cuts| cuts.edge_refinement.is_some())
+            && review.old_sources == original_old[.."Budget 10.".len()]
+            && review.new_sources == *original_new
+    }));
+    assert!(reviews.iter().any(|review| {
+        review
+            .source_cuts
+            .as_ref()
+            .is_some_and(|cuts| cuts.edge_refinement.is_none())
+            && review.old_sources == *original_old
+            && review.new_sources == *original_new
+    }));
+}
+
+#[test]
+fn native_context_outside_an_interval_keeps_its_adjacent_boundaries() {
+    for (header, footer) in [(true, false), (false, true), (true, true)] {
+        let mut old = fixture_rows(&["TITLE", "BEGIN", "Budget 10.  ", "END", "STOP", "FOOT"]);
+        let mut new = fixture_rows(&["TITLE", "BEGIN", "Budget 20.", "END", "STOP", "FOOT"]);
+        if header {
+            old.1.nodes[1].kind = NodeKind::Header;
+        }
+        if footer {
+            old.1.nodes[6].kind = NodeKind::Footer;
+        }
+        let old_extent = old.1.nodes[3].sources[.."Budget 10.".len()].to_vec();
+        let new_extent = new.1.nodes[3].sources.clone();
+        merge_following_node(&mut new, 3);
+        assert!(
+            compare(&old, &new).scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| review.source_cuts.is_some()
+                    && review.old_sources == old_extent
+                    && review.new_sources == new_extent),
+            "header={header}, footer={footer}"
+        );
+        let mut omitted = old.clone();
+        append_unassigned(&mut omitted, PageId(0), 25.0);
+        assert!(
+            compare(&omitted, &new).scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .all(|review| review.old_sources != old_extent || review.new_sources != new_extent)
+        );
     }
 }
 

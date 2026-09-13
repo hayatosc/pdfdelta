@@ -245,6 +245,11 @@ pub(super) fn append(
     let prior = result.source_cut_search.take();
     let before = remaining;
     append_pass(old, new, result, parent, limits, true, &mut remaining)?;
+    merge_cut_search(result, prior, before - remaining);
+    Ok(())
+}
+
+fn merge_cut_search(result: &mut ScopeViewComparison, prior: Option<SourceCutSearch>, work: usize) {
     if let Some(mut prior) = prior {
         if let Some(additional) = result.source_cut_search.take() {
             prior.exhaustive &= additional.exhaustive;
@@ -253,10 +258,9 @@ pub(super) fn append(
         } else {
             prior.exhaustive = false;
         }
-        prior.work = prior.work.saturating_add(before - remaining);
+        prior.work = prior.work.saturating_add(work);
         result.source_cut_search = Some(prior);
     }
-    Ok(())
 }
 
 fn append_pass(
@@ -363,6 +367,7 @@ fn append_pass(
             sources.as_ref(),
             &anchors,
             rows,
+            false,
             remaining,
         );
     }
@@ -382,6 +387,7 @@ fn append_pass(
                 sources.as_ref(),
                 &anchors,
                 rows,
+                false,
                 remaining,
             )?;
         }
@@ -548,6 +554,34 @@ fn append_pass(
                 Err(error) => return Err(error),
             }
         }
+    }
+    if sources.is_some()
+        && result
+            .text_scope_reviews
+            .iter()
+            .any(|review| review.source_cuts.is_none())
+    {
+        // A raw cut certificate can support finer literal-space edges even
+        // when a whole-node review already covers the same source interval.
+        // Reuse the acquired sources and defer this work until prior reviews
+        // are complete, under the same remaining budget.
+        let prior = result.source_cut_search.take();
+        let before = *remaining;
+        cuts::append(
+            old,
+            new,
+            result,
+            parent,
+            limits,
+            &left,
+            &right,
+            sources.as_ref(),
+            &anchors,
+            false,
+            true,
+            remaining,
+        )?;
+        merge_cut_search(result, prior, before - *remaining);
     }
     Ok(())
 }

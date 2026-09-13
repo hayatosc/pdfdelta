@@ -57,6 +57,10 @@ pub(super) fn external_continuation(
     longer: &str,
     remaining: &mut usize,
 ) -> Option<bool> {
+    spend(remaining, 1)?;
+    if shorter.len() >= longer.len() {
+        return Some(false);
+    }
     spend(
         remaining,
         shorter.len().saturating_mul(2).saturating_add(longer.len()),
@@ -127,12 +131,12 @@ pub(super) fn runs<'a>(
         if edge.kind != EdgeKind::Precedes {
             continue;
         }
-        if edge.basis != ViewBasis::NativeLayout
-            || !nodes.contains_key(&edge.from)
-            || !nodes.contains_key(&edge.to)
-        {
+        // A native edge to excluded context ends the discovery run without
+        // removing its adjacent paragraph. Source closure still rejects any
+        // excluded glyph inside a proposed interval.
+        if edge.basis != ViewBasis::NativeLayout {
             blocked.extend([edge.from, edge.to]);
-        } else {
+        } else if nodes.contains_key(&edge.from) && nodes.contains_key(&edge.to) {
             connected.extend([edge.from, edge.to]);
             next.entry(edge.from).or_default().insert(edge.to);
             previous.entry(edge.to).or_default().insert(edge.from);
@@ -745,5 +749,44 @@ impl<'a> Sources<'a> {
             }
         }
         Some(Closure::BoundedPaint)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::{DocumentGraph, EvidenceStore};
+
+    #[test]
+    fn continuation_budget_distinguishes_impossible_lengths_from_unknown_matches() {
+        let evidence = EvidenceStore {
+            revision: String::new(),
+            backends: Vec::new(),
+            pages: Vec::new(),
+            native: crate::model::Document::new(Vec::new()),
+            rendered: Vec::new(),
+            structured: Vec::new(),
+            inventories: Vec::new(),
+            key_inventories: Vec::new(),
+            issues: Vec::new(),
+        };
+        let graph = DocumentGraph::default();
+        let view = DocumentView {
+            evidence: &evidence,
+            graph: &graph,
+        };
+        for (shorter, longer) in [("abc", "ab"), ("abc", "xyz"), ("", "")] {
+            let mut work = 1;
+            assert_eq!(
+                external_continuation(view, &[], shorter, longer, &mut work),
+                Some(false)
+            );
+            assert_eq!(work, 0);
+        }
+        let mut work = 1;
+        assert_eq!(
+            external_continuation(view, &[], "ab", "abc", &mut work),
+            None
+        );
     }
 }

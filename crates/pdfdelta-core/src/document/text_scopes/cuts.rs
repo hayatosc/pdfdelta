@@ -369,6 +369,20 @@ fn interior(runs: &[Vec<&GraphNode>], first: Position, last: Position) -> Option
     Some(result)
 }
 
+fn whole_interior<'a, 'b>(
+    runs: &'a [Vec<&'b GraphNode>],
+    first: Position,
+    last: Position,
+) -> Option<&'a [&'b GraphNode]> {
+    if first.0 != last.0 || first.1 >= last.1 || last.2 != 0 {
+        return None;
+    }
+    let NodeContent::Text { view } = &runs[first.0][first.1].content else {
+        return None;
+    };
+    (first.2 == view.tokens.len()).then(|| &runs[first.0][first.1 + 1..last.1])
+}
+
 fn same_raw_text(left: &[&GraphNode], right: &[&GraphNode], remaining: &mut usize) -> Option<bool> {
     spend(remaining, left.len().saturating_add(right.len()))?;
     fn views<'a>(nodes: &[&'a GraphNode]) -> Option<Vec<&'a TextView>> {
@@ -416,13 +430,15 @@ pub(super) fn append(
     sources: Option<&(native::Sources<'_>, native::Sources<'_>)>,
     anchors: &[Anchor],
     rows: bool,
+    refine_existing: bool,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
         return Ok(());
     };
     let initial = *remaining;
-    if population(old, result.matching.scope.old, left, old_sources, remaining).is_some()
+    if !refine_existing
+        && population(old, result.matching.scope.old, left, old_sources, remaining).is_some()
         && population(
             new,
             result.matching.scope.new,
@@ -444,6 +460,7 @@ pub(super) fn append(
             anchors,
             SourceCutPopulation::CompletePage,
             &CutMaps::default(),
+            false,
             remaining,
         )?;
         if let Some(search) = &mut result.source_cut_search {
@@ -468,6 +485,19 @@ pub(super) fn append(
         }
         if c.1 == a.1 + 1 && d.1 == b.1 + 1 {
             continue;
+        }
+        if refine_existing {
+            if spend(remaining, result.text_scope_reviews.len()).is_none() {
+                aggregate.exhaustive = false;
+                break;
+            }
+            if !result
+                .text_scope_reviews
+                .iter()
+                .any(|review| review.source_cuts.is_none() && review.boundaries == [*entry, *exit])
+            {
+                continue;
+            }
         }
         let work = (c.1 - a.1 + 1)
             .saturating_add(d.1 - b.1 + 1)
@@ -571,7 +601,18 @@ pub(super) fn append(
         let left = vec![old_nodes.iter().collect()];
         let right = vec![new_nodes.iter().collect()];
         compare_population(
-            old, new, result, parent, limits, &left, &right, sources, &anchors, population, &maps,
+            old,
+            new,
+            result,
+            parent,
+            limits,
+            &left,
+            &right,
+            sources,
+            &anchors,
+            population,
+            &maps,
+            refine_existing,
             remaining,
         )?;
         if let Some(search) = result.source_cut_search.take() {
@@ -598,6 +639,7 @@ fn compare_population(
     anchors: &[Anchor],
     population: SourceCutPopulation,
     maps: &CutMaps,
+    refine_existing: bool,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
@@ -620,6 +662,7 @@ fn compare_population(
         anchors,
         matches!(population, SourceCutPopulation::MatchedInterval { .. }),
         maps,
+        refine_existing,
         &mut search,
         remaining,
     );
@@ -636,7 +679,7 @@ fn compare_population(
         result.source_cut_search = Some(search);
         return Ok(());
     }
-    search.exhaustive = true;
+    search.exhaustive = !refine_existing;
     boundaries.sort_by_key(|boundary| boundary.old);
     boundaries.dedup_by(|a, b| a.old == b.old && a.new == b.new);
     search.work = initial - *remaining;
@@ -646,22 +689,23 @@ fn compare_population(
     // cannot consume the work needed to establish its enclosing comparisons.
     let mut agenda: std::collections::VecDeque<_> = boundaries
         .windows(2)
-        .map(|pair| (pair[0].clone(), pair[1].clone(), None))
+        .map(|pair| (pair[0].clone(), pair[1].clone(), None, None))
         .collect();
-    while let Some((entry, exit, refinement)) = agenda.pop_front() {
+    while let Some((entry, exit, refinement, pending_parent)) = agenda.pop_front() {
         if spend(remaining, boundaries.len()).is_none() {
             break;
         }
         if entry.new > exit.new
             || entry.old.0 != exit.old.0
             || entry.new.0 != exit.new.0
-            || matches!(
-                (&entry.certificate.evidence, &exit.certificate.evidence),
-                (
-                    CutEvidence::AcceptedBoundary { .. },
-                    CutEvidence::AcceptedBoundary { .. }
-                )
-            )
+            || (!refine_existing
+                && matches!(
+                    (&entry.certificate.evidence, &exit.certificate.evidence),
+                    (
+                        CutEvidence::AcceptedBoundary { .. },
+                        CutEvidence::AcceptedBoundary { .. }
+                    )
+                ))
         {
             continue;
         }
@@ -673,19 +717,43 @@ fn compare_population(
         }) {
             continue;
         }
-        let projection_work = left[entry.old.0][entry.old.1..=exit.old.1]
-            .iter()
-            .chain(&right[entry.new.0][entry.new.1..=exit.new.1])
-            .map(|node| node.sources.len().saturating_mul(8))
-            .fold(0usize, usize::saturating_add);
-        if spend(remaining, projection_work).is_none() {
-            break;
-        }
-        let (Some(a), Some(b)) = (
-            interior(left, entry.old, exit.old),
-            interior(right, entry.new, exit.new),
-        ) else {
-            continue;
+        let sliced;
+        let (a, b): (Vec<_>, Vec<_>) = if refine_existing && refinement.is_none() {
+            let (Some(a), Some(b)) = (
+                whole_interior(left, entry.old, exit.old),
+                whole_interior(right, entry.new, exit.new),
+            ) else {
+                continue;
+            };
+            // The enclosing views were already source-validated. Whole-node
+            // endpoints need only copy source references, not slice and clone
+            // every token before the actual content-edge comparison.
+            let work = a
+                .iter()
+                .chain(b)
+                .map(|node| node.sources.len())
+                .fold(0usize, usize::saturating_add);
+            if spend(remaining, work).is_none() {
+                break;
+            }
+            (a.to_vec(), b.to_vec())
+        } else {
+            let projection_work = left[entry.old.0][entry.old.1..=exit.old.1]
+                .iter()
+                .chain(&right[entry.new.0][entry.new.1..=exit.new.1])
+                .map(|node| node.sources.len().saturating_mul(8))
+                .fold(0usize, usize::saturating_add);
+            if spend(remaining, projection_work).is_none() {
+                break;
+            }
+            let (Some(a), Some(b)) = (
+                interior(left, entry.old, exit.old),
+                interior(right, entry.new, exit.new),
+            ) else {
+                continue;
+            };
+            sliced = (a, b);
+            (sliced.0.iter().collect(), sliced.1.iter().collect())
         };
         let Some(kind) = a.first().or_else(|| b.first()).map(|node| node.kind) else {
             continue;
@@ -699,8 +767,6 @@ fn compare_population(
         // Contiguous subpaths inherit the enclosing population's checked band.
         // Legal slices retain source order; census-only uncertain padding is
         // explicitly excluded below before any content claim is admitted.
-        let a: Vec<_> = a.iter().collect();
-        let b: Vec<_> = b.iter().collect();
         let old_extent: Vec<_> = a
             .iter()
             .flat_map(|node| node.sources.iter().copied())
@@ -731,11 +797,66 @@ fn compare_population(
                 continue;
             }
         }
-        if result
+        let duplicate = result
             .text_scope_reviews
             .iter()
-            .any(|review| review.old_sources == old_extent && review.new_sources == new_extent)
-        {
+            .find(|review| review.old_sources == old_extent && review.new_sources == new_extent);
+        let existing_parent = refine_existing && refinement.is_none();
+        if existing_parent {
+            if duplicate.is_none_or(|review| review.source_cuts.is_some())
+                || result.text_scope_reviews.iter().any(|review| {
+                    review.source_cuts.is_some()
+                        && review.old_sources == old_extent
+                        && review.new_sources == new_extent
+                })
+            {
+                continue;
+            }
+            // Prefer an existing finer raw view to another edge refinement
+            // enclosing it. Unrelated source intervals do not suppress work.
+            let refined: Vec<_> = result
+                .text_scope_reviews
+                .iter()
+                .filter(|review| {
+                    review
+                        .source_cuts
+                        .as_ref()
+                        .is_some_and(|cuts| cuts.edge_refinement.is_some())
+                })
+                .collect();
+            if !refined.is_empty() {
+                let work = refined.iter().fold(
+                    old_extent.len().saturating_add(new_extent.len()),
+                    |work, review| {
+                        work.saturating_add(review.old_sources.len())
+                            .saturating_add(review.new_sources.len())
+                    },
+                );
+                if spend(remaining, work.saturating_mul(8)).is_none() {
+                    break;
+                }
+                let old_set: BTreeSet<_> = old_extent.iter().collect();
+                let new_set: BTreeSet<_> = new_extent.iter().collect();
+                if refined.iter().any(|review| {
+                    review
+                        .old_sources
+                        .iter()
+                        .all(|source| old_set.contains(source))
+                        && review
+                            .new_sources
+                            .iter()
+                            .all(|source| new_set.contains(source))
+                }) {
+                    continue;
+                }
+            }
+        } else if duplicate.is_some() {
+            continue;
+        }
+        let refined_parent = existing_parent
+            .then(|| edges::refine(left, right, &entry, &exit, maps, remaining))
+            .flatten();
+        if existing_parent && refined_parent.is_none() {
             continue;
         }
         let mut comparison =
@@ -768,7 +889,7 @@ fn compare_population(
         if parent == InterpretationStatus::Inferred {
             comparison.interpretation = parent;
         }
-        result.text_scope_reviews.push(TextScopeReview {
+        let review = TextScopeReview {
             convention: "closed-native-source-cut-interval-v1".into(),
             boundaries: Vec::new(),
             source_cuts: Some(SourceCutRange {
@@ -810,11 +931,22 @@ fn compare_population(
                 new: new_spacing,
             }),
             comparison,
-        });
+        };
+        if let Some((entry, exit, refinement)) = refined_parent {
+            // The extra raw parent is useful only when its finer comparison
+            // proves a change. Space-only outer differences keep their original
+            // review without an unused duplicate certificate.
+            agenda.push_back((entry, exit, refinement, Some(review)));
+            continue;
+        }
+        if let Some(parent) = pending_parent {
+            result.text_scope_reviews.push(parent);
+        }
+        result.text_scope_reviews.push(review);
         if refinement.is_none()
             && let Some(refined) = edges::refine(left, right, &entry, &exit, maps, remaining)
         {
-            agenda.push_back(refined);
+            agenda.push_back((refined.0, refined.1, refined.2, None));
         }
     }
     Ok(())
@@ -829,6 +961,7 @@ fn discover(
     anchors: &[Anchor],
     word_edges: bool,
     maps: &CutMaps,
+    anchors_only: bool,
     search: &mut SourceCutSearch,
     remaining: &mut usize,
 ) -> Option<Vec<Boundary>> {
@@ -895,6 +1028,9 @@ fn discover(
                 new_sources: new_node.sources.clone(),
             });
         }
+    }
+    if anchors_only {
+        return Some(boundaries);
     }
     let a = rows(left, old_sources, word_edges, &old_anchors, remaining)?;
     let b = rows(right, new_sources, word_edges, &new_anchors, remaining)?;
