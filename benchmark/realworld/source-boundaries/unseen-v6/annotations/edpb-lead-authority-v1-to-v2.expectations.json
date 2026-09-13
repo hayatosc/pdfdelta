@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-lead-authority-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "e1db3705561e38e39a4639599cb5ed4320b943d3b6ce7d752957cd91ef4cb7a8",
+  "body_eligible": false,
+  "reason": "Retained source-only no-prose-change pair. Paragraph 5 is unchanged prose; no body-eligible recovery claim is permitted. Edition metadata, watermark, source spacing and footnote references change."
+}

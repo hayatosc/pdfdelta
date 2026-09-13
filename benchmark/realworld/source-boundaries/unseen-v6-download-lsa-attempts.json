@@ -1,0 +1,25 @@
+{
+  "version": 6,
+  "attempts": [
+    {
+      "name": "edpb-lead-authority-v1-to-v2-old",
+      "url": "https://www.edpb.europa.eu/system/files/2022-10/edpb_guidelines_202208_identifyinglsa_targetedupdate_en.pdf",
+      "started_utc": "2026-09-13T18:03:32.931249+00:00",
+      "final_url": "https://www.edpb.europa.eu/system/files/2022-10/edpb_guidelines_202208_identifyinglsa_targetedupdate_en.pdf",
+      "status": 200,
+      "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-old.pdf",
+      "sha256": "c05e60391bd8f0afecb115729d0843a57007fbf6d5a3e94e052778bb3117e053",
+      "bytes": 569907
+    },
+    {
+      "name": "edpb-lead-authority-v1-to-v2-new",
+      "url": "https://www.edpb.europa.eu/system/files/2023-04/edpb_guidelines_202208_identifying_lsa_targeted_update_v2_en.pdf",
+      "started_utc": "2026-09-13T18:03:32.931821+00:00",
+      "final_url": "https://www.edpb.europa.eu/system/files/documents/2023-04/edpb_guidelines_202208_identifying_lsa_targeted_update_v2_en.pdf",
+      "status": 200,
+      "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-new.pdf",
+      "sha256": "6fd69a68b5b1dc1055bd07cfaf6a000044cade01e2908a3d07a90a67e34b1a18",
+      "bytes": 404442
+    }
+  ]
+}

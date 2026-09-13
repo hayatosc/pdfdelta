@@ -1,0 +1,537 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "pair": "nist-73-3-to-4",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "Part 1 Introduction, complete opening paragraph",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-73-3-to-4.json",
+          "sha256": "97ca86976ae62fd48452019be027fede60b4d103d4c46e244335420b13b76dc4"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-73-3-to-4.resolved.json",
+          "sha256": "03dac7bb445a6a5b687683dda53cf4d1c41951b5e04e41e2f44ece7e1c343e8d"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-73-3-to-4.expectations.json",
+          "sha256": "163a35016c71baa7b670ab8b12268ddb459c9827ce21ccef3bb26d9e81085e2e"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1",
+          "body-old-2"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1",
+          "body-old-2"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-78-3-to-4",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "Introduction, complete opening paragraph",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-78-3-to-4.json",
+          "sha256": "c41031bfb0e180671843541cdc86609f56de0ec3d415881b8b7273fd783f13d6"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-78-3-to-4.resolved.json",
+          "sha256": "1dcde3fe3f28a11d2c67e632ac712e8f6300abac0aa74786fd9a18b8a6fe52a3"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-78-3-to-4.expectations.json",
+          "sha256": "f7a6b1161c528b84037a953ad6b3cf18dfae1e016f7c3297037e62aa980cceda"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-90a-original-to-r1",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "Complete Abstract",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-90a-original-to-r1.json",
+          "sha256": "d1745813e669b64957e7edb7eec62609f6ee84a51c4218af56bf11f955b8bc17"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-90a-original-to-r1.resolved.json",
+          "sha256": "fbe3f9f0202b8c0af01a61a1b931b45a444123fd8f810dc9a7b5d5d686d3415b"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/nist-90a-original-to-r1.expectations.json",
+          "sha256": "5c4a350925e72f2df2cf67dc0a334c3788a245fcc99fdaf35ec8784be912d963"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1",
+          "body-new-2"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1",
+          "body-new-2"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "publisher": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "Executive Summary, complete opening paragraph",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/edpb-deceptive-patterns-v1-to-v2.json",
+          "sha256": "97b0af3796bc7df76a0208206510f10cba0ca7e6feab85c8d3cf9530a5d83f83"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/edpb-deceptive-patterns-v1-to-v2.resolved.json",
+          "sha256": "7a5f8ecb57e58c83fcf722e1d394af64157d7798056bc0cf9acace9309096534"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/edpb-deceptive-patterns-v1-to-v2.expectations.json",
+          "sha256": "65b40ec289f5322b6d3880543c00506ab52324031c8779567bed292c9970cdaa"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "publisher": "EDPB",
+      "body_eligible": false,
+      "eligibility_reason": "Retained source-only no-prose-change pair. Paragraph 5 is unchanged prose; no body-eligible recovery claim is permitted. Edition metadata, watermark, source spacing and footnote references change.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/edpb-lead-authority-v1-to-v2.json",
+          "sha256": "e1db3705561e38e39a4639599cb5ed4320b943d3b6ce7d752957cd91ef4cb7a8"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/edpb-lead-authority-v1-to-v2.resolved.json",
+          "sha256": "1302106306dec31d19fa97034dd800488b413f048d2e3e7b763f1ea96bbf47da"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/edpb-lead-authority-v1-to-v2.expectations.json",
+          "sha256": "28ccedb8032e1cedfbec760162e571521e0a090176373bcab387aba8da9d5820"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "arxiv-mae-v1-to-v2",
+      "publisher": "Meta",
+      "body_eligible": true,
+      "eligibility_reason": "Complete training-time paragraph below Figure 9 in the right column. The earlier abstract is unchanged and introductory citation renumbering is not selected.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-mae-v1-to-v2.json",
+          "sha256": "b432aa6788bc617727fa49cb203300a2d134a3e21e51058fda62c3362a1c06be"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-mae-v1-to-v2.resolved.json",
+          "sha256": "51bb4f57afc71b12e0c2660098bb705fdeeba37e6f4959e26e8d5e777bf92345"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-mae-v1-to-v2.expectations.json",
+          "sha256": "69942f9f224307e3a46ff3d3d69f0422047c7b6543bc33978963d21112798d97"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Meta"
+    },
+    {
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "publisher": "Google",
+      "body_eligible": true,
+      "eligibility_reason": "Complete second old abstract paragraph and both corresponding new paragraphs. New source visibly begins with is based; no missing glyphs are invented. All glyphs in the full left-column body bands are mapped.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-mobilenetv2-v1-to-v4.json",
+          "sha256": "0e0411b26dfcfa510b618ff6e0a868c75aa09b8e655d7e4b1cd53f66c6d7d0b1"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-mobilenetv2-v1-to-v4.resolved.json",
+          "sha256": "47af08e9d968b90c15a30979d6227eee7c90547ce49122f03c82be3a83110e4f"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-mobilenetv2-v1-to-v4.expectations.json",
+          "sha256": "ab342f12847573f3291f4052c88069f4372a4a2f5ea43e0dc8e21e58e53e918c"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Google"
+    },
+    {
+      "pair": "arxiv-opt-v1-to-v4",
+      "publisher": "Meta",
+      "body_eligible": true,
+      "eligibility_reason": "Complete release-access paragraph, including unchanged inline footnote marker 3. The first genuine body revision changes 30B to 66B; the earlier changed footnote is not the target.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-opt-v1-to-v4.json",
+          "sha256": "66e3ac14f30ea96b327c7e338e23bbcee1410798efbde1ae3b20eee1a9d0f115"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-opt-v1-to-v4.resolved.json",
+          "sha256": "95803e9167e3c99bea354360a46bed5c4a8b25a03874a06abf6a9ffbce19b77a"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/arxiv-opt-v1-to-v4.expectations.json",
+          "sha256": "ded18f9aecc754fede96cff68621c3dacbd9d00d2bfe836201fe255c54f55ab0"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Meta"
+    },
+    {
+      "pair": "faa-stall-109-to-109a",
+      "publisher": "FAA",
+      "body_eligible": true,
+      "eligibility_reason": "Complete opening prose before the core principles list",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/faa-stall-109-to-109a.json",
+          "sha256": "d0be6c1460f359095e6f6233739a9f25981282c9ac9ea3518cfdb70965f8c379"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/faa-stall-109-to-109a.resolved.json",
+          "sha256": "825fc5a4a561d1848c0b1211204777b33c20b3c0cf430d2001b8d046113be197"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/faa-stall-109-to-109a.expectations.json",
+          "sha256": "f32e411fc4c1b0fe4970b1d8826df5e779909d67de653911b77e40f96a5f64b6"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "FAA"
+    },
+    {
+      "pair": "mext-generative-ai-2023-to-2024",
+      "publisher": "MEXT",
+      "body_eligible": true,
+      "eligibility_reason": "Opening context paragraph of the introductory guidance",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/mext-generative-ai-2023-to-2024.json",
+          "sha256": "fd1248b2c8cbc03b2ef9a0962b2b40e7c8d6c3fd0d981a0b29b546144a7003e9"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/mext-generative-ai-2023-to-2024.resolved.json",
+          "sha256": "36bdf6afbac58573953d51265baff609fbfa827389d1bfa5f8ee10ecab85f303"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/mext-generative-ai-2023-to-2024.expectations.json",
+          "sha256": "cfb322f5726aef79db84aa3ad6f8670908c26e06140e58b422e2ed55053031d7"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "MEXT"
+    },
+    {
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "Complete opening abstract paragraph. The separately added new second paragraph lists superseded editions and is not part of this corresponding prose paragraph.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/ietf-http-semantics-7231-to-9110.json",
+          "sha256": "2c8eb7e079e47f0bab05d036f5d5bd0bc7a9eb36278754ad297aed4cbc9c1aab"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/ietf-http-semantics-7231-to-9110.resolved.json",
+          "sha256": "85c54c2865137e91a382dc432069df28c2aa943629240ab0ab63e23dfa4550e3"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/ietf-http-semantics-7231-to-9110.expectations.json",
+          "sha256": "8a7b06274b463d0d39b592ab44e0ea5fc50cc521af1555157e3f7e829af2eabe"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    },
+    {
+      "pair": "ietf-ldap-2251-to-4511",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "Complete opening abstract paragraph; the following old requirements-keyword paragraph is a separate conventions block.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/ietf-ldap-2251-to-4511.json",
+          "sha256": "1733765958aa34e7a97f4bef5ee8ef1af795711db87b3d11a8a5da7b75499444"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/ietf-ldap-2251-to-4511.resolved.json",
+          "sha256": "f8dcd7b90fb134ab6a9fb301de91346184e4360feea78c68432cfb058b2f8472"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6/annotations/ietf-ldap-2251-to-4511.expectations.json",
+          "sha256": "c6dd8467c974f3eb107ba3eeaeb1b45860b59223163d7713f33bb1474f78b6d4"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    }
+  ]
+}

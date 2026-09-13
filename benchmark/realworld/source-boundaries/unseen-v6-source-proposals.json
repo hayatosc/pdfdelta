@@ -1,0 +1,244 @@
+{
+  "version": 6,
+  "comparison_performed": false,
+  "status": "Source-only proposals; page-image review and independent literal resolution remain pending. No target is yet frozen.",
+  "proposals": [
+    {
+      "pair": "nist-73-3-to-4",
+      "section": "Part 1 Introduction, complete opening paragraph",
+      "old_page": 11,
+      "new_page": 12,
+      "old_raw_bands": [
+        [
+          23048,
+          23645
+        ],
+        [
+          24570,
+          24600
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          35224,
+          35850
+        ]
+      ],
+      "note": "Raw render order splits several words and paints two body fragments after intervening sections. All 627 old and 626 new selected glyphs are mapped. Outer paragraph padding still requires explicit trimming; retain both old fragments."
+    },
+    {
+      "pair": "nist-78-3-to-4",
+      "section": "Introduction, complete opening paragraph",
+      "old_page": 5,
+      "new_page": 6,
+      "old_raw_bands": [
+        [
+          7384,
+          7954
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          11821,
+          12401
+        ]
+      ],
+      "note": "570 old and 580 new mapped glyphs before trimming one outer trailing space on each side."
+    },
+    {
+      "pair": "nist-90a-original-to-r1",
+      "section": "Complete Abstract",
+      "old_page": 2,
+      "new_page": 3,
+      "old_raw_bands": [
+        [
+          1703,
+          1919
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          4120,
+          4133
+        ],
+        [
+          5176,
+          5364
+        ]
+      ],
+      "note": "The 13 earlier new-side spaces are real source glyphs, not generated separators. Twelve fall inside the first two abstract rows; glyph 4132 is after the last word and is outer padding, as is glyph 5363. Do not drop the 12 internal spaces. Old has two outer trailing spaces. Proposed trimmed target counts: 214 old, 199 new."
+    },
+    {
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "section": "Executive Summary, complete opening paragraph",
+      "old_raw_bands": [
+        [
+          235,
+          673
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          414,
+          1112
+        ]
+      ],
+      "note": "Verify page identity, raw trailing padding and full paragraph image before annotation."
+    },
+    {
+      "pair": "faa-stall-109-to-109a",
+      "section": "Complete opening prose before the core principles list",
+      "old_page": 0,
+      "new_page": 0,
+      "old_raw_bands": [
+        [
+          196,
+          1208
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          195,
+          1096
+        ]
+      ],
+      "note": "Two old opening paragraphs are consolidated and revised in the new opening paragraph. Verify all raw spaces and both paragraph boundaries visually; do not select only the overlapping final sentence."
+    },
+    {
+      "pair": "mext-generative-ai-2023-to-2024",
+      "section": "Opening context paragraph of the introductory guidance",
+      "old_page": 3,
+      "new_page": 2,
+      "old_raw_bands": [
+        [
+          1581,
+          1752
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          1505,
+          1784
+        ]
+      ],
+      "note": "Old first bullet and new first prose paragraph describe the spread, benefits and concerns of generative AI. Determine full finite extent and the bullet marker from the page images. Proposed unchanged control: ガイドライン in the old page 2 and new page 0 titles."
+    },
+    {
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "section": "Complete second old abstract paragraph and both corresponding new paragraphs. New source visibly begins with is based; no missing glyphs are invented. All glyphs in the full left-column body bands are mapped.",
+      "old_page": 0,
+      "new_page": 0,
+      "old_raw_bands": [
+        [
+          638,
+          1518
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          594,
+          1382
+        ]
+      ],
+      "note": "Both page images reviewed; independent literal resolution and final freeze remain pending."
+    },
+    {
+      "pair": "arxiv-opt-v1-to-v4",
+      "section": "Complete release-access paragraph, including unchanged inline footnote marker 3. The first genuine body revision changes 30B to 66B; the earlier changed footnote is not the target.",
+      "old_page": 0,
+      "new_page": 0,
+      "old_raw_bands": [
+        [
+          2720,
+          3464
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          2751,
+          3495
+        ]
+      ],
+      "note": "Both page images reviewed; independent literal resolution and final freeze remain pending."
+    },
+    {
+      "pair": "arxiv-mae-v1-to-v2",
+      "section": "Complete training-time paragraph below Figure 9 in the right column. The earlier abstract is unchanged and introductory citation renumbering is not selected.",
+      "old_page": 6,
+      "new_page": 6,
+      "old_raw_bands": [
+        [
+          25684,
+          25975
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          25687,
+          25965
+        ]
+      ],
+      "note": "Both page images reviewed; independent literal resolution and final freeze remain pending."
+    },
+    {
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "section": "Complete opening abstract paragraph. The separately added new second paragraph lists superseded editions and is not part of this corresponding prose paragraph.",
+      "old_page": 0,
+      "new_page": 0,
+      "old_raw_bands": [
+        [
+          449,
+          877
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          30,
+          468
+        ]
+      ],
+      "body_eligible": true,
+      "note": "Independent literal resolution remains pending."
+    },
+    {
+      "pair": "ietf-ldap-2251-to-4511",
+      "section": "Complete opening abstract paragraph; the following old requirements-keyword paragraph is a separate conventions block.",
+      "old_page": 2,
+      "new_page": 0,
+      "old_raw_bands": [
+        [
+          6780,
+          7261
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          741,
+          1110
+        ]
+      ],
+      "body_eligible": true,
+      "note": "Independent literal resolution remains pending."
+    },
+    {
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "section": "Retained source-only no-prose-change pair. Paragraph 5 is unchanged prose; no body-eligible recovery claim is permitted. Edition metadata, watermark, source spacing and footnote references change.",
+      "old_page": 4,
+      "new_page": 4,
+      "old_raw_bands": [
+        [
+          6564,
+          6791
+        ]
+      ],
+      "new_raw_bands": [
+        [
+          6608,
+          6840
+        ]
+      ],
+      "body_eligible": false,
+      "note": "Independent literal resolution remains pending."
+    }
+  ]
+}

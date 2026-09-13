@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "pair": "nist-73-3-to-4",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 11,
+        "block": 11,
+        "range": {
+          "start": 226,
+          "end": 820
+        }
+      },
+      "literal_quote": "The Homeland Security Presidential Directive 12 (HSPD-12) called for a commstandard to be adopted governing the interoperable use of identity credentiaand logical access to Federal government locations and systems.  The PersoVerification (PIV) of Federal Employees and Contractors, Federal Information ProStandard 201 (FIPS 201) [1] was developed to establish on identification ls to allow physical nal Identity cessing standards for identity credentials.  tion 800-73-3 (SP 800-73-3) contains technical specifications to interface with the  Card1) to retrieve and use the identity credentials.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-2",
+      "side": "old",
+      "locator": {
+        "page": 11,
+        "block": 11,
+        "range": {
+          "start": 1748,
+          "end": 1778
+        }
+      },
+      "literal_quote": "Special Publicasmart card (PIV",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 11,
+        "block": 11,
+        "range": {
+          "start": 213,
+          "end": 225
+        }
+      },
+      "literal_quote": "Introduction",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 12,
+        "block": 12,
+        "range": {
+          "start": 161,
+          "end": 786
+        }
+      },
+      "literal_quote": "Homeland Security Presidential Directive-12 (HSPD-12) called for a common identification standard to be adopted governing the interoperable use of identity credentials to allow physical and logical access to Federally controlled facilities and information systems. Federal Information Processing Standard 201 [FIPS201], Personal Identity Verification (PIV) of Federal Employees and Contractors, was developed to establish standards for identity credentials. Special Publication 800-73-4 (SP 800-73-4) contains technical specifications to interface with the smart card (PIV Card2) to retrieve and use the identity credentials.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 12,
+        "block": 12,
+        "range": {
+          "start": 149,
+          "end": 161
+        }
+      },
+      "literal_quote": "Introduction",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "2d08e8287029481d81ddb63fdb43ac88015b25ebcab3af7421d9585b14c061ea",
+  "new_sha256": "8e9a1048d445c1e24d640333b7d124a4263abdf22318e948a3bb3dde924ac909"
+}

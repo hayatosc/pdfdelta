@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-90a-original-to-r1",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "d1745813e669b64957e7edb7eec62609f6ee84a51c4218af56bf11f955b8bc17",
+  "body_eligible": true,
+  "reason": "Complete Abstract"
+}

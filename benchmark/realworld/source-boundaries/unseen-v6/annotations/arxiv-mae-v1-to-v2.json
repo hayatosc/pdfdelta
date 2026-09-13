@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "arxiv-mae-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 6,
+        "block": 6,
+        "range": {
+          "start": 2415,
+          "end": 2706
+        }
+      },
+      "literal_quote": "TheMAEmodelsinTable3arepre-trainedfor1600epochsforbetteraccuracy(Figure7).Evenso,ourtotalpre-trainingtimeislessthanallothermethodsiftheyweretrainedinthesamehardware.Forexample,withViT-L,ourMAE’strainingtimeis31hoursfor1600epochsandMoCov3’sis36hoursfor300epochs[9],usingthesame128TPU-v3cores.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 166,
+          "end": 174
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 6,
+        "block": 6,
+        "range": {
+          "start": 2424,
+          "end": 2702
+        }
+      },
+      "literal_quote": "TheMAEmodelsinTable3arepre-trainedfor1600epochsforbetteraccuracy(Figure7).Evenso,ourtotalpre-trainingtimeislessthantheothermethodswhentrainedonthesamehardware.Forexample,trainingViT-Lon128TPU-v3cores,ourMAE’strainingtimeis31hoursfor1600epochsandMoCov3’sis36hoursfor300epochs[9].",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 166,
+          "end": 174
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "04b9aac60fe8d75bb9f299ff1dfe8cb2f96894b22f7b8ea63ba808a218e36f0c",
+  "new_sha256": "5000a181ec1c54f0aa1af56f598e967ed1bd051ba57b772542d1ff1dea41fd0e"
+}

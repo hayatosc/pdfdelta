@@ -1,0 +1,1003 @@
+{
+  "version": 1,
+  "frozen": true,
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "nist-73-3-to-4",
+      "series": "SP 800-73 interfaces for personal identity verification, Part 1",
+      "family": "nist-guidance",
+      "language": "en",
+      "old_revision": "Revision 3 Part 1",
+      "new_revision": "Revision 4 Part 1",
+      "publisher": "NIST",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/nist-73-3-to-4-old.pdf",
+        "sha256": "2d08e8287029481d81ddb63fdb43ac88015b25ebcab3af7421d9585b14c061ea",
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-73-3.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/nist-73-3-to-4-new.pdf",
+        "sha256": "8e9a1048d445c1e24d640333b7d124a4263abdf22318e948a3bb3dde924ac909",
+        "url": "https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=918402"
+      }
+    },
+    {
+      "id": "nist-78-3-to-4",
+      "series": "SP 800-78 cryptographic algorithms and key sizes for PIV",
+      "family": "nist-guidance",
+      "language": "en",
+      "old_revision": "Revision 3",
+      "new_revision": "Revision 4",
+      "publisher": "NIST",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/nist-78-3-to-4-old.pdf",
+        "sha256": "8edce69ab5a840cd3ad00165eae1f9f6c7b8540fd0f57f5ed9d522b23a7cec6d",
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-78-3.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/nist-78-3-to-4-new.pdf",
+        "sha256": "cdb1133a4fa1d6335462aefa24741783fcf2581978f87350171dd402c3ae57e8",
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-78-4.pdf"
+      }
+    },
+    {
+      "id": "nist-90a-original-to-r1",
+      "series": "SP 800-90A deterministic random bit generators",
+      "family": "nist-guidance",
+      "language": "en",
+      "old_revision": "2012",
+      "new_revision": "Revision 1",
+      "publisher": "NIST",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/nist-90a-original-to-r1-old.pdf",
+        "sha256": "57bb40e479fd08a89bca49c1a6c63574fa024952646ea534b6191a8e63d2fd13",
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-90a.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/nist-90a-original-to-r1-new.pdf",
+        "sha256": "d58e3dac4aaa5971c9a6a20a9bd5c13e2f1930cd1a199c0c00f768e7327355e2",
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-90Ar1.pdf"
+      }
+    },
+    {
+      "id": "edpb-deceptive-patterns-v1-to-v2",
+      "series": "Guidelines 03/2022 deceptive design patterns",
+      "family": "edpb-guidelines",
+      "language": "en",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "publisher": "EDPB",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-deceptive-patterns-v1-to-v2-old.pdf",
+        "sha256": "bc5fab80b839e6887499492b76b0c2f2a59f50cbdbd5cccb161260f5847e36d7",
+        "url": "https://www.edpb.europa.eu/system/files/2022-03/edpb_03-2022_guidelines_on_dark_patterns_in_social_media_platform_interfaces_en.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-deceptive-patterns-v1-to-v2-new.pdf",
+        "sha256": "102a823e8b10ea9e3d13343014df2d9268797dd1be86cc4ef6a1154641159efe",
+        "url": "https://www.edpb.europa.eu/system/files/2023-02/edpb_03-2022_guidelines_on_deceptive_design_patterns_in_social_media_platform_interfaces_v2_en_0.pdf"
+      }
+    },
+    {
+      "id": "edpb-lead-authority-v1-to-v2",
+      "series": "Guidelines 08/2022 identifying a lead supervisory authority",
+      "family": "edpb-guidelines",
+      "language": "en",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2.1",
+      "publisher": "EDPB",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-old.pdf",
+        "sha256": "c05e60391bd8f0afecb115729d0843a57007fbf6d5a3e94e052778bb3117e053",
+        "url": "https://www.edpb.europa.eu/system/files/2022-10/edpb_guidelines_202208_identifyinglsa_targetedupdate_en.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-new.pdf",
+        "sha256": "6fd69a68b5b1dc1055bd07cfaf6a000044cade01e2908a3d07a90a67e34b1a18",
+        "url": "https://www.edpb.europa.eu/system/files/2023-04/edpb_guidelines_202208_identifying_lsa_targeted_update_v2_en.pdf"
+      }
+    },
+    {
+      "id": "arxiv-mae-v1-to-v2",
+      "series": "arXiv 2111.06377 Masked Autoencoders",
+      "family": "arxiv-paper",
+      "language": "en",
+      "old_revision": "v1",
+      "new_revision": "v2",
+      "publisher": "Meta",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/arxiv-mae-v1-to-v2-old.pdf",
+        "sha256": "04b9aac60fe8d75bb9f299ff1dfe8cb2f96894b22f7b8ea63ba808a218e36f0c",
+        "url": "https://arxiv.org/pdf/2111.06377v1"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/arxiv-mae-v1-to-v2-new.pdf",
+        "sha256": "5000a181ec1c54f0aa1af56f598e967ed1bd051ba57b772542d1ff1dea41fd0e",
+        "url": "https://arxiv.org/pdf/2111.06377v2"
+      }
+    },
+    {
+      "id": "arxiv-mobilenetv2-v1-to-v4",
+      "series": "arXiv 1801.04381 MobileNetV2",
+      "family": "arxiv-paper",
+      "language": "en",
+      "old_revision": "v1",
+      "new_revision": "v4",
+      "publisher": "Google",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/arxiv-mobilenetv2-v1-to-v4-old.pdf",
+        "sha256": "87f31fde2c87ad2079fbd26d36ffa0d1d55eb130ff7a82b9ce95fb6649d9ea50",
+        "url": "https://arxiv.org/pdf/1801.04381v1"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/arxiv-mobilenetv2-v1-to-v4-new.pdf",
+        "sha256": "1f4c30fa6b938c0b7a4d82bc274077dbece70e7cd553a69f591eba7482b51736",
+        "url": "https://arxiv.org/pdf/1801.04381v4"
+      }
+    },
+    {
+      "id": "arxiv-opt-v1-to-v4",
+      "series": "arXiv 2205.01068 OPT",
+      "family": "arxiv-paper",
+      "language": "en",
+      "old_revision": "v1",
+      "new_revision": "v4",
+      "publisher": "Meta",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/arxiv-opt-v1-to-v4-old.pdf",
+        "sha256": "d61aab59b02568b907722ecb1cd9dbab16391ad3f13f97aea73926ca64d640fb",
+        "url": "https://arxiv.org/pdf/2205.01068v1"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/arxiv-opt-v1-to-v4-new.pdf",
+        "sha256": "dc88168a2514e4c66a5a791cab6dfacae9bbd566a3d86a119add151f31484d87",
+        "url": "https://arxiv.org/pdf/2205.01068v4"
+      }
+    },
+    {
+      "id": "faa-stall-109-to-109a",
+      "series": "AC 120-109 stall prevention and recovery training",
+      "family": "faa-advisory",
+      "language": "en",
+      "old_revision": "Original",
+      "new_revision": "Revision A",
+      "publisher": "FAA",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/faa-stall-109-to-109a-old.pdf",
+        "sha256": "c9b6d63b2ec0c5a8cb7d5fb7421565cbacfc33866b3565248b068647278645c7",
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC%20120-109.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/faa-stall-109-to-109a-new.pdf",
+        "sha256": "1099c50aa2b4ff0a97fe183bf10f8851f6641b127034257dfa8e881439db8dd2",
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-109A.pdf"
+      }
+    },
+    {
+      "id": "mext-generative-ai-2023-to-2024",
+      "series": "Generative AI guidelines for primary and secondary education",
+      "family": "japanese-guidance",
+      "language": "ja",
+      "old_revision": "July 2023 interim guidelines",
+      "new_revision": "Version 2.0 December 2024",
+      "publisher": "MEXT",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/mext-generative-ai-2023-to-2024-old.pdf",
+        "sha256": "921d346abb1a3bcf81a57aca7d2406fa581768670013cadf3f107f18de8b0f4f",
+        "url": "https://www.mext.go.jp/content/20230710-mxt_shuukyo02-000030823_004.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/mext-generative-ai-2023-to-2024-new.pdf",
+        "sha256": "69644c4a7dbefe0d485d0d7fe6679090310bdb251a58598494f219cf026f4acd",
+        "url": "https://www.mext.go.jp/content/20241226-mxt_shuukyo02-000030823_001.pdf"
+      }
+    },
+    {
+      "id": "ietf-http-semantics-7231-to-9110",
+      "series": "HTTP semantics",
+      "family": "ietf-rfc",
+      "language": "en",
+      "old_revision": "RFC 7231",
+      "new_revision": "RFC 9110",
+      "publisher": "IETF",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/ietf-http-semantics-7231-to-9110-old.pdf",
+        "sha256": "3e2d1fa0958f2b7a330eee8e05e819c2d2d1733ec54e717f3ad3b9ab9cbd7401",
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc7231.txt.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/ietf-http-semantics-7231-to-9110-new.pdf",
+        "sha256": "60b30efa1048900833d1758440247fe8ac85a3134f2327388dcb24e07d814c89",
+        "url": "https://www.rfc-editor.org/rfc/rfc9110.pdf"
+      }
+    },
+    {
+      "id": "ietf-ldap-2251-to-4511",
+      "series": "LDAP protocol",
+      "family": "ietf-rfc",
+      "language": "en",
+      "old_revision": "RFC 2251",
+      "new_revision": "RFC 4511",
+      "publisher": "IETF",
+      "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2/unseen-v3/unseen-v4/unseen-v5 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-alternate-attempts.json",
+          "sha256": "bd2093180444719b20cf50e3ac7374ba141dee21ce4718068b244c9d8aa74daa"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+          "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+          "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-lsa-attempts.json",
+          "sha256": "0608a189d162a6215ed58725e4c8c77ae94657087b02d70191e8c32cd7dbf9b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-opt-attempts.json",
+          "sha256": "d2a1f7adc3a62b3457c2e0a354650ee7b0d17c86d9b1576ffa1100f14a47fb93"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+          "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+          "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement.json",
+          "sha256": "32aeca562d70111862016690e8d918cb4d37f46af2819fb667eb6ee6a9052cee"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement2.json",
+          "sha256": "466a61314861434bf88d3034d91ac42057018e983f6b585b296bd50e61af7c9b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-replacement3.json",
+          "sha256": "f1360b8d65e6003478a1a47eec917585612a3cfcf0f6373ea602782623c05024"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+          "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-selection.json",
+          "sha256": "004a2a3a6ac8e8ce5025893aff72b3567c26d80dadf4463716d07f551421d432"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-target-selection.json",
+          "sha256": "5e3eff3f1f96c9064eb6421b0c5078fece249a35ca9c34d7ada982a9249086d6"
+        }
+      ],
+      "historical_inputs": "benchmark/realworld/source-boundaries/unseen-v6/inputs.json",
+      "old": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/ietf-ldap-2251-to-4511-old.pdf",
+        "sha256": "5ab28283564c74762275fb0039e2b5a93444656c596f2362bf882ce0d4a4f490",
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2251.txt.pdf"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/ietf-ldap-2251-to-4511-new.pdf",
+        "sha256": "be03da4f4e1e82bbf5f790fc08c9e52b22d20e090a7b9005c039c453aad80a8d",
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc4511.txt.pdf"
+      }
+    }
+  ]
+}
