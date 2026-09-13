@@ -523,6 +523,7 @@ fn traversal_error() -> Error {
 
 #[cfg(test)]
 mod tests {
+    use super::super::all_words;
     use super::{
         AtomicEdit, DP_MEMORY_RESOURCE, MAX_SEMANTIC_MEMORY_BYTES, Outcome, check,
         preflight_memory, required_memory_bytes,
@@ -745,26 +746,6 @@ mod tests {
             .iter()
             .map(|edit| (edit.old.start, edit.old.end, edit.new.start, edit.new.end))
             .collect()
-    }
-
-    fn all_words(max_length: usize) -> Vec<Vec<u8>> {
-        let mut words = Vec::new();
-        for length in 0..=max_length {
-            append_words(&mut words, &mut Vec::new(), length);
-        }
-        words
-    }
-
-    fn append_words(words: &mut Vec<Vec<u8>>, current: &mut Vec<u8>, remaining: usize) {
-        if remaining == 0 {
-            words.push(current.clone());
-            return;
-        }
-        for token in 0..=1 {
-            current.push(token);
-            append_words(words, current, remaining - 1);
-            current.pop();
-        }
     }
 
     fn brute_signatures(old: &[u8], new: &[u8]) -> Vec<ScriptSignature> {

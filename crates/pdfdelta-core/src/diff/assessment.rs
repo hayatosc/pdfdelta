@@ -39,6 +39,30 @@ use claims::{allocation_error, charge, invalid, limit_error};
 /// Version of the evidence and resolution-accounting policy.
 pub const ASSESSMENT_POLICY_VERSION: u32 = 1;
 
+/// Enumerates every binary word up to `max_length`, shortest first.
+///
+/// The exact and semantic uniqueness tests use the same oracle corpus; this
+/// lives with the assessment parent so both tests share one definition.
+#[cfg(test)]
+pub(super) fn all_words(max_length: usize) -> Vec<Vec<u8>> {
+    fn append(words: &mut Vec<Vec<u8>>, current: &mut Vec<u8>, remaining: usize) {
+        if remaining == 0 {
+            words.push(current.clone());
+            return;
+        }
+        for token in 0..=1 {
+            current.push(token);
+            append(words, current, remaining - 1);
+            current.pop();
+        }
+    }
+    let mut words = Vec::new();
+    for length in 0..=max_length {
+        append(&mut words, &mut Vec::new(), length);
+    }
+    words
+}
+
 /// Why a proposed correspondence cannot establish a localized change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
