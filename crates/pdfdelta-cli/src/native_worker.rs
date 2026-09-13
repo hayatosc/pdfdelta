@@ -15,9 +15,11 @@ use pdfdelta_core::{
         BackendIdentity, BackendKind, Channel, EvidenceFailure, EvidenceIssue, EvidenceLimits,
         EvidenceStore, PageEvidence, StructuredValue,
     },
-    model::{Document, PageId},
+    model::{Document, FontProgramHash, PageId},
     pdf::{ObjectRef, PageRef, ParseLimits},
-    source::{ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome},
+    source::{
+        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits, ExtractionOutcome,
+    },
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -27,7 +29,10 @@ use crate::{
     fs::{lowercase_hex, parse_external_font_identities, parse_lopdf},
 };
 
-const MAX_HEADER: usize = 256 * 1024;
+/// Bounds the serialized request header. The widest documented identity table
+/// is 1,024 entries of a 127-byte `BaseFont` plus a 64-character digest; the
+/// allowance also covers JSON escaping of `BaseFont` names.
+const MAX_HEADER: usize = 1024 * 1024;
 const MAX_RESPONSE: usize = 128 * 1024 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(35);
 
@@ -47,7 +52,10 @@ enum Job {
 struct Request {
     job: Job,
     password: Option<String>,
-    font_identities: Vec<String>,
+    /// `(BaseFont, lowercase SHA-256 hex)` pairs. The worker never needs the
+    /// original assertion bytes, and only the digest determines extraction
+    /// identity and the extraction-cache key.
+    font_identities: Vec<(String, String)>,
     cache_dir: Option<PathBuf>,
 }
 
@@ -102,6 +110,40 @@ fn revision(bytes: &[u8]) -> String {
     lowercase_hex(&Sha256::digest(bytes))
 }
 
+/// Rebuilds the asserted font identities from their transported digests.
+fn decode_font_identities(entries: &[(String, String)]) -> Result<ExternalFontIdentities, String> {
+    let mut fonts = ExternalFontIdentities::default();
+    for (base_font, digest) in entries {
+        let digest = decode_sha256_hex(digest)?;
+        fonts
+            .insert_hash(base_font.as_bytes(), FontProgramHash(digest))
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(fonts)
+}
+
+fn decode_sha256_hex(value: &str) -> Result<Vec<u8>, String> {
+    if value.len() != 64 || !value.is_ascii() {
+        return Err("font identity digest must be 64 ASCII hexadecimal characters".to_owned());
+    }
+    let mut digest = Vec::with_capacity(32);
+    for pair in value.as_bytes().as_chunks::<2>().0 {
+        let high = hex_nibble(pair[0])?;
+        let low = hex_nibble(pair[1])?;
+        digest.push((high << 4) | low);
+    }
+    Ok(digest)
+}
+
+fn hex_nibble(byte: u8) -> Result<u8, String> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err("font identity digest must be 64 ASCII hexadecimal characters".to_owned()),
+    }
+}
+
 fn issue(store: &mut EvidenceStore, failure: &Failure, channels: &[Channel]) {
     store
         .issues
@@ -127,12 +169,21 @@ pub fn collect(
     channels: &BTreeSet<Channel>,
 ) -> Result<(EvidenceStore, Vec<PageRef>), String> {
     // Validate user configuration before converting a child failure to evidence.
-    parse_external_font_identities(font_identities)?;
+    let fonts = parse_external_font_identities(font_identities)?;
+    let identities = fonts
+        .iter()
+        .map(|(base_font, hash)| {
+            (
+                String::from_utf8_lossy(base_font).into_owned(),
+                lowercase_hex(&hash.0),
+            )
+        })
+        .collect::<Vec<_>>();
     let hash = revision(bytes);
     let request = |job| Request {
         job,
         password: password.map(str::to_owned),
-        font_identities: font_identities.to_vec(),
+        font_identities: identities.clone(),
         cache_dir: cache_dir.map(Path::to_path_buf),
     };
     let forms = channels.contains(&Channel::Forms) || channels.contains(&Channel::Relations);
@@ -385,8 +436,7 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
             "native structure id exceeds the evidence budget",
         ));
     }
-    let fonts =
-        parse_external_font_identities(&request.font_identities).map_err(Failure::backend)?;
+    let fonts = decode_font_identities(&request.font_identities).map_err(Failure::backend)?;
     let parsed = parse_lopdf(
         bytes.clone(),
         ParseLimits::default(),

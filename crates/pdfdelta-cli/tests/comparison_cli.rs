@@ -2750,6 +2750,31 @@ fn external_font_identity_flags_are_validated_end_to_end() {
     );
 }
 
+#[test]
+fn default_evidence_path_accepts_a_large_font_identity_table() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-identity-table.pdf");
+    let new = directory.join("new-identity-table.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let report_path = directory.join("identity-table.json");
+    let identity = "a".repeat(4_096);
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+    command.args(["--channels", "text"]).arg(&old).arg(&new);
+    for index in 0..64 {
+        let value = format!("Font{index}={identity}");
+        command.arg("--old-font-identity").arg(&value);
+        command.arg("--new-font-identity").arg(&value);
+    }
+    command.arg("--json").arg(&report_path);
+
+    let output = command.output().expect("large identity table comparison");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["old"]["native_glyphs"], 34, "{report}");
+    assert_eq!(report["new"]["native_glyphs"], 34, "{report}");
+}
+
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .arg("--native-text-only")
@@ -3307,7 +3332,7 @@ fn native_worker_rejects_malformed_and_oversized_request_frames() {
     for (input, expected) in [
         (b"{}".to_vec(), 2),
         (b"{}\n".to_vec(), 2),
-        (vec![b'x'; 256 * 1024 + 1], 3),
+        (vec![b'x'; 1024 * 1024 + 1], 3),
     ] {
         let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
             .arg("acquire-native")
