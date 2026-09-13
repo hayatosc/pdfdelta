@@ -1095,6 +1095,32 @@ fn preserves_existing_json_report_on_publish_collision() {
 }
 
 #[test]
+fn preserves_existing_text_report_on_publish_collision() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("comparison.txt");
+    let existing_report = b"existing text report\n";
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    fs::write(&report, existing_report).expect("existing report should be written");
+
+    let output = compare(&old, &new, &["--output", path_text(&report)]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("refusing to overwrite existing text report"),
+        "{}",
+        stderr(&output)
+    );
+    assert_eq!(
+        fs::read(report).expect("existing report should remain readable"),
+        existing_report
+    );
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
 fn rejects_trace_and_report_output_aliases_before_processing() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
@@ -1169,6 +1195,21 @@ fn malformed_old_document_exits_two_with_context() {
     assert_eq!(output.status.code(), Some(2), "{error}");
     assert!(error.contains("old PDF"), "{error}");
     assert!(error.contains(path_text(&old)), "{error}");
+}
+
+#[test]
+fn rejects_an_empty_input_document_as_malformed() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    fs::write(&old, b"").expect("empty fixture should be written");
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &[]);
+    let error = stderr(&output);
+
+    assert_eq!(output.status.code(), Some(2), "{error}");
+    assert!(error.contains("old PDF"), "{error}");
 }
 
 #[test]
@@ -2820,6 +2861,52 @@ fn default_report_displays_inferred_text_changes_and_exact_mask_counts() {
         "{text}"
     );
     assert!(text.contains("Unresolved old Visual"), "{text}");
+}
+
+#[test]
+fn default_evidence_path_publishes_json_text_and_trace_reports() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-body.pdf");
+    let new = directory.join("new-body.pdf");
+    write_pdf(&old, &["The fee is 100 dollars."]);
+    write_pdf(&new, &["The fee is 200 dollars."]);
+    let json = directory.join("report.json");
+    let text = directory.join("report.txt");
+    let trace = directory.join("trace.json");
+    let arguments = |command: &mut Command| {
+        command
+            .arg(&old)
+            .arg(&new)
+            .arg("--json")
+            .arg(&json)
+            .arg("--output")
+            .arg(&text)
+            .arg("--trace-json")
+            .arg(&trace);
+    };
+
+    let output = {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+        arguments(&mut command);
+        command.output().expect("default evidence comparison")
+    };
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    assert!(json.exists() && text.exists() && trace.exists());
+
+    // Report publication refuses to replace an existing destination.
+    let repeated = {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+        arguments(&mut command);
+        command
+            .output()
+            .expect("repeated default evidence comparison")
+    };
+    assert_eq!(repeated.status.code(), Some(2), "{}", stderr(&repeated));
+    assert!(
+        stderr(&repeated).contains("refusing to overwrite existing"),
+        "{}",
+        stderr(&repeated)
+    );
 }
 
 #[test]
