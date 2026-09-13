@@ -124,7 +124,11 @@ impl ExtractionCache {
         let temp = self.dir.join(format!("{key}.{}.tmp", unique_temp_suffix()));
         match write_entry_exclusive(&temp, &cached, ceiling) {
             Ok(false) => {
-                let _ = fs::rename(&temp, &target);
+                if fs::rename(&temp, &target).is_err() {
+                    // A failed publication must not leave the temporary entry
+                    // behind; the cache is rebuilt on a later run.
+                    let _ = fs::remove_file(&temp);
+                }
             }
             Ok(true) => {
                 let _ = fs::remove_file(&temp);
@@ -495,6 +499,44 @@ mod tests {
             .expect("cache directory should exist")
             .count();
         assert_eq!(entries_after, 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn failed_publication_removes_the_temporary_entry() {
+        let dir = unique_temp_dir("failed-publish");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, extraction_limits) = fixture_limits();
+        let key = cache_key(
+            b"pdf",
+            &parse_limits,
+            &extraction_limits,
+            None,
+            &ExternalFontIdentities::default(),
+        );
+        // A directory at the entry path makes the atomic rename fail.
+        let blocked = dir.join(format!("{key}.json"));
+        fs::create_dir_all(&blocked).expect("blocking directory");
+        fs::write(blocked.join("keep"), b"keep").expect("blocker content");
+
+        cache.store(&key, &fixture_outcome());
+
+        let entries = fs::read_dir(&dir)
+            .expect("cache directory should exist")
+            .map(|entry| {
+                entry
+                    .expect("entry readable")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(entries, vec![format!("{key}.json")], "{entries:?}");
+        assert_eq!(
+            fs::read(blocked.join("keep")).expect("blocker survives"),
+            b"keep"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
