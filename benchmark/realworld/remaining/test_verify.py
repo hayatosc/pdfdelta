@@ -132,6 +132,64 @@ class EvidenceTests(unittest.TestCase):
                 with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                     verify.events(invalid)
 
+        page_paired = copy.deepcopy(report)
+        page_scope = page_paired["comparison"]["scopes"][0]["result"]
+        page_scope["accepted_correspondences"] = [0]
+        page_scope["text_scope_reviews"][0]["source_cuts"]["exit"]["evidence"] = {
+            "kind": "unique_native_fragment", **{
+                side: {"node": node, "tokens": [0, 1], "sources": [{"origin": "native", "glyph": 11}]}
+                for side, node in (("old", 3), ("new", 6))
+            }
+        }
+        page_scope["text_scope_reviews"][0]["source_cuts"]["population"] = {
+            "kind": "anchored_page", "boundary": 0, "old_page": 0, "new_page": 3,
+            "old": [1, 2, 3], "new": [4, 5, 6],
+            "external_boundaries": [],
+        }
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            self.assertEqual(verify.events(page_paired)[0]["category"], "B")
+            for mutation in ("anchor", "membership", "page", "cut", "duplicate", "second_anchor"):
+                invalid = copy.deepcopy(page_paired)
+                scope = invalid["comparison"]["scopes"][0]["result"]
+                cuts = scope["text_scope_reviews"][0]["source_cuts"]
+                if mutation == "anchor":
+                    scope["accepted_correspondences"] = [1]
+                elif mutation == "membership":
+                    cuts["population"]["old"] = [2, 3]
+                elif mutation == "page":
+                    cuts["population"]["new_page"] = -1
+                elif mutation == "cut":
+                    cuts["entry"]["old"]["node"] = 99
+                elif mutation == "duplicate":
+                    cuts["population"]["old"].append(2)
+                else:
+                    scope["accepted_correspondences"] = [0, 1]
+                with self.subTest(page_mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
+            external_page = copy.deepcopy(page_paired)
+            scope = external_page["comparison"]["scopes"][0]["result"]
+            scope["candidates"]["proposals"].append({"old": [7], "new": [9]})
+            scope["accepted_correspondences"].append(2)
+            scope["matching"]["source_only_mandatory"].append(2)
+            cuts = scope["text_scope_reviews"][0]["source_cuts"]
+            cuts["population"]["old"].insert(0, 7)
+            cuts["population"]["external_boundaries"] = [2]
+            self.assertEqual(verify.events(external_page)[0]["category"], "B")
+            for mutation in ("missing", "duplicate", "cut", "content"):
+                invalid = copy.deepcopy(external_page)
+                row = invalid["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+                if mutation == "missing":
+                    row["source_cuts"]["population"]["external_boundaries"] = []
+                elif mutation == "duplicate":
+                    row["source_cuts"]["population"]["external_boundaries"] = [2, 2]
+                elif mutation == "cut":
+                    row["source_cuts"]["entry"]["old"]["node"] = 7
+                else:
+                    row["comparison"]["old"] = [7]
+                with self.subTest(external_mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
         row_ordered = copy.deepcopy(report)
         row = row_ordered["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
         row["source_cuts"]["population"]["row_order"] = {

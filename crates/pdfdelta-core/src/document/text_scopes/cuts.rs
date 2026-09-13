@@ -5,6 +5,7 @@ use crate::document::{TextNormalization, TextView};
 use crate::normalize::ComparableToken;
 
 mod edges;
+mod pages;
 
 /// A token boundary in an existing retained source view.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,6 +72,18 @@ pub struct SourceCutEdgeRefinement {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SourceCutPopulation {
     CompletePage,
+    /// Both pages have complete, disjoint native source paths. Their pairing
+    /// remains conditional on this accepted text boundary, not page numbers.
+    AnchoredPage {
+        boundary: usize,
+        old_page: crate::model::PageId,
+        new_page: crate::model::PageId,
+        old: Vec<NodeId>,
+        new: Vec<NodeId>,
+        /// Accepted nodes with a counterpart outside this page pair stay in
+        /// the occurrence census but cannot supply cuts or compared content.
+        external_boundaries: Vec<usize>,
+    },
     MatchedInterval {
         boundaries: [usize; 2],
         old: Vec<NodeId>,
@@ -231,9 +244,13 @@ fn rows<'a>(
 fn unique(
     tokens: &[ComparableToken],
     optional: &[bool],
+    mandatory: bool,
     row: &Row<'_>,
     remaining: &mut usize,
 ) -> Option<bool> {
+    if mandatory {
+        return unique_mandatory(tokens, &row.tokens, remaining);
+    }
     // Each state retains at most two physical starts. Distinct skip/keep paths
     // with the same first/last token are one occurrence; two starts are already
     // enough to defeat uniqueness. A completed match never consumes padding.
@@ -271,6 +288,57 @@ fn unique(
             return Some(false);
         }
         states = next;
+    }
+    Some(count == 1)
+}
+
+/// Count overlapping literal occurrences in linear work when no source token
+/// can be skipped. Optional spacing still uses the full state census above.
+fn unique_mandatory(
+    tokens: &[ComparableToken],
+    needle: &[ComparableToken],
+    remaining: &mut usize,
+) -> Option<bool> {
+    if needle.is_empty() {
+        return None;
+    }
+    spend(remaining, needle.len())?;
+    let mut prefixes = vec![0; needle.len()];
+    for end in 1..needle.len() {
+        let mut length = prefixes[end - 1];
+        loop {
+            spend(remaining, 1)?;
+            if needle[end] == needle[length] {
+                prefixes[end] = length + 1;
+                break;
+            }
+            if length == 0 {
+                break;
+            }
+            length = prefixes[length - 1];
+        }
+    }
+    let mut matched = 0;
+    let mut count = 0;
+    for token in tokens {
+        loop {
+            spend(remaining, 1)?;
+            if *token == needle[matched] {
+                matched += 1;
+                break;
+            }
+            if matched == 0 {
+                break;
+            }
+            matched = prefixes[matched - 1];
+        }
+        if matched == needle.len() {
+            count += 1;
+            if count > 1 {
+                return Some(false);
+            }
+            matched = prefixes[matched - 1];
+        }
     }
     Some(count == 1)
 }
@@ -727,6 +795,16 @@ pub(super) fn append(
             aggregate.paired_boundaries += search.paired_boundaries;
         }
     }
+    if pass == Pass::Standard {
+        pages::append(
+            old, new, result, parent, limits, left, right, sources, anchors, remaining,
+        )?;
+        if let Some(search) = result.source_cut_search.take() {
+            aggregate.exhaustive &= search.exhaustive;
+            aggregate.examined_fragments += search.examined_fragments;
+            aggregate.paired_boundaries += search.paired_boundaries;
+        }
+    }
     aggregate.work = initial - *remaining;
     result.source_cut_search = Some(aggregate);
     Ok(())
@@ -764,16 +842,37 @@ fn compare_population(
         work: 0,
         budget_at_entry: initial,
     };
+    let mut excluded = [BTreeSet::new(), BTreeSet::new()];
+    if let SourceCutPopulation::AnchoredPage {
+        external_boundaries,
+        ..
+    } = &population
+    {
+        for &index in external_boundaries {
+            let proposal = &result.candidates.proposals[index];
+            if spend(
+                remaining,
+                proposal.old.len().saturating_add(proposal.new.len()),
+            )
+            .is_none()
+            {
+                return Ok(());
+            }
+            excluded[0].extend(&proposal.old);
+            excluded[1].extend(&proposal.new);
+        }
+    }
     let outcome = discover(
         left,
         right,
         old_sources,
         new_sources,
         anchors,
-        matches!(population, SourceCutPopulation::MatchedInterval { .. }),
+        !matches!(population, SourceCutPopulation::CompletePage),
         maps,
         refine_existing || whole_only,
         paint_boundaries,
+        &excluded,
         &mut search,
         remaining,
     );
@@ -803,6 +902,41 @@ fn compare_population(
         .map(|pair| (pair[0].clone(), pair[1].clone(), None, None, false))
         .collect();
     let mut spanning = std::collections::VecDeque::new();
+    if matches!(population, SourceCutPopulation::AnchoredPage { .. }) {
+        // Interior unchanged rows may divide a changed paragraph into smaller
+        // comparisons. Keep the views from an accepted page anchor to every
+        // checked cut, retaining the wider extent under the same certificate.
+        for anchor in boundaries.iter().rev() {
+            if !matches!(
+                anchor.certificate.evidence,
+                CutEvidence::AcceptedBoundary { .. }
+            ) {
+                continue;
+            }
+            for cut in &boundaries {
+                if spend(remaining, 1).is_none() {
+                    break;
+                }
+                let (entry, exit) = if anchor.old < cut.old && anchor.new <= cut.new {
+                    (anchor, cut)
+                } else if cut.old < anchor.old && cut.new <= anchor.new {
+                    (cut, anchor)
+                } else {
+                    continue;
+                };
+                let copies = entry
+                    .old_sources
+                    .len()
+                    .saturating_add(entry.new_sources.len())
+                    .saturating_add(exit.old_sources.len())
+                    .saturating_add(exit.new_sources.len());
+                if spend(remaining, copies.saturating_mul(2)).is_none() {
+                    break;
+                }
+                spanning.push_back((entry.clone(), exit.clone(), None, None, false));
+            }
+        }
+    }
     if paint_boundaries && !whole_only {
         // This interval has no legacy whole-node closure. Retain its complete
         // raw comparison before lexical cuts and reversible edge refinements.
@@ -845,6 +979,12 @@ fn compare_population(
             }
         }
     }
+    if matches!(population, SourceCutPopulation::AnchoredPage { .. }) {
+        // The page fallback follows established interval comparisons. Give its
+        // anchor-spanning views priority over unrelated adjacent fragments.
+        spanning.append(&mut agenda);
+        std::mem::swap(&mut agenda, &mut spanning);
+    }
     while let Some((entry, exit, refinement, pending_parent, whole_frame)) =
         agenda.pop_front().or_else(|| spanning.pop_front())
     {
@@ -856,6 +996,7 @@ fn compare_population(
             || entry.new.0 != exit.new.0
             || (!refine_existing
                 && !paint_boundaries
+                && !matches!(population, SourceCutPopulation::AnchoredPage { .. })
                 && matches!(
                     (&entry.certificate.evidence, &exit.certificate.evidence),
                     (
@@ -865,6 +1006,49 @@ fn compare_population(
                 ))
         {
             continue;
+        }
+        if matches!(population, SourceCutPopulation::AnchoredPage { .. }) {
+            let empty = |runs: &[Vec<&GraphNode>], first: Position, last: Position| {
+                if first.1 == last.1 {
+                    return first.2 == last.2;
+                }
+                let NodeContent::Text { view } = &runs[first.0][first.1].content else {
+                    return false;
+                };
+                last.1 == first.1 + 1 && first.2 == view.tokens.len() && last.2 == 0
+            };
+            // Neighboring node coordinates can name the same empty interval.
+            // Neither side needs a source projection in that case.
+            if empty(left, entry.old, exit.old) && empty(right, entry.new, exit.new) {
+                continue;
+            }
+            let count = (exit.old.1 - entry.old.1 + 1).saturating_add(exit.new.1 - entry.new.1 + 1);
+            if spend(remaining, count).is_none() {
+                break;
+            }
+            let crosses = |runs: &[Vec<&GraphNode>],
+                           first: Position,
+                           last: Position,
+                           excluded: &BTreeSet<NodeId>| {
+                (first.1..=last.1).any(|index| {
+                    let node = runs[first.0][index];
+                    let NodeContent::Text { view } = &node.content else {
+                        return true;
+                    };
+                    let start = if index == first.1 { first.2 } else { 0 };
+                    let end = if index == last.1 {
+                        last.2
+                    } else {
+                        view.tokens.len()
+                    };
+                    start < end && excluded.contains(&node.id)
+                })
+            };
+            if crosses(left, entry.old, exit.old, &excluded[0])
+                || crosses(right, entry.new, exit.new, &excluded[1])
+            {
+                continue;
+            }
         }
         if paint_boundaries {
             let interior_cut = |runs: &[Vec<&GraphNode>], cut: Position| {
@@ -932,6 +1116,11 @@ fn compare_population(
         let Some(kind) = a.first().or_else(|| b.first()).map(|node| node.kind) else {
             continue;
         };
+        if a.iter().any(|node| excluded[0].contains(&node.id))
+            || b.iter().any(|node| excluded[1].contains(&node.id))
+        {
+            continue;
+        }
         if a.len() > limits.matching.max_group_nodes
             || b.len() > limits.matching.max_group_nodes
             || a.iter().chain(&b).any(|node| node.kind != kind)
@@ -1055,7 +1244,9 @@ fn compare_population(
                 SourceCutPopulation::MatchedInterval { native_regions, .. } => {
                     native_regions.as_deref().cloned()
                 }
-                SourceCutPopulation::CompletePage => None,
+                SourceCutPopulation::CompletePage | SourceCutPopulation::AnchoredPage { .. } => {
+                    None
+                }
             },
             new_sources: new_extent,
             old_boundaries: [entry.old_sources.clone(), exit.old_sources.clone()],
@@ -1082,7 +1273,12 @@ fn compare_population(
         if refinement.is_none()
             && let Some(refined) = edges::refine(left, right, &entry, &exit, maps, remaining)
         {
-            agenda.push_back((refined.0, refined.1, refined.2, None, whole_frame));
+            let next = (refined.0, refined.1, refined.2, None, whole_frame);
+            if matches!(population, SourceCutPopulation::AnchoredPage { .. }) {
+                agenda.push_front(next);
+            } else {
+                agenda.push_back(next);
+            }
         }
     }
     Ok(())
@@ -1099,6 +1295,7 @@ fn discover(
     maps: &CutMaps,
     anchors_only: bool,
     paint_order: bool,
+    excluded: &[BTreeSet<NodeId>; 2],
     search: &mut SourceCutSearch,
     remaining: &mut usize,
 ) -> Option<Vec<Boundary>> {
@@ -1108,21 +1305,25 @@ fn discover(
     let tokens = |runs: &[Vec<&GraphNode>], remaining: &mut usize| {
         let mut tokens = Vec::new();
         let mut optional = Vec::new();
+        let mut mandatory = true;
         for node in runs.iter().flatten() {
             let NodeContent::Text { view } = &node.content else {
                 return None;
             };
             spend(remaining, view.tokens.len())?;
             tokens.extend_from_slice(&view.tokens);
-            optional.extend(view.optional_tokens()?);
+            for skippable in view.optional_tokens()? {
+                mandatory &= !skippable;
+                optional.push(skippable);
+            }
         }
-        Some((tokens, optional))
+        Some((tokens, optional, mandatory))
     };
-    let (old_tokens, old_optional) = tokens(left, remaining)?;
-    let (new_tokens, new_optional) = tokens(right, remaining)?;
+    let (old_tokens, old_optional, old_mandatory) = tokens(left, remaining)?;
+    let (new_tokens, new_optional, new_mandatory) = tokens(right, remaining)?;
     let mut boundaries = Vec::new();
-    let mut old_anchors = BTreeSet::new();
-    let mut new_anchors = BTreeSet::new();
+    let mut old_anchors = excluded[0].clone();
+    let mut new_anchors = excluded[1].clone();
     for &(a, b, proposal) in anchors {
         let (old_node, new_node) = (left[a.0][a.1], right[b.0][b.1]);
         let (NodeContent::Text { view: av }, NodeContent::Text { view: bv }) =
@@ -1199,12 +1400,12 @@ fn discover(
             let old_unique = match old_unique {
                 Some(value) => value,
                 None => {
-                    let value = unique(&old_tokens, &old_optional, a, remaining)?;
+                    let value = unique(&old_tokens, &old_optional, old_mandatory, a, remaining)?;
                     old_unique = Some(value);
                     value
                 }
             };
-            if !old_unique || !unique(&new_tokens, &new_optional, b, remaining)? {
+            if !old_unique || !unique(&new_tokens, &new_optional, new_mandatory, b, remaining)? {
                 continue;
             }
             let (Some(af), Some(bf)) = (fragment(a, &maps.old), fragment(b, &maps.new)) else {
@@ -1300,6 +1501,26 @@ mod tests {
     use super::*;
     use crate::{document::NodeKind, model::GlyphId};
 
+    #[test]
+    fn mandatory_census_has_linear_work_for_repeated_prefixes() {
+        let mut tokens = vec![ComparableToken::Scalar('a'); 4096];
+        tokens.push(ComparableToken::Scalar('b'));
+        let mut needle = vec![ComparableToken::Scalar('a'); 128];
+        needle.push(ComparableToken::Scalar('b'));
+        let mut remaining = (tokens.len() + needle.len()) * 4;
+        assert_eq!(
+            unique_mandatory(&tokens, &needle, &mut remaining),
+            Some(true)
+        );
+        assert!(remaining > 0);
+        needle.pop();
+        assert_eq!(
+            unique_mandatory(&tokens, &needle, &mut remaining),
+            Some(false)
+        );
+        assert_eq!(unique_mandatory(&tokens, &[], &mut remaining), None);
+    }
+
     fn source(id: u64) -> SourceRef {
         SourceRef::Native { glyph: GlyphId(id) }
     }
@@ -1392,11 +1613,20 @@ mod tests {
                             }
                         }
                         assert_eq!(
-                            unique(&tokens, &optional, &row, &mut 100_000),
+                            unique(
+                                &tokens,
+                                &optional,
+                                !optional.contains(&true),
+                                &row,
+                                &mut 100_000
+                            ),
                             Some(occurrences.len() == 1),
                             "length {length}, spelling {spelling}, choices {choices}, pattern {pattern}"
                         );
-                        assert!(unique(&tokens, &optional, &row, &mut 0).is_none());
+                        assert!(
+                            unique(&tokens, &optional, !optional.contains(&true), &row, &mut 0)
+                                .is_none()
+                        );
                     }
                 }
             }

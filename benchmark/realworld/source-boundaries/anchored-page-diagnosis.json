@@ -1,0 +1,682 @@
+{
+  "version": 1,
+  "scope": "Development diagnosis after unseen-v2 retirement; all original targets remain immutable.",
+  "retirement": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2-retirement.json",
+    "sha256": "b9bb94f2d6b17aef01ad064fdd9892a1aec928f43a03f042fa8ab79a0c98e28e"
+  },
+  "rows": [
+    {
+      "pair": "arxiv-dpr-v1-to-v3",
+      "frozen_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/arxiv-dpr-v1-to-v3-text.json",
+        "sha256": "84092ff81d8316b58dd299f02d46d810cdd81893a34da7b1da10ff28e5de4a42"
+      },
+      "diagnostic_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/arxiv-dpr-v1-to-v3/report.json",
+        "sha256": "09ca2f91671b624373c848374cd691f4ee8f20c87e83f342372048b699352840"
+      },
+      "raw_source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/arxiv-dpr-v1-to-v3/source-review/sources.json",
+        "sha256": "c01f8687f49ed9dabaf64f538b04e3a664fa83e44497402af1cb1a822d59ecd3"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/arxiv-dpr-v1-to-v3/command.json",
+        "sha256": "79d7732d24efb43d927f978e744a230f3c962f34cd26a2e66064d01cba5e52ef"
+      },
+      "target": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-dpr-v1-to-v3.json",
+          "sha256": "7ee64991ae1f07c7635fa06793c03ccfde154b331caf546d2b6ef995d15d203d"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-dpr-v1-to-v3.resolved.json",
+          "sha256": "4ce9947f7cca2114e305fcb360fe07a3ec253b155b384c71417e1070eee102da"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/arxiv-dpr-v1-to-v3.expectations.json",
+          "sha256": "445b503369c043e62faa8e6137e768aad2ae235a7aec28198f791f6d73129098"
+        }
+      },
+      "target_page_anchors": [
+        {
+          "proposal": 712,
+          "nodes": {
+            "old": [
+              11
+            ],
+            "new": [
+              14
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 713,
+          "nodes": {
+            "old": [
+              13
+            ],
+            "new": [
+              16
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 714,
+          "nodes": {
+            "old": [
+              14
+            ],
+            "new": [
+              17
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 715,
+          "nodes": {
+            "old": [
+              15
+            ],
+            "new": [
+              18
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 716,
+          "nodes": {
+            "old": [
+              16
+            ],
+            "new": [
+              19
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 717,
+          "nodes": {
+            "old": [
+              18
+            ],
+            "new": [
+              21
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 718,
+          "nodes": {
+            "old": [
+              19
+            ],
+            "new": [
+              22
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 719,
+          "nodes": {
+            "old": [
+              22
+            ],
+            "new": [
+              25
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 720,
+          "nodes": {
+            "old": [
+              24
+            ],
+            "new": [
+              27
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 721,
+          "nodes": {
+            "old": [
+              27
+            ],
+            "new": [
+              30
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 722,
+          "nodes": {
+            "old": [
+              36
+            ],
+            "new": [
+              40
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 723,
+          "nodes": {
+            "old": [
+              38
+            ],
+            "new": [
+              42
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 724,
+          "nodes": {
+            "old": [
+              40
+            ],
+            "new": [
+              44
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 725,
+          "nodes": {
+            "old": [
+              46
+            ],
+            "new": [
+              50
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 726,
+          "nodes": {
+            "old": [
+              48
+            ],
+            "new": [
+              52
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 727,
+          "nodes": {
+            "old": [
+              50
+            ],
+            "new": [
+              54
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 728,
+          "nodes": {
+            "old": [
+              53
+            ],
+            "new": [
+              57
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 729,
+          "nodes": {
+            "old": [
+              79
+            ],
+            "new": [
+              39
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 730,
+          "nodes": {
+            "old": [
+              81
+            ],
+            "new": [
+              41
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 731,
+          "nodes": {
+            "old": [
+              83
+            ],
+            "new": [
+              43
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 732,
+          "nodes": {
+            "old": [
+              87
+            ],
+            "new": [
+              89
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        },
+        {
+          "proposal": 733,
+          "nodes": {
+            "old": [
+              88
+            ],
+            "new": [
+              95
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        }
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 62,
+        "paired_boundaries": 58,
+        "work": 470490,
+        "budget_at_entry": 470490
+      },
+      "overlapping_outputs": [
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/0",
+          "category": "B",
+          "target_intersection": 230,
+          "outside_target": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-voice-assistants-v1-to-v2",
+      "frozen_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/edpb-voice-assistants-v1-to-v2-text.json",
+        "sha256": "04afe72a59579eb725cf55a06c1f3615b20d22794cf0ea798aeef0fb0d5f92d0"
+      },
+      "diagnostic_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/edpb-voice-assistants-v1-to-v2/report.json",
+        "sha256": "07b373aa2919149c04933323b6f6611f63460be6b735037086360dec78f0fb54"
+      },
+      "raw_source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/edpb-voice-assistants-v1-to-v2/source-review/sources.json",
+        "sha256": "1775e7bcc647366308d7684013af483e0bf052e9c85c301404f3e00e78d6eaa6"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/edpb-voice-assistants-v1-to-v2/command.json",
+        "sha256": "3924ed8833c9f25097308a344d0ca6827db871f7dc3950b8c4a80488a24a7b1b"
+      },
+      "target": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-voice-assistants-v1-to-v2.json",
+          "sha256": "9c7904ae1b03c44952063175528edc546918baa34dcd7fe9914e948bcd266303"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-voice-assistants-v1-to-v2.resolved.json",
+          "sha256": "d111e41fb9976e040167ea9d6e80e44eb904194b07d52f6071fd5adc450d2f87"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/edpb-voice-assistants-v1-to-v2.expectations.json",
+          "sha256": "e065e0fe188af9df25f5961bcd5d9dabce8df826373be29aed526dcbce45e6bc"
+        }
+      },
+      "target_page_anchors": [
+        {
+          "proposal": 288,
+          "nodes": {
+            "old": [
+              45
+            ],
+            "new": [
+              54
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              1
+            ],
+            "new": [
+              2
+            ]
+          }
+        }
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 8,
+        "work": 651489,
+        "budget_at_entry": 651489
+      },
+      "overlapping_outputs": []
+    },
+    {
+      "pair": "ietf-edns-2671-to-6891",
+      "frozen_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/ietf-edns-2671-to-6891-text.json",
+        "sha256": "55c9f3ba609a9e71c8c213619d692e3eac40400fea089f51c41160936d33eca8"
+      },
+      "diagnostic_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/ietf-edns-2671-to-6891/report.json",
+        "sha256": "2ddef015d6d05249d87ff76ed59d78c0db0ec8c36c2a74d6440781b405db6582"
+      },
+      "raw_source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/ietf-edns-2671-to-6891/source-review/sources.json",
+        "sha256": "0b54ffcc86d16be34c2ebbee6b7a2e1653975cdba0831afef9b25cdf5c4b15bf"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/diagnosis/ietf-edns-2671-to-6891/command.json",
+        "sha256": "1e448d9d83d5a53b44ca9c507ef5c48cb64fb6a53d3d12b7ca771bf161de439c"
+      },
+      "target": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-edns-2671-to-6891.json",
+          "sha256": "bb55292dcd1a7f2ba02adea7e5e05d8cc0ffb3ae85670cfbbd026d2537ef0ede"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-edns-2671-to-6891.resolved.json",
+          "sha256": "4958a47b3dd2bce8d527e6aaa8425c42c9d2dfe69f583dd4d38462fd279f7955"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v2/annotations/ietf-edns-2671-to-6891.expectations.json",
+          "sha256": "5052d662a7cee255990ada5d0099adba679e20e8a54cee52085503f6f43d0d6b"
+        }
+      },
+      "target_page_anchors": [
+        {
+          "proposal": 5,
+          "nodes": {
+            "old": [
+              14
+            ],
+            "new": [
+              19
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "pages": {
+            "old": [
+              0
+            ],
+            "new": [
+              0
+            ]
+          }
+        }
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 66,
+        "paired_boundaries": 20,
+        "work": 536776,
+        "budget_at_entry": 940771
+      },
+      "overlapping_outputs": []
+    }
+  ],
+  "regression_before": {
+    "path": "benchmark/realworld/source-boundaries/checks/anchored-page-before.log",
+    "sha256": "c105b5a1d793df6158f50ea6ab3fcc17db5c75becb0304ce48fe89db8ff57a67"
+  },
+  "finding": "EDNS lacks two accepted whole-node boundaries around the abstract on the target page. The fallback experiment admits only a complete, safe native page path with exactly one accepted text anchor and a unique page pairing; it does not replace existing two-boundary rejection decisions. DPR partial extent and VVA merged-node failure remain separate diagnoses."
+}

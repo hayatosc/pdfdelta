@@ -1895,6 +1895,199 @@ fn source_cut_population_rejects_copies_unknown_sources_and_unsafe_order() {
     }
 }
 
+#[test]
+fn an_anchored_complete_page_can_supply_a_missing_second_outer_boundary() {
+    let mut old = fixture_rows(&[
+        "Abstract",
+        "  Clients advertise capabilities.",
+        "Earlier section",
+    ]);
+    let mut new = fixture_rows(&[
+        "Abstract",
+        "  Requestors advertise capabilities.",
+        "Later section",
+    ]);
+    for fixture in [&mut old, &mut new] {
+        append_unassigned(fixture, PageId(1), 70.0);
+    }
+    let expected = |fixture: &Fixture| fixture.1.nodes[2].sources[2..].to_vec();
+    for (a, b) in [(&old, &new), (&new, &old)] {
+        let result = compare(a, b);
+        assert!(
+            result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| {
+                    review.old_sources == expected(a) && review.new_sources == expected(b)
+                })
+        );
+    }
+    assert!(
+        compare(&old, &old).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
+}
+
+#[test]
+fn anchored_page_ranges_can_include_unchanged_interior_rows() {
+    let mut old = fixture_rows(&[
+        "Abstract",
+        "Clients advertise ",
+        "capabilities.",
+        "Earlier section",
+    ]);
+    let mut new = fixture_rows(&[
+        "Abstract",
+        "Requestors advertise ",
+        "capabilities.",
+        "Later section",
+    ]);
+    for fixture in [&mut old, &mut new] {
+        merge_following_node(fixture, 2);
+        append_unassigned(fixture, PageId(1), 70.0);
+    }
+    let expected = |fixture: &Fixture| fixture.1.nodes[2].sources.clone();
+    let result = compare(&old, &new);
+    assert!(
+        result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| {
+                review.old_sources == expected(&old) && review.new_sources == expected(&new)
+            })
+    );
+}
+
+#[test]
+fn anchored_page_ranges_require_an_anchor_and_complete_safe_source_population() {
+    for mutation in 0..5 {
+        let mut old = fixture_rows(&[
+            "Abstract",
+            "  Clients advertise capabilities.",
+            "Earlier section",
+        ]);
+        let mut new = fixture_rows(&[
+            if mutation == 0 {
+                "Changed heading"
+            } else {
+                "Abstract"
+            },
+            "  Requestors advertise capabilities.",
+            if mutation == 3 {
+                "Later capabilities."
+            } else {
+                "Later section"
+            },
+        ]);
+        append_unassigned(&mut old, PageId(1), 70.0);
+        if mutation == 2 {
+            append_unassigned(&mut new, PageId(0), 10.0);
+            new.0.pages.push(PageEvidence {
+                page: PageId(1),
+                bounds: None,
+            });
+        } else {
+            append_unassigned(&mut new, PageId(1), 70.0);
+        }
+        match mutation {
+            1 => new.0.inventories[0].complete = false,
+            4 => with_paint(&mut new, None),
+            _ => {}
+        }
+        let result = compare(&old, &new);
+        assert!(
+            !result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| {
+                    review.old_sources == old.1.nodes[2].sources[2..]
+                        && review.new_sources == new.1.nodes[2].sources[2..]
+                }),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn anchored_page_fallback_excludes_a_heading_moved_to_another_page() {
+    let mut old = fixture_rows(&[
+        "Moved heading",
+        "Abstract",
+        "  Clients advertise capabilities.",
+        "Earlier section",
+    ]);
+    let mut new = fixture_rows(&[
+        "Abstract",
+        "  Requestors advertise capabilities.",
+        "Later section",
+        "Moved heading",
+    ]);
+    append_unassigned(&mut old, PageId(1), 70.0);
+    let moved = new.1.nodes[4].sources.clone();
+    new.1.nodes[4].pages = vec![PageId(1)];
+    let mut glyphs = new.0.native.items().to_vec();
+    for glyph in &mut glyphs {
+        if moved.contains(&SourceRef::Native { glyph: glyph.id }) {
+            glyph.page = PageId(1);
+        }
+    }
+    new.0.native = Document::new(glyphs);
+    new.0.pages.push(PageEvidence {
+        page: PageId(1),
+        bounds: None,
+    });
+    new.0.inventories[0]
+        .sources
+        .retain(|source| !moved.contains(source));
+    new.0.inventories.push(ChannelInventory {
+        page: Some(PageId(1)),
+        channel: Channel::Text,
+        backend: 0,
+        sources: moved,
+        complete: true,
+    });
+    for (a, b, old_index, new_index) in [(&old, &new, 3, 2), (&new, &old, 2, 3)] {
+        let result = compare(a, b);
+        let review = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .find(|review| {
+                review.old_sources == a.1.nodes[old_index].sources[2..]
+                    && review.new_sources == b.1.nodes[new_index].sources[2..]
+            })
+            .expect("local body after a moved heading");
+        let pdfdelta_core::document::SourceCutPopulation::AnchoredPage {
+            external_boundaries,
+            ..
+        } = &review.source_cuts.as_ref().expect("source cuts").population
+        else {
+            panic!("anchored page proof");
+        };
+        assert_eq!(external_boundaries.len(), 1);
+        let external = &result.scopes[0].result.candidates.proposals[external_boundaries[0]];
+        assert!(
+            !review
+                .comparison
+                .old
+                .iter()
+                .any(|node| external.old.contains(node))
+        );
+        assert!(
+            !review
+                .comparison
+                .new
+                .iter()
+                .any(|node| external.new.contains(node))
+        );
+    }
+}
+
 /// Replace drawn interior spaces with layout tokens whose two real neighbors
 /// retain the original geometric gap. No space glyph remains in the inventory.
 fn reconstruct_interior_spaces(fixture: &mut Fixture) {

@@ -222,7 +222,41 @@ def checked_source_cuts(review, result):
                     and type(ref.get("glyph")) is int and ref["glyph"] >= 0 for ref in refs)
                     and not atoms & historical.native_sources(review[side + "_sources"], side),
                     "uncertain boundary padding enters a compared source range")
-    require(population["kind"] in ("complete_page", "matched_interval"), "unknown cut population")
+    require(population["kind"] in ("complete_page", "matched_interval", "anchored_page"),
+            "unknown cut population")
+    if population["kind"] == "anchored_page":
+        anchor = checked_boundary_proposal(result, population["boundary"])
+        require(review.get("native_regions") is None, "page population has segmented dependencies")
+        for side in ("old", "new"):
+            members = population[side]
+            require(type(population[side + "_page"]) is int and population[side + "_page"] >= 0
+                    and members and len(set(members)) == len(members)
+                    and all(type(node) is int and node >= 0 for node in members)
+                    and set(anchor[side]) <= set(members)
+                    and set(review["comparison"][side]) <= set(members),
+                    "review or page anchor escapes its declared population")
+        accepted = ((set(result["accepted_correspondences"])
+                     | set(result["text_boundary_correspondences"]))
+                    & set(result["matching"]["source_only_mandatory"])
+                    - set(result["matching"]["inferred_proposals"]))
+        contained = {index for index in accepted
+                     if all(len(result["candidates"]["proposals"][index][side]) == 1
+                            and result["candidates"]["proposals"][index][side][0] in population[side]
+                            for side in ("old", "new"))}
+        require(contained == {population["boundary"]}, "page fallback has multiple accepted anchors")
+        external = {index for index in accepted
+                    if all(len(result["candidates"]["proposals"][index][side]) == 1
+                           for side in ("old", "new"))
+                    and ((result["candidates"]["proposals"][index]["old"][0] in population["old"])
+                         != (result["candidates"]["proposals"][index]["new"][0] in population["new"]))}
+        require(len(population["external_boundaries"]) == len(external)
+                and set(population["external_boundaries"]) == external,
+                "page fallback omits or duplicates external correspondences")
+        for side in ("old", "new"):
+            excluded = {result["candidates"]["proposals"][index][side][0] for index in external}
+            require(not set(review["comparison"][side]) & excluded
+                    and all(cuts[name][side]["node"] not in excluded for name in ("entry", "exit")),
+                    "page range crosses an external correspondence")
     if population["kind"] == "matched_interval":
         require(population.get("native_regions") == review.get("native_regions"),
                 "source cut omits or changes its enclosing region certificate")
@@ -322,7 +356,7 @@ def checked_source_cuts(review, result):
             require(type(cut["node"]) is int and cut["node"] >= 0
                     and type(cut["token_boundary"]) is int and cut["token_boundary"] >= 0,
                     "invalid source-cut location")
-            if population["kind"] == "matched_interval":
+            if population["kind"] in ("matched_interval", "anchored_page"):
                 require(cut["node"] in population[side], "cut escapes its declared population")
             if accepted_node is not None:
                 require(accepted_node[side] == [cut["node"]], "cut disagrees with accepted node")

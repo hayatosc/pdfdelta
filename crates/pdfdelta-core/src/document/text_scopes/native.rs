@@ -229,6 +229,24 @@ struct NodeGeometry {
 }
 
 impl<'a> Sources<'a> {
+    pub(super) fn page_sources_match(
+        &self,
+        page: PageId,
+        population: &BTreeSet<SourceRef>,
+        remaining: &mut usize,
+    ) -> Option<bool> {
+        let spans = self.pages.get(&page)?;
+        let count: usize = spans.iter().map(|span| span.len()).sum();
+        spend(remaining, count)?;
+        Some(
+            count == population.len()
+                && spans
+                    .iter()
+                    .flat_map(|span| span.iter())
+                    .all(|glyph| population.contains(&SourceRef::Native { glyph: glyph.id })),
+        )
+    }
+
     pub(super) fn acquire_native_order(&mut self, view: DocumentView<'a>, remaining: &mut usize) {
         self.native_order = segments::native_memberships(view, remaining);
     }
