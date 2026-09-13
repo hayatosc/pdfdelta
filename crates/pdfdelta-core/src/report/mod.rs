@@ -374,7 +374,18 @@ impl<'a> SideIndex<'a> {
         separator: Option<BlockSeparator>,
     ) -> Result<ResolvedGroup> {
         let (tokens, pages) = self.accumulate(blocks, separator)?;
-        Ok(ResolvedGroup { tokens, pages })
+        let mut scalar_prefix = Vec::with_capacity(tokens.len() + 1);
+        scalar_prefix.push(0);
+        let mut running = 0;
+        for token in &tokens {
+            running += usize::from(token.is_scalar());
+            scalar_prefix.push(running);
+        }
+        Ok(ResolvedGroup {
+            tokens,
+            pages,
+            scalar_prefix,
+        })
     }
 
     fn accumulate(
@@ -425,6 +436,15 @@ pub(crate) struct ResolvedSpan {
 pub(crate) struct ResolvedGroup {
     pub tokens: Vec<ComparableToken>,
     pub pages: Vec<u32>,
+    /// Number of scalar tokens before each comparable-token index, so a span's
+    /// canonical range can be checked against its token range in constant time.
+    scalar_prefix: Vec<usize>,
+}
+
+impl ResolvedGroup {
+    pub(crate) fn scalar_count_before(&self, index: usize) -> usize {
+        self.scalar_prefix[index.min(self.tokens.len())]
+    }
 }
 
 /// One unmapped glyph token with its stable identity and the scalar offset

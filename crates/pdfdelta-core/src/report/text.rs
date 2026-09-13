@@ -971,6 +971,13 @@ fn validate_span_against_group(span: &TextSpan, group: &ResolvedGroup) -> Result
             "text span range exceeds the normalized block evidence".to_owned(),
         ));
     }
+    if group.scalar_count_before(span.comparable_range.start) != span.canonical_range.start
+        || group.scalar_count_before(span.comparable_range.end) != span.canonical_range.end
+    {
+        return Err(Error::InvalidConfiguration(
+            "text span canonical and comparable ranges select different scalar evidence".to_owned(),
+        ));
+    }
     Ok(())
 }
 

@@ -2374,6 +2374,43 @@ fn text_report_move_context_does_not_render_a_neighboring_replacement() -> Resul
 }
 
 #[test]
+fn text_report_rejects_a_span_whose_ranges_select_different_scalars() -> Result<()> {
+    let old_blocks = vec![block_with_text(6, "AB")];
+    let new_blocks = vec![block_with_text(106, "AB")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(6)],
+                separator: None,
+                canonical_range: ScalarRange { start: 1, end: 2 },
+                comparable_range: TokenRange { start: 0, end: 1 },
+            }),
+            new_span: Some(range_span(106, 0, 1)),
+        }],
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let error = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )
+    .expect_err("canonical and comparable ranges must select the same scalars");
+    assert!(
+        error
+            .to_string()
+            .contains("select different scalar evidence"),
+        "{error}"
+    );
+    Ok(())
+}
+
+#[test]
 fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> {
     let long_prefix = "a".repeat(80);
     let long_suffix = "z".repeat(80);
