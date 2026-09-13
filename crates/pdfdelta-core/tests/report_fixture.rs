@@ -2323,6 +2323,57 @@ fn text_report_never_renders_a_neighboring_change_as_context() -> Result<()> {
 }
 
 #[test]
+fn text_report_move_context_does_not_render_a_neighboring_replacement() -> Result<()> {
+    let old_text = format!("M{}{}{}", "q".repeat(20), "B", "r".repeat(20));
+    let new_text = format!("M{}{}{}", "q".repeat(20), "Y", "r".repeat(20));
+    let old_blocks = vec![block_with_text(6, &old_text)];
+    let new_blocks = vec![block_with_text(106, &new_text)];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Move,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(6, 0, 1)),
+            new_span: Some(range_span(106, 0, 1)),
+        }],
+        confidence: Confidence::Medium,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(6, 21, 22)),
+            new_span: Some(range_span(106, 21, 22)),
+        }],
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    let minus_lines: Vec<_> = report
+        .lines()
+        .filter(|line| line.starts_with("- "))
+        .collect();
+    let move_line = minus_lines
+        .iter()
+        .find(|line| line.contains('M'))
+        .expect("move line");
+    assert!(!move_line.contains('B'), "{report}");
+    let replacement_line = minus_lines
+        .iter()
+        .find(|line| line.contains('B'))
+        .expect("replacement line");
+    assert!(!replacement_line.contains('M'), "{report}");
+    Ok(())
+}
+
+#[test]
 fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> {
     let long_prefix = "a".repeat(80);
     let long_suffix = "z".repeat(80);

@@ -395,6 +395,7 @@ pub(super) fn render(
 }
 
 /// One side's rendered index plus its global edited-run partitions.
+#[derive(Clone, Copy)]
 struct SideRuns<'a, 'b> {
     index: &'a SideIndex<'b>,
     runs: &'a [EditedRuns<'b>],
@@ -438,17 +439,17 @@ fn append_cluster_body(
         pages.extend_from_slice(&new_pages);
         body.push(painter.paint(CODE_MOVE, &marker));
         for occurrence in &move_change.occurrences {
-            append_marked_spans(
+            append_bounded_span(
                 occurrence.old_span.as_ref(),
-                old.index,
+                old,
                 MINUS_STYLE,
                 pages,
                 body,
                 painter,
             )?;
-            append_marked_spans(
+            append_bounded_span(
                 occurrence.new_span.as_ref(),
-                new.index,
+                new,
                 PLUS_STYLE,
                 pages,
                 body,
@@ -527,9 +528,12 @@ fn append_merged_runs(
     Ok(())
 }
 
-fn append_marked_spans(
+/// Renders one standalone marked span with context clipped at neighboring
+/// edited runs, so a changed token from any other cluster cannot appear as
+/// unmarked context.
+fn append_bounded_span(
     span: Option<&TextSpan>,
-    index: &SideIndex<'_>,
+    side: SideRuns<'_, '_>,
     style: LineStyle,
     pages: &mut Vec<u32>,
     body: &mut Vec<String>,
@@ -538,7 +542,31 @@ fn append_marked_spans(
     let Some(span) = span else {
         return Ok(());
     };
-    let window = resolve_window(index, span)?;
+    let group = side.index.resolve_group(&span.blocks, span.separator)?;
+    validate_span_against_group(span, &group)?;
+    let (start, end) = (span.comparable_range.start, span.comparable_range.end);
+    let partition = side.runs.iter().find(|partition| {
+        partition.template.blocks == span.blocks && partition.template.separator == span.separator
+    });
+    let (mut floor, mut ceiling) = partition.map_or((0, group.tokens.len()), |runs| {
+        runs.neighbor_bounds(start, end, group.tokens.len())
+    });
+    if let Some(partition) = partition
+        && let Some(run) = partition
+            .runs
+            .iter()
+            .find(|run| run.0 <= start && end <= run.1)
+    {
+        // The containing run may have coalesced neighboring edits within the
+        // merging margin; keep those out of the rendered context.
+        if run.0 < start {
+            floor = start;
+        }
+        if run.1 > end {
+            ceiling = end;
+        }
+    }
+    let window = bounded_window(&group, start, end, floor, ceiling);
     pages.extend_from_slice(&window.pages);
     body.push(window.render_marked(style, painter));
     Ok(())
