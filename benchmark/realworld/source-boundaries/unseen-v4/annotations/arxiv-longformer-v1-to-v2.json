@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-longformer-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Transformer-basedmodelsareunabletopro-cesslongsequencesduetotheirself-attentionoperation,whichscalesquadraticallywiththesequencelength.Toaddressthislimitation,weintroducetheLongformerwithanattentionmechanismthatscaleslinearlywithsequencelength,makingiteasytoprocessdocumentsofthousandsoftokensorlonger.Longformer’sattentionmechanismisadrop-inreplacementforthestandardself-attentionandcombinesalocalwindowedattentionwithataskmoti-vatedglobalattention.Followingpriorworkonlong-sequencetransformers,weevaluateLongformeroncharacter-levellanguagemod-elingandachievestate-of-the-artresultsontext8andenwik8.Incontrasttomostpriorwork,wealsopretrainLongformerandﬁnetuneitonavarietyofdownstreamtasks.OurpretrainedLongformerconsistentlyout-performsRoBERTaonlongdocumenttasksandsetsnewstate-of-the-artresultsonWiki-HopandTriviaQA.1",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Transformer-basedmodelsareunabletopro-cesslongsequencesduetotheirself-attentionoperation,whichscalesquadraticallywiththesequencelength.Toaddressthislimitation,weintroducetheLongformerwithanattentionmechanismthatscaleslinearlywithsequencelength,makingiteasytoprocessdocumentsofthousandsoftokensorlonger.Longformer’sattentionmechanismisadrop-inreplacementforthestandardself-attentionandcombinesalocalwindowedattentionwithataskmoti-vatedglobalattention.Followingpriorworkonlong-sequencetransformers,weevaluateLongformeroncharacter-levellanguagemod-elingandachievestate-of-the-artresultsontext8andenwik8.Incontrasttomostpriorwork,wealsopretrainLongformerandﬁnetuneitonavarietyofdownstreamtasks.OurpretrainedLongformerconsistentlyout-performsRoBERTaonlongdocumenttasksandsetsnewstate-of-the-artresultsonWiki-HopandTriviaQA.WeﬁnallyintroducetheLongformer-Encoder-Decoder(LED),aLong-formervariantforsupportinglongdocumentgenerativesequence-to-sequencetasks,anddemonstrateitseffectivenessonthearXivsum-marizationdataset.1",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "e91f2c916b1d807f7855a40f5fdef45c0c8a09cd840302b9ed406ff947bc61b9",
+  "new_sha256": "053756b54e2d3462d4690b3aed489c962f17df7c3531865e47374c4a651f526c"
+}

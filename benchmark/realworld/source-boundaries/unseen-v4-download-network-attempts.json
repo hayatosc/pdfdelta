@@ -1,0 +1,380 @@
+{
+  "version": 4,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "nist-47-original-to-r1",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-47.pdf",
+      "started_utc": "2026-09-13T14:50:01.481471+00:00",
+      "wall_seconds": 1.7012200149983983,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-old.pdf",
+        "sha256": "69ba590a5e8182b919eb230a4be9578c35574d68d3770b1e52bbc59ec578f5c3"
+      },
+      "bytes": 779842
+    },
+    {
+      "pair": "nist-47-original-to-r1",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-47r1.pdf",
+      "started_utc": "2026-09-13T14:50:01.482022+00:00",
+      "wall_seconds": 1.6213760809987434,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-new.pdf",
+        "sha256": "3ba5248bab614da212440a1bcfe814f0068ef95ebc2d73025742bc78a89c865a"
+      },
+      "bytes": 721496
+    },
+    {
+      "pair": "nist-52-r1-to-r2",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-52r1.pdf",
+      "started_utc": "2026-09-13T14:50:03.105134+00:00",
+      "wall_seconds": 0.32591896500525763,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-old.pdf",
+        "sha256": "33d5f334ea8a2fef837b990f4a2b046a26f1c3db5ef4fb636207f54fa8363af4"
+      },
+      "bytes": 854240
+    },
+    {
+      "pair": "nist-52-r1-to-r2",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-52r2.pdf",
+      "started_utc": "2026-09-13T14:50:03.184673+00:00",
+      "wall_seconds": 1.433179462001135,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-new.pdf",
+        "sha256": "f9a4dbb9cc6ac6778bb9f4e6be9272c2f14d113f3ad241a295684ac6bd71f257"
+      },
+      "bytes": 814862
+    },
+    {
+      "pair": "nist-41-original-to-r1",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-41.pdf",
+      "started_utc": "2026-09-13T14:50:03.432959+00:00",
+      "wall_seconds": 1.8106697789989994,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-old.pdf",
+        "sha256": "615bc4c1eeac93e1cd0131944f9ba0d36027d31f7e21329d17ac7de17a9397bd"
+      },
+      "bytes": 4446937
+    },
+    {
+      "pair": "nist-41-original-to-r1",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-41r1.pdf",
+      "started_utc": "2026-09-13T14:50:04.618925+00:00",
+      "wall_seconds": 1.48638606100576,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-new.pdf",
+        "sha256": "06642409a8f0dcc9de8725f2d76d6feedea2d4d1faa860c2ee18488863dd1f4f"
+      },
+      "bytes": 339557
+    },
+    {
+      "pair": "edpb-connected-vehicles-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202001_connectedvehicles.pdf",
+      "started_utc": "2026-09-13T14:50:05.252288+00:00",
+      "wall_seconds": 2.9313282069997513,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-connected-vehicles-v1-to-v2-old.pdf",
+        "sha256": "2829979c288134adc67a67742125725446d08ddb1bb137597ac3ea2e6f56a765"
+      },
+      "bytes": 686521
+    },
+    {
+      "pair": "edpb-connected-vehicles-v1-to-v2",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/2021-03/edpb_guidelines_202001_connected_vehicles_v2.0_adopted_en.pdf",
+      "started_utc": "2026-09-13T14:50:06.105923+00:00",
+      "wall_seconds": 1.4181519870035117,
+      "exit_code": 22,
+      "http_code": "429",
+      "stderr": "curl: (22) The requested URL returned error: 429\n",
+      "status": "failed"
+    },
+    {
+      "pair": "edpb-interplay-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/system/files/2021-11/edpb_guidelinesinterplaychapterv_article3_adopted_en.pdf",
+      "started_utc": "2026-09-13T14:50:07.524209+00:00",
+      "wall_seconds": 2.0652144600026077,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-old.pdf",
+        "sha256": "b19ef19c3232663f8898de52c13c659d2237c81aa1870064bbf4565ec6d5ab38"
+      },
+      "bytes": 368302
+    },
+    {
+      "pair": "edpb-interplay-v1-to-v2",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/2023-02/edpb_guidelines_05-2021_interplay_between_the_application_of_art3-chapter_v_of_the_gdpr_v2_en_0.pdf",
+      "started_utc": "2026-09-13T14:50:08.184663+00:00",
+      "wall_seconds": 2.627904729997681,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-new.pdf",
+        "sha256": "ad8f627202ea9c4f12ce33093754db304a7a6f1611a771bb872489daacbda562"
+      },
+      "bytes": 826412
+    },
+    {
+      "pair": "arxiv-rag-v1-to-v4",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2005.11401v1",
+      "started_utc": "2026-09-13T14:50:09.589978+00:00",
+      "wall_seconds": 0.07533457600220572,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-old.pdf",
+        "sha256": "25b55fd0f7c6c91cbe2c88690a33923077103e8f563d154faa1ce11d3527e601"
+      },
+      "bytes": 837243
+    },
+    {
+      "pair": "arxiv-rag-v1-to-v4",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2005.11401v4",
+      "started_utc": "2026-09-13T14:50:09.666228+00:00",
+      "wall_seconds": 0.07614206099970033,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-new.pdf",
+        "sha256": "23e3249e9a1e75418d82efecab0ea8c4d033b89c93742f63208d47ce01f21233"
+      },
+      "bytes": 885323
+    },
+    {
+      "pair": "arxiv-longformer-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2004.05150v1",
+      "started_utc": "2026-09-13T14:50:09.743258+00:00",
+      "wall_seconds": 0.07040628000686411,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-old.pdf",
+        "sha256": "e91f2c916b1d807f7855a40f5fdef45c0c8a09cd840302b9ed406ff947bc61b9"
+      },
+      "bytes": 477800
+    },
+    {
+      "pair": "arxiv-longformer-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2004.05150v2",
+      "started_utc": "2026-09-13T14:50:09.814247+00:00",
+      "wall_seconds": 0.06947359300102107,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-new.pdf",
+        "sha256": "053756b54e2d3462d4690b3aed489c962f17df7c3531865e47374c4a651f526c"
+      },
+      "bytes": 539211
+    },
+    {
+      "pair": "arxiv-simclr-v1-to-v3",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2002.05709v1",
+      "started_utc": "2026-09-13T14:50:09.884522+00:00",
+      "wall_seconds": 1.39291265400243,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-old.pdf",
+        "sha256": "32029422ad7fc8ad472c9b53cbb9f9a81981c34da1862ebd6a693c5a72c04f39"
+      },
+      "bytes": 5735683
+    },
+    {
+      "pair": "arxiv-simclr-v1-to-v3",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2002.05709v3",
+      "started_utc": "2026-09-13T14:50:10.813577+00:00",
+      "wall_seconds": 0.3152379289967939,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-new.pdf",
+        "sha256": "e1b10db76adeb0d21a014b9abcf42f6a6af928540c223f010fa1d8c293d9d105"
+      },
+      "bytes": 6564895
+    },
+    {
+      "pair": "faa-sop-71a-to-71b",
+      "side": "old",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC120-71A.pdf",
+      "started_utc": "2026-09-13T14:50:11.140185+00:00",
+      "wall_seconds": 0.8642366000058246,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-old.pdf",
+        "sha256": "42b99d94740a3f9e9c799f94d694d38c44b6097e970be3ee2f7e0399bfc01385"
+      },
+      "bytes": 755258
+    },
+    {
+      "pair": "faa-sop-71a-to-71b",
+      "side": "new",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-71B.pdf",
+      "started_utc": "2026-09-13T14:50:11.284481+00:00",
+      "wall_seconds": 0.9605270399988513,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-new.pdf",
+        "sha256": "5cec8425626e7f5bed41eb1e9ff24e8119585469a9b76d2361e6536be2264855"
+      },
+      "bytes": 338092
+    },
+    {
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "side": "old",
+      "url": "https://www.mhlw.go.jp/content/11201000/001424310.pdf",
+      "started_utc": "2026-09-13T14:50:12.005305+00:00",
+      "wall_seconds": 0.13968703400314553,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-old.pdf",
+        "sha256": "73b5609ac7d7103eb3dc7a97de7dcdbe3fc872262e5e69761c9e84c004942126"
+      },
+      "bytes": 212516
+    },
+    {
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "side": "new",
+      "url": "https://www.mhlw.go.jp/content/11200000/000962665.pdf",
+      "started_utc": "2026-09-13T14:50:12.145381+00:00",
+      "wall_seconds": 0.18228784300299594,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-new.pdf",
+        "sha256": "62f50195708a4017e1b02bd36781132f0c4297630d7c71bc2b98ea0bebda1e95"
+      },
+      "bytes": 359745
+    },
+    {
+      "pair": "ietf-smtp-2821-to-5321",
+      "side": "old",
+      "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2821.txt.pdf",
+      "started_utc": "2026-09-13T14:50:12.245596+00:00",
+      "wall_seconds": 0.2708295150005142,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-old.pdf",
+        "sha256": "c82323382012c8ac9768bd7c16e4a44a165bc541828faa78d3d6908000995897"
+      },
+      "bytes": 120628
+    },
+    {
+      "pair": "ietf-smtp-2821-to-5321",
+      "side": "new",
+      "url": "https://www.ietf.org/ietf-ftp/rfc/rfc5321.txt.pdf",
+      "started_utc": "2026-09-13T14:50:12.328229+00:00",
+      "wall_seconds": 0.2647585500017158,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-new.pdf",
+        "sha256": "1e389d2707041463a44ef0113b5b2b67d73c4a4144459d42e8a0f484e5db1b3b"
+      },
+      "bytes": 147263
+    },
+    {
+      "pair": "ietf-imap-3501-to-9051",
+      "side": "old",
+      "url": "https://www.ietf.org/ietf-ftp/rfc/rfc3501.txt.pdf",
+      "started_utc": "2026-09-13T14:50:12.516844+00:00",
+      "wall_seconds": 0.26666581600147765,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-imap-3501-to-9051-old.pdf",
+        "sha256": "fa2fe6e73e0d7865a712dd8e3de389f741cec12949be0891819e76db215f07b9"
+      },
+      "bytes": 135022
+    },
+    {
+      "pair": "ietf-imap-3501-to-9051",
+      "side": "new",
+      "url": "https://www.ietf.org/ietf-ftp/rfc/rfc9051.txt.pdf",
+      "started_utc": "2026-09-13T14:50:12.593402+00:00",
+      "wall_seconds": 0.5507125570002245,
+      "exit_code": 22,
+      "http_code": "404",
+      "stderr": "curl: (22) The requested URL returned error: 404\n",
+      "status": "failed"
+    }
+  ]
+}

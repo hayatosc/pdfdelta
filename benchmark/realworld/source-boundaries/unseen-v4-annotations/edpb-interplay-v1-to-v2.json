@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-interplay-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "2.The provisions of Chapter V aim at ensuring the continued protection of personal data after they havebeen transferred to a third country or to an international organisation. When personal data isprocessed on EUterritory it is protected not only by the rules in the GDPR but alsoby other rules,bothon EUandMember State level, that must be in line with the GDPR (including possible derogationstherein) and ultimately with the EU Charter on fundamental rights and freedoms. When personal datais transferred and made accessible to entities outsidethe EUterritory, the overarching legal frameworkprovided within the Union no longer applies.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "The provisions of Chapter V therefore aim at ensuring the continued protection of personal data after they have been transferred to a third country or to an international organisation. When personal data is processed in the EU, it is protected not only by the rules in the GDPR but also by other rules, both at EU and Member State level, that must be in line with the GDPR (including possible derogations therein) and ultimately with the EU Charter on Fundamental Rights and Freedoms. When personal data is transmitted or made available to entities outside the EU territory or to international organisations, the level of protection of individuals’ rights and freedoms is likely not to be essentially equivalent to the one afforded by the the overarching legal framework provided within the Union.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "b19ef19c3232663f8898de52c13c659d2237c81aa1870064bbf4565ec6d5ab38",
+  "new_sha256": "ad8f627202ea9c4f12ce33093754db304a7a6f1611a771bb872489daacbda562"
+}

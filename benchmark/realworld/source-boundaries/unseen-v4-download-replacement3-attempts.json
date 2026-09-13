@@ -1,0 +1,38 @@
+{
+  "version": 4,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/1910.01108v1",
+      "started_utc": "2026-09-13T15:00:16.559407+00:00",
+      "wall_seconds": 0.10025470900291111,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-old.pdf",
+        "sha256": "ac4c6fe1aad117ee61d91ba3a0c1a8ca971610aea5993d1f412aa3d5b0a880f9"
+      },
+      "bytes": 434384
+    },
+    {
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/1910.01108v4",
+      "started_utc": "2026-09-13T15:00:16.559783+00:00",
+      "wall_seconds": 0.09993431399925612,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-new.pdf",
+        "sha256": "a70c78e2b4db85bfee7696e19829571a3b05f69c616db5c039f6f4eb33b1a0b6"
+      },
+      "bytes": 436085
+    }
+  ]
+}

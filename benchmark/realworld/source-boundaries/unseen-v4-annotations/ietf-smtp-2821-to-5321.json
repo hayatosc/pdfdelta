@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "ietf-smtp-2821-to-5321",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This document is a self-contained specification of the basic protocol   for the Internet electronic mail transport.  It consolidates, updates   and clarifies, but doesn’t add new or change existing functionality   of the following:",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This document is a specification of the basic protocol for Internet   electronic mail transport.  It consolidates, updates, and clarifies   several previous documents, making all or parts of most of them   obsolete.  It covers the SMTP extension mechanisms and best practices   for the contemporary Internet, but does not provide details about   particular extensions.  Although SMTP was designed as a mail   transport and delivery protocol, this specification also contains   information that is important to its use as a \"mail submission\"   protocol for \"split-UA\" (User Agent) mail reading systems and mobile   environments.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "c82323382012c8ac9768bd7c16e4a44a165bc541828faa78d3d6908000995897",
+  "new_sha256": "1e389d2707041463a44ef0113b5b2b67d73c4a4144459d42e8a0f484e5db1b3b"
+}

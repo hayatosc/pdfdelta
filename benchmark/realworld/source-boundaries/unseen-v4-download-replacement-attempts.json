@@ -1,0 +1,38 @@
+{
+  "version": 4,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "arxiv-switch-v1-to-v3",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2101.03961v1",
+      "started_utc": "2026-09-13T14:55:17.725556+00:00",
+      "wall_seconds": 0.6595271670012153,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-switch-v1-to-v3-old.pdf",
+        "sha256": "0dba4abc34422f49a5363f63c90d2103e4a982c921c597b8c3560cc34fd80d9c"
+      },
+      "bytes": 1182747
+    },
+    {
+      "pair": "arxiv-switch-v1-to-v3",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2101.03961v3",
+      "started_utc": "2026-09-13T14:55:17.725956+00:00",
+      "wall_seconds": 0.13163538399385288,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-switch-v1-to-v3-new.pdf",
+        "sha256": "f340f6ace31abf7d0730ef461404279f40d3c890e9cc2daeb7068b3304afdbd6"
+      },
+      "bytes": 1304157
+    }
+  ]
+}

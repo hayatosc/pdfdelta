@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-rag-v1-to-v4",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Largepre-trainedlanguagemodelshavebeenshowntostorefactualknowledgeintheirparameters,andachievestate-of-the-artresultswhenﬁne-tunedondown-streamNLPtasks.However,theirabilitytoaccessandpreciselymanipulateknowledgeisstilllimited,andhenceonknowledge-intensivetasks,theirperfor-mancelagsbehindtask-speciﬁcarchitectures.Additionally,providingprovenancefortheirdecisionsandupdatingtheirworldknowledgeremainopenresearchprob-lems.Pre-trainedmodelswithadifferentiableaccessmechanismtoexplicitnon-parametricmemorycanovercomethisissue,buthavesofarbeenonlyinvestigatedforextractivedownstreamtasks.Weexploreageneral-purposeﬁne-tuningrecipeforretrieval-augmentedgeneration(RAG)—modelswhichcombinepre-trainedparametricandnon-parametricmemoryforlanguagegeneration.WeintroduceRAGmodelswheretheparametricmemoryisapre-trainedseq2seqmodelandthenon-parametricmemoryisadensevectorindexofWikipedia,accessedwithapre-trainedneuralretriever.WecomparetwoRAGformulations,onewhichconditionsonthesameretrievedpassagesacrossthewholegeneratedsequence,theothercanusedifferentpassagespertoken.Weﬁne-tuneandevaluateourmodelsonawiderangeofknowledge-intensiveNLPtasksandsetthestate-of-the-artonthreeopendomainQAtasks,outperformingparametricseq2seqmodelsandtask-speciﬁcretrieve-and-extractarchitectures.Forlanguagegenerationtasks,weﬁndthatRAGmodelsgeneratemorespeciﬁc,diverseandfactuallanguagethanastate-of-the-artparametric-onlyseq2seqbaseline.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Largepre-trainedlanguagemodelshavebeenshowntostorefactualknowledgeintheirparameters,andachievestate-of-the-artresultswhenﬁne-tunedondown-streamNLPtasks.However,theirabilitytoaccessandpreciselymanipulateknowl-edgeisstilllimited,andhenceonknowledge-intensivetasks,theirperformancelagsbehindtask-speciﬁcarchitectures.Additionally,providingprovenancefortheirdecisionsandupdatingtheirworldknowledgeremainopenresearchproblems.Pre-trainedmodelswithadifferentiableaccessmechanismtoexplicitnon-parametricmemoryhavesofarbeenonlyinvestigatedforextractivedownstreamtasks.Weexploreageneral-purposeﬁne-tuningrecipeforretrieval-augmentedgeneration(RAG)—modelswhichcombinepre-trainedparametricandnon-parametricmem-oryforlanguagegeneration.WeintroduceRAGmodelswheretheparametricmemoryisapre-trainedseq2seqmodelandthenon-parametricmemoryisadensevectorindexofWikipedia,accessedwithapre-trainedneuralretriever.Wecom-paretwoRAGformulations,onewhichconditionsonthesameretrievedpassagesacrossthewholegeneratedsequence,andanotherwhichcanusedifferentpassagespertoken.Weﬁne-tuneandevaluateourmodelsonawiderangeofknowledge-intensiveNLPtasksandsetthestateoftheartonthreeopendomainQAtasks,outperformingparametricseq2seqmodelsandtask-speciﬁcretrieve-and-extractarchitectures.Forlanguagegenerationtasks,weﬁndthatRAGmodelsgeneratemorespeciﬁc,diverseandfactuallanguagethanastate-of-the-artparametric-onlyseq2seqbaseline.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "25b55fd0f7c6c91cbe2c88690a33923077103e8f563d154faa1ce11d3527e601",
+  "new_sha256": "23e3249e9a1e75418d82efecab0ea8c4d033b89c93742f63208d47ce01f21233"
+}

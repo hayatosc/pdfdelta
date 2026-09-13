@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "nist-52-r1-to-r2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "Transport Layer Security (TLS) provides mechanisms to protect sensitive data during electronic dissemination across the Internet. This Special Publication provides guidance to the selection and configuration of TLS protocol implementations while making effective use of Federal Information Processing Standards (FIPS) and NIST-recommended cryptographic algorithms, and requires that TLS 1.1 configured with FIPS-based cipher suites as the minimum appropriate secure transport protocol and recommends that agencies develop migration plans to TLS 1.2 by January 1, 2015.  This Special Publication also identifies TLS extensions for which mandatory support must be provided and other recommended extensions.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "Keywords",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Transport Layer Security (TLS) provides mechanisms to protect data during electronic dissemination across the Internet. This Special Publication provides guidance to the selection and configuration of TLS protocol implementations while making effective use of Federal Information Processing Standards (FIPS) and NIST-recommended cryptographic algorithms. It requires that TLS 1.2 configured with FIPS-based cipher suites be supported by all government TLS servers and clients and requires support for TLS 1.3 by January 1, 2024. This Special Publication also provides guidance on certificates and TLS extensions that impact security.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Keywords",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "33d5f334ea8a2fef837b990f4a2b046a26f1c3db5ef4fb636207f54fa8363af4",
+  "new_sha256": "f9a4dbb9cc6ac6778bb9f4e6be9272c2f14d113f3ad241a295684ac6bd71f257"
+}

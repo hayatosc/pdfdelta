@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-distilbert-v1-to-v4",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "AsTransferLearningfromlarge-scalepre-trainedmodelsbecomesmoreprevalentinNaturalLanguageProcessing(NLP),operatingtheselargemodelsinon-the-edgeand/orunderconstrainedcomputationaltrainingorinferencebudgetsremainchallenging.Inthiswork,weproposeamethodtopre-trainasmallergeneral-purposelanguagerepresentationmodel,calledDistilBERT,whichcanthenbeﬁne-tunedwithgoodperformancesonawiderangeoftaskslikeitslargercounterparts.Whilemostpriorworkinvestigatedtheuseofdistillationforbuildingtask-speciﬁcmodels,weleverageknowledgedistillationduringthepre-trainingphaseandshowthatitispossibletoreducethesizeofaBERTmodelby40%,whileretaining97%ofitslanguageunderstandingcapabilitiesandbeing60%faster.Toleveragetheinductivebiaseslearnedbylargermodelsduringpre-training,weintroduceatriplelosscombininglanguagemodeling,distillationandcosine-distancelosses.Oursmaller,fasterandlightermodelischeapertopre-trainandwedemonstrateitscapabilitiesforon-devicecomputationsinaproof-of-conceptexperimentandacomparativeon-devicestudy.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "AsTransferLearningfromlarge-scalepre-trainedmodelsbecomesmoreprevalentinNaturalLanguageProcessing(NLP),operatingtheselargemodelsinon-the-edgeand/orunderconstrainedcomputationaltrainingorinferencebudgetsremainschallenging.Inthiswork,weproposeamethodtopre-trainasmallergeneral-purposelanguagerepresentationmodel,calledDistilBERT,whichcanthenbeﬁne-tunedwithgoodperformancesonawiderangeoftaskslikeitslargercounterparts.Whilemostpriorworkinvestigatedtheuseofdistillationforbuildingtask-speciﬁcmodels,weleverageknowledgedistillationduringthepre-trainingphaseandshowthatitispossibletoreducethesizeofaBERTmodelby40%,whileretaining97%ofitslanguageunderstandingcapabilitiesandbeing60%faster.Toleveragetheinductivebiaseslearnedbylargermodelsduringpre-training,weintroduceatriplelosscombininglanguagemodeling,distillationandcosine-distancelosses.Oursmaller,fasterandlightermodelischeapertopre-trainandwedemonstrateitscapabilitiesforon-devicecomputationsinaproof-of-conceptexperimentandacomparativeon-devicestudy.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "ac4c6fe1aad117ee61d91ba3a0c1a8ca971610aea5993d1f412aa3d5b0a880f9",
+  "new_sha256": "a70c78e2b4db85bfee7696e19829571a3b05f69c616db5c039f6f4eb33b1a0b6"
+}

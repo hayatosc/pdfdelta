@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "rationale": "Source-only full paragraph targets. NIST 47/41 use the first Executive Summary paragraph because older editions have no Abstract. NIST 52, RAG and Longformer use the complete abstract; Longformer retains its footnote marker. IMAP uses its complete abstract, including removal of a paragraph and altered submission guidance. SMTP uses the first prose paragraph of the abstract; the older following list is separate. EDPB connected vehicles uses the first Introduction paragraph; interplay uses the second because the first changes only its number. MHLW uses the first current-state paragraph. FAA compares its first purpose paragraph to the complete opening scope paragraph. DistilBERT uses the complete abstract, whose first sentence corrects remain to remains. SimCLR, Switch Transformers and DINO remain recorded source-only rejections due to unmapped glyphs; none was compared. All internal raw text and footnote markers remain. No comparison run or output inspected.",
+  "targets": [
+    {
+      "pair": "nist-47-original-to-r1",
+      "target_ranges": {
+        "old": [
+          [
+            8491,
+            8942
+          ]
+        ],
+        "new": [
+          [
+            8886,
+            9346
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "nist-52-r1-to-r2",
+      "target_ranges": {
+        "old": [
+          [
+            6277,
+            6981
+          ]
+        ],
+        "new": [
+          [
+            5046,
+            5679
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "nist-41-original-to-r1",
+      "target_ranges": {
+        "old": [
+          [
+            11446,
+            11848
+          ]
+        ],
+        "new": [
+          [
+            10741,
+            11434
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "edpb-connected-vehicles-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            4136,
+            5271
+          ]
+        ],
+        "new": [
+          [
+            3931,
+            5055
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "edpb-interplay-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            2708,
+            3345
+          ]
+        ],
+        "new": [
+          [
+            5807,
+            6604
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "arxiv-rag-v1-to-v4",
+      "target_ranges": {
+        "old": [
+          [
+            320,
+            1726
+          ]
+        ],
+        "new": [
+          [
+            320,
+            1707
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "arxiv-longformer-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            173,
+            992
+          ]
+        ],
+        "new": [
+          [
+            173,
+            1186
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "target_ranges": {
+        "old": [
+          [
+            182,
+            1181
+          ]
+        ],
+        "new": [
+          [
+            182,
+            1182
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "faa-sop-71a-to-71b",
+      "target_ranges": {
+        "old": [
+          [
+            156,
+            707
+          ]
+        ],
+        "new": [
+          [
+            239,
+            1279
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "target_ranges": {
+        "old": [
+          [
+            33,
+            166
+          ]
+        ],
+        "new": [
+          [
+            1151,
+            1334
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "ietf-smtp-2821-to-5321",
+      "target_ranges": {
+        "old": [
+          [
+            765,
+            996
+          ]
+        ],
+        "new": [
+          [
+            625,
+            1252
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "ietf-imap-3501-to-9051",
+      "target_ranges": {
+        "old": [
+          [
+            762,
+            1852
+          ]
+        ],
+        "new": [
+          [
+            70,
+            985
+          ]
+        ]
+      },
+      "comparison_performed": false
+    }
+  ]
+}

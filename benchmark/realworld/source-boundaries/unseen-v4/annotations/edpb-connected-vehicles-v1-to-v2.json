@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-connected-vehicles-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "1. Symbol of the 20th century economy, the automobile is one of the mass consumer products that has impacted society as a whole. Commonly associated with the notion of freedom, cars are often considered as more than just a mean of transportation. Indeed, they represent a private area in which people can enjoy a form of autonomy of decision, without encountering any external interferences. Today, as connected vehicles move into the mainstream, such a vision no longer corresponds to the reality. In-vehicle connectivity is rapidly expanding from luxury models and premium brands to high-volume midmarket models, and vehicles are becoming massive data hubs. Not only vehicles, but drivers and passengers are also becoming more and more connected. As a matter of fact, many models launched over the past few years on the market integrate sensors and connected onboard equipment, which may collect and record, among other things, the engine performance, the driving habits, the locations visited, and potentially even the driver’s eye movements, his or her pulse, or other biometric data for authentication or identification purposes.2",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "1.Symbol of the 20th century economy, the automobile is one of the mass consumer productsthat has impacted society as awhole. Commonly associated with the notion of freedom,cars are often considered as more than just a meansof transportation. Indeed, theyrepresent a private area in which people can enjoy a form of autonomy of decision, withoutencountering any external interferences. Today, as connected vehicles move into themainstream, such a vision no longer corresponds to the reality. In-vehicle connectivity israpidlyexpanding from luxury models and premium brands to high-volume midmarketmodels, and vehicles are becoming massive data hubs. Not only vehicles, but drivers andpassengers are also becoming more and more connected. As a matter of fact,many modelslaunched over the past few years on the market integrate sensors and connected on-boardequipment, which may collect and record, among other things, the engine performance, thedriving habits, the locations visited, and potentially even the driver’s eye movements, his orher pulse, or biometric data forthe purpose of uniquely identifying a natural person.2",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "2829979c288134adc67a67742125725446d08ddb1bb137597ac3ea2e6f56a765",
+  "new_sha256": "e3986ae29b91ae6a4658237982c21f8aa70165caab06e315bd1d40cc3127a832"
+}

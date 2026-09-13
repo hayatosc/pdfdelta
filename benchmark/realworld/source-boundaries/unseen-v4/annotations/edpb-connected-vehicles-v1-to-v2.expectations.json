@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-connected-vehicles-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "76ea4470c640577d632abc70861213ca0efaed0532e677eaec19aa914b479228",
+  "body_eligible": true,
+  "reason": "The complete first Introduction paragraph changes biometric authentication/identification to uniquely identifying a natural person. Original numbering and footnote marker remain."
+}

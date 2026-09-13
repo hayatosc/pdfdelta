@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "7836eff1f3430aaea7498517237329d9f472b08ff281dad6d813d2f415675b59",
+  "attempts": [
+    {
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T15:00:25.685012+00:00",
+      "exit_code": 0,
+      "input_sha256": "ac4c6fe1aad117ee61d91ba3a0c1a8ca971610aea5993d1f412aa3d5b0a880f9",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-old.glyphs.txt",
+        "sha256": "412943b2fca6e85bd44c3d3538fcd0f74a255f60902b7ba4cda114737c8cd5f6"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T15:00:25.756393+00:00",
+      "exit_code": 0,
+      "input_sha256": "a70c78e2b4db85bfee7696e19829571a3b05f69c616db5c039f6f4eb33b1a0b6",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-new.glyphs.txt",
+        "sha256": "0e76a9d46a70b8f756fcb1e8edcb8a6d7078f11a6f29e310db4a8081ff088bf2"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-distilbert-v1-to-v4-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

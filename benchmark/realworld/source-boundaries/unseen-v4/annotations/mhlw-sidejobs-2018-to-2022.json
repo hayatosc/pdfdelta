@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "mhlw-sidejobs-2018-to-2022",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "（１） 副業・兼業を希望する者は年々増加傾向にある。副業・兼業を行う理由は、自分がやりたい仕事であること、スキルアップ、資格の活用、十分な収入の確保等さまざまであり、また、副業・兼業の形態も、正社員、パート・アルバイト、会社役員、起業による自営業主等さまざまである。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "副業・兼業の現状",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "（１） 副業・兼業を希望する者は年々増加傾向にある。副業・兼業を行う理由は、収入を増やしたい、１つの仕事だけでは生活できない、自分が活躍できる場を広げる、様々な分野の人とつながりができる、時間のゆとりがある、現在の仕事で必要な能力を活用・向上させる等さまざまであり、また、副業・兼業の形態も、正社員、パート・アルバイト、会社役員、起業による自営業主等さまざまである。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "副業・兼業の現状",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "73b5609ac7d7103eb3dc7a97de7dcdbe3fc872262e5e69761c9e84c004942126",
+  "new_sha256": "62f50195708a4017e1b02bd36781132f0c4297630d7c71bc2b98ea0bebda1e95"
+}

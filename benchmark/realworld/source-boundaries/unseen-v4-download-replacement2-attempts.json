@@ -1,0 +1,38 @@
+{
+  "version": 4,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "arxiv-dino-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2104.14294v1",
+      "started_utc": "2026-09-13T14:56:32.720964+00:00",
+      "wall_seconds": 1.1571560399970622,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-old.pdf",
+        "sha256": "9d0c03af1a99d11982b0fc62094591849d7dfc698c2c6692d6588d71e9da3174"
+      },
+      "bytes": 30927117
+    },
+    {
+      "pair": "arxiv-dino-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2104.14294v2",
+      "started_utc": "2026-09-13T14:56:32.721402+00:00",
+      "wall_seconds": 0.6016551970024011,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-new.pdf",
+        "sha256": "aa464cfd59a428890190bea1065823a491a853478b4fb2a25f5eb44d442ce296"
+      },
+      "bytes": 30930829
+    }
+  ]
+}

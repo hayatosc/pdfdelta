@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-imap-3501-to-9051",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "e9eb499a1fd9b6e844feef2d46afd817a7ece24fc712c3f129da5a9a048dda95",
+  "body_eligible": true,
+  "reason": "The complete abstract changes protocol operations and mail-submission guidance, and removes the separate paragraph about single-server support. All four old and three new paragraphs remain in the source extent."
+}
