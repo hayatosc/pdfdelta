@@ -1794,7 +1794,8 @@ fn resolve_line_breaks(atoms: &mut Vec<Atom>, issues: &mut Vec<NormalizationIssu
             atoms[write] = replacement;
             write += 1;
         } else if previous_scalar.is_some_and(is_latin_letter_or_digit)
-            && following_scalar.is_some_and(is_latin_letter_or_digit)
+            && (following_scalar.is_some_and(is_latin_letter_or_digit)
+                || starts_closed_quoted_word(&atoms[index + 1..]))
         {
             let replacement = changed_atom(
                 &atoms[index],
@@ -1816,6 +1817,31 @@ fn resolve_line_breaks(atoms: &mut Vec<Atom>, issues: &mut Vec<NormalizationIssu
     }
 
     atoms.truncate(write);
+}
+
+/// Whether the atoms begin a `“word”` pair whose closing quote is on the same
+/// line. Only a complete source-paired directional quoted word justifies a
+/// word separator; unmatched and ambiguous ASCII quotation marks stay
+/// unresolved.
+fn starts_closed_quoted_word(atoms: &[Atom]) -> bool {
+    if atoms.first().and_then(Atom::scalar) != Some('“')
+        || !atoms
+            .get(1)
+            .and_then(Atom::scalar)
+            .is_some_and(is_latin_letter_or_digit)
+    {
+        return false;
+    }
+    // Each lookahead stays on the following line, so the total scan remains
+    // linear.
+    for atom in &atoms[2..] {
+        match atom.scalar() {
+            Some('”') => return true,
+            Some(scalar) if is_latin_letter_or_digit(scalar) => {}
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Collapses horizontal whitespace runs in place.
