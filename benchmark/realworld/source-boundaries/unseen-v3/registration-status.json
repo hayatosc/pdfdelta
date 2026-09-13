@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "annotation_completed_utc": "2026-09-13T12:33:30.713482+00:00",
+  "annotation_completed_utc": "2026-09-13T12:35:33.683905+00:00",
   "implementation": {
     "version": 3,
     "freeze_utc": "2026-09-13T12:20:50.938360+00:00",
@@ -80,19 +80,19 @@
   },
   "inputs": {
     "path": "benchmark/realworld/source-boundaries/unseen-v3/inputs.json",
-    "sha256": "df0807dc527078c33ed8b80925826fb0f849ccba266f7923473d50c6324944e3"
+    "sha256": "2899be8dfc75b21cbee4c78fcdb9611ea1d317be2125f227c1e122244f1349fe"
   },
   "targets": {
     "path": "benchmark/realworld/source-boundaries/unseen-v3/targets.json",
-    "sha256": "13f0f9db4b1eb012917734b39e34bd86e8f4cc0388e728952b6de3a0139f7b09"
+    "sha256": "0961088596ddf7e1f21bb06c0398872c8011536caecd376d57411c128fe386e9"
   },
   "source_review": {
     "path": "benchmark/realworld/source-boundaries/unseen-v3/source-review.json",
-    "sha256": "114610bfb412562c091c7738ca00b0ea4a5887ae48e332e1d86bfec5bb747f18"
+    "sha256": "5b6db2d950f1308cc7bbe3d1420a09f31ca6119206e8d94c7d80a033a84d6c09"
   },
   "selection": {
     "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-    "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+    "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
   },
   "status": "Source annotation and visual review complete; awaiting immutable local registration; no comparison has run."
 }

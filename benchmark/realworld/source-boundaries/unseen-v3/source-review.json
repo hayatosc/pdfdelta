@@ -2,7 +2,7 @@
   "version": 1,
   "comparison_performed": false,
   "reviewed_page_count": 27,
-  "reviewed_utc": "2026-09-13T12:33:30.713072+00:00",
+  "reviewed_utc": "2026-09-13T12:35:33.683134+00:00",
   "method": "All rendered target and control pages visually inspected alongside raw literal source annotations. Full paragraph boundaries, real prose changes and external unchanged controls checked before any comparison. Rendering or local target resolution does not establish global extraction completeness.",
   "inspection_evidence": [
     {

@@ -74,13 +74,14 @@
     {
       "id": "arxiv-albert-v1-to-v6",
       "family": "arxiv-research",
-      "independent_producer": "Google Research/TTIC",
+      "independent_producer": "Google Research",
       "language": "en",
       "series": "arXiv 1909.11942 ALBERT",
       "old_revision": "v1",
       "new_revision": "v6",
       "old": "https://arxiv.org/pdf/1909.11942v1",
-      "new": "https://arxiv.org/pdf/1909.11942v6"
+      "new": "https://arxiv.org/pdf/1909.11942v6",
+      "authorship_note": "Google Research/TTIC"
     },
     {
       "id": "faa-electronic-records-78a-to-78b",
@@ -129,7 +130,7 @@
     {
       "id": "arxiv-xlnet-v1-to-v2",
       "family": "arxiv-research",
-      "independent_producer": "CMU/Google Brain",
+      "independent_producer": "Google Research",
       "language": "en",
       "series": "arXiv 1906.08237 XLNet",
       "old_revision": "v1",
@@ -137,7 +138,8 @@
       "old": "https://arxiv.org/pdf/1906.08237v1",
       "new": "https://arxiv.org/pdf/1906.08237v2",
       "selected_utc": "2026-09-13T12:28:47.924947+00:00",
-      "selection_reason": "Source-only replacement for an unresolvable literal target; no current or historical comparison output inspected."
+      "selection_reason": "Source-only replacement for an unresolvable literal target; no current or historical comparison output inspected.",
+      "authorship_note": "CMU/Google Brain"
     }
   ],
   "source_discovery_notes": [

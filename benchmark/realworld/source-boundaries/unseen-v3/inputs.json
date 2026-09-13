@@ -15,7 +15,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -66,7 +66,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -117,7 +117,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -168,7 +168,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -219,7 +219,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -270,7 +270,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -316,12 +316,12 @@
       "language": "en",
       "old_revision": "v1",
       "new_revision": "v6",
-      "publisher": "Google Research/TTIC",
+      "publisher": "Google Research",
       "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -372,7 +372,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -423,7 +423,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -474,7 +474,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -525,7 +525,7 @@
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",
@@ -571,12 +571,12 @@
       "language": "en",
       "old_revision": "v1",
       "new_revision": "v2",
-      "publisher": "CMU/Google Brain",
+      "publisher": "Google Research",
       "novelty_review": "Distinct unexposed series checked against development selections, historical blind selections and replacements, exclusions, and all retired unseen-v1/unseen-v2 series plus the pre-freeze consideration exclusions. Edition and translation aliases remain the same series. No comparison has run.",
       "primary_source_evidence": [
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
-          "sha256": "a926becd73a1f4c5e1f8db11a9bb4030acc72d0d982c85ff4f8a4721a8d79b93"
+          "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
         },
         {
           "path": "benchmark/realworld/source-boundaries/unseen-v3-download-attempts.json",

@@ -267,7 +267,7 @@
     },
     {
       "pair": "arxiv-albert-v1-to-v6",
-      "publisher": "Google Research/TTIC",
+      "publisher": "Google Research",
       "body_eligible": true,
       "eligibility_reason": "The complete abstract removes unexpected model degradation and adds the source-code and pretrained-model release sentence.",
       "references": {
@@ -307,7 +307,7 @@
       "source_resolution_complete": true,
       "strict_event_gold": null,
       "strict_changed_position_gold": null,
-      "independent_producer": "Google Research/TTIC"
+      "independent_producer": "Google Research"
     },
     {
       "pair": "faa-electronic-records-78a-to-78b",
@@ -487,7 +487,7 @@
     },
     {
       "pair": "arxiv-xlnet-v1-to-v2",
-      "publisher": "CMU/Google Brain",
+      "publisher": "Google Research",
       "body_eligible": true,
       "eligibility_reason": "The complete abstract qualifies the experimental settings and removes the state-of-the-art-on-eighteen-tasks claim. Original terminal punctuation and the footnote marker are retained.",
       "references": {
@@ -527,7 +527,7 @@
       "source_resolution_complete": true,
       "strict_event_gold": null,
       "strict_changed_position_gold": null,
-      "independent_producer": "CMU/Google Brain"
+      "independent_producer": "Google Research"
     }
   ]
 }
