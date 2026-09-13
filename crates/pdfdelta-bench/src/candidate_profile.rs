@@ -5,7 +5,7 @@
 //! Latency and Linux process-memory observations are diagnostic single-run
 //! evidence, not statistically stable benchmark measurements.
 
-use std::{collections::HashSet, fs::OpenOptions, io::Write, path::Path, time::Instant};
+use std::{collections::HashSet, path::Path, time::Instant};
 
 use pdfdelta_core::{
     alignment::{
@@ -145,29 +145,17 @@ pub fn profile_synthetic_candidate_generator(
     }
 }
 
-/// Writes profile records as a pretty JSON array to a new file.
+/// Writes profile records as a pretty JSON array to a new file, refusing to
+/// overwrite an existing path via atomic publication. A failed write never
+/// leaves a partial artifact behind.
 pub fn write_candidate_profiles_json(
     path: &Path,
     records: &[CandidateProfileRecord],
 ) -> Result<()> {
-    // Serialize before creating the destination so a serialization failure
-    // cannot leave a partial artifact that later runs refuse to replace.
     let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
         BenchError::InvalidInput(format!("cannot serialize candidate profile JSON: {error}"))
     })?;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|error| {
-            BenchError::InvalidInput(format!(
-                "cannot create candidate profile JSON output {}: {error}",
-                path.display()
-            ))
-        })?;
-    file.write_all(&bytes).map_err(|error| {
-        BenchError::InvalidInput(format!("cannot write candidate profile JSON: {error}"))
-    })
+    crate::publication::publish_new_file(path, &bytes)
 }
 
 fn validate_profile_options(blocks: usize, top_k: &[usize]) -> Result<()> {

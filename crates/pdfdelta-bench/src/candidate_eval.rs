@@ -14,8 +14,6 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    fs::OpenOptions,
-    io::Write,
     path::Path,
     sync::Arc,
 };
@@ -405,29 +403,15 @@ pub fn evaluate_minhash_candidate_visit_pressure(
 }
 
 /// Writes every record as a pretty JSON array to a new file, refusing to
-/// overwrite an existing path via `create_new`. Suppressing partial-run
-/// artifacts is the caller's responsibility.
+/// overwrite an existing path via atomic publication. A failed write never
+/// leaves a partial artifact behind.
 pub fn write_candidates_json(path: &Path, records: &[CandidateEvalRecord]) -> Result<()> {
-    // Serialize before creating the destination so a serialization failure
-    // cannot leave a partial artifact that later runs refuse to replace.
     let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
         BenchError::InvalidInput(format!(
             "cannot serialize candidate evaluation JSON: {error}"
         ))
     })?;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|error| {
-            BenchError::InvalidInput(format!(
-                "cannot create candidate evaluation JSON output {}: {error}",
-                path.display()
-            ))
-        })?;
-    file.write_all(&bytes).map_err(|error| {
-        BenchError::InvalidInput(format!("cannot write candidate evaluation JSON: {error}"))
-    })
+    crate::publication::publish_new_file(path, &bytes)
 }
 
 /// Renders a plan and returns its normalized blocks in document order.
