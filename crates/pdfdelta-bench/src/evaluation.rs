@@ -672,50 +672,29 @@ impl EvaluationSummary {
     pub fn from_records(records: Vec<EvaluationRecord>) -> Self {
         let document_totals = records
             .iter()
-            .map(|record| aggregate_group(record.pair_id.clone(), std::slice::from_ref(record)))
+            .map(|record| aggregate_group(record.pair_id.clone(), std::slice::from_ref(&record)))
             .collect();
-        let mut by_series = BTreeMap::<String, Vec<EvaluationRecord>>::new();
-        for record in &records {
-            let key = record
+        let series_totals = grouped_totals(&records, |record| {
+            record
                 .document_series_id
                 .clone()
-                .unwrap_or_else(|| format!("pair:{}", record.pair_id));
-            by_series.entry(key).or_default().push(record.clone());
-        }
-        let series_totals = by_series
-            .into_iter()
-            .map(|(group, records)| aggregate_group(group, &records))
-            .collect::<Vec<_>>();
-        let mut by_producer = BTreeMap::<String, Vec<EvaluationRecord>>::new();
-        for record in &records {
+                .unwrap_or_else(|| format!("pair:{}", record.pair_id))
+        });
+        let producer_totals = grouped_totals(&records, |record| {
             // Unknown producer families are retained in one bucket but do not
             // create a producer-diversity claim. A known family remains
             // identifiable when its version is unavailable.
-            let key = match &record.producer_family {
+            match &record.producer_family {
                 Some(family) if !family.eq_ignore_ascii_case("unknown") => {
                     let version = record.producer_version.as_deref().unwrap_or("unknown");
                     format!("{family}@{version}")
                 }
                 _ => "unknown".to_owned(),
-            };
-            by_producer.entry(key).or_default().push(record.clone());
-        }
-        let producer_totals = by_producer
-            .into_iter()
-            .map(|(group, records)| aggregate_group(group, &records))
-            .collect::<Vec<_>>();
-        let mut by_split = BTreeMap::<String, Vec<EvaluationRecord>>::new();
-        for record in &records {
-            by_split
-                .entry(record.split.clone())
-                .or_default()
-                .push(record.clone());
-        }
-        let split_totals = by_split
-            .into_iter()
-            .map(|(group, records)| aggregate_group(group, &records))
-            .collect();
-        let totals = aggregate_group("all".to_owned(), &records);
+            }
+        });
+        let split_totals = grouped_totals(&records, |record| record.split.clone());
+        let all = records.iter().collect::<Vec<_>>();
+        let totals = aggregate_group("all".to_owned(), &all);
         let lineage_macro = macro_quality(&series_totals);
         let producer_macro = macro_quality(&producer_totals);
         Self {
@@ -739,7 +718,22 @@ impl EvaluationSummary {
     }
 }
 
-fn aggregate_group(group_id: String, records: &[EvaluationRecord]) -> EvaluationGroupTotals {
+/// Aggregates records by a derived group key without cloning them per group.
+fn grouped_totals(
+    records: &[EvaluationRecord],
+    key: impl Fn(&EvaluationRecord) -> String,
+) -> Vec<EvaluationGroupTotals> {
+    let mut groups = BTreeMap::<String, Vec<&EvaluationRecord>>::new();
+    for record in records {
+        groups.entry(key(record)).or_default().push(record);
+    }
+    groups
+        .into_iter()
+        .map(|(group, grouped)| aggregate_group(group, &grouped))
+        .collect()
+}
+
+fn aggregate_group(group_id: String, records: &[&EvaluationRecord]) -> EvaluationGroupTotals {
     let mut result = EvaluationGroupTotals {
         group_id,
         ..EvaluationGroupTotals::default()
