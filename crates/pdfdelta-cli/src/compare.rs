@@ -648,7 +648,7 @@ pub fn report_extraction_issues<W: Write>(
                 writer,
                 "extraction issue for {side} PDF {} (kind={kind}, scope=page, page={}): {description}",
                 path.display(),
-                page.0,
+                u64::from(page.0) + 1,
             ),
             ExtractionScope::PageGap { retained_before } => writeln!(
                 writer,

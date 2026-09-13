@@ -1230,6 +1230,10 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     assert!(default_stderr.contains("kind=unresolved"));
     assert!(default_stderr.contains("Type0 font has no Encoding"));
     assert!(
+        default_stderr.contains("scope=page, page=1"),
+        "{default_stderr}"
+    );
+    assert!(
         default_report.contains("content changes: 0 "),
         "{default_report}"
     );
