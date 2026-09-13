@@ -7,6 +7,7 @@ use std::{
 };
 
 use pdfdelta_bench::{
+    evaluation::hex_digest,
     extraction_conformance::evaluate_extraction_conformance,
     mutation::RenderPlan,
     renderers::{RenderLimits, RendererKind},
@@ -187,7 +188,7 @@ fn fixture_oracle() -> (Vec<u8>, Value) {
                     glyph_id,
                 } => json!({
                     "kind": "unmapped",
-                    "font_identity_sha256": lowercase_hex(&font_hash.0),
+                    "font_identity_sha256": hex_digest(&font_hash.0),
                     "glyph_id": glyph_id,
                 }),
             };
@@ -211,7 +212,7 @@ fn fixture_oracle() -> (Vec<u8>, Value) {
             "version": "1.0.0",
             "parser_family": "fixture-parser",
         },
-        "input_sha256": lowercase_hex(&Sha256::digest(&pdf)),
+        "input_sha256": hex_digest(&Sha256::digest(&pdf)),
         "glyphs": glyphs,
     });
     (pdf, oracle)
@@ -234,16 +235,6 @@ fn run_command(
         command.arg("--mismatch-svg").arg(path);
     }
     command.output().expect("pdfbench runs")
-}
-
-fn lowercase_hex(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for &byte in bytes {
-        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
-        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    encoded
 }
 
 struct TempInputs {

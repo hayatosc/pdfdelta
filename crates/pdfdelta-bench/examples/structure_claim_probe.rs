@@ -8,6 +8,7 @@ use std::{
     ops::Range,
 };
 
+use pdfdelta_bench::evaluation::hex_digest;
 use pdfdelta_core::{
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
@@ -198,10 +199,6 @@ fn load_source(
         },
         text,
     })
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 #[derive(Clone, Copy, Debug, Default)]

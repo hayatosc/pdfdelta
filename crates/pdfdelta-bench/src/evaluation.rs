@@ -1093,7 +1093,13 @@ pub struct ReproducibleArtifact {
 /// Formats bytes as lowercase hexadecimal.
 #[must_use]
 pub fn hex_digest(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    output
 }
 
 /// Hashes bytes using the same lowercase SHA-256 representation as the
