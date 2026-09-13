@@ -8,15 +8,14 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque, hash_map::Entry},
-    fs::{self, OpenOptions},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
     time::Instant,
 };
+
+#[cfg(test)]
+use std::sync::atomic::AtomicU64;
 
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
@@ -14783,116 +14782,7 @@ pub fn normalize_output_destination(path: &Path) -> Result<PathBuf> {
     Ok(canonical_parent.join(file_name))
 }
 
-static TEMP_PUBLISH_COUNTER: AtomicU64 = AtomicU64::new(0);
-pub(crate) const MAX_TEMP_CREATE_ATTEMPTS: usize = 64;
-
-fn create_temp_artifact_with_counter(
-    parent: &Path,
-    counter: &AtomicU64,
-) -> Result<(fs::File, PathBuf)> {
-    let pid = std::process::id();
-    for _ in 0..MAX_TEMP_CREATE_ATTEMPTS {
-        let seq = counter.fetch_add(1, Ordering::Relaxed);
-        let temp_path = parent.join(format!(".pdfbench-artifact-{pid}-{seq}"));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_path)
-        {
-            Ok(file) => return Ok((file, temp_path)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => {
-                return Err(BenchError::Publication(format!(
-                    "cannot create temporary artifact {}: {error}",
-                    temp_path.display()
-                )));
-            }
-        }
-    }
-    Err(BenchError::Publication(format!(
-        "exhausted {MAX_TEMP_CREATE_ATTEMPTS} attempts creating unique temporary artifact in {}",
-        parent.display()
-    )))
-}
-
-/// Atomically publishes `bytes` to a new file at `path`, refusing to overwrite
-/// any existing destination file, symlink, or directory. Cleans up temporary
-/// files on failure.
-pub fn publish_new_file(path: &Path, bytes: &[u8]) -> Result<()> {
-    publish_new_file_with_counter(path, bytes, &TEMP_PUBLISH_COUNTER)
-}
-
-pub(crate) fn publish_new_file_with_counter(
-    path: &Path,
-    bytes: &[u8],
-    counter: &AtomicU64,
-) -> Result<()> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let parent = if parent.as_os_str().is_empty() {
-        Path::new(".")
-    } else {
-        parent
-    };
-    if !parent.exists() {
-        return Err(BenchError::Publication(format!(
-            "destination directory does not exist: {}",
-            parent.display()
-        )));
-    }
-
-    if path.symlink_metadata().is_ok() {
-        return Err(BenchError::Publication(format!(
-            "destination path already exists: {}",
-            path.display()
-        )));
-    }
-
-    let (mut temp_file, temp_path) = create_temp_artifact_with_counter(parent, counter)?;
-
-    let write_result = (|| -> Result<()> {
-        temp_file.write_all(bytes).map_err(|error| {
-            BenchError::Publication(format!(
-                "cannot write temporary artifact {}: {error}",
-                temp_path.display()
-            ))
-        })?;
-        temp_file.flush().map_err(|error| {
-            BenchError::Publication(format!(
-                "cannot flush temporary artifact {}: {error}",
-                temp_path.display()
-            ))
-        })?;
-        temp_file.sync_all().map_err(|error| {
-            BenchError::Publication(format!(
-                "cannot sync temporary artifact {}: {error}",
-                temp_path.display()
-            ))
-        })?;
-        Ok(())
-    })();
-
-    if let Err(error) = write_result {
-        let _ = fs::remove_file(&temp_path);
-        return Err(error);
-    }
-
-    let link_result = fs::hard_link(&temp_path, path);
-    let _ = fs::remove_file(&temp_path);
-
-    link_result.map_err(|error| {
-        if error.kind() == std::io::ErrorKind::AlreadyExists {
-            BenchError::Publication(format!(
-                "destination path already exists: {}",
-                path.display()
-            ))
-        } else {
-            BenchError::Publication(format!(
-                "cannot publish artifact to {}: {error}",
-                path.display()
-            ))
-        }
-    })
-}
+pub use crate::publication::publish_new_file;
 
 /// Writes every record as a pretty-printed JSON array to a new file, refusing to
 /// overwrite an existing destination path via atomic publication.
@@ -15260,6 +15150,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::publication::{MAX_TEMP_CREATE_ATTEMPTS, publish_new_file_with_counter};
 
     fn manifest_row(
         pair_id: &str,

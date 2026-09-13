@@ -7,10 +7,11 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, OpenOptions},
-    io::Write,
     path::Path,
 };
+
+#[cfg(test)]
+use std::fs;
 
 use pdfdelta_core::diff::ChangeKind;
 use serde::{Deserialize, Serialize};
@@ -1106,59 +1107,11 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 /// Publishes reproduction metadata atomically and refuses to overwrite an
 /// existing artifact.
 pub fn write_reproducible_artifact(path: &Path, artifact: &ReproducibleArtifact) -> Result<()> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let parent = if parent.as_os_str().is_empty() {
-        Path::new(".")
-    } else {
-        parent
-    };
-    if !parent.is_dir() {
-        return Err(BenchError::Publication(format!(
-            "artifact parent directory does not exist: {}",
-            parent.display()
-        )));
-    }
-    if path.symlink_metadata().is_ok() {
-        return Err(BenchError::Publication(format!(
-            "artifact destination already exists: {}",
-            path.display()
-        )));
-    }
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| {
-            BenchError::Publication(format!(
-                "artifact destination has no valid file name: {}",
-                path.display()
-            ))
-        })?;
     let mut bytes = serde_json::to_vec_pretty(artifact).map_err(|error| {
         BenchError::Publication(format!("cannot serialize reproducible artifact: {error}"))
     })?;
     bytes.push(b'\n');
-    let temp_path = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp_path)
-        .map_err(|error| {
-            BenchError::Publication(format!("cannot create temporary artifact: {error}"))
-        })?;
-    let result = (|| -> Result<()> {
-        file.write_all(&bytes).map_err(|error| {
-            BenchError::Publication(format!("cannot write temporary artifact: {error}"))
-        })?;
-        file.sync_all().map_err(|error| {
-            BenchError::Publication(format!("cannot sync temporary artifact: {error}"))
-        })?;
-        fs::hard_link(&temp_path, path).map_err(|error| {
-            BenchError::Publication(format!("cannot publish reproducible artifact: {error}"))
-        })?;
-        Ok(())
-    })();
-    let _ = fs::remove_file(&temp_path);
-    result
+    crate::publication::publish_new_file(path, &bytes)
 }
 
 #[cfg(test)]

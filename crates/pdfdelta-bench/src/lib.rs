@@ -17,5 +17,6 @@ mod error;
 #[cfg(feature = "fuzzing")]
 #[doc(hidden)]
 pub mod fuzzing;
+mod publication;
 
 pub use error::{BenchError, Result};
