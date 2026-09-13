@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    extraction_cache::{CeilingWriter, ExtractionCache, cache_key},
+    extraction_cache::{CeilingWriter, ExtractionCache},
     fs::{lowercase_hex, parse_external_font_identities, parse_lopdf},
 };
 
@@ -421,34 +421,32 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
         .collect();
     let extraction = match request.job {
         Job::Metadata { .. } => ExtractionOutcome::complete(Document::new(Vec::new())),
-        Job::Content { .. } => {
-            let cache = request.cache_dir.as_deref().map(ExtractionCache::new);
-            let key = cache_key(
-                &bytes,
-                &ParseLimits::default(),
-                &ExtractionLimits::default(),
-                request.password.as_deref(),
-                &fonts,
-            );
-            if let Some(outcome) = cache
-                .as_ref()
-                .and_then(|cache| cache.load(&key, &ExtractionLimits::default()))
-            {
-                outcome
-            } else {
-                let outcome = extractor
-                    .extract_outcome_with_external_font_identities(
-                        parsed.as_ref(),
-                        ExtractionLimits::default(),
-                        &fonts,
-                    )
-                    .map_err(Failure::core)?;
-                if let Some(cache) = cache {
-                    cache.store(&key, &outcome);
-                }
-                outcome
-            }
-        }
+        Job::Content { .. } => match request.cache_dir.as_deref().map(ExtractionCache::new) {
+            Some(cache) => cache
+                .get_or_extract(
+                    &bytes,
+                    &ParseLimits::default(),
+                    request.password.as_deref(),
+                    &fonts,
+                    || {
+                        extractor
+                            .extract_outcome_with_external_font_identities(
+                                parsed.as_ref(),
+                                ExtractionLimits::default(),
+                                &fonts,
+                            )
+                            .map_err(Failure::core)
+                    },
+                )
+                .map(|(outcome, _)| outcome)?,
+            None => extractor
+                .extract_outcome_with_external_font_identities(
+                    parsed.as_ref(),
+                    ExtractionLimits::default(),
+                    &fonts,
+                )
+                .map_err(Failure::core)?,
+        },
     };
     let mut store =
         EvidenceStore::from_native(revision(&bytes), backend(), pages, extraction, limits)

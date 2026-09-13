@@ -98,6 +98,32 @@ impl ExtractionCache {
         self.store_with_ceiling(key, outcome, MAX_CACHE_PAYLOAD_BYTES);
     }
 
+    /// Returns a cached extraction for `bytes` or runs `extract` and stores
+    /// the result.
+    ///
+    /// The cache key covers every extraction-determining input, so a hit is
+    /// exactly equivalent to re-running extraction. A miss or any cache
+    /// failure falls through to `extract`, and storage is best-effort: it
+    /// never changes the returned outcome. The flag reports whether the
+    /// outcome came from the cache, for trace accounting.
+    pub fn get_or_extract<E>(
+        &self,
+        bytes: &[u8],
+        parse_limits: &ParseLimits,
+        password: Option<&str>,
+        font_identities: &ExternalFontIdentities,
+        extract: impl FnOnce() -> Result<ExtractionOutcome, E>,
+    ) -> Result<(ExtractionOutcome, bool), E> {
+        let limits = ExtractionLimits::default();
+        let key = cache_key(bytes, parse_limits, &limits, password, font_identities);
+        if let Some(outcome) = self.load(&key, &limits) {
+            return Ok((outcome, true));
+        }
+        let outcome = extract()?;
+        self.store(&key, &outcome);
+        Ok((outcome, false))
+    }
+
     /// Serializes the outcome into the entry file directly, never buffering
     /// more than `ceiling` bytes: an entry that cannot be read back within
     /// [`MAX_CACHE_PAYLOAD_BYTES`] is never written, and a marker records it
@@ -581,5 +607,58 @@ mod tests {
                 &ExternalFontIdentities::default()
             ),
         );
+    }
+
+    #[test]
+    fn get_or_extract_reuses_hits_and_stores_incomplete_outcomes() {
+        let dir = unique_temp_dir("get-or-extract");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, _) = fixture_limits();
+        let issue = ExtractionIssue::new(
+            pdfdelta_core::source::ExtractionIssueKind::Unsupported,
+            pdfdelta_core::source::ExtractionScope::Document,
+            "unsupported fixture content",
+        )
+        .expect("valid issue");
+        let outcome =
+            ExtractionOutcome::new(Document::new(Vec::new()), vec![issue]).expect("outcome");
+        let calls = std::cell::Cell::new(0);
+
+        let (first, cached) = cache
+            .get_or_extract(
+                b"pdf",
+                &parse_limits,
+                None,
+                &ExternalFontIdentities::default(),
+                || {
+                    calls.set(calls.get() + 1);
+                    Ok::<_, pdfdelta_core::Error>(outcome)
+                },
+            )
+            .expect("fresh extraction");
+        assert!(!cached);
+        assert_eq!(calls.get(), 1);
+        assert!(!first.is_complete());
+
+        let (second, cached) = cache
+            .get_or_extract(
+                b"pdf",
+                &parse_limits,
+                None,
+                &ExternalFontIdentities::default(),
+                || {
+                    calls.set(calls.get() + 1);
+                    Err::<ExtractionOutcome, _>(pdfdelta_core::Error::Unresolved(
+                        "must not run on a cache hit".to_owned(),
+                    ))
+                },
+            )
+            .expect("cache hit");
+        assert!(cached);
+        assert_eq!(calls.get(), 1);
+        assert!(!second.is_complete());
+        assert_eq!(second.issues().len(), 1);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

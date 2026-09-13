@@ -21,7 +21,7 @@ use pdfdelta_core::{
 use crate::{
     args::{ColorChoice, CompareCommand, ComparisonInput, ComparisonOptions, resolve_color},
     evidence_text::escape_terminal_controls,
-    extraction_cache::{ExtractionCache, cache_key},
+    extraction_cache::ExtractionCache,
     fs::{
         InputReadError, ensure_named_output_does_not_alias_input,
         ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
@@ -482,22 +482,94 @@ pub fn extract_comparison_outcome(
         ],
     );
 
-    // The cache key covers the complete set of extraction-determining inputs,
-    // so a hit is exactly equivalent to re-running parse and extraction. Any
-    // cache failure falls through to the normal path below.
-    let cache_entry = context.cache.map(|cache| {
-        let key = cache_key(
+    // A cache hit is exactly equivalent to re-running parse and extraction,
+    // because the key covers every extraction-determining input. The traced
+    // phases inside `extract_fresh` therefore run only on a miss.
+    let parse_bytes = bytes.clone();
+    let mut extract_fresh = || -> Result<ExtractionOutcome, String> {
+        let parse_started = std::time::Instant::now();
+        let parsed = match parse_lopdf(parse_bytes.clone(), context.parse_limits, context.password)
+        {
+            Ok(parsed) => {
+                let version = parsed.version();
+                trace.complete(
+                    "pdf_parse",
+                    Some(trace_side),
+                    [
+                        ("pdf_version_major", usize::from(version.major)),
+                        ("pdf_version_minor", usize::from(version.minor)),
+                        ("duration_us", duration_metric(parse_started.elapsed())),
+                    ],
+                );
+                parsed
+            }
+            Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
+                trace.incomplete_core("pdf_parse", Some(trace_side), &error);
+                return document_issue_outcome(error).map_err(|error| {
+                    format!(
+                        "cannot parse or extract {side} PDF {}: {error}",
+                        path.display()
+                    )
+                });
+            }
+            Err(error) => {
+                trace.fail_core("pdf_parse", Some(trace_side), &error);
+                return Err(format!(
+                    "cannot parse or extract {side} PDF {}: {error}",
+                    path.display()
+                ));
+            }
+        };
+
+        let extraction_started = std::time::Instant::now();
+        match ContentStreamGlyphExtractor.extract_outcome_with_external_font_identities(
+            parsed.as_ref(),
+            ExtractionLimits::default(),
+            context.external_font_identities,
+        ) {
+            Ok(outcome) => {
+                let extraction_duration = extraction_started.elapsed();
+                if outcome.is_complete() {
+                    trace.complete(
+                        "glyph_extraction",
+                        Some(trace_side),
+                        [
+                            ("glyphs", outcome.document().items().len()),
+                            ("issues", 0),
+                            ("duration_us", duration_metric(extraction_duration)),
+                        ],
+                    );
+                } else {
+                    trace.incomplete_extraction(
+                        trace_side,
+                        outcome.document().items().len(),
+                        outcome.issues(),
+                        Some(extraction_duration),
+                    );
+                }
+                Ok(outcome)
+            }
+            Err(error) => {
+                trace.fail_core("glyph_extraction", Some(trace_side), &error);
+                Err(format!(
+                    "cannot parse or extract {side} PDF {}: {error}",
+                    path.display()
+                ))
+            }
+        }
+    };
+
+    let (outcome, cached) = match context.cache {
+        Some(cache) => cache.get_or_extract(
             &bytes,
             &context.parse_limits,
-            &ExtractionLimits::default(),
             context.password,
             context.external_font_identities,
-        );
-        (cache, key)
-    });
-    if let Some((cache, key)) = &cache_entry
-        && let Some(outcome) = cache.load(key, &ExtractionLimits::default())
-    {
+            extract_fresh,
+        )?,
+        None => (extract_fresh()?, false),
+    };
+    if cached {
         trace.skip_phase("pdf_parse", Some(trace_side), "extraction_cache_hit");
         if outcome.is_complete() {
             trace.complete(
@@ -516,83 +588,8 @@ pub fn extract_comparison_outcome(
                 None,
             );
         }
-        return Ok(outcome);
     }
-
-    let parse_started = std::time::Instant::now();
-    let parsed = match parse_lopdf(bytes, context.parse_limits, context.password) {
-        Ok(parsed) => {
-            let version = parsed.version();
-            trace.complete(
-                "pdf_parse",
-                Some(trace_side),
-                [
-                    ("pdf_version_major", usize::from(version.major)),
-                    ("pdf_version_minor", usize::from(version.minor)),
-                    ("duration_us", duration_metric(parse_started.elapsed())),
-                ],
-            );
-            parsed
-        }
-        Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
-            trace.incomplete_core("pdf_parse", Some(trace_side), &error);
-            return document_issue_outcome(error).map_err(|error| {
-                format!(
-                    "cannot parse or extract {side} PDF {}: {error}",
-                    path.display()
-                )
-            });
-        }
-        Err(error) => {
-            trace.fail_core("pdf_parse", Some(trace_side), &error);
-            return Err(format!(
-                "cannot parse or extract {side} PDF {}: {error}",
-                path.display()
-            ));
-        }
-    };
-
-    let extraction_started = std::time::Instant::now();
-    match ContentStreamGlyphExtractor.extract_outcome_with_external_font_identities(
-        parsed.as_ref(),
-        ExtractionLimits::default(),
-        context.external_font_identities,
-    ) {
-        Ok(outcome) => {
-            let extraction_duration = extraction_started.elapsed();
-            if let Some((cache, key)) = &cache_entry
-                && outcome.is_complete()
-            {
-                cache.store(key, &outcome);
-            }
-            if outcome.is_complete() {
-                trace.complete(
-                    "glyph_extraction",
-                    Some(trace_side),
-                    [
-                        ("glyphs", outcome.document().items().len()),
-                        ("issues", 0),
-                        ("duration_us", duration_metric(extraction_duration)),
-                    ],
-                );
-            } else {
-                trace.incomplete_extraction(
-                    trace_side,
-                    outcome.document().items().len(),
-                    outcome.issues(),
-                    Some(extraction_duration),
-                );
-            }
-            Ok(outcome)
-        }
-        Err(error) => {
-            trace.fail_core("glyph_extraction", Some(trace_side), &error);
-            Err(format!(
-                "cannot parse or extract {side} PDF {}: {error}",
-                path.display()
-            ))
-        }
-    }
+    Ok(outcome)
 }
 
 pub fn document_issue_outcome(error: Error) -> Result<ExtractionOutcome, Error> {
