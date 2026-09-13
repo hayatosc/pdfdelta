@@ -1525,6 +1525,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn read_bounded_file_accepts_the_limit_and_rejects_one_byte_more() {
+        let path = std::env::temp_dir().join(format!(
+            "pdfbench-bounded-{}-{}.bin",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::write(&path, b"abc").expect("bounded fixture");
+        let exact = read_bounded_file(&path, 3, "bounded fixture").expect("exact limit");
+        assert_eq!(exact, b"abc");
+        let error = read_bounded_file(&path, 2, "bounded fixture").expect_err("oversized input");
+        fs::remove_file(&path).expect("bounded fixture cleanup");
+        assert!(error.contains("must not exceed 2 bytes"), "{error}");
+    }
+
+    #[test]
     fn generated_precision_summary_is_unavailable_when_evaluation_is_incomplete() {
         let mut output = Vec::new();
         write_generated_precision_summary(&mut output, &[], 1).expect("summary writes");
