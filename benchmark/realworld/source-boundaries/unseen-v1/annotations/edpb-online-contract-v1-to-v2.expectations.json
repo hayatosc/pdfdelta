@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-online-contract-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "75e9a8dfaffbd03b8310657fd45f4e703777430791f855ddf871d5f26310a081",
+  "body_eligible": true,
+  "reason": "Paragraph 1 adds the objective and essence of processing to the legal-basis choice and changes the fairness wording. Its old footnote marker is retained in the raw target."
+}

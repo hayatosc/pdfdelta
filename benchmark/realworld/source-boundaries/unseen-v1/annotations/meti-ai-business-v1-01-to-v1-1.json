@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "meti-ai-business-v1-01-to-v1-1",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "取組にあたり、各主体は、以下に述べる「1）⼈間中⼼」に照らし、法の⽀配、⼈権、⺠主主義、多様性及び公平公正な社会を尊重するようAIシステム・サービスを開発・提供・利⽤すべきである。また、憲法、知的財産関連法令及び個⼈情報保護法をはじめとする関連法令、AIに係る個別分野の既存法令等を遵守すべきであり、国際的な指針等の検討状況についても留意することが重要である13。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "C. 共通の指針",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "取組にあたり、各主体は、以下に述べる「1）人間中心」に照らし、法の支配、人権、民主主義、多様性・包摂性及び公平公正な社会を尊重するようAIシステム・サービスを開発・提供・利用すべきである。また、憲法、知的財産関連法令及び個人情報保護法をはじめとする関連法令、AIに係る個別分野の既存法令等を遵守すべきであり、国際的な指針等の検討状況についても留意することが重要である13。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "C. 共通の指針",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "ad67ee3c6bc11be84a03469e7b78260f8a611044fee7e02d57416ed439c404c7",
+  "new_sha256": "fb62fdd3c61e0134bd7d725e53436b489c60356c9f77079efdd738f23a100b9c"
+}

@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "faa-sms-92b-to-92d",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This advisory circular (AC) provides information for Title 14 of the Code of Federal Regulations (14 CFR) part 121 air carriers that are required to implement Safety Management Systems (SMS) based on 14 CFR part 5. Specifically, this document provides a description of regulatory requirements, guidance, and methods of developing and implementing an SMS. This AC may also be used by other aviation service providers interested in voluntarily developing an SMS based on the requirements in part 5.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Aviation Service Providers",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This advisory circular (AC) provides information on implementing a Safety Management System (SMS) based on Title 14 of the Code of Federal Regulations (14 CFR) part 5 for aviation service providers operating or applying for a certificate or Letter of Authorization (LOA) to operate under 14 CFR part 91, § 91.147 or part 121 or 135. This AC may also be used by aviation organizations interested in receiving Federal Aviation Administration (FAA) acknowledgement of their voluntary development and implementation of an SMS that meets part 5 requirements. Additionally, part 5 provides organizations with a method to meet the International Civil Aviation Organization (ICAO) Annex 19, Safety Management, framework for an SMS “acceptable to the State.”",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Aviation Service Providers",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "014e630436910d79430d9c11b27efb898ed5d603044a4b831b8c74928481c4eb",
+  "new_sha256": "83d0134fadfb925cb3573139ba8d74668fd9f0adeb69efc63e03020f7ee73935"
+}

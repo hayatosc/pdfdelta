@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "4548b2e1e7acae330bdc08f3eca1e71c08be764c5d74bba0f65d69fbcb079cab",
+  "attempts": [
+    {
+      "pair": "nist-hipaa-66-r1-to-r2",
+      "started_utc": "2026-09-13T10:00:51.601188+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/nist-hipaa-66-r1-to-r2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/nist-hipaa-66-r1-to-r2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/nist-hipaa-66-r1-to-r2-new.pdf"
+      ],
+      "annotation_sha256": "b137f0b9a1a0d3e43901ecac2174ecc3dde3d577e8c746dcbb79dfcd36b2e64f",
+      "resolution_sha256": "91613a15873c76fe0b1e702ef5f781e1e7d5ca49f4d92617790ad237125e57b7",
+      "stderr": ""
+    },
+    {
+      "pair": "nist-124-r1-to-r2",
+      "started_utc": "2026-09-13T10:00:54.675115+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/nist-124-r1-to-r2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/nist-124-r1-to-r2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/nist-124-r1-to-r2-new.pdf"
+      ],
+      "annotation_sha256": "00a42023cd866019dde573394a676707173020d583925b558808dba4b430c151",
+      "resolution_sha256": "54fad64c0b7655859794354f14d1943a09f692c02e38205497ef6485b23247c6",
+      "stderr": ""
+    },
+    {
+      "pair": "nist-88-r1-to-r2",
+      "started_utc": "2026-09-13T10:00:56.215397+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/nist-88-r1-to-r2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/nist-88-r1-to-r2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/nist-88-r1-to-r2-new.pdf"
+      ],
+      "annotation_sha256": "28c8e8e1b70251e74fea84ea9b6c62e4af139c67b43c74a1d90f1c15adbf0eec",
+      "resolution_sha256": "703347aedcfd76dcb3d3a43d4057fc9261acd7074b3ecef092b8e068dd96267f",
+      "stderr": ""
+    },
+    {
+      "pair": "edpb-video-v1-to-v2",
+      "started_utc": "2026-09-13T10:00:57.759599+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/edpb-video-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/edpb-video-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/edpb-video-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "8c16e9ae9a12d988e88b293445d294d73f89106bc50bcc6ce02780a79f203e99",
+      "resolution_sha256": "e23a021a8ad7db266702f57d29e9e3994fde82f1d24330c0941ad41565adc11b",
+      "stderr": ""
+    },
+    {
+      "pair": "edpb-online-contract-v1-to-v2",
+      "started_utc": "2026-09-13T10:00:59.738047+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/edpb-online-contract-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/edpb-online-contract-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/edpb-online-contract-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "75e9a8dfaffbd03b8310657fd45f4e703777430791f855ddf871d5f26310a081",
+      "resolution_sha256": "35693430cd68199d266953936df3035be05e6fcc751d453dde4906b44d7837d8",
+      "stderr": ""
+    },
+    {
+      "pair": "edpb-payment-v1-to-v2",
+      "started_utc": "2026-09-13T10:01:01.839243+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/edpb-payment-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/edpb-payment-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/edpb-payment-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "956ea340fa8cc2d58fd3988a83dba46fbee2ef6cf865438c9a42125ef77f06e2",
+      "resolution_sha256": "fea2a4d69d9d0709f689d2a4db59bc67bc698693cdd89b4cd1768fa5d2e6c58e",
+      "stderr": ""
+    },
+    {
+      "pair": "arxiv-lora-v1-to-v2",
+      "started_utc": "2026-09-13T10:01:04.502372+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/arxiv-lora-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/arxiv-lora-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/arxiv-lora-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "b5d7b431e2b58d773f5146330c9374c258bb8db806936b0f7e0222b82ab5d273",
+      "resolution_sha256": "4508261162b7b88012720bef376913e067e50939c8e7ceb45b6622f4195fb1e4",
+      "stderr": ""
+    },
+    {
+      "pair": "arxiv-swin-v1-to-v2",
+      "started_utc": "2026-09-13T10:01:10.349120+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/arxiv-swin-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/arxiv-swin-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/arxiv-swin-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "6f25fb4b52374b61103724fa92a89cbc64948cc98e1af6679b34c9d21d518fca",
+      "resolution_sha256": "7017756fa1e71fea06323eb0c815acc552d8a3ba91c8a85af8a16382c496e428",
+      "stderr": ""
+    },
+    {
+      "pair": "arxiv-vit-v1-to-v2",
+      "started_utc": "2026-09-13T10:01:11.519313+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/arxiv-vit-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/arxiv-vit-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/arxiv-vit-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "eb47052541ccbcb3b101fdba727df2cd73eabb180997688e9b8bfd80a2fa771d",
+      "resolution_sha256": "75fd3abd46caf4b285da1971e35cec958995d47b6fc526a010f32d1335096791",
+      "stderr": ""
+    },
+    {
+      "pair": "faa-sms-92b-to-92d",
+      "started_utc": "2026-09-13T10:01:13.060894+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/faa-sms-92b-to-92d.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/faa-sms-92b-to-92d-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/faa-sms-92b-to-92d-new.pdf"
+      ],
+      "annotation_sha256": "7f49ff78a05e16519460ed23f4039ecfde9a8745f88a36b32e9651dc41c09a8b",
+      "resolution_sha256": "a8e1f318a6c8c2508055bb272a9e41855bea22c7027896b36b1e092d24b0e6e3",
+      "stderr": ""
+    },
+    {
+      "pair": "ietf-tls-bcp-7525-to-9325",
+      "started_utc": "2026-09-13T10:01:16.703471+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/ietf-tls-bcp-7525-to-9325.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/ietf-tls-bcp-7525-to-9325-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/ietf-tls-bcp-7525-to-9325-new.pdf"
+      ],
+      "annotation_sha256": "f90b084ba90c92c48cfd6dca47d1db7e669ab3515abf1cd7a6103d615160359a",
+      "resolution_sha256": "acfa1c627deee71d8a3d72b196349586e3959c8a81951dc0e7db769b0e8f9401",
+      "stderr": ""
+    },
+    {
+      "pair": "meti-ai-business-v1-01-to-v1-1",
+      "started_utc": "2026-09-13T10:01:17.423512+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v1-annotations/meti-ai-business-v1-01-to-v1-1.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/meti-ai-business-v1-01-to-v1-1-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/meti-ai-business-v1-01-to-v1-1-new.pdf"
+      ],
+      "annotation_sha256": "cd083f28e1d4caa141b3b60ba401d6ec87be639c2b9762f2d74aa9f96d2af98f",
+      "resolution_sha256": "8ebfec87cb0cf6f17e8305dce8687c47b4224d834a3f62e1c4d83d485dc7dc46",
+      "stderr": ""
+    }
+  ]
+}

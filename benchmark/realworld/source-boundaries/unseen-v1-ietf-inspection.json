@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "ee2cd10cfd162c16a50819b5d844b181258dc7b3139b33528b5ccdc69747fe58",
+  "attempts": [
+    {
+      "pair": "ietf-tls-bcp-7525-to-9325",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v1/ietf-tls-bcp-7525-to-9325-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T09:56:49.023182+00:00",
+      "exit_code": 0,
+      "input_sha256": "695777622697e39cfa8b4481225762917c536e99f4c41672545bd4ce69417fb2",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v1/ietf-tls-bcp-7525-to-9325-new.glyphs.txt",
+        "sha256": "4ab38314d640a0f2e6081ed98fb0da0eeca7c2e6efa308217e417fd29a5fb853"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v1/ietf-tls-bcp-7525-to-9325-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

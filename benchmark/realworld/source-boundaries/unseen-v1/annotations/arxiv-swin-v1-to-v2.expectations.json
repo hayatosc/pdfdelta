@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-swin-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "6f25fb4b52374b61103724fa92a89cbc64948cc98e1af6679b34c9d21d518fca",
+  "body_eligible": true,
+  "reason": "The abstract revises the image classification accuracy, adds the all-MLP architecture statement and changes availability wording."
+}

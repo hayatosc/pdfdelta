@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "nist-hipaa-66-r1-to-r2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "The purpose of this publication is to help educate readers about the security standards included in the HIPAA Security Rule.  It provides a brief overview of the HIPAA Security Rule, directs the reader to additional NIST publications on information security, and identifies typical activities an agency should consider in implementing an information security program.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "Purpose and Scope",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 14
+      },
+      "literal_quote": "NIST Special Publication (SP) 800-66 aims to help educate readers about the security standards included in the HIPAA Security Rule and assist regulated entities in their implementation of the Security Rule. It includes a brief overview of the HIPAA Security Rule, provides guidance for regulated entities in assessing and managing risk to ePHI, identifies typical activities that a regulated entity should consider when implementing an information security program, and lists additional resources that regulated entities may find useful when implementing the Security Rule.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 14
+      },
+      "literal_quote": "Purpose and Scope",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "acf511c8ffb008017eed4ebcef3f62c67251e8510f05de47eae8cf085a3baa28",
+  "new_sha256": "3910c9b29e06d978bf17258d94e851d8d3d786ceb65beb352cc93271f4d3173e"
+}
