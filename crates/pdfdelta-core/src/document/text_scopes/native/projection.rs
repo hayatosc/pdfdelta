@@ -9,6 +9,82 @@ use std::{
 use super::{Glyph, GlyphId, GraphNode, NodeContent, SourceRef, spend};
 use crate::{document::TextNormalization, model::DecodedText, normalize::ligature_expansion};
 
+/// Expand a retained collapsed space only when every contributing native glyph
+/// independently decodes to one literal space. Interior expansion boundaries
+/// have no original token boundary and therefore cannot be used as source cuts.
+pub(super) fn expanded(
+    node: &GraphNode,
+    glyphs: &BTreeMap<GlyphId, &Glyph>,
+    remaining: &mut usize,
+) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
+    let NodeContent::Text { view } = &node.content else {
+        return None;
+    };
+    if !view
+        .origins
+        .iter()
+        .zip(&view.source_backed)
+        .any(|(origins, backed)| *backed && origins.len() > 1)
+    {
+        return checked(node, glyphs, remaining).map(|(node, _)| (node, None));
+    }
+    spend(
+        remaining,
+        view.tokens
+            .len()
+            .saturating_add(node.sources.len())
+            .saturating_mul(8),
+    )?;
+    let old_optional = view
+        .optional_tokens()
+        .unwrap_or_else(|| vec![false; view.tokens.len()]);
+    let mut projected = node.clone();
+    let NodeContent::Text { view: out } = &mut projected.content else {
+        return None;
+    };
+    out.tokens.clear();
+    out.origins.clear();
+    out.source_backed.clear();
+    out.normalization = TextNormalization::Exact;
+    let mut boundaries = vec![Some(0)];
+    let mut optional = Vec::new();
+    for (position, token) in view.tokens.iter().enumerate() {
+        let origins = &view.origins[position];
+        if view.source_backed[position] && origins.len() > 1 {
+            if token.as_scalar() != Some(' ') {
+                return None;
+            }
+            for (index, source) in origins.iter().enumerate() {
+                let SourceRef::Native { glyph } = source else {
+                    return None;
+                };
+                if !matches!(&glyphs.get(glyph)?.text, DecodedText::Mapped(text) if text == " ") {
+                    return None;
+                }
+                if old_optional[position] {
+                    optional.push(out.tokens.len());
+                }
+                out.tokens.push(token.clone());
+                out.origins.push(vec![*source]);
+                out.source_backed.push(true);
+                boundaries.push((index + 1 == origins.len()).then_some(position + 1));
+            }
+        } else {
+            if old_optional[position] {
+                optional.push(out.tokens.len());
+            }
+            out.tokens.push(token.clone());
+            out.origins.push(origins.clone());
+            out.source_backed.push(view.source_backed[position]);
+            boundaries.push(Some(position + 1));
+        }
+    }
+    if !optional.is_empty() {
+        out.bind_optional_positions(optional);
+    }
+    checked(&projected, glyphs, remaining).map(|(node, _)| (node, Some(boundaries)))
+}
+
 /// Validate every retained token against its physical glyph. No token or source
 /// is invented, discarded or reassigned. Only the existing Latin ligature fold
 /// and source-checked separator/hyphen alternatives are admitted.
@@ -52,6 +128,12 @@ pub(super) fn checked(
             return None;
         };
         spend(remaining, text.len().saturating_mul(4))?;
+        if text
+            .chars()
+            .any(crate::document::operations::private_use_scalar)
+        {
+            return None;
+        }
         let mut expanded = String::new();
         for scalar in text.chars() {
             if let Some(replacement) = ligature_expansion(scalar) {
@@ -293,6 +375,31 @@ mod tests {
     }
 
     #[test]
+    fn raw_projection_rejects_private_use_without_losing_source_evidence() {
+        for scalar in [
+            '\u{e000}',
+            '\u{f8ff}',
+            '\u{f0000}',
+            '\u{ffffd}',
+            '\u{100000}',
+            '\u{10fffd}',
+        ] {
+            let (mut node, mut glyphs) = fixture();
+            let NodeContent::Text { view } = &mut node.content else {
+                unreachable!()
+            };
+            view.tokens[0] = ComparableToken::Scalar(scalar);
+            view.tokens.remove(1);
+            view.origins.remove(1);
+            view.source_backed.remove(1);
+            glyphs[0].text = DecodedText::Mapped(scalar.to_string());
+            let map = glyphs.iter().map(|glyph| (glyph.id, glyph)).collect();
+            assert!(checked(&node, &map, &mut 10_000).is_none());
+            assert_eq!(glyphs[0].text, DecodedText::Mapped(scalar.to_string()));
+        }
+    }
+
+    #[test]
     fn raw_projection_also_preserves_an_unexpanded_ligature() {
         let (mut node, glyphs) = fixture();
         let NodeContent::Text { view } = &mut node.content else {
@@ -308,5 +415,30 @@ mod tests {
             unreachable!()
         };
         assert_eq!(view.tokens[0], ComparableToken::Scalar('ﬁ'));
+    }
+
+    #[test]
+    fn whitespace_expansion_has_no_cut_inside_a_contracted_source_token() {
+        let (mut node, mut glyphs) = fixture();
+        for (index, glyph) in glyphs.iter_mut().enumerate() {
+            glyph.text = DecodedText::Mapped(if index == 0 { "x" } else { " " }.into());
+        }
+        let NodeContent::Text { view } = &mut node.content else {
+            unreachable!()
+        };
+        view.tokens = vec![ComparableToken::Scalar('x'), ComparableToken::Scalar(' ')];
+        view.origins = vec![vec![node.sources[0]], node.sources[1..].to_vec()];
+        view.source_backed = vec![true, true];
+        let map = glyphs.iter().map(|glyph| (glyph.id, glyph)).collect();
+        let (projected, boundaries) =
+            expanded(&node, &map, &mut 10_000).expect("literal source spaces");
+        assert_eq!(boundaries, Some(vec![Some(0), Some(1), None, Some(2)]));
+        let NodeContent::Text { view } = projected.content else {
+            unreachable!()
+        };
+        assert_eq!(view.display_text().as_deref(), Some("x  "));
+        glyphs[1].text = DecodedText::Mapped("y".into());
+        let map = glyphs.iter().map(|glyph| (glyph.id, glyph)).collect();
+        assert!(expanded(&node, &map, &mut 10_000).is_none());
     }
 }

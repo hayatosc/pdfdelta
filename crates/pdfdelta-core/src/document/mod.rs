@@ -51,8 +51,8 @@ pub use structures::*;
 pub use text_candidates::{TextCandidateLimits, TextCandidateSearch};
 pub use text_scopes::{
     CutCorrespondence, CutEvidence, NativeRegion, NativeRegionChain, NativeRegionChains,
-    NativeTransition, SourceCut, SourceCutPopulation, SourceCutRange, SourceCutSearch,
-    SourceFragment, SpaceBoundary, SpaceOrigin, TextScopePresence, TextScopeReview,
-    TextScopeSpacing,
+    NativeTransition, SourceCut, SourceCutBoundaryPadding, SourceCutPopulation, SourceCutRange,
+    SourceCutSearch, SourceFragment, SpaceBoundary, SpaceOrigin, TextScopePresence,
+    TextScopeReview, TextScopeSpacing,
 };
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};

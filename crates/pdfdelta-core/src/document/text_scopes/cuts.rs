@@ -61,7 +61,18 @@ pub enum SourceCutPopulation {
         new: Vec<NodeId>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         native_regions: Option<Box<NativeRegionChains>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        boundary_padding: Option<Box<SourceCutBoundaryPadding>>,
     },
+}
+
+/// Partially clipped outer padding participates in the occurrence census with
+/// both presence choices, but cannot be consumed by any compared source range.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceCutBoundaryPadding {
+    pub convention: String,
+    pub old: Vec<SourceRef>,
+    pub new: Vec<SourceRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,6 +87,19 @@ pub struct SourceCutSearch {
 
 type Position = (usize, usize, usize);
 type Anchor = ((usize, usize), (usize, usize), usize);
+
+type OriginalCuts = BTreeMap<NodeId, Vec<Option<usize>>>;
+
+#[derive(Default)]
+struct CutMaps {
+    old: OriginalCuts,
+    new: OriginalCuts,
+}
+
+fn original_boundary(maps: &OriginalCuts, node: NodeId, position: usize) -> Option<usize> {
+    maps.get(&node)
+        .map_or(Some(position), |map| map.get(position).copied().flatten())
+}
 
 struct Boundary {
     old: Position,
@@ -220,19 +244,22 @@ fn insert_start(starts: &mut [Option<usize>; 2], start: usize) {
     }
 }
 
-fn fragment(row: &Row<'_>) -> SourceFragment {
+fn fragment(row: &Row<'_>, maps: &OriginalCuts) -> Option<SourceFragment> {
     let NodeContent::Text { view } = &row.node.content else {
         unreachable!()
     };
-    SourceFragment {
+    Some(SourceFragment {
         node: row.node.id,
-        tokens: [row.range.start, row.range.end],
+        tokens: [
+            original_boundary(maps, row.node.id, row.range.start)?,
+            original_boundary(maps, row.node.id, row.range.end)?,
+        ],
         sources: view.origins[row.range.clone()]
             .iter()
             .flatten()
             .copied()
             .collect(),
-    }
+    })
 }
 
 fn slice(node: &GraphNode, start: usize, end: usize) -> Option<GraphNode> {
@@ -324,6 +351,16 @@ fn same_raw_text(left: &[&GraphNode], right: &[&GraphNode], remaining: &mut usiz
         .map(|view| view.tokens.len())
         .fold(0usize, usize::saturating_add);
     spend(remaining, work)?;
+    // Equal retained tokens do not prove equal literal-space multiplicity when
+    // a source-backed token contracts several native glyphs. Project it first.
+    if left.iter().chain(&right).any(|view| {
+        view.origins
+            .iter()
+            .zip(&view.source_backed)
+            .any(|(origins, backed)| *backed && origins.len() > 1)
+    }) {
+        return Some(false);
+    }
     Some(
         left.iter()
             .flat_map(|view| &view.tokens)
@@ -369,6 +406,7 @@ pub(super) fn append(
             sources,
             anchors,
             SourceCutPopulation::CompletePage,
+            &CutMaps::default(),
             remaining,
         )?;
         if let Some(search) = &mut result.source_cut_search {
@@ -411,9 +449,9 @@ pub(super) fn append(
             }
             Some(false) => {}
         }
-        let (Some(old_closure), Some(new_closure)) = (
-            old_sources.closed(old, result.matching.scope.old, &left[0], remaining),
-            new_sources.closed(new, result.matching.scope.new, &right[0], remaining),
+        let (Some((old_closure, old_padding)), Some((new_closure, new_padding))) = (
+            old_sources.census(old, result.matching.scope.old, &left[0], remaining),
+            new_sources.census(new, result.matching.scope.new, &right[0], remaining),
         ) else {
             aggregate.exhaustive = false;
             continue;
@@ -433,29 +471,53 @@ pub(super) fn append(
             old: left[0].iter().map(|node| node.id).collect(),
             new: right[0].iter().map(|node| node.id).collect(),
             native_regions,
+            boundary_padding: (!old_padding.is_empty() || !new_padding.is_empty()).then_some(
+                Box::new(SourceCutBoundaryPadding {
+                    convention: "optional-clipped-boundary-padding-v1".into(),
+                    old: old_padding.clone(),
+                    new: new_padding.clone(),
+                }),
+            ),
         };
-        let project =
-            |nodes: &[&GraphNode], sources: &native::Sources<'_>, remaining: &mut usize| {
-                nodes
-                    .iter()
-                    .map(|node| {
-                        sources
-                            .project(node, remaining)
-                            .map(|projection| projection.0)
-                    })
-                    .collect::<Option<Vec<_>>>()
-            };
-        let (Some(old_nodes), Some(new_nodes)) = (
-            project(&left[0], old_sources, remaining),
-            project(&right[0], new_sources, remaining),
+        let project = |nodes: &[&GraphNode],
+                       sources: &native::Sources<'_>,
+                       padding: &[SourceRef],
+                       remaining: &mut usize| {
+            nodes
+                .iter()
+                .map(|node| sources.project_census(node, padding, remaining))
+                .collect::<Option<Vec<_>>>()
+        };
+        let (Some(old_projected), Some(new_projected)) = (
+            project(&left[0], old_sources, &old_padding, remaining),
+            project(&right[0], new_sources, &new_padding, remaining),
         ) else {
             aggregate.exhaustive = false;
             continue;
         };
+        let mut maps = CutMaps::default();
+        let old_nodes: Vec<_> = old_projected
+            .into_iter()
+            .map(|(node, map)| {
+                if let Some(map) = map {
+                    maps.old.insert(node.id, map);
+                }
+                node
+            })
+            .collect();
+        let new_nodes: Vec<_> = new_projected
+            .into_iter()
+            .map(|(node, map)| {
+                if let Some(map) = map {
+                    maps.new.insert(node.id, map);
+                }
+                node
+            })
+            .collect();
         let left = vec![old_nodes.iter().collect()];
         let right = vec![new_nodes.iter().collect()];
         compare_population(
-            old, new, result, parent, limits, &left, &right, sources, &anchors, population,
+            old, new, result, parent, limits, &left, &right, sources, &anchors, population, &maps,
             remaining,
         )?;
         if let Some(search) = result.source_cut_search.take() {
@@ -481,6 +543,7 @@ fn compare_population(
     sources: Option<&(native::Sources<'_>, native::Sources<'_>)>,
     anchors: &[Anchor],
     population: SourceCutPopulation,
+    maps: &CutMaps,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
@@ -502,6 +565,7 @@ fn compare_population(
         new_sources,
         anchors,
         matches!(population, SourceCutPopulation::MatchedInterval { .. }),
+        maps,
         &mut search,
         remaining,
     );
@@ -573,9 +637,9 @@ fn compare_population(
         {
             continue;
         }
-        // Contiguous subpaths inherit the enclosing population's source and
-        // paint closure: their bands are subsets of its checked band. Legal
-        // slices retain the source order and never introduce another glyph.
+        // Contiguous subpaths inherit the enclosing population's checked band.
+        // Legal slices retain source order; census-only uncertain padding is
+        // explicitly excluded below before any content claim is admitted.
         let a: Vec<_> = a.iter().collect();
         let b: Vec<_> = b.iter().collect();
         let old_extent: Vec<_> = a
@@ -586,6 +650,28 @@ fn compare_population(
             .iter()
             .flat_map(|node| node.sources.iter().copied())
             .collect();
+        if let SourceCutPopulation::MatchedInterval {
+            boundary_padding: Some(padding),
+            ..
+        } = &population
+        {
+            if spend(
+                remaining,
+                old_extent
+                    .len()
+                    .saturating_mul(padding.old.len())
+                    .saturating_add(new_extent.len().saturating_mul(padding.new.len())),
+            )
+            .is_none()
+            {
+                break;
+            }
+            if old_extent.iter().any(|source| padding.old.contains(source))
+                || new_extent.iter().any(|source| padding.new.contains(source))
+            {
+                continue;
+            }
+        }
         if result
             .text_scope_reviews
             .iter()
@@ -628,7 +714,20 @@ fn compare_population(
             boundaries: Vec::new(),
             source_cuts: Some(SourceCutRange {
                 convention: "unique-native-fragment-cuts-v2".into(),
-                projection: "retained-glyph-ligatures-spacing-v1".into(),
+                projection: if !maps.old.is_empty() || !maps.new.is_empty() {
+                    "retained-glyph-whitespace-expansion-v1"
+                } else if matches!(
+                    &population,
+                    SourceCutPopulation::MatchedInterval {
+                        boundary_padding: Some(_),
+                        ..
+                    }
+                ) {
+                    "retained-glyph-boundary-padding-v1"
+                } else {
+                    "retained-glyph-ligatures-spacing-v1"
+                }
+                .into(),
                 population: population.clone(),
                 entry: entry.certificate.clone(),
                 exit: exit.certificate.clone(),
@@ -664,6 +763,7 @@ fn discover(
     new_sources: &native::Sources<'_>,
     anchors: &[Anchor],
     word_edges: bool,
+    maps: &CutMaps,
     search: &mut SourceCutSearch,
     remaining: &mut usize,
 ) -> Option<Vec<Boundary>> {
@@ -718,11 +818,11 @@ fn discover(
                 certificate: CutCorrespondence {
                     old: SourceCut {
                         node: old_node.id,
-                        token_boundary: ap,
+                        token_boundary: original_boundary(&maps.old, old_node.id, ap)?,
                     },
                     new: SourceCut {
                         node: new_node.id,
-                        token_boundary: bp,
+                        token_boundary: original_boundary(&maps.new, new_node.id, bp)?,
                     },
                     evidence: CutEvidence::AcceptedBoundary { proposal },
                 },
@@ -755,7 +855,9 @@ fn discover(
             if !old_unique || !unique(&new_tokens, &new_optional, b, remaining)? {
                 continue;
             }
-            let (af, bf) = (fragment(a), fragment(b));
+            let (Some(af), Some(bf)) = (fragment(a, &maps.old), fragment(b, &maps.new)) else {
+                continue;
+            };
             for (ap, bp, allowed) in [
                 (a.range.start, b.range.start, a.before && b.before),
                 (a.range.end, b.range.end, a.after && b.after),
@@ -763,17 +865,23 @@ fn discover(
                 if !allowed {
                     continue;
                 }
+                let (Some(old_boundary), Some(new_boundary)) = (
+                    original_boundary(&maps.old, a.node.id, ap),
+                    original_boundary(&maps.new, b.node.id, bp),
+                ) else {
+                    continue;
+                };
                 boundaries.push(Boundary {
                     old: (a.position.0, a.position.1, ap),
                     new: (b.position.0, b.position.1, bp),
                     certificate: CutCorrespondence {
                         old: SourceCut {
                             node: a.node.id,
-                            token_boundary: ap,
+                            token_boundary: old_boundary,
                         },
                         new: SourceCut {
                             node: b.node.id,
-                            token_boundary: bp,
+                            token_boundary: new_boundary,
                         },
                         evidence: CutEvidence::UniqueNativeFragment {
                             old: af.clone(),

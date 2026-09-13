@@ -17,6 +17,7 @@ use crate::document::{
     BackendKind, Channel, EvidenceBoundary, EvidenceFailure, NodeKind, ViewBasis,
 };
 
+mod census;
 mod projection;
 mod segments;
 
@@ -184,6 +185,49 @@ struct NodeGeometry {
 }
 
 impl<'a> Sources<'a> {
+    pub(super) fn census(
+        &self,
+        view: DocumentView<'_>,
+        root: NodeId,
+        path: &[&GraphNode],
+        remaining: &mut usize,
+    ) -> Option<(Closure, Vec<SourceRef>)> {
+        census::checked(self, view, root, path, remaining)
+    }
+
+    pub(super) fn project_census(
+        &self,
+        node: &GraphNode,
+        padding: &[SourceRef],
+        remaining: &mut usize,
+    ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
+        let (mut projected, boundaries) = projection::expanded(node, &self.glyphs, remaining)?;
+        if !padding.is_empty() {
+            let NodeContent::Text { view } = &mut projected.content else {
+                return None;
+            };
+            spend(
+                remaining,
+                view.tokens
+                    .len()
+                    .saturating_mul(padding.len().saturating_add(1)),
+            )?;
+            let mut optional = view.optional_tokens()?;
+            for (position, origins) in view.origins.iter().enumerate() {
+                if origins.iter().any(|source| padding.contains(source)) {
+                    optional[position] = true;
+                }
+            }
+            view.bind_optional_positions(
+                optional
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(position, optional)| optional.then_some(position))
+                    .collect(),
+            );
+        }
+        Some((projected, boundaries))
+    }
     pub(super) fn project(
         &self,
         node: &GraphNode,
@@ -354,7 +398,11 @@ impl<'a> Sources<'a> {
                 if best.is_some_and(|(_, top)| b.bounds.max.y < top) {
                     break;
                 }
-                if a.last_render >= b.first_render
+                // Independently painted blocks can occur in either stream order
+                // (for example, a footer painted before body text). Interleaved
+                // render ranges still need a stronger discovery profile. The
+                // complete spatial source/paint band must prove every candidate.
+                if (a.first_render <= b.last_render && b.first_render <= a.last_render)
                     || a.bounds.min.x >= b.bounds.max.x
                     || a.bounds.max.x <= b.bounds.min.x
                 {
@@ -441,6 +489,17 @@ impl<'a> Sources<'a> {
         path: &[&GraphNode],
         remaining: &mut usize,
     ) -> Option<Closure> {
+        self.closed_page_with_padding(view, root, path, &BTreeSet::new(), remaining)
+    }
+
+    fn closed_page_with_padding(
+        &self,
+        view: DocumentView<'_>,
+        root: NodeId,
+        path: &[&GraphNode],
+        census_padding: &BTreeSet<SourceRef>,
+        remaining: &mut usize,
+    ) -> Option<Closure> {
         let [page] = path[0].pages.as_slice() else {
             return None;
         };
@@ -476,10 +535,11 @@ impl<'a> Sources<'a> {
                 if glyph.page != *page
                     || glyph.direction != (Vec2 { x: 1.0, y: 0.0 })
                     || glyph.crop_status != GlyphCropStatus::Inside
-                    || !matches!(
+                    || !(matches!(
                         glyph.path_clip_status,
                         GlyphPathClipStatus::Unclipped | GlyphPathClipStatus::Inside
-                    )
+                    ) || (glyph.path_clip_status == GlyphPathClipStatus::PartiallyOutside
+                        && census_padding.contains(source)))
                     || !matches!(
                         glyph.render_mode,
                         TextRenderMode::Fill

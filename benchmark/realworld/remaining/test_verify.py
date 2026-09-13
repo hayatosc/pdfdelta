@@ -129,6 +129,29 @@ class EvidenceTests(unittest.TestCase):
                 with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                     verify.events(invalid)
 
+        padded = copy.deepcopy(report)
+        row = padded["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+        row["source_cuts"]["projection"] = "retained-glyph-boundary-padding-v1"
+        row["source_cuts"]["population"]["boundary_padding"] = {
+            "convention": "optional-clipped-boundary-padding-v1", "old": [],
+            "new": [{"origin": "native", "glyph": 99}],
+        }
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            self.assertEqual(verify.events(padded)[0]["category"], "B")
+            for mutation in ("body", "boundary", "missing", "profile"):
+                invalid = copy.deepcopy(padded)
+                row = invalid["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+                if mutation == "body":
+                    row["new_sources"].append({"origin": "native", "glyph": 99})
+                elif mutation == "boundary":
+                    row["source_cuts"]["entry"]["evidence"]["new"]["sources"][0]["glyph"] = 99
+                elif mutation == "missing":
+                    del row["source_cuts"]["population"]["boundary_padding"]
+                else:
+                    row["source_cuts"]["projection"] = "retained-glyph-ligatures-spacing-v1"
+                with self.subTest(padding_mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
     def test_partial_spacing_needs_a_versioned_independent_change_proof(self):
         report = self.report()
         review = report["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]

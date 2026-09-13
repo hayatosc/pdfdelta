@@ -211,6 +211,116 @@ fn an_empty_structured_group_does_not_abort_the_native_only_presence_search() {
     );
 }
 
+#[test]
+fn partially_clipped_boundary_padding_is_census_only_and_cannot_touch_the_body() {
+    let old = fixture_with_boundaries("Budget 10.", "BEGIN", "END");
+    for mutation in 0..4 {
+        let mut new = fixture_with_boundaries("Budget 20.", "BEGIN", "END ");
+        let padding = *new.1.nodes[3].sources.last().expect("boundary padding");
+        let mut glyphs = new.0.native.items().to_vec();
+        let end = glyphs.len() - 1;
+        glyphs[end].path_clip_status = GlyphPathClipStatus::PartiallyOutside;
+        match mutation {
+            1 => glyphs[end - 1].path_clip_status = GlyphPathClipStatus::PartiallyOutside,
+            2 => {
+                glyphs["BEGIN".len() + "Budget".len()].path_clip_status =
+                    GlyphPathClipStatus::PartiallyOutside
+            }
+            3 => glyphs[end].bbox.max.y = 75.0,
+            _ => {}
+        }
+        new.0.native = Document::new(glyphs);
+        let result = compare(&old, &new);
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        assert_eq!(
+            reviews.len(),
+            usize::from(mutation == 0),
+            "mutation {mutation}"
+        );
+        if let Some(review) = reviews.first() {
+            assert!(!review.new_sources.contains(&padding));
+            let cuts = review
+                .source_cuts
+                .as_ref()
+                .expect("separate census closure");
+            let pdfdelta_core::document::SourceCutPopulation::MatchedInterval {
+                boundary_padding: Some(proof),
+                ..
+            } = &cuts.population
+            else {
+                panic!("explicit uncertain padding proof")
+            };
+            assert_eq!(proof.new, [padding]);
+            assert_eq!(
+                new.0
+                    .native
+                    .items()
+                    .last()
+                    .expect("retained padding")
+                    .path_clip_status,
+                GlyphPathClipStatus::PartiallyOutside
+            );
+        }
+    }
+}
+
+fn collapse_last_two_literal_spaces(node: &mut GraphNode) {
+    let NodeContent::Text { view } = &mut node.content else {
+        unreachable!()
+    };
+    let removed = view.origins.pop().expect("last literal space");
+    view.origins
+        .last_mut()
+        .expect("previous literal space")
+        .extend(removed);
+    view.tokens.pop();
+    view.source_backed.pop();
+    view.normalization = TextNormalization::Unresolved {
+        reason: "retained whitespace contraction".into(),
+    };
+}
+
+#[test]
+fn source_cuts_expand_literal_space_multiplicity_and_keep_original_token_addresses() {
+    for body in ["Value 20.  ", "Value 10. "] {
+        let mut old = fixture_rows(&["BEGIN", "Value 10.  ", "END", "STOP"]);
+        let mut new = fixture_rows(&["BEGIN", body, "END", "STOP"]);
+        let old_extent = old.1.nodes[2].sources.clone();
+        let new_extent = new.1.nodes[2].sources.clone();
+        collapse_last_two_literal_spaces(&mut old.1.nodes[2]);
+        if body.ends_with("  ") {
+            collapse_last_two_literal_spaces(&mut new.1.nodes[2]);
+        }
+        let NodeContent::Text { view } = &new.1.nodes[2].content else {
+            unreachable!()
+        };
+        let original_end = view.tokens.len();
+        merge_following_node(&mut new, 2);
+        let result = compare(&old, &new);
+        let review = result
+            .scopes
+            .iter()
+            .flat_map(|scope| &scope.result.text_scope_reviews)
+            .find(|review| review.old_sources == old_extent && review.new_sources == new_extent)
+            .expect("raw spaces and unchanged source extents");
+        let cuts = review
+            .source_cuts
+            .as_ref()
+            .expect("source cut after expanded spaces");
+        assert_eq!(cuts.projection, "retained-glyph-whitespace-expansion-v1");
+        assert_eq!(cuts.exit.new.token_boundary, original_end);
+        let Some(pdfdelta_core::document::TypedOperation::TextChanged {
+            old: Some(old_text),
+            new: Some(new_text),
+        }) = &review.comparison.operation
+        else {
+            panic!("exact literal-space content comparison")
+        };
+        assert_eq!(old_text, "Value 10.  ");
+        assert_eq!(new_text, body);
+    }
+}
+
 fn fixture(interior: &str) -> Fixture {
     fixture_with_boundaries(interior, "First boundary.", "Last boundary.")
 }
@@ -672,6 +782,37 @@ fn source_cut_subpaths_inherit_only_a_closed_outer_paint_band() {
 }
 
 #[test]
+fn private_use_font_characters_do_not_prove_native_content_changes() {
+    let old = fixture("0 ≤ n");
+    for scalar in [
+        '\u{e000}',
+        '\u{f0a3}',
+        '\u{f8ff}',
+        '\u{f0000}',
+        '\u{ffffd}',
+        '\u{100000}',
+        '\u{10fffd}',
+    ] {
+        let new = fixture(&format!("0 {scalar} n"));
+        let raw = new.0.native.items().to_vec();
+        assert!(
+            compare(&old, &new)
+                .scopes
+                .iter()
+                .all(|scope| scope.result.text_scope_reviews.is_empty()),
+            "{scalar:?}"
+        );
+        assert_eq!(new.0.native.items(), raw);
+    }
+    assert!(
+        !compare(&old, &fixture("0 < n")).scopes[0]
+            .result
+            .text_scope_reviews
+            .is_empty()
+    );
+}
+
+#[test]
 fn unmapped_font_identity_changes_are_not_native_content_changes() {
     use pdfdelta_core::model::FontProgramHash;
     let mut old = fixture("{abc}");
@@ -1007,7 +1148,7 @@ fn large_spacing_family_retains_a_proved_change_without_a_false_exact_mask() {
 
 #[test]
 fn missing_layout_adjacency_needs_monotone_sources_and_a_closed_band() {
-    for mutation in 0..5 {
+    for mutation in 0..6 {
         let old = fixture("a");
         let mut new = fixture("aa");
         new.1
@@ -1037,13 +1178,21 @@ fn missing_layout_adjacency_needs_monotone_sources_and_a_closed_band() {
                 margin.direction = Vec2 { x: 0.0, y: 1.0 };
                 new.0.native = Document::new(glyphs);
             }
+            5 => {
+                let mut glyphs = new.0.native.items().to_vec();
+                let count = glyphs.len() as u32;
+                for glyph in &mut glyphs {
+                    glyph.render_order = count - glyph.render_order;
+                }
+                new.0.native = Document::new(glyphs);
+            }
             _ => {}
         }
         let result = compare(&old, &new);
         let reviews = &result.scopes[0].result.text_scope_reviews;
         assert_eq!(
             reviews.len(),
-            usize::from(matches!(mutation, 0 | 4)),
+            usize::from(matches!(mutation, 0 | 4 | 5)),
             "mutation {mutation}"
         );
         if let Some(review) = reviews.first() {

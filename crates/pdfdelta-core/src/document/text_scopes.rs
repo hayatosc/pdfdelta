@@ -18,8 +18,8 @@ mod native;
 pub use native::{NativeRegion, NativeRegionChain, NativeRegionChains, NativeTransition};
 
 pub use cuts::{
-    CutCorrespondence, CutEvidence, SourceCut, SourceCutPopulation, SourceCutRange,
-    SourceCutSearch, SourceFragment,
+    CutCorrespondence, CutEvidence, SourceCut, SourceCutBoundaryPadding, SourceCutPopulation,
+    SourceCutRange, SourceCutSearch, SourceFragment,
 };
 
 /// Content of corresponding intervals under the stated comparison convention.

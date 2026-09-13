@@ -141,10 +141,26 @@ def checked_source_cuts(review, result):
     cuts = review["source_cuts"]
     require(CONTRACT == "source-boundaries-v1"
             and cuts["convention"] == "unique-native-fragment-cuts-v2"
-            and cuts["projection"] == "retained-glyph-ligatures-spacing-v1"
+            and cuts["projection"] in ("retained-glyph-ligatures-spacing-v1", "retained-glyph-boundary-padding-v1",
+                                       "retained-glyph-whitespace-expansion-v1")
             and not review["boundaries"], "unsupported source-cut contract")
 
     population = cuts["population"]
+    padding = population.get("boundary_padding")
+    require(cuts["projection"] == "retained-glyph-whitespace-expansion-v1"
+            or (padding is not None) == (cuts["projection"] == "retained-glyph-boundary-padding-v1"),
+            "cut padding profile lacks its declared dependencies")
+    if padding is not None:
+        require(population["kind"] == "matched_interval"
+                and padding["convention"] == "optional-clipped-boundary-padding-v1"
+                and (padding["old"] or padding["new"]), "unsupported boundary padding census")
+        for side in ("old", "new"):
+            refs = padding[side]
+            atoms = historical.native_sources(refs, side)
+            require(len(atoms) == len(refs) and all(ref.get("origin") == "native"
+                    and type(ref.get("glyph")) is int and ref["glyph"] >= 0 for ref in refs)
+                    and not atoms & historical.native_sources(review[side + "_sources"], side),
+                    "uncertain boundary padding enters a compared source range")
     require(population["kind"] in ("complete_page", "matched_interval"), "unknown cut population")
     if population["kind"] == "matched_interval":
         require(population.get("native_regions") == review.get("native_regions"),
@@ -175,6 +191,10 @@ def checked_source_cuts(review, result):
                 require(accepted_node[side] == [cut["node"]], "cut disagrees with accepted node")
             else:
                 fragment = evidence[side]
+                if padding is not None:
+                    require(not historical.native_sources(fragment["sources"], side)
+                            & historical.native_sources(padding[side], side),
+                            "uncertain padding supplies an equal boundary fragment")
                 extent = fragment["tokens"]
                 require(fragment["node"] == cut["node"] and len(extent) == 2
                         and all(type(position) is int for position in extent)

@@ -245,6 +245,12 @@ pub(super) fn compare_native_text_range(
     compare_text_groups(old, new, limits, true)
 }
 
+/// Private-use scalars require a font-specific interpretation before they can
+/// establish text identity across revisions. Preserve their raw evidence.
+pub(super) fn private_use_scalar(scalar: char) -> bool {
+    matches!(scalar, '\u{e000}'..='\u{f8ff}' | '\u{f0000}'..='\u{ffffd}' | '\u{100000}'..='\u{10fffd}')
+}
+
 fn compare_text_groups(
     old: &[&GraphNode],
     new: &[&GraphNode],
@@ -270,9 +276,9 @@ fn compare_text_groups(
                 .zip(&view.source_backed)
                 .zip(&mut optional)
             {
-                if token.as_scalar().is_none() {
+                if token.as_scalar().is_none_or(private_use_scalar) {
                     return Err(crate::Error::Unresolved(
-                        "unmapped glyph identities do not prove a native text change".into(),
+                        "unmapped or private-use glyph identities do not prove a native text change".into(),
                     ));
                 }
                 if token
