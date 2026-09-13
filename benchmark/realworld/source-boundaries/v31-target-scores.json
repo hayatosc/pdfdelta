@@ -1,0 +1,803 @@
+{
+  "version": 1,
+  "evaluator": {
+    "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v31-evaluator/verify.py",
+    "sha256": "9599452656d2a917de91b989b9ed338427abe333775bd8bc9ebdffef8de8f9d2"
+  },
+  "adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v31-adjudications.json",
+    "sha256": "c9705bd9ec6ad87a9b636fbf0c9375b51484b7d82caf4984f51ec97062dbcd0b"
+  },
+  "target_references": {
+    "arxiv-bert-v1-to-v2": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/arxiv-bert-v1-to-v2.json",
+        "sha256": "faa8d39f3f801ed77f185bb277e7185a768d8884fa266efee3695bd9bff8ffcd"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/arxiv-bert-v1-to-v2.resolved.json",
+        "sha256": "78e2b5b47f9fe732d5a280be78a4e93d610069da24932ac348d951036e2f5242"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/arxiv-bert-v1-to-v2.expectations.json",
+        "sha256": "5f9cdbfd030afc58afb26d0cfccdb9392301aed0e2072cbe984f920e82ece9e3"
+      }
+    },
+    "edpb-controller-processor-v1-to-v2-1": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+        "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+        "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.expectations.json",
+        "sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f"
+      }
+    },
+    "edpb-design-default-v1-to-v2": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-design-default-v1-to-v2.json",
+        "sha256": "72331710f503579fc6e3de55b7ce70b53aaf782f18f6adc2c4162755083d83cc"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-design-default-v1-to-v2.resolved.json",
+        "sha256": "084705a4ca006620e48e8f5f50b0c4df2b5533a9a12c140af16d7153abf5ff53"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-design-default-v1-to-v2.expectations.json",
+        "sha256": "09ce46fc5fe0917267b6c3a70ab83da5f13c787ca1ed18363040ce8322de5d34"
+      }
+    },
+    "nist-authentication-63b-to-63b4": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-authentication-63b-to-63b4.json",
+        "sha256": "68d56ee91ae592e28d5960d77ed17b800b29cf7618fad2010fb2cf05d9075618"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/nist-authentication-63b-to-63b4.resolved.json",
+        "sha256": "fb8737cc8cb1ef99cfb3a0fbfe607fe1f0082550203d0df9cba814287a3268c6"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-authentication-63b-to-63b4.expectations.json",
+        "sha256": "4960bcda06986001baa939bb0a62085755e6e4b344056d8b494e43820e0a2af8"
+      }
+    },
+    "nist-incident-handling-r2-to-r3": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-incident-handling-r2-to-r3.json",
+        "sha256": "0558e6ea6a2bed655c7c385900189b358061b49332bd7eaf4c9f19f7aa41c4f0"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/nist-incident-handling-r2-to-r3.resolved.json",
+        "sha256": "41e97357e69fac9da0754bdc0d8a68f6343452590483a5a67cb82ce7b112a074"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-incident-handling-r2-to-r3.expectations.json",
+        "sha256": "8f4e232bd94682dacbadd24efd7519ffbba5bdea4b11addd1985ae376cb7dcdd"
+      }
+    },
+    "nist-sha-1803-to-1804": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-sha-1803-to-1804.json",
+        "sha256": "6e3bac06b49736c7acc0e47c15daa0b103d3c58bb9994c288c3a2a8cce1f31c1"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/nist-sha-1803-to-1804.resolved.json",
+        "sha256": "cfe4f8057a8fb0a0f28257b18214fd9e1c014437f3d4cdd9e25ff5654e2e7013"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-sha-1803-to-1804.expectations.json",
+        "sha256": "6b8a33d4f7ad645753d2fc226271bc2d746338aa8534d09af12b85eec6a0521b"
+      }
+    },
+    "nist-ssdf-draft-to-final": {
+      "annotation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-ssdf-draft-to-final.json",
+        "sha256": "5039c36d4e9828860efb80dbe948b719e4048aab49c0a0a9a80898c9bde26625"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/nist-ssdf-draft-to-final.resolved.json",
+        "sha256": "a4426be7b39e9c25be9005ce8f246807514cebf907e27604c975f1cb2ed33d70"
+      },
+      "expectation": {
+        "path": "benchmark/realworld/next/development/annotations/nist-ssdf-draft-to-final.expectations.json",
+        "sha256": "8224fe7a1fda7a75ea8d3d7e02add2016f337be42db95942c984e9ccb6cf32af"
+      }
+    }
+  },
+  "scores": [
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "71218e81b114d85f24a1ce5dd5e976b334ca7b641b950d180ebe6a4b3c7963a3"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "46d422074b08f7a3496d8c4e35b7d89b8e268ef8cf8a5eb63b81b6684705f767"
+      },
+      "target_atoms": 1405,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "61214cc0bcba1ae8e136f347aaedd2cfb655647f381f4ec3bacbf34afee01bed"
+      },
+      "target_atoms": 1405,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/two-final-current/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "f9e0145a76af78cd4353c90f5be3a3248421d33f7052c33265728b4fa93eef8f"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "1740023a101f1bda8835480486ab413df774cc33fcc77dc25e8a59c39718224d"
+      },
+      "target_atoms": 986,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 25,
+      "C": 0,
+      "new_AB_outputs": 25,
+      "adjudicated_AB_outputs": 25,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "107dc4dee36fc25dccb9cfeddafa15b16b544ddcfb90b7c9be4886e556c203c4"
+      },
+      "target_atoms": 986,
+      "additional_categories": [],
+      "correct": true,
+      "A": 0,
+      "B": 25,
+      "C": 0,
+      "new_AB_outputs": 25,
+      "adjudicated_AB_outputs": 25,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "6ac2804b57d4e32eaf67541753134782186510773e7b286b17758b84f093f99e"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "bb8ce50feccdfb373634ba4b0df487cf33fd02026314e9a7cc0b0ab4576b9deb"
+      },
+      "target_atoms": 847,
+      "additional_categories": [],
+      "correct": true,
+      "A": 0,
+      "B": 3,
+      "C": 0,
+      "new_AB_outputs": 3,
+      "adjudicated_AB_outputs": 3,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/edpb-design-default-v1-to-v2-1/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "b11d90714eab0e4e7fe461f9f74fe35c318426176389edc1dc6e68eae78acf04"
+      },
+      "target_atoms": 847,
+      "additional_categories": [],
+      "correct": true,
+      "A": 0,
+      "B": 3,
+      "C": 0,
+      "new_AB_outputs": 3,
+      "adjudicated_AB_outputs": 3,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "8f522b2b5d135ed77cd6796514f3f0b0e289bb9aeee21fcf71c59e501d66a879"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "4966d707077b8fecd7a42db088fcb5abe7be5443a2493b640f2bd911435b101c"
+      },
+      "target_atoms": 1388,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 3,
+      "C": 0,
+      "new_AB_outputs": 3,
+      "adjudicated_AB_outputs": 3,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-incident-handling-r2-to-r3-1/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "6a473fd018d4c0891ba8d37e093935910bf4d142d947387ba7c86e9cef551f0f"
+      },
+      "target_atoms": 1388,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 3,
+      "C": 0,
+      "new_AB_outputs": 3,
+      "adjudicated_AB_outputs": 3,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/nist-ssdf-draft-to-final-text.json",
+        "sha256": "20a1b4f67b829d5718d13da1a996ad1f98fa4e4d078eace35fcc716b6f13c8e1"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-ssdf-draft-to-final-text.json",
+        "sha256": "408210a61ed2e93bf89b0735e34e6f88d0fbfb1d9af6b8052d09695a96ed7c4d"
+      },
+      "target_atoms": 1946,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "8550d255471afa996208e0f2784303ce040730a20870ca1de10619d0c7155572"
+      },
+      "target_atoms": 1946,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/stage-supplement-current/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "2e3028c1db62651ffe0f17fb16cf27b185db71f4ce874b1da8672c04accd9ef1"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "278f523427f10ae185bb2380b922890124baa349da1ea76390bf009ca0da80d0"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 12,
+      "C": 0,
+      "new_AB_outputs": 12,
+      "adjudicated_AB_outputs": 12,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "c7b47a88cafe79548b601ee8e3c76c26a04b7041edd929ff9ccf1de12cedd3ed"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 12,
+      "C": 0,
+      "new_AB_outputs": 12,
+      "adjudicated_AB_outputs": 12,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": {
+        "path": "benchmark/realworld/cache/next-execution/two-final-current/nist-sha-1803-to-1804-text.json",
+        "sha256": "720c4ebee01e6e5456ad3b84f6c80fcdb04e9c30803c4cc68bc406795c2fa3fa"
+      },
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-sha-1803-to-1804-text.json",
+        "sha256": "bf6eef5d3f46b8bdde6638a440b5faa113bfa32c70c38a2b1e472831100629e5"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 30,
+      "C": 0,
+      "new_AB_outputs": 30,
+      "adjudicated_AB_outputs": 30,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "baseline": "599855d",
+      "baseline_repetition": 1,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "aba3ccd96e1ca29103c8d350386aedf9ae714541d25d4d34648ce7ea56c63252"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 30,
+      "C": 0,
+      "new_AB_outputs": 30,
+      "adjudicated_AB_outputs": 30,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "1740023a101f1bda8835480486ab413df774cc33fcc77dc25e8a59c39718224d"
+      },
+      "target_atoms": 986,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 25,
+      "C": 0,
+      "new_AB_outputs": 25,
+      "adjudicated_AB_outputs": 25,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-2/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "53cfb188f44a1cc5ded31163a69f1c2502f0b7ab08ce894d93dfbf368014af49"
+      },
+      "target_atoms": 986,
+      "additional_categories": [],
+      "correct": true,
+      "A": 0,
+      "B": 25,
+      "C": 0,
+      "new_AB_outputs": 25,
+      "adjudicated_AB_outputs": 25,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "4966d707077b8fecd7a42db088fcb5abe7be5443a2493b640f2bd911435b101c"
+      },
+      "target_atoms": 1388,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 3,
+      "C": 0,
+      "new_AB_outputs": 3,
+      "adjudicated_AB_outputs": 3,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-incident-handling-r2-to-r3-2/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "e14664747aaf15eb00664841c94eb21ef73bc2b7f8086dccff8548667a1e7691"
+      },
+      "target_atoms": 1388,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 3,
+      "C": 0,
+      "new_AB_outputs": 3,
+      "adjudicated_AB_outputs": 3,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-ssdf-draft-to-final-text.json",
+        "sha256": "408210a61ed2e93bf89b0735e34e6f88d0fbfb1d9af6b8052d09695a96ed7c4d"
+      },
+      "target_atoms": 1946,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-ssdf-draft-to-final-2/nist-ssdf-draft-to-final-text.json",
+        "sha256": "4e4d2e6ca0f63ae80fbc3683d6ff0c931fa2697d06d9dd4d2b45ec6775d982ab"
+      },
+      "target_atoms": 1946,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "46d422074b08f7a3496d8c4e35b7d89b8e268ef8cf8a5eb63b81b6684705f767"
+      },
+      "target_atoms": 1405,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-authentication-63b-to-63b4-2/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "d42c3fc8805d23b29aa0834bac22a03a7a29f23486602e2950e1cd96d4000b90"
+      },
+      "target_atoms": 1405,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 6,
+      "C": 0,
+      "new_AB_outputs": 6,
+      "adjudicated_AB_outputs": 6,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "278f523427f10ae185bb2380b922890124baa349da1ea76390bf009ca0da80d0"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 12,
+      "C": 0,
+      "new_AB_outputs": 12,
+      "adjudicated_AB_outputs": 12,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/arxiv-bert-v1-to-v2-2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "f6b36dccf329866e6bbbac6b0c3facd5484d2f4c07292c99da6041a96d05522f"
+      },
+      "target_atoms": 703,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 12,
+      "C": 0,
+      "new_AB_outputs": 12,
+      "adjudicated_AB_outputs": 12,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 2,
+      "baseline": "historical",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-sha-1803-to-1804-text.json",
+        "sha256": "bf6eef5d3f46b8bdde6638a440b5faa113bfa32c70c38a2b1e472831100629e5"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 30,
+      "C": 0,
+      "new_AB_outputs": 30,
+      "adjudicated_AB_outputs": 30,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 2,
+      "baseline": "599855d",
+      "baseline_repetition": 2,
+      "unavailable_registered_report": null,
+      "baseline_report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-panel/nist-sha-1803-to-1804-2/nist-sha-1803-to-1804-text.json",
+        "sha256": "656669bee9bd0d319d1e570544857be9f852800542f66c4d90d49730d6ca8a0b"
+      },
+      "target_atoms": 383,
+      "additional_categories": [
+        "B"
+      ],
+      "correct": true,
+      "A": 0,
+      "B": 30,
+      "C": 0,
+      "new_AB_outputs": 30,
+      "adjudicated_AB_outputs": 30,
+      "strict_control_atoms_claimed": 0,
+      "strict_event_precision": null,
+      "strict_event_recall": null,
+      "strict_source_precision": null,
+      "strict_source_recall": null
+    }
+  ],
+  "status": "Six reviewed natural pairs from three producers score B against the surviving historical baseline. EDPB is retained 599855d capability; BERT, NIST SHA, NIST incident handling, NIST SSDF and NIST authentication are additional relative to that baseline. The design-default target remains missed. The numerical six-pair threshold is met in these selected repeated reviews. Full-panel repeated development evidence, natural segmented recovery and new unseen gates remain outstanding."
+}

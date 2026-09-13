@@ -1215,6 +1215,95 @@ fn source_cuts_use_a_closed_matched_population_with_unrelated_pages() {
 }
 
 #[test]
+fn outer_boundary_roundoff_requires_a_full_paint_order_proof() {
+    for material_offset in [false, true] {
+        let mut old = fixture_rows(&["BEGIN", "Budget 10. ", "END "]);
+        let new = fixture_rows(&["BEGIN", "Budget 20.", "END"]);
+        let mut old_extent = old.1.nodes[2].sources.clone();
+        old_extent.pop();
+        let new_extent = new.1.nodes[2].sources.clone();
+        let SourceRef::Native { glyph: last } =
+            *old.1.nodes[3].sources.last().expect("boundary space")
+        else {
+            unreachable!()
+        };
+        old.0.native = old.0.native.map_items(|mut glyph| {
+            if glyph.id == last {
+                glyph.baseline.y = if material_offset {
+                    glyph.baseline.y + 0.01
+                } else {
+                    glyph.baseline.y.next_up().next_up().next_up()
+                };
+            }
+            glyph
+        });
+        for reversed in [false, true] {
+            let (a, b, old_sources, new_sources) = if reversed {
+                (&new, &old, &new_extent, &old_extent)
+            } else {
+                (&old, &new, &old_extent, &new_extent)
+            };
+            let result = compare(a, b);
+            let exact = result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| {
+                    review.source_cuts.is_some()
+                        && review.old_sources == *old_sources
+                        && review.new_sources == *new_sources
+                });
+            assert_eq!(
+                exact, !material_offset,
+                "material offset={material_offset}, reversed={reversed}"
+            );
+        }
+    }
+}
+
+#[test]
+fn interleaved_native_pages_preserve_closure_and_late_unassigned_glyphs() {
+    for omitted in [false, true] {
+        let mut old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
+        let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);
+        let old_extent = old.1.nodes[2].sources.clone();
+        let new_extent = new.1.nodes[2].sources.clone();
+        merge_following_node(&mut new, 2);
+        for fixture in [&mut old, &mut new] {
+            append_unassigned(fixture, PageId(1), 0.0);
+            let mut glyphs = fixture.0.native.items().to_vec();
+            let mut other_page = glyphs.pop().expect("other page glyph");
+            other_page.id = GlyphId(900);
+            fixture
+                .0
+                .inventories
+                .last_mut()
+                .expect("page inventory")
+                .sources = vec![SourceRef::Native {
+                glyph: other_page.id,
+            }];
+            glyphs.insert(3, other_page);
+            fixture.0.native = Document::new(glyphs);
+        }
+        if omitted {
+            append_unassigned(&mut new, PageId(0), 55.0);
+        }
+        let result = compare(&old, &new);
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        if omitted {
+            assert!(
+                reviews.is_empty(),
+                "a later page span contains an in-band omission"
+            );
+        } else {
+            assert!(reviews.iter().any(|review| {
+                review.old_sources == old_extent && review.new_sources == new_extent
+            }));
+        }
+    }
+}
+
+#[test]
 fn source_cut_subpaths_inherit_only_a_closed_outer_paint_band() {
     for mutation in 0..4 {
         let old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);

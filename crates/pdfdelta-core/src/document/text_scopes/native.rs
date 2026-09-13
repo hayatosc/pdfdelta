@@ -207,7 +207,7 @@ pub(super) fn runs<'a>(
 
 pub(super) struct Sources<'a> {
     glyphs: BTreeMap<GlyphId, &'a Glyph>,
-    pages: BTreeMap<PageId, Vec<&'a Glyph>>,
+    pages: BTreeMap<PageId, Vec<&'a [Glyph]>>,
 }
 
 struct NodeGeometry {
@@ -493,18 +493,36 @@ impl<'a> Sources<'a> {
     }
 
     pub(super) fn new(view: DocumentView<'a>, remaining: &mut usize) -> Option<Self> {
-        spend(
-            remaining,
-            view.evidence.native.items().len().saturating_mul(2),
-        )?;
+        let glyphs = view.evidence.native.items();
+        spend(remaining, glyphs.len())?;
         let mut index = Self {
             glyphs: BTreeMap::new(),
             pages: BTreeMap::new(),
         };
-        for glyph in view.evidence.native.items() {
+        let mut start = 0;
+        for (position, glyph) in glyphs.iter().enumerate() {
             index.glyphs.insert(glyph.id, glyph);
-            index.pages.entry(glyph.page).or_default().push(glyph);
+            if glyph.page != glyphs[start].page {
+                spend(remaining, 1)?;
+                index
+                    .pages
+                    .entry(glyphs[start].page)
+                    .or_default()
+                    .push(&glyphs[start..position]);
+                start = position;
+            }
         }
+        if start < glyphs.len() {
+            spend(remaining, 1)?;
+            index
+                .pages
+                .entry(glyphs[start].page)
+                .or_default()
+                .push(&glyphs[start..]);
+        }
+        // Each raw glyph is indexed once; each contiguous page span stores one
+        // borrowed slice. Noncontiguous spans preserve arbitrary input order,
+        // including unassigned glyphs after a different page's evidence.
         Some(index)
     }
 
@@ -690,7 +708,13 @@ impl<'a> Sources<'a> {
             (entry_left, entry_right) = first_row_bounds;
             (exit_left, exit_right) = last_row_bounds;
         }
-        for glyph in self.pages.get(page).into_iter().flatten() {
+        for glyph in self
+            .pages
+            .get(page)
+            .into_iter()
+            .flatten()
+            .flat_map(|run| *run)
+        {
             spend(remaining, 1)?;
             let outside_row = if paint_order {
                 let before = paint_rows::same_baseline(glyph.baseline.y, max_y)
@@ -808,9 +832,10 @@ impl<'a> Sources<'a> {
             return None;
         }
         let glyphs = self.pages.get(&page)?;
-        spend(remaining, glyphs.len())?;
+        spend(remaining, glyphs.iter().map(|run| run.len()).sum())?;
         let expected: BTreeSet<_> = glyphs
             .iter()
+            .flat_map(|run| *run)
             .map(|glyph| SourceRef::Native { glyph: glyph.id })
             .collect();
         let mut found = false;

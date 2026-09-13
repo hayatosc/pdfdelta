@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "pair": "nist-authentication-63b-to-63b4",
+  "source_export": {
+    "path": "benchmark/realworld/cache/source-boundaries-auth-v29-review/sources.json",
+    "sha256": "819ff01aadb0db4f2af7e00425875d26506146e8a75533d8751d4ebf49c7fca8"
+  },
+  "index_counts": {
+    "old": {
+      "raw_glyphs": 198793,
+      "contiguous_page_spans": 80,
+      "prior_index_entries": 397586,
+      "borrowed_span_index_entries": 198873
+    },
+    "new": {
+      "raw_glyphs": 280783,
+      "contiguous_page_spans": 129,
+      "prior_index_entries": 561566,
+      "borrowed_span_index_entries": 280912
+    }
+  },
+  "observations": {
+    "29": {
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v29-panel/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "a585db9b9c09d4a20e7125c11ecfbaca5be02d10fccdca0e80347e165d198fe1"
+      },
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 1789
+      },
+      "review_source_lengths": []
+    },
+    "30": {
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v30-panel/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "f03b06f09cfc85ffd7af7a2b09a592de7bd738c3f1dab687527d24e557eab836"
+      },
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 16,
+        "paired_boundaries": 13,
+        "work": 260812,
+        "budget_at_entry": 317023
+      },
+      "review_source_lengths": [
+        [
+          765,
+          641
+        ],
+        [
+          80,
+          78
+        ],
+        [
+          80,
+          78
+        ],
+        [
+          79,
+          77
+        ]
+      ]
+    }
+  },
+  "diagnosis": "Both fixed target-bearing native nodes and accepted Abstract/Keywords boundaries exist. Indexing every native glyph both by ID and as a page-vector reference consumes 959152 work units before graph preparation. Borrowing contiguous page spans retains every glyph and arbitrary page interleaving while reducing page-index entries. V30 reaches the whole abstract but retains one old outer literal space, so no fixed-target recovery is claimed.",
+  "boundary_projection": {
+    "old_node": 209,
+    "glyphs": [
+      7873,
+      7874
+    ],
+    "baselines": [
+      384.71999999999986,
+      384.72
+    ],
+    "premise": "The Keywords trailing literal space rises by rounding-scale native coordinate arithmetic. The legacy source band closes, but exact-baseline raw projection rejects that endpoint. A full existing paint-order closure, not dropping or rounding the space, is the candidate proof route."
+  },
+  "scope": "Development diagnosis. No target extent, source evidence, parser/worker limits or document completion contract changed.",
+  "v31_adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v31-adjudications.json",
+    "sha256": "c9705bd9ec6ad87a9b636fbf0c9375b51484b7d82caf4984f51ec97062dbcd0b"
+  },
+  "v31_scores": {
+    "path": "benchmark/realworld/source-boundaries/v31-target-scores.json",
+    "sha256": "1ac2dd766b4ac66b44d7213d7cc304161656767a773a237c10ac7f5fa589104a"
+  },
+  "v31_resolution": "The closed legacy band now requests the existing full paint-order profile when an outer monoline node has an ascending roundoff step. Existing whole-node reviews retain raw source-cut parents and finer views under that proof. Two independent captures recover exactly 764 old plus 641 new abstract glyphs; all 85 selected output identities are source-reviewed. The numerical historical threshold is six pairs from three producers, while formal full-panel development evidence, natural segmented recovery and unseen evaluation remain outstanding."
+}

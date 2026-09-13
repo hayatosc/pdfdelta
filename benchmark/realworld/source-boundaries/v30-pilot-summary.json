@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "scope": "Seven selected development pairs. Identity preservation is not new source adjudication; additional outputs, if any, remain unreviewed. Candidate hits are not a recovery gate.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v30-pilot-observations.json",
+    "sha256": "fb79a1073e08ded429e0eb20ba3d32cc9993604e7d3468f9029bec3905c4b902"
+  },
+  "baseline": {
+    "path": "benchmark/realworld/source-boundaries/v29-pilot-observations.json",
+    "sha256": "82e0e7fdad53e2229d5dd9f9e7f3d0302f445912249262020a623a89b0be6412"
+  },
+  "categories": {
+    "B": 84
+  },
+  "complete_pairs": 0,
+  "pairs": [
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "categories": {
+        "B": 4
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [
+        "301c2e5aeb62c8ad81de52608ceded16461335cef9a6c901b91fc0159422011b",
+        "4fce6dbebbdd38cd73abf902f92941d59c02944e1e6f5839ab48f9e03126e3ce",
+        "7958a7714d7d18e558bdd7a35b6d9a2e14f39d236297872772b24452388efa85",
+        "e7f9153249c3137f98e89208241fdb7ab79f83763a466b3c5086a0417121c6c3"
+      ],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 9.35,
+      "peak_rss_kib": 632080,
+      "report_bytes": 4949268
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "categories": {
+        "B": 25
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 2,
+      "added_event_digests": [
+        "0075a5267ed0d5120582e61701c6bc34fcfa13979e40dfb2e57d6e61de4bef41",
+        "2a8f0e67c7c0b8b130accd17ff3f97e194f76d0c9a94744ab41e86d16b2b9f39",
+        "3436ea731c4b3f387abcad216ef3e7411232ab1fd0d7c77c504227cca05a44ac",
+        "47977b084c3f6d24bb7dabc06b0a3839e9bd91dd70dc7ea10ef93f82411a2f04",
+        "483b504f72358bdb0e318a5a07fc5d56ad77cb180c91103e080f49798449c4c5",
+        "5999226839a54d59380fd7f6b8192ced1b038053e502cb30ec07545e65eb5535",
+        "98a4b26259d532f09f81c01b83e8b52c1275d1983b0379110881e64557e20d2f",
+        "a80a53386a1bb0300e34c4a0ea04e98edbb085a8c5babca7d4532b451ac16098",
+        "ab8fa1e27163cca80f5ffd86ca9ddeed9631c1d028a7802b60fe1929601af971",
+        "d46cf4480cb1b052b877e4e472688bf7ef8d37c59c0bc70fb2991ba636f2f45b",
+        "d635066eb5ad3d521d60a55960b2bfb99eb924ccc53a0c384d331fc9ecf07e3b",
+        "dd0a02b9ac759d737b9c712d06066017272e43e7122510d7329511f328185349",
+        "e54de415f0039c403bf3221979005116d7279e2aed5fb0f7038453dc8fc308f9",
+        "ecef58c1e3524acfa48f6a2a78fd08d7ab4200f79094f55a6319ea627d91eaec",
+        "f618c8c0a9a6edfa8b73e731e629183f73a470042300e26daf9efbcb62207e8e"
+      ],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 6.95,
+      "peak_rss_kib": 349704,
+      "report_bytes": 5205811
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "categories": {
+        "B": 3
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 8.79,
+      "peak_rss_kib": 220924,
+      "report_bytes": 415762
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "categories": {
+        "B": 3
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 7.35,
+      "peak_rss_kib": 447448,
+      "report_bytes": 8129693
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "categories": {
+        "B": 7
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/3"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 7,
+      "edge_refinements": 3,
+      "row_profiles": 7,
+      "added_event_digests": [
+        "2f1526e9810abebbc36a24f4421bc39deb503ed75489060a881cb1ef6f193fc1",
+        "f685066c7784bccaeec0d0713bf3dd7f03f21cea4c2bd96a90d6c3b378e3621d",
+        "fede31f3b504f527a938d6f92261d0f0137ac949d1f69cb683a725dda852c738"
+      ],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 3.73,
+      "peak_rss_kib": 299368,
+      "report_bytes": 6242124
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "categories": {
+        "B": 12
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/10"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 3,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [
+        "f5fe0b1055fbbcef4e60febbe0e98ff1b9c9983c4f005178a439f7bc74562cc2"
+      ],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 1.62,
+      "peak_rss_kib": 126720,
+      "report_bytes": 3008958
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "categories": {
+        "B": 30
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/14"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 21,
+      "edge_refinements": 7,
+      "row_profiles": 2,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 2.13,
+      "peak_rss_kib": 175004,
+      "report_bytes": 5284004
+    }
+  ]
+}

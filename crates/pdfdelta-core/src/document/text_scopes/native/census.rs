@@ -14,7 +14,22 @@ pub(super) fn checked(
     paint: bool,
 ) -> Option<(Closure, Vec<SourceRef>, Option<RowOrder>)> {
     if let Some(closure) = sources.closed(view, root, path, remaining) {
-        return Some((closure, Vec::new(), None));
+        if !paint || !sources.boundary_roundoff(path, remaining)? {
+            return Some((closure, Vec::new(), None));
+        }
+        // A legacy band can close while an outer monoline node contains an
+        // ascending roundoff step. Its raw projection needs the explicit paint
+        // convention and must discharge that convention's full closure too.
+        return sources
+            .closed_page_with_padding(
+                view,
+                root,
+                path,
+                &BTreeSet::new(),
+                Some(RowOrder::Paint),
+                remaining,
+            )
+            .map(|closure| (closure, Vec::new(), Some(RowOrder::Paint)));
     }
     if path.len() < 2 || path.iter().any(|node| node.pages != path[0].pages) {
         return None;
@@ -117,11 +132,45 @@ pub(super) fn checked(
 }
 
 impl Sources<'_> {
+    fn boundary_roundoff(&self, path: &[&GraphNode], remaining: &mut usize) -> Option<bool> {
+        let Some(first) = path.first() else {
+            return Some(false);
+        };
+        for node in [first, path.last()?] {
+            spend(remaining, node.sources.len())?;
+            let Some(geometry) = self.geometry(node) else {
+                continue;
+            };
+            if !paint_rows::same_baseline(geometry.top, geometry.bottom) {
+                continue;
+            }
+            if node.sources.windows(2).any(|pair| {
+                let [
+                    SourceRef::Native { glyph: a },
+                    SourceRef::Native { glyph: b },
+                ] = pair
+                else {
+                    return false;
+                };
+                self.glyphs
+                    .get(a)
+                    .zip(self.glyphs.get(b))
+                    .is_some_and(|(a, b)| a.baseline.y < b.baseline.y)
+            }) {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+
     pub(in super::super) fn has_ordered_row(
         &self,
         path: &[&GraphNode],
         remaining: &mut usize,
     ) -> Option<bool> {
+        if self.boundary_roundoff(path, remaining)? {
+            return Some(true);
+        }
         spend(remaining, path.len())?;
         Some(path.windows(2).any(|pair| {
             let (Some(SourceRef::Native { glyph: a }), Some(SourceRef::Native { glyph: b })) =

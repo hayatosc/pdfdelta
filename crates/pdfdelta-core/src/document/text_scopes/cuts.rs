@@ -661,8 +661,7 @@ pub(super) fn append(
             .collect();
         let left = vec![old_nodes.iter().collect()];
         let right = vec![new_nodes.iter().collect()];
-        let existing_population =
-            (pass == Pass::Standard && !paint_frame).then(|| population.clone());
+        let existing_population = (pass == Pass::Standard).then(|| population.clone());
         compare_population(
             old,
             new,
