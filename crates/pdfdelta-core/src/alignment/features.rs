@@ -12,7 +12,6 @@ pub struct ExactHash(pub u64);
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NGram(pub Vec<ComparableToken>);
 
-pub type NGramSet = HashSet<NGram>;
 pub type NGramCounts = HashMap<NGram, usize>;
 const PAGE_POSITION_SCALE: u64 = 10_000;
 
@@ -106,15 +105,6 @@ fn relative_page_position(page: Option<u32>, bounds: Option<(u32, u32)>) -> Opti
     let offset = u64::from(page.checked_sub(min)?);
     let scaled = offset.checked_mul(PAGE_POSITION_SCALE)?.checked_div(span)?;
     u16::try_from(scaled).ok()
-}
-
-#[must_use]
-pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
-    if left.is_empty() && right.is_empty() {
-        return 1.0;
-    }
-    let shared = left.intersection(right).count();
-    2.0 * shared as f64 / (left.len() + right.len()) as f64
 }
 
 #[must_use]
