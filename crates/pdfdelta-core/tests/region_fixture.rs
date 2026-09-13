@@ -385,6 +385,73 @@ fn columns_with_small_vertical_overlap_do_not_emit_aligned_relation() -> Result<
 }
 
 #[test]
+fn isolated_narrow_terminal_line_does_not_obstruct_columns() -> Result<()> {
+    for scale in [0.5, 1.0, 3.0] {
+        for (width, gap, separated) in [(5.0, 19.2, true), (100.0, 19.2, false), (5.0, 5.0, false)]
+        {
+            let mut margin = make_line(74, 18.0, 232.0, 36.0, 584.0);
+            margin.direction = Vec2 { x: 0.0, y: 1.0 };
+            let bottom = 560.0 - 34.0 * 14.2;
+            let mut lines = vec![
+                make_line(0, 255.0, 672.0, 340.0, 685.0),
+                make_line(1, 140.0, 635.0, 452.0, 645.0),
+                make_line(2, 223.0, 612.0, 370.0, 622.0),
+                margin,
+                make_line(73, 295.0, bottom - gap - 9.0, 295.0 + width, bottom - gap),
+            ];
+            for (first, min_x, max_x) in [(3, 50.0, 286.0), (38, 309.0, 545.0)] {
+                for index in 0..35 {
+                    let y = 560.0 - index as f64 * 14.2;
+                    lines.push(make_line(first + index, min_x, y, max_x, y + 9.0));
+                }
+            }
+            for line in &mut lines {
+                line.bbox.min.x *= scale;
+                line.bbox.min.y *= scale;
+                line.bbox.max.x *= scale;
+                line.bbox.max.y *= scale;
+                line.baseline.x *= scale;
+                line.baseline.y *= scale;
+            }
+            let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+            let left = graph
+                .regions
+                .iter()
+                .find(|region| region.line_ids.contains(&LineId(3)))
+                .expect("left column");
+            let right = graph
+                .regions
+                .iter()
+                .find(|region| region.line_ids.contains(&LineId(38)))
+                .expect("right column");
+            assert_eq!(
+                left.id != right.id,
+                separated,
+                "scale={scale}, width={width}, gap={gap}"
+            );
+            assert_eq!(
+                graph
+                    .regions
+                    .iter()
+                    .map(|region| region.line_ids.len())
+                    .sum::<usize>(),
+                lines.len()
+            );
+            assert_eq!(graph.reading_order, ReadingOrder::Unknown);
+            if separated {
+                assert!(
+                    graph
+                        .regions
+                        .iter()
+                        .any(|region| region.line_ids == [LineId(73)])
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn mixed_header_and_two_column_bands_partition_hierarchically() -> Result<()> {
     // Header line spanning full width (y=750..765, x=50..550)
     let h1 = make_line(100, 50.0, 750.0, 550.0, 765.0);

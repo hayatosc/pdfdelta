@@ -72,7 +72,8 @@ pub struct RegionOptions {
     pub min_vertical_gap_ratio: f64,
     /// Minimum vertical gap between bands as a fraction of total bounding height.
     pub min_horizontal_gap_ratio: f64,
-    /// Minimum number of lines required to partition a sub-region.
+    /// Minimum line count per side of ordinary whitespace cuts. A narrow,
+    /// isolated terminal line may form its own region.
     pub min_partition_lines: usize,
     /// Maximum recursive call depth, counting the page root as depth 1.
     pub max_recursion_depth: usize,
@@ -1278,8 +1279,17 @@ fn xy_cut_recursive(
         return Ok(());
     }
 
-    // Try horizontal split first (Above / Below bands).
-    if let Some((top_indices, bottom_indices)) = try_horizontal_cut(lines, indices, options) {
+    let mut horizontal = try_horizontal_cut(lines, indices, options, HorizontalCut::Ordinary);
+    let vertical = horizontal
+        .is_none()
+        .then(|| try_vertical_cut(lines, indices, options))
+        .flatten();
+    if horizontal.is_none() && vertical.is_none() {
+        horizontal = try_horizontal_cut(lines, indices, options, HorizontalCut::ColumnHeader)
+            .or_else(|| try_isolated_terminal_cut(lines, indices, options));
+    }
+    // Ordinary horizontal bands retain priority over column and terminal cuts.
+    if let Some((top_indices, bottom_indices)) = horizontal {
         let next_depth = next_recursion_depth(depth, options.max_recursion_depth)?;
         let top_region_start = build.regions.len();
         xy_cut_recursive(page, lines, &top_indices, options, next_depth, build)?;
@@ -1315,7 +1325,7 @@ fn xy_cut_recursive(
     }
 
     // Try vertical split (LeftOf / RightOf columns).
-    if let Some((left_indices, right_indices)) = try_vertical_cut(lines, indices, options) {
+    if let Some((left_indices, right_indices)) = vertical {
         let next_depth = next_recursion_depth(depth, options.max_recursion_depth)?;
         let left_region_start = build.regions.len();
         xy_cut_recursive(page, lines, &left_indices, options, next_depth, build)?;
@@ -1400,6 +1410,49 @@ fn next_recursion_depth(depth: usize, limit: usize) -> Result<usize> {
         })
 }
 
+fn try_isolated_terminal_cut(
+    lines: &[&Line],
+    indices: &[usize],
+    options: RegionOptions,
+) -> Option<(Vec<usize>, Vec<usize>)> {
+    if indices.len() <= options.min_partition_lines {
+        return None;
+    }
+    let terminal = indices
+        .iter()
+        .copied()
+        .min_by(|&a, &b| lines[a].bbox.max.y.total_cmp(&lines[b].bbox.max.y))?;
+    let line = lines[terminal];
+    let separation = compute_median_height(lines, indices)? * 2.0;
+    let width = line.bbox.max.x - line.bbox.min.x;
+    if !line_is_supported(line)
+        || !separation.is_finite()
+        || !width.is_finite()
+        || width <= 0.0
+        || width > separation
+        || !indices
+            .iter()
+            .copied()
+            .filter(|index| *index != terminal)
+            .all(|index| {
+                let gap = lines[index].bbox.min.y - line.bbox.max.y;
+                gap.is_finite() && gap >= separation
+            })
+    {
+        return None;
+    }
+    // This is only a reversible spatial partition. It neither classifies a
+    // page number nor changes the terminal line's content or source identity.
+    Some((
+        indices
+            .iter()
+            .copied()
+            .filter(|index| *index != terminal)
+            .collect(),
+        vec![terminal],
+    ))
+}
+
 fn try_vertical_cut(
     lines: &[&Line],
     indices: &[usize],
@@ -1460,10 +1513,17 @@ fn try_vertical_cut(
     None
 }
 
+#[derive(Clone, Copy)]
+enum HorizontalCut {
+    Ordinary,
+    ColumnHeader,
+}
+
 fn try_horizontal_cut(
     lines: &[&Line],
     indices: &[usize],
     options: RegionOptions,
+    kind: HorizontalCut,
 ) -> Option<(Vec<usize>, Vec<usize>)> {
     if indices.len() < options.min_partition_lines * 2 {
         return None;
@@ -1487,19 +1547,30 @@ fn try_horizontal_cut(
     let mut best_split_y = 0.0;
 
     let mut current_min_y = intervals[0].0;
-    for window in intervals.windows(2) {
+    for (index, window) in intervals.windows(2).enumerate() {
         current_min_y = current_min_y.min(window[0].0);
         let next_max_y = window[1].1;
         let gap = current_min_y - next_max_y;
-        if gap > max_gap {
+        let admissible = match kind {
+            HorizontalCut::Ordinary => true,
+            HorizontalCut::ColumnHeader => {
+                index + 1 >= options.min_partition_lines
+                    && intervals.len() - index > options.min_partition_lines
+            }
+        };
+        if gap > max_gap && admissible {
             max_gap = gap;
             best_split_y = current_min_y - gap / 2.0;
         }
     }
 
     // A structural horizontal cut must exceed normal line leading (at least 2.5x median line height).
-    let min_gap_required =
-        (total_height * options.min_horizontal_gap_ratio).max(median_height * 2.5);
+    let min_gap_required = match kind {
+        HorizontalCut::Ordinary => {
+            (total_height * options.min_horizontal_gap_ratio).max(median_height * 2.5)
+        }
+        HorizontalCut::ColumnHeader => median_height * 2.5,
+    };
     if max_gap >= min_gap_required && best_split_y > bbox.min.y && best_split_y < bbox.max.y {
         let mut top = Vec::new();
         let mut bottom = Vec::new();
@@ -1512,6 +1583,13 @@ fn try_horizontal_cut(
             }
         }
         if top.len() >= options.min_partition_lines && bottom.len() >= options.min_partition_lines {
+            // A smaller header gap is useful only when removing the header
+            // exposes an ordinary, uninterrupted column gutter below it.
+            if matches!(kind, HorizontalCut::ColumnHeader)
+                && try_vertical_cut(lines, &bottom, options).is_none()
+            {
+                return None;
+            }
             return Some((top, bottom));
         }
     }
