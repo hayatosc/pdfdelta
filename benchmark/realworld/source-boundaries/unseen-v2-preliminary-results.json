@@ -1,0 +1,1050 @@
+{
+  "version": 2,
+  "formal_adjudication_complete": false,
+  "targets": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2/targets.json",
+    "sha256": "9df014bc04c18a7eba75bddfe0e9e0c90a46cf2700998609dd1647800d6a22ce"
+  },
+  "rows": [
+    {
+      "implementation": "current",
+      "pair": "nist-161-original-to-r1",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/nist-161-original-to-r1-text.json",
+        "sha256": "13bf61def80b82a5846a7fece007f2c3769386142cb17fda17ea29db62e27f83"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 21.65,
+        "peak_rss_kib": 549936,
+        "report_bytes": 356488,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-46-r1-to-r2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/nist-46-r1-to-r2-text.json",
+        "sha256": "61c9859bb3d3a65a6171f1b0c771d3c29f3f6bf2d7d82a14f8943ca464bad69c"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 6.21,
+        "peak_rss_kib": 368244,
+        "report_bytes": 3624086,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 2
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-50-original-to-r1",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/nist-50-original-to-r1-text.json",
+        "sha256": "7ebb0c58343a83f9c494ac5dc6516d9d5d58cba6d1dc997612fed7ed5ea6c5b2"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 9.06,
+        "peak_rss_kib": 493008,
+        "report_bytes": 1118153,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-territorial-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/edpb-territorial-v1-to-v2-text.json",
+        "sha256": "c1562e22e854a9d2ec2b5cc5cd6d595cc2b3cfb1542895b71e6dbddf29fc9766"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.45,
+        "peak_rss_kib": 209968,
+        "report_bytes": 134673,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-voice-assistants-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/edpb-voice-assistants-v1-to-v2-text.json",
+        "sha256": "04afe72a59579eb725cf55a06c1f3615b20d22794cf0ea798aeef0fb0d5f92d0"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 13.37,
+        "peak_rss_kib": 268188,
+        "report_bytes": 1742806,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 4
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-deberta-v1-to-v6",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/arxiv-deberta-v1-to-v6-text.json",
+        "sha256": "e92a6c22d7abcf9fb93f7eab954b6113d6878ead557c72d13c0c41ce18d6fb76"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.92,
+        "peak_rss_kib": 138628,
+        "report_bytes": 1360587,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-dpr-v1-to-v3",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/arxiv-dpr-v1-to-v3-text.json",
+        "sha256": "84092ff81d8316b58dd299f02d46d810cdd81893a34da7b1da10ff28e5de4a42"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.43,
+        "peak_rss_kib": 104464,
+        "report_bytes": 2194010,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 11
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-roformer-v1-to-v5",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/arxiv-roformer-v1-to-v5-text.json",
+        "sha256": "baa7d30501e403e3aad76eac61c1a36b97c28400e72d211aa9be6fdd9a967690"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.36,
+        "peak_rss_kib": 97244,
+        "report_bytes": 818020,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "faa-efb-76c-to-76d",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/faa-efb-76c-to-76d-text.json",
+        "sha256": "41c0638a2790c28f1db45d8f5a44f853bd82853db891a16c07599207cee19e03"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.27,
+        "peak_rss_kib": 261332,
+        "report_bytes": 505314,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "mhlw-telework-2018-to-2021",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/mhlw-telework-2018-to-2021-text.json",
+        "sha256": "d0087f9903a89ddd92d7d90e934303ec96e380f007946b093ca3046768c31059"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.34,
+        "peak_rss_kib": 89452,
+        "report_bytes": 2688474,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-edns-2671-to-6891",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/ietf-edns-2671-to-6891-text.json",
+        "sha256": "55c9f3ba609a9e71c8c213619d692e3eac40400fea089f51c41160936d33eca8"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 0.88,
+        "peak_rss_kib": 75592,
+        "report_bytes": 582319,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 3
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-dkim-4871-to-6376",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition1/ietf-dkim-4871-to-6376-text.json",
+        "sha256": "5c32477b72e2cb1fc1227136a8b0c47bf51a0ff3b026f0e9bbcaa589fab2fe89"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 5.85,
+        "peak_rss_kib": 453468,
+        "report_bytes": 2966862,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 3
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-161-original-to-r1",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/nist-161-original-to-r1-text.json",
+        "sha256": "67c33b1e9dfee596ad1e032e5a3a226dc2b7c89be71b63e651dc78b5a75279c0"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 20.85,
+        "peak_rss_kib": 547020,
+        "report_bytes": 356488,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-46-r1-to-r2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/nist-46-r1-to-r2-text.json",
+        "sha256": "691419bc8e8f616a16da2ce03b810bec55c7a81fa3c430d68627307799f0ef90"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 5.85,
+        "peak_rss_kib": 368168,
+        "report_bytes": 3624086,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 2
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-50-original-to-r1",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/nist-50-original-to-r1-text.json",
+        "sha256": "169f758f219f99f5b27037e7ba71ff15657c8791cf9f6ffadf37517e527763d2"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 8.97,
+        "peak_rss_kib": 484052,
+        "report_bytes": 1118153,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-territorial-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/edpb-territorial-v1-to-v2-text.json",
+        "sha256": "7a785b96bc11e16442dfa17152a34e7d837bff6cefc02889c435c304bb6f331f"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.33,
+        "peak_rss_kib": 209180,
+        "report_bytes": 134673,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-voice-assistants-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/edpb-voice-assistants-v1-to-v2-text.json",
+        "sha256": "a46cc1227624a68594627046f383a7d01b3b11c834df8f008f02a63fbc72d22e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 13.31,
+        "peak_rss_kib": 268496,
+        "report_bytes": 1742806,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 4
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-deberta-v1-to-v6",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/arxiv-deberta-v1-to-v6-text.json",
+        "sha256": "1c75bc5415d242aa4dd633e221a814460b13f76d3d1a4464e262ab53fbf618db"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.01,
+        "peak_rss_kib": 137828,
+        "report_bytes": 1360587,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-dpr-v1-to-v3",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/arxiv-dpr-v1-to-v3-text.json",
+        "sha256": "0902291bfdc63f178a680f92e2d711a08b335f05c12eccd88c891a4ba8170b34"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.52,
+        "peak_rss_kib": 104816,
+        "report_bytes": 2194010,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 11
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-roformer-v1-to-v5",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/arxiv-roformer-v1-to-v5-text.json",
+        "sha256": "6182fb0518a79c8c70e4bd1ef84bb8512d98ee3a1b48c18ef52d78169504c5f1"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.3,
+        "peak_rss_kib": 96744,
+        "report_bytes": 818020,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "faa-efb-76c-to-76d",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/faa-efb-76c-to-76d-text.json",
+        "sha256": "8cb8502d9c91e94170debea5ea3c645ba86268bf6e1ea8296853518a2d88dd6a"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.38,
+        "peak_rss_kib": 260640,
+        "report_bytes": 505314,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "mhlw-telework-2018-to-2021",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/mhlw-telework-2018-to-2021-text.json",
+        "sha256": "93ac8c886ad1c643e8260bbf1c7c29b409b224e3e3e4ec533fa9398ed70c42dc"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.42,
+        "peak_rss_kib": 89036,
+        "report_bytes": 2688474,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-edns-2671-to-6891",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/ietf-edns-2671-to-6891-text.json",
+        "sha256": "dcc544273a5fe48099749b9e3aa0e89545ee4bba650d2ec9b02bf67f8a1cd9cf"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 0.9,
+        "peak_rss_kib": 75380,
+        "report_bytes": 582319,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 3
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-dkim-4871-to-6376",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/current-repetition2/ietf-dkim-4871-to-6376-text.json",
+        "sha256": "35a91f640a71fc36c0aa48f9006fec31488faebff482557a1aa3efd7bff378eb"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 5.79,
+        "peak_rss_kib": 454384,
+        "report_bytes": 2966862,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 3
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-161-original-to-r1",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/nist-161-original-to-r1-text.json",
+        "sha256": "7d406be9d827d907ee4034b8a2e47da1acc208dc9eb998e7a969fb6f27de59ae"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 21.56,
+        "peak_rss_kib": 546500,
+        "report_bytes": 356130,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-46-r1-to-r2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/nist-46-r1-to-r2-text.json",
+        "sha256": "497f5014f6be8e51fd90a31788af77af19f9fe78ea243ad786b9c444cf8ef0e6"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 6.28,
+        "peak_rss_kib": 346856,
+        "report_bytes": 2517820,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-50-original-to-r1",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/nist-50-original-to-r1-text.json",
+        "sha256": "65ad9d9fce76a92e8bc92870ddc8396358e8c2bb7813dad10105f1985646088d"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 9.28,
+        "peak_rss_kib": 495828,
+        "report_bytes": 1097141,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-territorial-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/edpb-territorial-v1-to-v2-text.json",
+        "sha256": "85c8a62e5d956e0e737ceddab5d94f02a413a2e3f29fce98642c1331978c660c"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.49,
+        "peak_rss_kib": 211448,
+        "report_bytes": 88800,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-voice-assistants-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/edpb-voice-assistants-v1-to-v2-text.json",
+        "sha256": "5ee8c229c286fc3da92d81f25ab27b41760b9069f9a4443b5d967cc197866245"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 13.51,
+        "peak_rss_kib": 255516,
+        "report_bytes": 1469686,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-deberta-v1-to-v6",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/arxiv-deberta-v1-to-v6-text.json",
+        "sha256": "5821af99277374c6ddb60d69a404b4694fd1745d955b3a1032a92eb9b0ce39f7"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.95,
+        "peak_rss_kib": 142480,
+        "report_bytes": 730249,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-dpr-v1-to-v3",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/arxiv-dpr-v1-to-v3-text.json",
+        "sha256": "3b43c9376b1347c2e1d9bf475b293b3048751e86b7cf82c529809c4ed03964e3"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.41,
+        "peak_rss_kib": 107468,
+        "report_bytes": 412720,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-roformer-v1-to-v5",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/arxiv-roformer-v1-to-v5-text.json",
+        "sha256": "62b934221e2ed906f5ebc883a6182acd74727973b427637e5aefef989e9e3669"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.34,
+        "peak_rss_kib": 97676,
+        "report_bytes": 337722,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "faa-efb-76c-to-76d",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/faa-efb-76c-to-76d-text.json",
+        "sha256": "7a91a9fa89148407962799f2ea8fe286df4352718aed63455bb973e88c7e9afa"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.34,
+        "peak_rss_kib": 261420,
+        "report_bytes": 480109,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "mhlw-telework-2018-to-2021",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/mhlw-telework-2018-to-2021-text.json",
+        "sha256": "7c2c81dc3b176ad5234392ac8f3df79cdea5e6b35c795d4542e0d3b169424819"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.35,
+        "peak_rss_kib": 89500,
+        "report_bytes": 2687094,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-edns-2671-to-6891",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/ietf-edns-2671-to-6891-text.json",
+        "sha256": "74e0e813639431264caa6638a1b56d7e766a056020ffe4cab324648febf2441e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 0.9,
+        "peak_rss_kib": 77408,
+        "report_bytes": 284453,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-dkim-4871-to-6376",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition1/ietf-dkim-4871-to-6376-text.json",
+        "sha256": "2246093cb64e41a97aa9f510f3ade957eb8d7523802bc09020e557812ce8a53e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 6.14,
+        "peak_rss_kib": 408208,
+        "report_bytes": 9450451,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 39
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-161-original-to-r1",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/nist-161-original-to-r1-text.json",
+        "sha256": "5885c2c0184a2e0d31b12ffbdd9ef6b9b884ac5dc45ff7a91ecf3862ac1ff87c"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 20.78,
+        "peak_rss_kib": 549504,
+        "report_bytes": 356130,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-46-r1-to-r2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/nist-46-r1-to-r2-text.json",
+        "sha256": "abd131e45f2cff7a22e4584e7c9610470d89bbb8abcfe0ee7bbe78a0746c858d"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 6.0,
+        "peak_rss_kib": 346392,
+        "report_bytes": 2517820,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-50-original-to-r1",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/nist-50-original-to-r1-text.json",
+        "sha256": "79b0a0b46ecf321d43a1c129973e67e1aed684cb7bb390643f36a45c3302f231"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 9.1,
+        "peak_rss_kib": 485056,
+        "report_bytes": 1097141,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-territorial-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/edpb-territorial-v1-to-v2-text.json",
+        "sha256": "929056f2557e60705e44346f357f8a3b76c73862d35af4a845314a0ecb79e196"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.38,
+        "peak_rss_kib": 211308,
+        "report_bytes": 88800,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-voice-assistants-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/edpb-voice-assistants-v1-to-v2-text.json",
+        "sha256": "df4299663378a5aba4d63df8a21a80257cc4a5305cd437dca019215ab8fcdc29"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 13.46,
+        "peak_rss_kib": 256300,
+        "report_bytes": 1469686,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-deberta-v1-to-v6",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/arxiv-deberta-v1-to-v6-text.json",
+        "sha256": "b077a37ae241d664d5bb580aa0facd9e4e911b6da3e8e76ac273ea701f7e967e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.96,
+        "peak_rss_kib": 141916,
+        "report_bytes": 730249,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-dpr-v1-to-v3",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/arxiv-dpr-v1-to-v3-text.json",
+        "sha256": "20fd110a3d37458d7874ae9a31ad2effcf967db2cb257524736934e043c824bf"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.41,
+        "peak_rss_kib": 107308,
+        "report_bytes": 412720,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-roformer-v1-to-v5",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/arxiv-roformer-v1-to-v5-text.json",
+        "sha256": "659c7d1b6c0ddc1d194d219fec3e3cf13f5a52c5ca460c0363e23b57b24e8c5e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.35,
+        "peak_rss_kib": 97664,
+        "report_bytes": 337722,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "faa-efb-76c-to-76d",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/faa-efb-76c-to-76d-text.json",
+        "sha256": "a9dab93b5b219090c8dad32205e51713bf3d3faf95072285ebe920835aacbfbf"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.39,
+        "peak_rss_kib": 260404,
+        "report_bytes": 480109,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "mhlw-telework-2018-to-2021",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/mhlw-telework-2018-to-2021-text.json",
+        "sha256": "6ffbadb8856bb2b69bc0c0c81174b7fa76df92380ca7333aa640cd81261c2101"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.41,
+        "peak_rss_kib": 90792,
+        "report_bytes": 2687094,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-edns-2671-to-6891",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/ietf-edns-2671-to-6891-text.json",
+        "sha256": "37f5e83c951697485dc986b8493eace99fdb4be57e05e2dc6fd127f3c4599d2c"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 0.91,
+        "peak_rss_kib": 76448,
+        "report_bytes": 284453,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-dkim-4871-to-6376",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/historical-repetition2/ietf-dkim-4871-to-6376-text.json",
+        "sha256": "1d6f80120184b49e79565d99fe795fd27a5fbe1839490c5fd0e67ef29489c3bd"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 6.11,
+        "peak_rss_kib": 408556,
+        "report_bytes": 9450451,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 39
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    }
+  ]
+}
