@@ -202,8 +202,7 @@ fn scenario<const N: usize>(
     }
 }
 
-/// Writes a sensitivity report as JSON while rejecting invalid empty output
-/// destinations at the caller boundary.
+/// Serializes a sensitivity report as pretty JSON followed by a newline.
 pub fn serialize_report(report: &SensitivityReport) -> Result<Vec<u8>> {
     let mut bytes = serde_json::to_vec_pretty(report).map_err(|error| {
         BenchError::Publication(format!("cannot serialize sensitivity report: {error}"))
@@ -241,6 +240,31 @@ mod tests {
             std::str::from_utf8(&bytes)
                 .expect("UTF-8 report")
                 .contains("\"schema_version\": 1")
+        );
+    }
+
+    #[test]
+    fn single_case_matrix_records_every_scenario_and_renderer() {
+        let cases = built_in_cases().expect("built-in cases");
+        let case = cases
+            .into_iter()
+            .next()
+            .expect("at least one built-in case");
+        let report =
+            run_sensitivity(std::slice::from_ref(&case)).expect("single-case sensitivity matrix");
+        assert_eq!(report.schema_version, SENSITIVITY_SCHEMA_VERSION);
+        assert_eq!(report.scenarios.len(), scenarios().len());
+        assert_eq!(
+            report.records.len(),
+            report.scenarios.len() * RendererKind::all().len()
+        );
+        assert!(
+            report
+                .records
+                .iter()
+                .all(|record| record.scenario == "baseline"
+                    || record.actual_changes.is_some()
+                    || !record.detail.is_empty())
         );
     }
 }
