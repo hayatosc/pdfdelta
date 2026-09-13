@@ -11,7 +11,7 @@ use pdfdelta_core::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::fs::read_limited_typed;
+use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
 /// key or the cached payload shape.
@@ -154,14 +154,7 @@ fn write_entry_exclusive(
 ) -> std::io::Result<bool> {
     // create_new refuses symlinked pre-created names and 0o600 keeps the
     // entry private to the user, matching the report writers in fs.rs.
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path)?;
+    let mut file = crate::fs::create_private_file(path)?;
     // serde_json emits many small writes; buffer them so the ceiling check
     // does not turn into one syscall per token.
     let mut writer = CeilingWriter {
@@ -305,12 +298,7 @@ pub fn cache_key(
     }
 
     let digest = hasher.finalize();
-    let mut key = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        use std::fmt::Write as _;
-        let _ = write!(key, "{byte:02x}");
-    }
-    key
+    lowercase_hex(&digest)
 }
 
 /// Builds a name suffix unique across processes and within a process:

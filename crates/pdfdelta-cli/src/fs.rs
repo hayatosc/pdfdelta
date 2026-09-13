@@ -289,15 +289,7 @@ pub fn create_temporary_output_for(
         let sequence = NEXT_TEMPORARY_FILE.fetch_add(1, Ordering::Relaxed);
         let temporary_name = format!(".pdfdelta-{}-{sequence}.tmp", std::process::id());
         let temporary_path = parent.join(temporary_name);
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-
-            options.mode(0o600);
-        }
-        match options.open(&temporary_path) {
+        match create_private_file(&temporary_path) {
             Ok(file) => return Ok((temporary_path, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => {
@@ -313,6 +305,32 @@ pub fn create_temporary_output_for(
         "cannot create a unique temporary {output_kind} next to {}",
         output_path.display()
     ))
+}
+
+/// Opens a new file that no other writer can have created first.
+///
+/// `create_new` refuses symlinked pre-created names and 0o600 keeps private
+/// scratch data readable only by the current user.
+pub fn create_private_file(path: &Path) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
+pub fn lowercase_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    output
 }
 
 pub fn ensure_output_does_not_alias_input(

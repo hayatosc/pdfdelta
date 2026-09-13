@@ -14,8 +14,8 @@ use pdfdelta_core::{
 
 use crate::evidence_text::escape_terminal_controls;
 use crate::fs::{
-    parse_external_font_identities, parse_lopdf, paths_refer_to_same_file, read_limited,
-    read_password_file, write_output_atomically,
+    lowercase_hex, parse_external_font_identities, parse_lopdf, paths_refer_to_same_file,
+    read_limited, read_password_file, write_output_atomically,
 };
 
 pub fn inspect_document(
@@ -369,16 +369,6 @@ pub fn path_clip_status_name(status: GlyphPathClipStatus) -> &'static str {
         GlyphPathClipStatus::PartiallyOutside => "partially-outside",
         GlyphPathClipStatus::Outside => "outside",
     }
-}
-
-pub fn lowercase_hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
-    for byte in bytes {
-        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
-        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-    }
-    output
 }
 
 pub fn render_mode_name(mode: TextRenderMode) -> &'static str {

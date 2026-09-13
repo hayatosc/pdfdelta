@@ -3,7 +3,6 @@
 
 use std::{
     collections::BTreeSet,
-    fmt::Write as _,
     io::{BufRead, Read, Write},
     path::{Path, PathBuf},
     process::Command,
@@ -25,7 +24,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     extraction_cache::{CeilingWriter, ExtractionCache, cache_key},
-    fs::{parse_external_font_identities, parse_lopdf},
+    fs::{lowercase_hex, parse_external_font_identities, parse_lopdf},
 };
 
 const MAX_HEADER: usize = 256 * 1024;
@@ -100,11 +99,7 @@ fn backend() -> BackendIdentity {
 }
 
 fn revision(bytes: &[u8]) -> String {
-    let mut hash = String::with_capacity(64);
-    for byte in Sha256::digest(bytes) {
-        write!(&mut hash, "{byte:02x}").expect("formatting a string cannot fail");
-    }
-    hash
+    lowercase_hex(&Sha256::digest(bytes))
 }
 
 fn issue(store: &mut EvidenceStore, failure: &Failure, channels: &[Channel]) {
