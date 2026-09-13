@@ -3,8 +3,9 @@ use pdfdelta_core::{
         BackendIdentity, BackendKind, Channel, ChannelInventory, CorrespondenceScope,
         DocumentComparisonLimits, DocumentGraph, DocumentView, DocumentViewComparison, EdgeKind,
         EvidenceBoundary, EvidenceFailure, EvidenceIssue, EvidenceStore, GraphEdge, GraphNode,
-        HierarchyLimits, NodeContent, NodeId, NodeKind, PageEvidence, SourceRef, TextNormalization,
-        TextView, ViewBasis, compare_document_views,
+        HierarchyLimits, NodeContent, NodeId, NodeKind, PageEvidence, SourceRef,
+        StructuredEvidence, StructuredValue, TextNormalization, TextView, ViewBasis,
+        compare_document_views,
     },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
@@ -15,6 +16,200 @@ use pdfdelta_core::{
 };
 
 type Fixture = (EvidenceStore, DocumentGraph);
+
+fn tagged_page_break(fixture: &mut Fixture) {
+    let mut glyphs = fixture.0.native.items().to_vec();
+    let start = match fixture.1.nodes[3].sources[0] {
+        SourceRef::Native { glyph } => glyph,
+        _ => unreachable!(),
+    };
+    for glyph in &mut glyphs {
+        if glyph.id >= start {
+            glyph.page = PageId(1);
+            glyph.baseline.y += 60.0;
+            glyph.bbox.min.y += 60.0;
+            glyph.bbox.max.y += 60.0;
+        }
+    }
+    for node in &mut fixture.1.nodes[3..] {
+        node.pages = vec![PageId(1)];
+    }
+    fixture
+        .1
+        .edges
+        .retain(|edge| !(edge.kind == EdgeKind::Precedes && edge.from == NodeId(2)));
+    fixture.0.structured.push(StructuredEvidence {
+        id: 0,
+        page: None,
+        bounds: None,
+        object: None,
+        backend: 0,
+        value: StructuredValue::StructureElement {
+            role: "P".into(),
+            identifier: None,
+            text: None,
+            glyphs: glyphs.iter().map(|glyph| glyph.id).collect(),
+            parent: None,
+            order: Some(0),
+        },
+    });
+    fixture.0.native = Document::new(glyphs);
+    fixture.0.pages.push(PageEvidence {
+        page: PageId(1),
+        bounds: None,
+    });
+    fixture.0.inventories[0].page = None;
+    fixture.0.inventories.push(ChannelInventory {
+        page: None,
+        channel: Channel::Relations,
+        backend: 0,
+        sources: vec![SourceRef::Structured { element: 0 }],
+        complete: true,
+    });
+}
+
+#[test]
+fn native_tag_order_closes_page_regions_without_render_order_assumptions() {
+    let old = fixture_rows(&["BEGIN", "Budget 10.", "Cost 10.", "END"]);
+    let mut new = fixture_rows(&["BEGIN", "Budget 20.", "Cost 20.", "END"]);
+    tagged_page_break(&mut new);
+    // Render-object order is not the declared tagged reading order.
+    let count = new.0.native.items().len() as u32;
+    let mut glyphs = new.0.native.items().to_vec();
+    for glyph in &mut glyphs {
+        glyph.render_order = count - glyph.render_order;
+    }
+    new.0.native = Document::new(glyphs);
+    let result = compare(&old, &new);
+    let reviews: Vec<_> = result
+        .scopes
+        .iter()
+        .flat_map(|scope| &scope.result.text_scope_reviews)
+        .collect();
+    assert!(!reviews.is_empty());
+    let proof = reviews
+        .iter()
+        .find_map(|review| review.native_regions.as_ref())
+        .expect("tag transition certificate");
+    assert!(proof.old.is_none());
+    let chain = proof.new.as_ref().expect("new page chain");
+    assert_eq!(chain.regions.len(), 2);
+    assert_eq!(chain.transitions.len(), 1);
+    let expected: Vec<_> = new.1.nodes[2..4]
+        .iter()
+        .flat_map(|node| node.sources.iter().copied())
+        .collect();
+    assert!(reviews.iter().any(|review| review.new_sources == expected));
+    assert_eq!(
+        chain.transitions[0].structure,
+        SourceRef::Structured { element: 0 }
+    );
+    let mut same = old.clone();
+    tagged_page_break(&mut same);
+    assert!(
+        compare(&old, &same)
+            .scopes
+            .iter()
+            .all(|scope| scope.result.text_scope_reviews.is_empty())
+    );
+}
+
+#[test]
+fn page_adjacency_and_incomplete_or_contrary_tags_do_not_close_transitions() {
+    let old = fixture_rows(&["BEGIN", "Budget 10.", "Cost 10.", "END"]);
+    let mut new = fixture_rows(&["BEGIN", "Budget 20.", "Cost 20.", "END"]);
+    tagged_page_break(&mut new);
+    for mutation in 0..6 {
+        let mut invalid = new.clone();
+        match mutation {
+            0 => {
+                invalid.0.structured.clear();
+                invalid
+                    .0
+                    .inventories
+                    .last_mut()
+                    .expect("relation inventory")
+                    .sources
+                    .clear();
+            }
+            1 => {
+                invalid
+                    .0
+                    .inventories
+                    .last_mut()
+                    .expect("relation inventory")
+                    .complete = false
+            }
+            2 => {
+                let StructuredValue::StructureElement { glyphs, .. } =
+                    &mut invalid.0.structured[0].value
+                else {
+                    unreachable!()
+                };
+                glyphs.swap(0, 1);
+            }
+            3 => {
+                let mut duplicate = invalid.0.structured[0].clone();
+                duplicate.id = 1;
+                invalid.0.structured.push(duplicate);
+            }
+            4 => append_unassigned(&mut invalid, PageId(1), 85.0),
+            _ => invalid.0.inventories[0].complete = false,
+        }
+        assert!(
+            compare(&old, &invalid)
+                .scopes
+                .iter()
+                .flat_map(|scope| &scope.result.text_scope_reviews)
+                .all(|review| review.native_regions.is_none()),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn source_cut_subranges_retain_their_enclosing_page_transition_certificate() {
+    let old = fixture_rows(&["BEGIN", "Budget 10.", "Cost 10.", "END", "STOP"]);
+    let mut new = fixture_rows(&["BEGIN", "Budget 20.", "Cost 20.", "END", "STOP"]);
+    tagged_page_break(&mut new);
+    let expected = new.1.nodes[3].sources.clone();
+    merge_following_node(&mut new, 3);
+    let result = compare(&old, &new);
+    assert!(
+        result
+            .scopes
+            .iter()
+            .flat_map(|scope| &scope.result.text_scope_reviews)
+            .any(|review| review.source_cuts.is_some()
+                && review.new_sources == expected
+                && review
+                    .native_regions
+                    .as_ref()
+                    .is_some_and(|chains| chains.new.is_some()))
+    );
+}
+
+#[test]
+fn an_empty_structured_group_does_not_abort_the_native_only_presence_search() {
+    let mut old = fixture_rows(&["BEGIN", "END", "STOP"]);
+    let mut new = fixture_rows(&["BEGIN", "Added.", "END", "STOP"]);
+    for fixture in [&mut old, &mut new] {
+        for node in &mut fixture.1.nodes {
+            node.basis = ViewBasis::SourceStructure;
+        }
+        for edge in &mut fixture.1.edges {
+            edge.basis = ViewBasis::SourceStructure;
+        }
+    }
+    let result = compare(&old, &new);
+    assert!(
+        result
+            .scopes
+            .iter()
+            .flat_map(|scope| &scope.result.text_scope_reviews)
+            .all(|review| review.presence.is_none())
+    );
+}
 
 fn fixture(interior: &str) -> Fixture {
     fixture_with_boundaries(interior, "First boundary.", "Last boundary.")

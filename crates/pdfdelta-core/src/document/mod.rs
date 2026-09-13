@@ -50,8 +50,9 @@ pub use scoped_keys::*;
 pub use structures::*;
 pub use text_candidates::{TextCandidateLimits, TextCandidateSearch};
 pub use text_scopes::{
-    CutCorrespondence, CutEvidence, SourceCut, SourceCutPopulation, SourceCutRange,
-    SourceCutSearch, SourceFragment, SpaceBoundary, SpaceOrigin, TextScopePresence,
-    TextScopeReview, TextScopeSpacing,
+    CutCorrespondence, CutEvidence, NativeRegion, NativeRegionChain, NativeRegionChains,
+    NativeTransition, SourceCut, SourceCutPopulation, SourceCutRange, SourceCutSearch,
+    SourceFragment, SpaceBoundary, SpaceOrigin, TextScopePresence, TextScopeReview,
+    TextScopeSpacing,
 };
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};

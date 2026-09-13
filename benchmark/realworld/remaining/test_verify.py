@@ -12,6 +12,45 @@ import verify
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_native_regions_bind_endpoints_and_transition_identity(self):
+        report = self.report()
+        result = report["comparison"]["scopes"][0]["result"]
+        review = result["text_scope_reviews"][0]
+        review["boundaries"] = [0, 1]
+        review["comparison"].update(old=[2], new=[2])
+        result.update(accepted_correspondences=[0, 1], text_boundary_correspondences=[],
+                      matching={"source_only_mandatory": [0, 1], "inferred_proposals": []},
+                      candidates={"proposals": [{"old": [1], "new": [1]}, {"old": [3], "new": [3]}]})
+        review["native_regions"] = {"old": None, "new": {
+            "convention": "native-tag-ordered-page-regions-v1",
+            "regions": [{"page": 0, "nodes": [1, 2], "bounded_paint": False},
+                        {"page": 1, "nodes": [3], "bounded_paint": False}],
+            "transitions": [{"before": {"origin": "native", "glyph": 12},
+                             "after": {"origin": "native", "glyph": 13},
+                             "structure": {"origin": "structured", "element": 7}, "position": 13}],
+        }}
+        with patch.object(verify, "CONTRACT", "historical"), self.assertRaises(ValueError):
+            verify.events(report)
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            event = verify.events(report)[0]
+            self.assertEqual(event["source_projection"]["native_regions"], review["native_regions"])
+            for mutation in ("missing", "duplicate", "order", "unaccepted", "inferred"):
+                invalid = copy.deepcopy(report)
+                scope = invalid["comparison"]["scopes"][0]["result"]
+                chain = scope["text_scope_reviews"][0]["native_regions"]["new"]
+                if mutation == "missing":
+                    chain["transitions"] = []
+                elif mutation == "duplicate":
+                    chain["regions"][1]["nodes"] = [2, 3]
+                elif mutation == "order":
+                    chain["transitions"][0]["position"] = 0
+                elif mutation == "unaccepted":
+                    scope["accepted_correspondences"] = [0]
+                else:
+                    chain["convention"] = "inferred-page-order"
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    verify.events(invalid)
+
     def test_local_presence_needs_an_empty_interval_and_scoped_gold(self):
         report = self.report()
         result = report["comparison"]["scopes"][0]["result"]

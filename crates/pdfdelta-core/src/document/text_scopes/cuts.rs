@@ -59,6 +59,8 @@ pub enum SourceCutPopulation {
         boundaries: [usize; 2],
         old: Vec<NodeId>,
         new: Vec<NodeId>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        native_regions: Option<Box<NativeRegionChains>>,
     },
 }
 
@@ -409,16 +411,19 @@ pub(super) fn append(
             }
             Some(false) => {}
         }
-        if old_sources
-            .closed(old, result.matching.scope.old, &left[0], remaining)
-            .is_none()
-            || new_sources
-                .closed(new, result.matching.scope.new, &right[0], remaining)
-                .is_none()
-        {
+        let (Some(old_closure), Some(new_closure)) = (
+            old_sources.closed(old, result.matching.scope.old, &left[0], remaining),
+            new_sources.closed(new, result.matching.scope.new, &right[0], remaining),
+        ) else {
             aggregate.exhaustive = false;
             continue;
-        }
+        };
+        let (old_chain, new_chain) = (old_closure.chain(), new_closure.chain());
+        let native_regions =
+            (old_chain.is_some() || new_chain.is_some()).then_some(Box::new(NativeRegionChains {
+                old: old_chain,
+                new: new_chain,
+            }));
         let anchors = [
             ((0, 0), (0, 0), *entry),
             ((0, left[0].len() - 1), (0, right[0].len() - 1), *exit),
@@ -427,6 +432,7 @@ pub(super) fn append(
             boundaries: [*entry, *exit],
             old: left[0].iter().map(|node| node.id).collect(),
             new: right[0].iter().map(|node| node.id).collect(),
+            native_regions,
         };
         let project =
             |nodes: &[&GraphNode], sources: &native::Sources<'_>, remaining: &mut usize| {
@@ -629,6 +635,12 @@ fn compare_population(
             }),
             old_sources: old_extent,
             presence: interval_presence(a.is_empty(), b.is_empty()),
+            native_regions: match &population {
+                SourceCutPopulation::MatchedInterval { native_regions, .. } => {
+                    native_regions.as_deref().cloned()
+                }
+                SourceCutPopulation::CompletePage => None,
+            },
             new_sources: new_extent,
             old_boundaries: [entry.old_sources.clone(), exit.old_sources.clone()],
             new_boundaries: [entry.new_sources.clone(), exit.new_sources.clone()],

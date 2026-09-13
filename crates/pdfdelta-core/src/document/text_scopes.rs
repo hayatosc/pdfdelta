@@ -15,6 +15,7 @@ use crate::Result;
 
 mod cuts;
 mod native;
+pub use native::{NativeRegion, NativeRegionChain, NativeRegionChains, NativeTransition};
 
 pub use cuts::{
     CutCorrespondence, CutEvidence, SourceCut, SourceCutPopulation, SourceCutRange,
@@ -38,6 +39,10 @@ pub struct TextScopeReview {
     /// document-wide novelty, deletion or the absence of an external copy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub presence: Option<TextScopePresence>,
+    /// Explicit tag order and individually closed page regions, when the
+    /// enclosing interval crosses pages. Sources remain non-owning references.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_regions: Option<NativeRegionChains>,
     /// Complete interior evidence, including unchanged context. These lists are
     /// range locators, never changed masks or exclusive source ownership.
     pub old_sources: Vec<SourceRef>,
@@ -328,151 +333,196 @@ pub(super) fn append(
         );
     }
     let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
-    for pair in anchors.windows(2) {
-        let [((ar0, a0), (br0, b0), first), ((ar1, a1), (br1, b1), last)] = pair else {
-            unreachable!()
-        };
-        if ar0 != ar1
-            || br0 != br1
-            || a1 <= a0
-            || b1 <= b0
-            || (a1 == &(a0 + 1) && b1 == &(b0 + 1))
-            || new_anchors
-                .range((*br0, b0 + 1)..(*br1, *b1))
-                .next()
-                .is_some()
-        {
-            continue;
+    // Preserve the existing two-sided recovery budget before attempting new
+    // empty-sided claims. All stages still share the same finite work cap.
+    for empty_sided in [false, true] {
+        if empty_sided {
+            cuts::append(
+                old,
+                new,
+                result,
+                parent,
+                limits,
+                &left,
+                &right,
+                sources.as_ref(),
+                &anchors,
+                &mut remaining,
+            )?;
         }
-        let left = &left[*ar0];
-        let right = &right[*br0];
-        let a = &left[(a0 + 1)..*a1];
-        let b = &right[(b0 + 1)..*b1];
-        if a.len() > limits.matching.max_group_nodes || b.len() > limits.matching.max_group_nodes {
-            continue;
-        }
-        // The initial contract admits only the same declared text kind. It does
-        // not silently interpret a semantic heading as a body paragraph.
-        let Some(kind) = a.first().or_else(|| b.first()).map(|node| node.kind) else {
-            continue;
-        };
-        if a.iter().chain(b).any(|node| node.kind != kind) {
-            continue;
-        }
-        let padding_boundary = [*first, *last].into_iter().any(|index| {
-            result.candidates.proposals[index].basis == ProposalBasis::LiteralContentWithPadding
-        });
-        let comparison = if native {
-            super::operations::compare_native_text_range(a, b, limits.local)
-        } else {
-            compare_text_group_views(a, b, limits.local)
-        };
-        match comparison {
-            Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
-                // A failed normalization comparison cannot produce a review.
-                // Preserve the shared closure budget for admissible claims and
-                // later source-cut candidates; every emitted claim still needs
-                // the same complete source and paint checks.
-                let mut bounded_paint = false;
-                if let Some((old_sources, new_sources)) = &sources {
-                    let Some(old_closure) =
-                        old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
-                    else {
-                        continue;
-                    };
-                    let Some(new_closure) =
-                        new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining)
-                    else {
-                        continue;
-                    };
-                    bounded_paint = old_closure == native::Closure::BoundedPaint
-                        || new_closure == native::Closure::BoundedPaint;
-                }
-                let spacing = if let Some((old_sources, new_sources)) = &sources {
-                    let (Some(old_spacing), Some(new_spacing)) = (
-                        old_sources.spacing(a, &mut remaining),
-                        new_sources.spacing(b, &mut remaining),
-                    ) else {
-                        continue;
-                    };
-                    Some(TextScopeSpacing {
-                        convention: "source-space-interpretations-v1".into(),
-                        old: old_spacing,
-                        new: new_spacing,
-                    })
-                } else {
-                    None
-                };
-                // A continuation outside this range can defeat apparent local
-                // truncation. Spacing uncertainty is handled by the source-side
-                // interpretation family, never by deleting literal spaces here.
-                if native
-                    && !a.is_empty()
-                    && !b.is_empty()
-                    && let Some(TypedOperation::TextChanged {
-                        old: Some(old_text),
-                        new: Some(new_text),
-                    }) = &comparison.operation
-                    && (native::external_continuation(new, b, new_text, old_text, &mut remaining)
-                        != Some(false)
-                        || native::external_continuation(
-                            old,
-                            a,
-                            old_text,
-                            new_text,
-                            &mut remaining,
-                        ) != Some(false))
-                {
-                    continue;
-                }
-                if parent == InterpretationStatus::Inferred {
-                    comparison.interpretation = InterpretationStatus::Inferred;
-                }
-                result.text_scope_reviews.push(TextScopeReview {
-                    convention: if padding_boundary && bounded_paint {
-                        "closed-native-paint-bounds-padding-interval-v1"
-                    } else if padding_boundary {
-                        "closed-native-padding-interval-v1"
-                    } else if bounded_paint {
-                        "closed-native-paint-bounds-interval-v1"
-                    } else if native {
-                        "closed-native-baseline-interval-v1"
-                    } else {
-                        "closed-retained-order-interval-v1"
-                    }
-                    .into(),
-                    boundaries: vec![*first, *last],
-                    source_cuts: None,
-                    presence: interval_presence(a.is_empty(), b.is_empty()),
-                    old_sources: a
-                        .iter()
-                        .flat_map(|node| node.sources.iter().copied())
-                        .collect(),
-                    new_sources: b
-                        .iter()
-                        .flat_map(|node| node.sources.iter().copied())
-                        .collect(),
-                    old_boundaries: [left[*a0].sources.clone(), left[*a1].sources.clone()],
-                    new_boundaries: [right[*b0].sources.clone(), right[*b1].sources.clone()],
-                    candidate_search_exhaustive: Some(result.candidates.exhaustive),
-                    spacing,
-                    comparison,
-                });
+        for pair in anchors.windows(2) {
+            let [((ar0, a0), (br0, b0), first), ((ar1, a1), (br1, b1), last)] = pair else {
+                unreachable!()
+            };
+            if ar0 != ar1
+                || br0 != br1
+                || a1 <= a0
+                || b1 <= b0
+                || (a1 == &(a0 + 1) && b1 == &(b0 + 1))
+                || new_anchors
+                    .range((*br0, b0 + 1)..(*br1, *b1))
+                    .next()
+                    .is_some()
+            {
+                continue;
             }
-            Ok(_) | Err(crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)) => {}
-            Err(error) => return Err(error),
+            let left = &left[*ar0];
+            let right = &right[*br0];
+            let a = &left[(a0 + 1)..*a1];
+            let b = &right[(b0 + 1)..*b1];
+            if (a.is_empty() || b.is_empty()) != empty_sided {
+                continue;
+            }
+            // Empty intervals currently use the native source/paint closure profile.
+            // The strict structured-group API requires two nonempty groups.
+            if !native && (a.is_empty() || b.is_empty()) {
+                continue;
+            }
+            if a.len() > limits.matching.max_group_nodes
+                || b.len() > limits.matching.max_group_nodes
+            {
+                continue;
+            }
+            // The initial contract admits only the same declared text kind. It does
+            // not silently interpret a semantic heading as a body paragraph.
+            let Some(kind) = a.first().or_else(|| b.first()).map(|node| node.kind) else {
+                continue;
+            };
+            if a.iter().chain(b).any(|node| node.kind != kind) {
+                continue;
+            }
+            let padding_boundary = [*first, *last].into_iter().any(|index| {
+                result.candidates.proposals[index].basis == ProposalBasis::LiteralContentWithPadding
+            });
+            let comparison = if native {
+                super::operations::compare_native_text_range(a, b, limits.local)
+            } else {
+                compare_text_group_views(a, b, limits.local)
+            };
+            match comparison {
+                Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
+                    // A failed normalization comparison cannot produce a review.
+                    // Preserve the shared closure budget for admissible claims and
+                    // later source-cut candidates; every emitted claim still needs
+                    // the same complete source and paint checks.
+                    let mut bounded_paint = false;
+                    let mut native_regions = None;
+                    if let Some((old_sources, new_sources)) = &sources {
+                        let Some(old_closure) =
+                            old_sources.closed(old, scope.old, &left[*a0..=*a1], &mut remaining)
+                        else {
+                            continue;
+                        };
+                        let Some(new_closure) =
+                            new_sources.closed(new, scope.new, &right[*b0..=*b1], &mut remaining)
+                        else {
+                            continue;
+                        };
+                        bounded_paint = old_closure.bounded_paint() || new_closure.bounded_paint();
+                        let (old, new) = (old_closure.chain(), new_closure.chain());
+                        if old.is_some() || new.is_some() {
+                            native_regions = Some(NativeRegionChains { old, new });
+                        }
+                    }
+                    let spacing = if let Some((old_sources, new_sources)) = &sources {
+                        let (Some(old_spacing), Some(new_spacing)) = (
+                            old_sources.spacing(a, &mut remaining),
+                            new_sources.spacing(b, &mut remaining),
+                        ) else {
+                            continue;
+                        };
+                        Some(TextScopeSpacing {
+                            convention: "source-space-interpretations-v1".into(),
+                            old: old_spacing,
+                            new: new_spacing,
+                        })
+                    } else {
+                        None
+                    };
+                    // A continuation outside this range can defeat apparent local
+                    // truncation. Spacing uncertainty is handled by the source-side
+                    // interpretation family, never by deleting literal spaces here.
+                    if native
+                        && !a.is_empty()
+                        && !b.is_empty()
+                        && let Some(TypedOperation::TextChanged {
+                            old: Some(old_text),
+                            new: Some(new_text),
+                        }) = &comparison.operation
+                        && (native::external_continuation(
+                            new,
+                            b,
+                            new_text,
+                            old_text,
+                            &mut remaining,
+                        ) != Some(false)
+                            || native::external_continuation(
+                                old,
+                                a,
+                                old_text,
+                                new_text,
+                                &mut remaining,
+                            ) != Some(false))
+                    {
+                        continue;
+                    }
+                    if parent == InterpretationStatus::Inferred {
+                        comparison.interpretation = InterpretationStatus::Inferred;
+                    }
+                    let review = TextScopeReview {
+                        convention: if padding_boundary && bounded_paint {
+                            "closed-native-paint-bounds-padding-interval-v1"
+                        } else if padding_boundary {
+                            "closed-native-padding-interval-v1"
+                        } else if bounded_paint {
+                            "closed-native-paint-bounds-interval-v1"
+                        } else if native {
+                            "closed-native-baseline-interval-v1"
+                        } else {
+                            "closed-retained-order-interval-v1"
+                        }
+                        .into(),
+                        boundaries: vec![*first, *last],
+                        source_cuts: None,
+                        presence: interval_presence(a.is_empty(), b.is_empty()),
+                        native_regions,
+                        old_sources: a
+                            .iter()
+                            .flat_map(|node| node.sources.iter().copied())
+                            .collect(),
+                        new_sources: b
+                            .iter()
+                            .flat_map(|node| node.sources.iter().copied())
+                            .collect(),
+                        old_boundaries: [left[*a0].sources.clone(), left[*a1].sources.clone()],
+                        new_boundaries: [right[*b0].sources.clone(), right[*b1].sources.clone()],
+                        candidate_search_exhaustive: Some(result.candidates.exhaustive),
+                        spacing,
+                        comparison,
+                    };
+                    if empty_sided {
+                        let work = result.text_scope_reviews.len().saturating_mul(
+                            review
+                                .old_sources
+                                .len()
+                                .saturating_add(review.new_sources.len())
+                                .saturating_add(1),
+                        );
+                        if spend(&mut remaining, work).is_none()
+                            || result.text_scope_reviews.iter().any(|previous| {
+                                previous.old_sources == review.old_sources
+                                    && previous.new_sources == review.new_sources
+                            })
+                        {
+                            continue;
+                        }
+                    }
+                    result.text_scope_reviews.push(review);
+                }
+                Ok(_) | Err(crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)) => {}
+                Err(error) => return Err(error),
+            }
         }
     }
-    cuts::append(
-        old,
-        new,
-        result,
-        parent,
-        limits,
-        &left,
-        &right,
-        sources.as_ref(),
-        &anchors,
-        &mut remaining,
-    )
+    Ok(())
 }

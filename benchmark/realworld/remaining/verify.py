@@ -147,6 +147,8 @@ def checked_source_cuts(review, result):
     population = cuts["population"]
     require(population["kind"] in ("complete_page", "matched_interval"), "unknown cut population")
     if population["kind"] == "matched_interval":
+        require(population.get("native_regions") == review.get("native_regions"),
+                "source cut omits or changes its enclosing region certificate")
         require(len(population["boundaries"]) == 2, "interval lacks outer boundaries")
         outer = [checked_boundary_proposal(result, index) for index in population["boundaries"]]
         for side in ("old", "new"):
@@ -179,6 +181,47 @@ def checked_source_cuts(review, result):
                         and 0 <= extent[0] < extent[1] and cut["token_boundary"] in extent
                         and historical.native_sources(fragment["sources"], side),
                         "cut lacks a finite source fragment")
+
+
+def checked_native_regions(review, result):
+    """Bind region declarations; retained source adjudication proves their premises."""
+    chains = review["native_regions"]
+    require(CONTRACT == "source-boundaries-v1" and set(chains) == {"old", "new"}
+            and any(chains.values()), "unsupported native region contract")
+    if review.get("source_cuts") is not None:
+        population = review["source_cuts"]["population"]
+        require(population["kind"] == "matched_interval"
+                and population.get("native_regions") == chains, "region population differs")
+        members = {side: population[side] for side in chains}
+    else:
+        require(len(review["boundaries"]) == 2, "region chain lacks matched endpoints")
+        outer = [checked_boundary_proposal(result, index) for index in review["boundaries"]]
+        members = {side: outer[0][side] + review["comparison"][side] + outer[1][side]
+                   for side in chains}
+    for side, chain in chains.items():
+        if chain is None:
+            continue
+        require(chain["convention"] == "native-tag-ordered-page-regions-v1",
+                "unknown native transition profile")
+        regions, transitions = chain["regions"], chain["transitions"]
+        nodes = [node for region in regions for node in region["nodes"]]
+        require(len(regions) >= 2 and len(transitions) == len(regions) - 1
+                and nodes == members[side] and len(nodes) == len(set(nodes))
+                and all(region["nodes"] and type(region["page"]) is int and region["page"] >= 0
+                        and type(region["bounded_paint"]) is bool for region in regions)
+                and all(a["page"] != b["page"] for a, b in zip(regions, regions[1:])),
+                "invalid native page-region partition")
+        last = 0
+        structure = transitions[0]["structure"]
+        require(structure.get("origin") == "structured" and type(structure.get("element")) is int
+                and structure["element"] >= 0, "transition lacks native structure reference")
+        for transition in transitions:
+            require(transition["structure"] == structure and type(transition["position"]) is int
+                    and transition["position"] > last
+                    and transition["before"] != transition["after"]
+                    and len(historical.native_sources([transition["before"], transition["after"]], side)) == 2,
+                    "invalid declared structure adjacency")
+            last = transition["position"]
 
 
 def checked_interval_presence(review, result):
@@ -300,6 +343,8 @@ def events(report):
                 checked_source_cuts(review, result)
             if review.get("presence") is not None:
                 checked_interval_presence(review, result)
+            if review.get("native_regions") is not None:
+                checked_native_regions(review, result)
             category = "B" if comparison["interpretation"] == "conditional_on_correspondence" else "C"
             if category == "B":
                 require(comparison["compared"], "B operation has no compared content")
@@ -319,6 +364,8 @@ def events(report):
                 rows[-1]["source_projection"]["source_cuts"] = review["source_cuts"]
             if review.get("presence") is not None:
                 rows[-1]["source_projection"]["presence"] = review["presence"]
+            if review.get("native_regions") is not None:
+                rows[-1]["source_projection"]["native_regions"] = review["native_regions"]
             if comparison.get("text_change_proof") is not None:
                 rows[-1]["source_projection"]["text_change_proof"] = comparison["text_change_proof"]
     counts = Counter(row["category"] for row in rows)

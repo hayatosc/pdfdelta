@@ -18,11 +18,32 @@ use crate::document::{
 };
 
 mod projection;
+mod segments;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+pub use segments::{NativeRegion, NativeRegionChain, NativeRegionChains, NativeTransition};
+
+#[derive(Clone, PartialEq, Eq)]
 pub(super) enum Closure {
     WholePage,
     BoundedPaint,
+    Segmented(NativeRegionChain),
+}
+
+impl Closure {
+    pub(super) fn bounded_paint(&self) -> bool {
+        match self {
+            Self::WholePage => false,
+            Self::BoundedPaint => true,
+            Self::Segmented(chain) => chain.regions.iter().any(|region| region.bounded_paint),
+        }
+    }
+
+    pub(super) fn chain(self) -> Option<NativeRegionChain> {
+        match self {
+            Self::Segmented(chain) => Some(chain),
+            _ => None,
+        }
+    }
 }
 
 /// An exact external continuation defeats an interval's apparent truncation.
@@ -123,6 +144,7 @@ pub(super) fn runs<'a>(
     {
         return Ok(Vec::new());
     }
+    segments::bridge(view, &nodes, &blocked, &mut next, &mut previous, remaining);
     let mut runs = Vec::new();
     let mut visited = BTreeSet::new();
     for &start in nodes.keys() {
@@ -399,6 +421,20 @@ impl<'a> Sources<'a> {
     /// detached, omitted, duplicated, clipped and differently directed material
     /// without treating two matching anchors as a semantic identity certificate.
     pub(super) fn closed(
+        &self,
+        view: DocumentView<'_>,
+        root: NodeId,
+        path: &[&GraphNode],
+        remaining: &mut usize,
+    ) -> Option<Closure> {
+        let first = path.first()?;
+        if path.iter().any(|node| node.pages != first.pages) {
+            return segments::closed(self, view, root, path, remaining).map(Closure::Segmented);
+        }
+        self.closed_page(view, root, path, remaining)
+    }
+
+    fn closed_page(
         &self,
         view: DocumentView<'_>,
         root: NodeId,
