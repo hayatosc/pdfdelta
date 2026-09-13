@@ -986,44 +986,6 @@ fn compare_population(
             {
                 continue;
             }
-            // Prefer an existing finer raw view to another edge refinement
-            // enclosing it. Unrelated source intervals do not suppress work.
-            let refined: Vec<_> = result
-                .text_scope_reviews
-                .iter()
-                .filter(|review| {
-                    review
-                        .source_cuts
-                        .as_ref()
-                        .is_some_and(|cuts| cuts.edge_refinement.is_some())
-                })
-                .collect();
-            if !refined.is_empty() {
-                let work = refined.iter().fold(
-                    old_extent.len().saturating_add(new_extent.len()),
-                    |work, review| {
-                        work.saturating_add(review.old_sources.len())
-                            .saturating_add(review.new_sources.len())
-                    },
-                );
-                if spend(remaining, work.saturating_mul(8)).is_none() {
-                    break;
-                }
-                let old_set: BTreeSet<_> = old_extent.iter().collect();
-                let new_set: BTreeSet<_> = new_extent.iter().collect();
-                if refined.iter().any(|review| {
-                    review
-                        .old_sources
-                        .iter()
-                        .all(|source| old_set.contains(source))
-                        && review
-                            .new_sources
-                            .iter()
-                            .all(|source| new_set.contains(source))
-                }) {
-                    continue;
-                }
-            }
         } else if duplicate.is_some() {
             continue;
         }

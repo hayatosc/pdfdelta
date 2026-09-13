@@ -56,6 +56,8 @@ fn trim(
 ) -> Option<Trimmed> {
     let mut content = None;
     let mut end = None;
+    let mut prefix_end = None;
+    let mut suffix_start = None;
     for (index, &node) in runs[first.0]
         .iter()
         .enumerate()
@@ -86,10 +88,18 @@ fn trim(
             if !mandatory_space {
                 content.get_or_insert((first.0, index, position));
                 end = Some((first.0, index, position + 1));
+                suffix_start = None;
+            } else if content.is_none() {
+                prefix_end = Some((first.0, index, position + 1));
+            } else {
+                suffix_start.get_or_insert((first.0, index, position));
             }
         }
     }
-    let (entry, exit) = (content?, end?);
+    // A whole padding node ends at a different coordinate from the next
+    // node's start. Use the padding edge so its certificate names the exact
+    // same cut as the removed fragment, without consuming another source.
+    let (entry, exit) = (prefix_end.unwrap_or(content?), suffix_start.unwrap_or(end?));
     // A contracted source token has no legal cut between its physical spaces.
     // Both retained body and removed padding must project without shared glyphs.
     original_boundary(maps, runs[entry.0][entry.1].id, entry.2)?;
@@ -168,4 +178,69 @@ pub(super) fn refine(
             new_padding: new.padding,
         })),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{document::NodeKind, model::GlyphId};
+
+    #[test]
+    fn whitespace_only_nodes_share_the_reported_padding_cut() {
+        for texts in [[" ", "Budget 10.", "  "], ["  ", "Budget 20.", " "]] {
+            let mut next_glyph = 0;
+            let nodes: Vec<_> = texts
+                .iter()
+                .enumerate()
+                .map(|(index, text)| {
+                    let sources: Vec<_> = text
+                        .chars()
+                        .map(|_| {
+                            let source = SourceRef::Native {
+                                glyph: GlyphId(next_glyph),
+                            };
+                            next_glyph += 1;
+                            source
+                        })
+                        .collect();
+                    GraphNode {
+                        id: NodeId(index as u64),
+                        kind: NodeKind::Paragraph,
+                        pages: Vec::new(),
+                        identity: None,
+                        basis: ViewBasis::NativeLayout,
+                        content: NodeContent::Text {
+                            view: TextView {
+                                tokens: text.chars().map(ComparableToken::Scalar).collect(),
+                                origins: sources.iter().map(|source| vec![*source]).collect(),
+                                source_backed: vec![true; sources.len()],
+                                normalization: TextNormalization::Exact,
+                            },
+                        },
+                        sources,
+                    }
+                })
+                .collect();
+            let runs = vec![nodes.iter().collect()];
+            let trimmed = trim(
+                &runs,
+                (0, 0, 0),
+                (0, 2, texts[2].len()),
+                &OriginalCuts::new(),
+                &mut 10_000,
+            )
+            .expect("mandatory padding");
+            assert_eq!(trimmed.entry, (0, 0, texts[0].len()));
+            assert_eq!(trimmed.exit, (0, 2, 0));
+            let body = interior(&runs, trimmed.entry, trimmed.exit).expect("legal body");
+            assert_eq!(
+                body.iter()
+                    .flat_map(|node| &node.sources)
+                    .collect::<Vec<_>>(),
+                nodes[1].sources.iter().collect::<Vec<_>>()
+            );
+            assert_eq!(trimmed.padding[0][0].sources, nodes[0].sources);
+            assert_eq!(trimmed.padding[1][0].sources, nodes[2].sources);
+        }
+    }
 }

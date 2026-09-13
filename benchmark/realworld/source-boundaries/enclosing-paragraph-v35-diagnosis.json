@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "scope": "Exposed development diagnostic; not G2 or a repeat-certified phase gate.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-enclosing-v35/build.json",
+    "sha256": "c30a5bd2319b42a397e4f622147eee3852b2f29d9f1db675274871f667ced691"
+  },
+  "report": {
+    "path": "benchmark/realworld/cache/source-boundaries-enclosing-v35/nist88-pilot/nist-88-r1-to-r2-text.json",
+    "sha256": "bdb6334ac127daf0a37ed1b37c308edcf63e7b7f91fb9814aa0a3663355bfda7"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v1/nist-88-r1-to-r2-source-review/sources.json",
+    "sha256": "250aca00a555c0d716d6d52f2261858afe500f8d95aaa9919772be0ded973d54"
+  },
+  "frozen_target": {
+    "annotation": {
+      "path": "benchmark/realworld/source-boundaries/unseen-v1/annotations/nist-88-r1-to-r2.json",
+      "sha256": "28c8e8e1b70251e74fea84ea9b6c62e4af139c67b43c74a1d90f1c15adbf0eec"
+    },
+    "resolution": {
+      "path": "benchmark/realworld/source-boundaries/unseen-v1/annotations/nist-88-r1-to-r2.resolved.json",
+      "sha256": "703347aedcfd76dcb3d3a43d4057fc9261acd7074b3ecef092b8e068dd96267f"
+    },
+    "expectation": {
+      "path": "benchmark/realworld/source-boundaries/unseen-v1/annotations/nist-88-r1-to-r2.expectations.json",
+      "sha256": "af3502457e40068f578df8278c98bb6c2fc20e5edb79a55f43273fd3e8564768"
+    }
+  },
+  "prior_page_review": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v1/source-review.json",
+    "sha256": "77b4c6ac80dae22e22905192be876e4249808cc96fca26a989cf8190e762315d"
+  },
+  "events": [
+    {
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/0",
+      "category": "B",
+      "source_atoms": 650,
+      "exact_target": false,
+      "source_projections_and_literal_padding": "passed",
+      "text": {
+        "old": "Media sanitization refers to a process that renders access to target data on the media infeasible for a given level of effort. This guide will assist organizations and system owners in making practical sanitization decisions based on the categorization of confidentiality of their information.    ",
+        "new": "Media sanitization refers to a process that renders access to target data on the media infeasible for a given level of effort. This guide will assist organizations and system owners in setting up a media sanitization program with proper and applicable techniques and controls for sanitization and disposal based on the sensitivity of their information. "
+      }
+    },
+    {
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/1",
+      "category": "B",
+      "source_atoms": 454,
+      "exact_target": false,
+      "source_projections_and_literal_padding": "passed",
+      "text": {
+        "old": "for a given level of effort. This guide will assist organizations and system owners in making practical sanitization decisions based on the categorization of confidentiality of their information.    ",
+        "new": "for a given level of effort. This guide will assist organizations and system owners in setting up a media sanitization program with proper and applicable techniques and controls for sanitization and disposal based on the sensitivity of their information. "
+      }
+    },
+    {
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/2",
+      "category": "B",
+      "source_atoms": 449,
+      "exact_target": false,
+      "source_projections_and_literal_padding": "passed",
+      "text": {
+        "old": "for a given level of effort. This guide will assist organizations and system owners in making practical sanitization decisions based on the categorization of confidentiality of their information.",
+        "new": "for a given level of effort. This guide will assist organizations and system owners in setting up a media sanitization program with proper and applicable techniques and controls for sanitization and disposal based on the sensitivity of their information."
+      }
+    },
+    {
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/3",
+      "category": "B",
+      "source_atoms": 650,
+      "exact_target": false,
+      "source_projections_and_literal_padding": "passed",
+      "text": {
+        "old": "Media sanitization refers to a process that renders access to target data on the media infeasible for a given level of effort. This guide will assist organizations and system owners in making practical sanitization decisions based on the categorization of confidentiality of their information.    ",
+        "new": "Media sanitization refers to a process that renders access to target data on the media infeasible for a given level of effort. This guide will assist organizations and system owners in setting up a media sanitization program with proper and applicable techniques and controls for sanitization and disposal based on the sensitivity of their information. "
+      }
+    },
+    {
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/4",
+      "category": "B",
+      "source_atoms": 645,
+      "exact_target": true,
+      "source_projections_and_literal_padding": "passed",
+      "text": {
+        "old": "Media sanitization refers to a process that renders access to target data on the media infeasible for a given level of effort. This guide will assist organizations and system owners in making practical sanitization decisions based on the categorization of confidentiality of their information.",
+        "new": "Media sanitization refers to a process that renders access to target data on the media infeasible for a given level of effort. This guide will assist organizations and system owners in setting up a media sanitization program with proper and applicable techniques and controls for sanitization and disposal based on the sensitivity of their information."
+      }
+    }
+  ],
+  "target_hits": 1,
+  "strict_control_claims": 0,
+  "comparison_complete": false
+}

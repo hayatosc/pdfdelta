@@ -1,0 +1,1216 @@
+{
+  "version": 1,
+  "evaluated_utc": "2026-09-13T10:12:55.916673+00:00",
+  "freeze": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v1-freeze.json",
+    "sha256": "00bcf92e83a6d3f80426cd792c8d9fc456b3b193fc1252ed1fab0debca0077a0"
+  },
+  "baseline_observations": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v1-baseline-observations.json",
+    "sha256": "924d4b658b388ae9bb62c5ec731f4ce87ec02f65bb445b6c498f9df4d838e3bf"
+  },
+  "current_observations": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v1-current-observations.json",
+    "sha256": "3294372fb9ca703ab59c352282d873e680288b1b5733c5d02e8232f6ae9759fa"
+  },
+  "pair_count": 12,
+  "captured_attempts": 48,
+  "status": "failed unseen evaluation; retired to exposed development before any implementation change",
+  "G2": {
+    "passed": false,
+    "validated_recovered_pairs": 0,
+    "required_pairs": 3,
+    "required_producers": 2
+  },
+  "correctness": "unresolved: Japanese content-edge certificate rejected; all new outputs remain unadjudicated and none count as source-supported gains",
+  "pairs": [
+    {
+      "pair": "nist-hipaa-66-r1-to-r2",
+      "family": "nist-guidance",
+      "target_atoms": 940,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/nist-hipaa-66-r1-to-r2/runs.json",
+            "sha256": "d844feba818fa5f1439dc2d886c31f929a6ea58c625779733f5734d514a3e79f"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/nist-hipaa-66-r1-to-r2/nist-hipaa-66-r1-to-r2-text.json",
+            "sha256": "d48d35cc7aca1c3bbe2ebc068160bbf2fa3785631e0aae68098d5f9e4d832996"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 11.31,
+          "peak_rss_kib": 657516,
+          "report_bytes": 3181314,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/nist-hipaa-66-r1-to-r2/runs.json",
+            "sha256": "11a9e6df7af2170cd06c672c9aca14b4e552699abb4b248075013466469920e6"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/nist-hipaa-66-r1-to-r2/nist-hipaa-66-r1-to-r2-text.json",
+            "sha256": "69fa7f6953d9be618f054b642557ffde6256ed1dd85f98f40d11b3acdc6e8bcd"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 11.11,
+          "peak_rss_kib": 660080,
+          "report_bytes": 3181314,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/nist-hipaa-66-r1-to-r2/runs.json",
+            "sha256": "bd3d06a3f016d71fe7690d42aa8425533a3b3c8db1af66325832d5f1678a8e22"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/nist-hipaa-66-r1-to-r2/nist-hipaa-66-r1-to-r2-text.json",
+            "sha256": "68e68003bf1ad1f31ddcfd600d9ae729b351d787f9f35bf38b6298a0e19a2b74"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 11.17,
+          "peak_rss_kib": 659576,
+          "report_bytes": 3806070,
+          "A": 0,
+          "B": 4,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/nist-hipaa-66-r1-to-r2/runs.json",
+            "sha256": "1a7f9e5a0e0cf65c17f0a1712345e9dfea268d5bae9476fcc8cac35282753c6a"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/nist-hipaa-66-r1-to-r2/nist-hipaa-66-r1-to-r2-text.json",
+            "sha256": "8d841634b16c2e5beabe714811274f50d31765b8bf0f3ebeed45f7e5c96e2d69"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 11.05,
+          "peak_rss_kib": 659376,
+          "report_bytes": 3806070,
+          "A": 0,
+          "B": 4,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-124-r1-to-r2",
+      "family": "nist-guidance",
+      "target_atoms": 1666,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/nist-124-r1-to-r2/runs.json",
+            "sha256": "3bc8ef0ed150c3dd3cc260d098fc41526ac4c655824d020b00a0bee86c7a1487"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/nist-124-r1-to-r2/nist-124-r1-to-r2-text.json",
+            "sha256": "4b7b73422c9ad239462f68060509fb3f45ab7b0190fd79d2d13750f5e4bdd525"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 6.58,
+          "peak_rss_kib": 332352,
+          "report_bytes": 3173577,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/nist-124-r1-to-r2/runs.json",
+            "sha256": "d86f23f8d4780ab21a6218b63cdff9f5f0d2337034f0c2e8f1960741969f8d1d"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/nist-124-r1-to-r2/nist-124-r1-to-r2-text.json",
+            "sha256": "76cba58c4ad3231151021e9afe33f2b345f9c491d678bf7b840917ee24f9f4a7"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 6.52,
+          "peak_rss_kib": 334192,
+          "report_bytes": 3173577,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/nist-124-r1-to-r2/runs.json",
+            "sha256": "824c47cc1e1427230c9753a7ade0c7c9e9fb045466720a199bb83f119b790858"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/nist-124-r1-to-r2/nist-124-r1-to-r2-text.json",
+            "sha256": "1dddca5ef480b6658450e94305f667c789406e3a8573093f4ebc4d00d4c4fc3e"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 6.49,
+          "peak_rss_kib": 340216,
+          "report_bytes": 3655775,
+          "A": 0,
+          "B": 1,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/nist-124-r1-to-r2/runs.json",
+            "sha256": "1c6e96a83bb1f69c9eea4c50245a826e47590e6d4eefb7068b6322e33b7cf808"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/nist-124-r1-to-r2/nist-124-r1-to-r2-text.json",
+            "sha256": "f8bfad1e05cd6ff3b6149e4dcc19d562e5d35811318e337c0c9b390d9db8add3"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 6.37,
+          "peak_rss_kib": 340064,
+          "report_bytes": 3655775,
+          "A": 0,
+          "B": 1,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "nist-88-r1-to-r2",
+      "family": "nist-guidance",
+      "target_atoms": 645,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/nist-88-r1-to-r2/runs.json",
+            "sha256": "4380400a042c4d5dada2ea7cd91d4e8ee757d55fddfabb82bfb34bb108c2b8dd"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/nist-88-r1-to-r2/nist-88-r1-to-r2-text.json",
+            "sha256": "6656c05eda80faaf11d13fc0b3c9ea03ffc2cdc59b0cd4e743d9fb70a9245f38"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 5.65,
+          "peak_rss_kib": 357816,
+          "report_bytes": 2675015,
+          "A": 0,
+          "B": 1,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/nist-88-r1-to-r2/runs.json",
+            "sha256": "52d6d5b6354a4c1cb7c3cf00d7c3a0f39943f6b6e3ac78ad81ed16ba81349808"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/nist-88-r1-to-r2/nist-88-r1-to-r2-text.json",
+            "sha256": "5c67a9f32b55f76a009dc857d6fd882a2181b9f475caa8d2237f1bfda4c410fc"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 5.62,
+          "peak_rss_kib": 361112,
+          "report_bytes": 2675015,
+          "A": 0,
+          "B": 1,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/nist-88-r1-to-r2/runs.json",
+            "sha256": "b006155c9425e42a368c7e081de733086fdc0fc4ca6313a1b3ec1c451182e66f"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/nist-88-r1-to-r2/nist-88-r1-to-r2-text.json",
+            "sha256": "342810f4ffd625bd55a98b4501d8fa94fc631d40bce612a58a31d24c3a55b67b"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 5.47,
+          "peak_rss_kib": 356476,
+          "report_bytes": 3084542,
+          "A": 0,
+          "B": 3,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/nist-88-r1-to-r2/runs.json",
+            "sha256": "57bf0131cbd328c7c2a276d58103f4502187f1230104a1e44e238376118351db"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/nist-88-r1-to-r2/nist-88-r1-to-r2-text.json",
+            "sha256": "d655099ac68e0ef73b70a637a93ff37861152947e160c2784935a27214f3c56f"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 5.49,
+          "peak_rss_kib": 355868,
+          "report_bytes": 3084542,
+          "A": 0,
+          "B": 3,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-video-v1-to-v2",
+      "family": "edpb-guidelines",
+      "target_atoms": 1990,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/edpb-video-v1-to-v2/runs.json",
+            "sha256": "596f12e49692bf780c3199fac73ac6bca22c5b89156b7b9a50cb04d80dba4437"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/edpb-video-v1-to-v2/edpb-video-v1-to-v2-text.json",
+            "sha256": "b215b5801e956f7b47bbeaddf7338eb4a064664cae3d12a03fffeda8cc864296"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 9.59,
+          "peak_rss_kib": 205632,
+          "report_bytes": 148168,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/edpb-video-v1-to-v2/runs.json",
+            "sha256": "99eda3a0d4d427853cbb420fc775082523161fe9a4df1c1347580962b83c7791"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/edpb-video-v1-to-v2/edpb-video-v1-to-v2-text.json",
+            "sha256": "c0e981392f5feecff490139d6fc980e27926c588f9dcef7b772102fa50b13dcb"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 9.56,
+          "peak_rss_kib": 206612,
+          "report_bytes": 148168,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/edpb-video-v1-to-v2/runs.json",
+            "sha256": "e626c693e5adb48ac3b99e0e982dbd4e4dd6851fdf4133418bc136e5032984a3"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/edpb-video-v1-to-v2/edpb-video-v1-to-v2-text.json",
+            "sha256": "96ab1ad5f9d9d3ad956c1e4d3c6a3399e56fb4882eb06f2ff2bdc0bd2df09ef4"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 9.72,
+          "peak_rss_kib": 216388,
+          "report_bytes": 833956,
+          "A": 0,
+          "B": 8,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/edpb-video-v1-to-v2/runs.json",
+            "sha256": "21390a0132e725dd94b8aa0d804e6d4d59bb96feeda42239cd32d411ccf599fc"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/edpb-video-v1-to-v2/edpb-video-v1-to-v2-text.json",
+            "sha256": "886f6020c870497770f3e01fafc5d9ef49a1c8dc152382647b6a8244f4103c7d"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 9.58,
+          "peak_rss_kib": 216196,
+          "report_bytes": 833956,
+          "A": 0,
+          "B": 8,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-online-contract-v1-to-v2",
+      "family": "edpb-guidelines",
+      "target_atoms": 1337,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/edpb-online-contract-v1-to-v2/runs.json",
+            "sha256": "807909aaf264e5e2ded980d2706c177332dd27dcf5f78819324e2d1741ab5b3b"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/edpb-online-contract-v1-to-v2/edpb-online-contract-v1-to-v2-text.json",
+            "sha256": "0053c65dcfcb7ca22083a26b016f5309a75d645a202cf6f65c5355d12a9a2e9c"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 4.93,
+          "peak_rss_kib": 114792,
+          "report_bytes": 613771,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/edpb-online-contract-v1-to-v2/runs.json",
+            "sha256": "38b2148a6a116d28834a3fe5392d4ec898b504f1bacac9a14cb866754da5ac89"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/edpb-online-contract-v1-to-v2/edpb-online-contract-v1-to-v2-text.json",
+            "sha256": "252e2d8a119e535f24d650fb057fc3e9398fd02e13eee5a099ef8d425f20cfb1"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 4.89,
+          "peak_rss_kib": 116220,
+          "report_bytes": 613771,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/edpb-online-contract-v1-to-v2/runs.json",
+            "sha256": "23fd4805b0cb327600fc0a0b97d058bd4651270ee44fcd0c5ad93d09659a5d58"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/edpb-online-contract-v1-to-v2/edpb-online-contract-v1-to-v2-text.json",
+            "sha256": "d91d98c3c36b8b980de1615aa6ea8d54d44ca4c4d9434b1083ec8c5595740a81"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 4.89,
+          "peak_rss_kib": 122664,
+          "report_bytes": 603986,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/edpb-online-contract-v1-to-v2/runs.json",
+            "sha256": "6dfa5544e414f910e0eb338d04f76af57ef6cc58d11270999c2410b76f88284c"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/edpb-online-contract-v1-to-v2/edpb-online-contract-v1-to-v2-text.json",
+            "sha256": "13e4ec03a965d5e0cef78f6874e9e7b77df663f53c3e94db16d39edd7f795725"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 4.9,
+          "peak_rss_kib": 121800,
+          "report_bytes": 603986,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "edpb-payment-v1-to-v2",
+      "family": "edpb-guidelines",
+      "target_atoms": 1303,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/edpb-payment-v1-to-v2/runs.json",
+            "sha256": "ce90194b41eb2f87398db17ffba475cf4e09d9f8c837ca142c67c275ab2e895c"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/edpb-payment-v1-to-v2/edpb-payment-v1-to-v2-text.json",
+            "sha256": "032076a178ff2939cd5a5a5713dfd952f54c743314bd0048e5d47d72f266a0b3"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.1,
+          "peak_rss_kib": 182716,
+          "report_bytes": 320950,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/edpb-payment-v1-to-v2/runs.json",
+            "sha256": "4a3211068ed5ec1f0f3c79408138014c4f211253eb2906dd1b217f00b445ac08"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/edpb-payment-v1-to-v2/edpb-payment-v1-to-v2-text.json",
+            "sha256": "3c17c30be7f893bc68b40854c382ca89a414add9cfd027a8a3c6499e098411d3"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.04,
+          "peak_rss_kib": 183036,
+          "report_bytes": 320950,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/edpb-payment-v1-to-v2/runs.json",
+            "sha256": "03af337c7f7785b2e8f7b6dbd9c8626963c252d85f003515a3b0c862883a954f"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/edpb-payment-v1-to-v2/edpb-payment-v1-to-v2-text.json",
+            "sha256": "91b3df3e9cd150491dc19401e749a51656a5a5cae6000480bb4975f910b92ac7"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.07,
+          "peak_rss_kib": 178688,
+          "report_bytes": 1467328,
+          "A": 0,
+          "B": 17,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/edpb-payment-v1-to-v2/runs.json",
+            "sha256": "01fe5e5312362d841f181616216a2e69e4511dd507d37b2d1488c16dba5b2e04"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/edpb-payment-v1-to-v2/edpb-payment-v1-to-v2-text.json",
+            "sha256": "315c33fa593eb60b98e467fb1c517b41e9e744e60bda6063e8dae9b03486620b"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.02,
+          "peak_rss_kib": 180608,
+          "report_bytes": 1467328,
+          "A": 0,
+          "B": 17,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-lora-v1-to-v2",
+      "family": "arxiv-research",
+      "target_atoms": 2271,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/arxiv-lora-v1-to-v2/runs.json",
+            "sha256": "d521979fd7ad1ab529beab67b72771f33c0b6f3e183a23eff87a4277ac1b0691"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/arxiv-lora-v1-to-v2/arxiv-lora-v1-to-v2-text.json",
+            "sha256": "27c548835183c84cc64d46ac31bf02c44ccf3007a3d0e35b806b9da9e8305eca"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.67,
+          "peak_rss_kib": 168064,
+          "report_bytes": 1247659,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/arxiv-lora-v1-to-v2/runs.json",
+            "sha256": "251fe801df03a84719f90a4aa4f3e69d10c0dcef638821a36e31ab2d91723c9d"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/arxiv-lora-v1-to-v2/arxiv-lora-v1-to-v2-text.json",
+            "sha256": "b6a2497c03a54a8240b4ccc4f64867dfa2ea0184aa09fa45d44b32491d6a96c7"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.93,
+          "peak_rss_kib": 166348,
+          "report_bytes": 1247659,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/arxiv-lora-v1-to-v2/runs.json",
+            "sha256": "0b311d817701f92df4fc295e4a68fdd4cbbe3224fbf524667f58147e0a6ccb8c"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/arxiv-lora-v1-to-v2/arxiv-lora-v1-to-v2-text.json",
+            "sha256": "8d116a3ba2e2edfb096d48377c6fab037e12182d9b36b4d1ad931be9d284df18"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.01,
+          "peak_rss_kib": 163024,
+          "report_bytes": 2676279,
+          "A": 0,
+          "B": 4,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/arxiv-lora-v1-to-v2/runs.json",
+            "sha256": "0a449c21ea43a6014e38bc9f06c155d52febafa81cefbceecfe53c3986434476"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/arxiv-lora-v1-to-v2/arxiv-lora-v1-to-v2-text.json",
+            "sha256": "f85bb91eb2a385c21370933591398dec016548861e642a889817193648f765ff"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.31,
+          "peak_rss_kib": 163176,
+          "report_bytes": 2676279,
+          "A": 0,
+          "B": 4,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-swin-v1-to-v2",
+      "family": "arxiv-research",
+      "target_atoms": 2571,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/arxiv-swin-v1-to-v2/runs.json",
+            "sha256": "5cf422654986ab35f1c8da1e5a90fd8afdbd2edef24aa1025a3040ef91dd891b"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/arxiv-swin-v1-to-v2/arxiv-swin-v1-to-v2-text.json",
+            "sha256": "cc1f772c85206415cc11e2195ae9d47a44aa19f56e382859c2c1678f574b486c"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 1.92,
+          "peak_rss_kib": 129084,
+          "report_bytes": 1954559,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/arxiv-swin-v1-to-v2/runs.json",
+            "sha256": "4865c63b8f86b7814c9747d5275570778f7ec482ccf64b805ca7cde67dcf1773"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/arxiv-swin-v1-to-v2/arxiv-swin-v1-to-v2-text.json",
+            "sha256": "5eaf68cbebc9fd34f62df1c836c5ea99a783506cd158cea17fe78879ce163348"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.09,
+          "peak_rss_kib": 129424,
+          "report_bytes": 1954559,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/arxiv-swin-v1-to-v2/runs.json",
+            "sha256": "8944b3a2d1143247ca67bb77d38da202aac1bc129bae628d00abef3a36d9eabc"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/arxiv-swin-v1-to-v2/arxiv-swin-v1-to-v2-text.json",
+            "sha256": "c5afeaf361af06ced6de3161d9582399feea2036ed7309d5bed64ac2123c5afc"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.23,
+          "peak_rss_kib": 126460,
+          "report_bytes": 6865095,
+          "A": 0,
+          "B": 46,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/arxiv-swin-v1-to-v2/runs.json",
+            "sha256": "08ba34d550a8b8dbbdda4506f019b07050aa5482bc3ea7e237f9608552a7d44e"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/arxiv-swin-v1-to-v2/arxiv-swin-v1-to-v2-text.json",
+            "sha256": "b42c6e5f99e6cf1e3c64f0e31c1b374ad21168804a788043bad4cf7801defcec"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.38,
+          "peak_rss_kib": 128652,
+          "report_bytes": 6865095,
+          "A": 0,
+          "B": 46,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-vit-v1-to-v2",
+      "family": "arxiv-research",
+      "target_atoms": 705,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/arxiv-vit-v1-to-v2/runs.json",
+            "sha256": "9fc86c9ad3af98894bfb770c535ce5e7efd834e1485d4dd105d4ea772d51f41f"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/arxiv-vit-v1-to-v2/arxiv-vit-v1-to-v2-text.json",
+            "sha256": "71f2248f81504c0e472a0798be267dd8295f8cedd5ac3167a7d767293b43b0a9"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.85,
+          "peak_rss_kib": 152496,
+          "report_bytes": 3036746,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/arxiv-vit-v1-to-v2/runs.json",
+            "sha256": "13d3eab5f33c92bf793b5e29f2850c866d27b138cb5ca224ca99c13f36c9d1ee"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/arxiv-vit-v1-to-v2/arxiv-vit-v1-to-v2-text.json",
+            "sha256": "6f89af546417c48c61eb6f6833a9ba07119c42a048922fdafd3ab75d90449d13"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.83,
+          "peak_rss_kib": 152252,
+          "report_bytes": 3036746,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/arxiv-vit-v1-to-v2/runs.json",
+            "sha256": "7f6d924c00c8c7493bf9374a408bb7516bd44aff9ebc77c8034d8b8fab7cd6be"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/arxiv-vit-v1-to-v2/arxiv-vit-v1-to-v2-text.json",
+            "sha256": "19a1a5e689a121ece42fdd27faadc69a89d464db7c4621e157943a2f4009fb8b"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.92,
+          "peak_rss_kib": 150628,
+          "report_bytes": 4365398,
+          "A": 0,
+          "B": 7,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/arxiv-vit-v1-to-v2/runs.json",
+            "sha256": "bd01c8d79b358955d4f756c2072f254d778c77f6a3dbf1230d23fa9e82878557"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/arxiv-vit-v1-to-v2/arxiv-vit-v1-to-v2-text.json",
+            "sha256": "ac121031f22324a242eddafa25c61e39c7957f8aff23fcc843b8c1f2925c6a5b"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.01,
+          "peak_rss_kib": 150624,
+          "report_bytes": 4365398,
+          "A": 0,
+          "B": 7,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "faa-sms-92b-to-92d",
+      "family": "faa-advisory",
+      "target_atoms": 1245,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/faa-sms-92b-to-92d/runs.json",
+            "sha256": "e0ab6a6ba2af91724dc1c866cef66066c3024d83a316a524b44b095fce083e4b"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/faa-sms-92b-to-92d/faa-sms-92b-to-92d-text.json",
+            "sha256": "80a12f11ed8a178add20caf1dc10a12a626a408ec13cac4ebff75ebf8dbb2427"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 12.65,
+          "peak_rss_kib": 697020,
+          "report_bytes": 2328151,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/faa-sms-92b-to-92d/runs.json",
+            "sha256": "be86c7abc82ac7c4adb62abcb1f3cabfc0c7fb91c0f7996c193cfe2e52e146a9"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/faa-sms-92b-to-92d/faa-sms-92b-to-92d-text.json",
+            "sha256": "bd744fe562cfb64d0ff42a317fd147766c9d5154fd9b50cbaed47eadb2ed93a4"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 13.14,
+          "peak_rss_kib": 697124,
+          "report_bytes": 2328151,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/faa-sms-92b-to-92d/runs.json",
+            "sha256": "54cb11bd1345564f20100df58bc59067b87cb1fa193d39b3fb51e4bd0d060ae3"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/faa-sms-92b-to-92d/faa-sms-92b-to-92d-text.json",
+            "sha256": "52f1009baafbe1dc1d1816a9228221cd4bb75b88f252e869d035543e037b9de2"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 12.59,
+          "peak_rss_kib": 701528,
+          "report_bytes": 2981412,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/faa-sms-92b-to-92d/runs.json",
+            "sha256": "82d3b5ff49f3c28d560c2e2c49544706caf52ed8243e3efd94193d03a76b58e9"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/faa-sms-92b-to-92d/faa-sms-92b-to-92d-text.json",
+            "sha256": "f5add1cb3e8d9961c6f62deee3b1794846c2904e973c35b24d1c7a5857f79c54"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 13.14,
+          "peak_rss_kib": 703208,
+          "report_bytes": 2981412,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "ietf-tls-bcp-7525-to-9325",
+      "family": "ietf-rfc",
+      "target_atoms": 1469,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/ietf-tls-bcp-7525-to-9325/runs.json",
+            "sha256": "7d7ea04c8cce834ad7992e4a0394fd1892777a2e7fc73c5b08442651f91e329e"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/ietf-tls-bcp-7525-to-9325/ietf-tls-bcp-7525-to-9325-text.json",
+            "sha256": "be54878b194414ee01504b320a357c7c86333a11118a24dcde3f8a46bb94e678"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.38,
+          "peak_rss_kib": 198776,
+          "report_bytes": 160827,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/ietf-tls-bcp-7525-to-9325/runs.json",
+            "sha256": "26ac13d13db516e4d00d1c2ca4748bb618d8e22b0b91797b97868a28d6359a2d"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/ietf-tls-bcp-7525-to-9325/ietf-tls-bcp-7525-to-9325-text.json",
+            "sha256": "577e2bc0662b33a2b119ab227ea7652c17f9a8f91689e65bdbef8e3fe405e29d"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.58,
+          "peak_rss_kib": 198100,
+          "report_bytes": 160827,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/ietf-tls-bcp-7525-to-9325/runs.json",
+            "sha256": "6444069fa301a9640e0c6805845d97b87f5ccd9f90e019135acf8c1ba9e4837f"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/ietf-tls-bcp-7525-to-9325/ietf-tls-bcp-7525-to-9325-text.json",
+            "sha256": "486b7ff9076739797ac42b59c95e2ffe0e60be76dc9193c6db77b1e5dd20bd7e"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.3,
+          "peak_rss_kib": 196492,
+          "report_bytes": 184115,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/ietf-tls-bcp-7525-to-9325/runs.json",
+            "sha256": "44eff3311e9951731d6d4475ce4c5341ac44d80ebdb36e153d8397bff422c16b"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/ietf-tls-bcp-7525-to-9325/ietf-tls-bcp-7525-to-9325-text.json",
+            "sha256": "7511fd2e727e0570adac0728df5fdd24bd5b208d9f01b60f85946d8775806237"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 2.54,
+          "peak_rss_kib": 194736,
+          "report_bytes": 184115,
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        }
+      ]
+    },
+    {
+      "pair": "meti-ai-business-v1-01-to-v1-1",
+      "family": "japanese-policy",
+      "target_atoms": 368,
+      "observations": [
+        {
+          "implementation": "baseline",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/meti-ai-business-v1-01-to-v1-1/runs.json",
+            "sha256": "06cabc9cd0fae414b40b0d385b7a3ecb4601c66f5a9441d5cb8483ca507e23cc"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r1/meti-ai-business-v1-01-to-v1-1/meti-ai-business-v1-01-to-v1-1-text.json",
+            "sha256": "b277e66a44e00e60e9b42a761edbbeffd4fcfb63adb1986944b7793062f93c48"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.56,
+          "peak_rss_kib": 195212,
+          "report_bytes": 1763824,
+          "A": 0,
+          "B": 6,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "baseline",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/meti-ai-business-v1-01-to-v1-1/runs.json",
+            "sha256": "c0746bf6ff9fd3e94731648d56501a1c255366f9a5ac606e4857c81ae891b36e"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-baseline-r2/meti-ai-business-v1-01-to-v1-1/meti-ai-business-v1-01-to-v1-1-text.json",
+            "sha256": "e00aee2bbcd07557a6ce136c2b351b3b0d2341eb1a9b98b37dce58214da3d402"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.87,
+          "peak_rss_kib": 194372,
+          "report_bytes": 1763824,
+          "A": 0,
+          "B": 6,
+          "C": 0,
+          "certificate_validation": "passed",
+          "target_hits": [],
+          "strict_control_atoms": 0
+        },
+        {
+          "implementation": "current",
+          "repetition": 1,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/meti-ai-business-v1-01-to-v1-1/runs.json",
+            "sha256": "c544864e3949408b6b14991b0cdd6c8eb036750f439926faf46b395a2a76eca6"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/meti-ai-business-v1-01-to-v1-1/meti-ai-business-v1-01-to-v1-1-text.json",
+            "sha256": "f01f60ee7ab419a5f1309e9bce17b6182281ee6d4fa23879a379141fdf9d17d0"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.61,
+          "peak_rss_kib": 194424,
+          "report_bytes": 3918519,
+          "A": 0,
+          "B": 42,
+          "C": 0,
+          "certificate_validation": "failed",
+          "validation_error": "content cut is not its padding edge",
+          "target_hits": null
+        },
+        {
+          "implementation": "current",
+          "repetition": 2,
+          "capture": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/meti-ai-business-v1-01-to-v1-1/runs.json",
+            "sha256": "52e1853edd0acba3eb41893a7536c1ce882bc492167582f097a7ad44849e284b"
+          },
+          "report": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r2/meti-ai-business-v1-01-to-v1-1/meti-ai-business-v1-01-to-v1-1-text.json",
+            "sha256": "28662dfc0a6bf6a6cb8d756f34ec5ae12c807934ac0b1c4c4b89465bf27642e4"
+          },
+          "status": "captured",
+          "comparison_complete": false,
+          "wall_seconds": 3.74,
+          "peak_rss_kib": 191528,
+          "report_bytes": 3918519,
+          "A": 0,
+          "B": 42,
+          "C": 0,
+          "certificate_validation": "failed",
+          "validation_error": "content cut is not its padding edge",
+          "target_hits": null
+        }
+      ]
+    }
+  ]
+}

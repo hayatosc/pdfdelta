@@ -969,6 +969,30 @@ fn source_content_edges_preserve_coarse_space_changes_and_exact_body_sources() {
                     .is_some_and(|cuts| cuts.edge_refinement.is_some())
             })
             .collect();
+        let inner: Vec<_> = inner
+            .into_iter()
+            .filter(|review| {
+                let extends_to_end = review
+                    .old_sources
+                    .iter()
+                    .any(|source| old.1.nodes[3].sources.contains(source));
+                if extends_to_end {
+                    // A second closed view may retain END and the literal
+                    // spaces before it. Its finite extent must remain exact.
+                    let old_expected: Vec<_> = old_sources
+                        [a.len() - a.trim_start_matches(' ').len()..]
+                        .iter()
+                        .chain(&old.1.nodes[3].sources)
+                        .copied()
+                        .collect();
+                    let new_expected =
+                        &new.1.nodes[2].sources[b.len() - b.trim_start_matches(' ').len()..];
+                    assert_eq!(review.old_sources, old_expected);
+                    assert_eq!(review.new_sources, *new_expected);
+                }
+                !extends_to_end
+            })
+            .collect();
         assert_eq!(inner.len(), usize::from(refined), "{a:?} -> {b:?}");
         if let Some(review) = inner.first() {
             let old_start = a.len() - a.trim_start_matches(' ').len();
@@ -1333,6 +1357,33 @@ fn paint_order_rows_keep_labels_after_boundaries_and_reject_unsafe_exclusions() 
             );
         }
     }
+}
+
+#[test]
+fn finer_content_edges_preserve_the_trimmed_enclosing_paragraph() {
+    let mut old = fixture_rows(&[
+        "BEGIN",
+        "An unchanged introduction. ",
+        "Budget 10.  ",
+        "END",
+    ]);
+    let mut new = fixture_rows(&["BEGIN", "An unchanged introduction. ", "Budget 20. ", "END"]);
+    merge_following_node(&mut old, 2);
+    merge_following_node(&mut new, 2);
+    append_unassigned(&mut old, PageId(1), 70.0);
+    append_unassigned(&mut new, PageId(1), 70.0);
+    let result = compare(&old, &new);
+    let reviews = &result.scopes[0].result.text_scope_reviews;
+    assert!(reviews.iter().any(|review| {
+        review.old_sources
+            == old.1.nodes[2].sources[.."An unchanged introduction. Budget 10.".len()]
+            && review.new_sources
+                == new.1.nodes[2].sources[.."An unchanged introduction. Budget 20.".len()]
+            && review
+                .source_cuts
+                .as_ref()
+                .is_some_and(|cuts| cuts.edge_refinement.is_some())
+    }));
 }
 
 #[test]

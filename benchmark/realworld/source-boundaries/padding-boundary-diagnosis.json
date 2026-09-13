@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "evaluated_utc": "2026-09-13T10:23:30.061079+00:00",
+  "purpose": "Exposed-development repair of literal-padding coordinates; no unseen recovery claim.",
+  "retirement": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v1-retirement.json",
+    "sha256": "d88b4c4bba86621d06fc6d69a8106b40fd79bfb06b10020086d1efa704ad7dbd"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-padding-v34/build.json",
+    "sha256": "12cfa7aca7c424aafa8401e2f9267b38be20a118fdf663c0122b7a16718e1bb9"
+  },
+  "capture": {
+    "path": "benchmark/realworld/cache/source-boundaries-padding-v34/meti-pilot/runs.json",
+    "sha256": "122ec3eb6a8801897007a52c4484fd0ee504af66fb862d4ff9be4d7b817c4ff9"
+  },
+  "before": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v1-current-r1/meti-ai-business-v1-01-to-v1-1/meti-ai-business-v1-01-to-v1-1-text.json",
+    "sha256": "f01f60ee7ab419a5f1309e9bce17b6182281ee6d4fa23879a379141fdf9d17d0"
+  },
+  "after": {
+    "path": "benchmark/realworld/cache/source-boundaries-padding-v34/meti-pilot/meti-ai-business-v1-01-to-v1-1-text.json",
+    "sha256": "d66dadc80f6b69e33ca7011a1215d321e2503a0fb450f2c7937be9044e695422"
+  },
+  "before_validation": "content cut is not its padding edge",
+  "after_valid_events": 42,
+  "all_strict_comparisons_unchanged": true,
+  "all_review_source_populations_operations_and_other_fields_unchanged": true,
+  "changed_coordinates": [
+    {
+      "scope": 0,
+      "review": 40,
+      "old_entry": {
+        "old": {
+          "node": 235,
+          "token_boundary": 0
+        },
+        "new": {
+          "node": 245,
+          "token_boundary": 0
+        },
+        "evidence": {
+          "kind": "corresponding_content_edge"
+        }
+      },
+      "new_entry": {
+        "old": {
+          "node": 234,
+          "token_boundary": 1
+        },
+        "new": {
+          "node": 244,
+          "token_boundary": 1
+        },
+        "evidence": {
+          "kind": "corresponding_content_edge"
+        }
+      },
+      "old_exit": {
+        "old": {
+          "node": 236,
+          "token_boundary": 50
+        },
+        "new": {
+          "node": 246,
+          "token_boundary": 50
+        },
+        "evidence": {
+          "kind": "unique_native_fragment",
+          "old": {
+            "node": 236,
+            "tokens": [
+              50,
+              65
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 13356
+              },
+              {
+                "origin": "native",
+                "glyph": 13357
+              },
+              {
+                "origin": "native",
+                "glyph": 13358
+              },
+              {
+                "origin": "native",
+                "glyph": 13359
+              },
+              {
+                "origin": "native",
+                "glyph": 13360
+              },
+              {
+                "origin": "native",
+                "glyph": 13361
+              },
+              {
+                "origin": "native",
+                "glyph": 13362
+              },
+              {
+                "origin": "native",
+                "glyph": 13363
+              },
+              {
+                "origin": "native",
+                "glyph": 13364
+              },
+              {
+                "origin": "native",
+                "glyph": 13365
+              },
+              {
+                "origin": "native",
+                "glyph": 13366
+              },
+              {
+                "origin": "native",
+                "glyph": 13367
+              },
+              {
+                "origin": "native",
+                "glyph": 13368
+              },
+              {
+                "origin": "native",
+                "glyph": 13369
+              },
+              {
+                "origin": "native",
+                "glyph": 13370
+              }
+            ]
+          },
+          "new": {
+            "node": 246,
+            "tokens": [
+              50,
+              65
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 12706
+              },
+              {
+                "origin": "native",
+                "glyph": 12707
+              },
+              {
+                "origin": "native",
+                "glyph": 12708
+              },
+              {
+                "origin": "native",
+                "glyph": 12709
+              },
+              {
+                "origin": "native",
+                "glyph": 12710
+              },
+              {
+                "origin": "native",
+                "glyph": 12711
+              },
+              {
+                "origin": "native",
+                "glyph": 12712
+              },
+              {
+                "origin": "native",
+                "glyph": 12713
+              },
+              {
+                "origin": "native",
+                "glyph": 12714
+              },
+              {
+                "origin": "native",
+                "glyph": 12715
+              },
+              {
+                "origin": "native",
+                "glyph": 12716
+              },
+              {
+                "origin": "native",
+                "glyph": 12717
+              },
+              {
+                "origin": "native",
+                "glyph": 12718
+              },
+              {
+                "origin": "native",
+                "glyph": 12719
+              },
+              {
+                "origin": "native",
+                "glyph": 12720
+              }
+            ]
+          }
+        }
+      },
+      "new_exit": {
+        "old": {
+          "node": 236,
+          "token_boundary": 50
+        },
+        "new": {
+          "node": 246,
+          "token_boundary": 50
+        },
+        "evidence": {
+          "kind": "unique_native_fragment",
+          "old": {
+            "node": 236,
+            "tokens": [
+              50,
+              65
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 13356
+              },
+              {
+                "origin": "native",
+                "glyph": 13357
+              },
+              {
+                "origin": "native",
+                "glyph": 13358
+              },
+              {
+                "origin": "native",
+                "glyph": 13359
+              },
+              {
+                "origin": "native",
+                "glyph": 13360
+              },
+              {
+                "origin": "native",
+                "glyph": 13361
+              },
+              {
+                "origin": "native",
+                "glyph": 13362
+              },
+              {
+                "origin": "native",
+                "glyph": 13363
+              },
+              {
+                "origin": "native",
+                "glyph": 13364
+              },
+              {
+                "origin": "native",
+                "glyph": 13365
+              },
+              {
+                "origin": "native",
+                "glyph": 13366
+              },
+              {
+                "origin": "native",
+                "glyph": 13367
+              },
+              {
+                "origin": "native",
+                "glyph": 13368
+              },
+              {
+                "origin": "native",
+                "glyph": 13369
+              },
+              {
+                "origin": "native",
+                "glyph": 13370
+              }
+            ]
+          },
+          "new": {
+            "node": 246,
+            "tokens": [
+              50,
+              65
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 12706
+              },
+              {
+                "origin": "native",
+                "glyph": 12707
+              },
+              {
+                "origin": "native",
+                "glyph": 12708
+              },
+              {
+                "origin": "native",
+                "glyph": 12709
+              },
+              {
+                "origin": "native",
+                "glyph": 12710
+              },
+              {
+                "origin": "native",
+                "glyph": 12711
+              },
+              {
+                "origin": "native",
+                "glyph": 12712
+              },
+              {
+                "origin": "native",
+                "glyph": 12713
+              },
+              {
+                "origin": "native",
+                "glyph": 12714
+              },
+              {
+                "origin": "native",
+                "glyph": 12715
+              },
+              {
+                "origin": "native",
+                "glyph": 12716
+              },
+              {
+                "origin": "native",
+                "glyph": 12717
+              },
+              {
+                "origin": "native",
+                "glyph": 12718
+              },
+              {
+                "origin": "native",
+                "glyph": 12719
+              },
+              {
+                "origin": "native",
+                "glyph": 12720
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "limitation": "The 42 events have valid serialized certificates, but this is not source adjudication of their text or a target recovery."
+}
