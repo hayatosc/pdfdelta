@@ -367,68 +367,14 @@ pub fn ensure_named_output_does_not_alias_input(
     Ok(())
 }
 
+/// Returns whether two paths name the same file, tolerating leaves that do
+/// not exist yet.
+///
+/// Existing files compare by device/inode where available and otherwise by
+/// canonical path. When either leaf is missing, both paths are normalized to
+/// their absolute destination so lexical aliases of the same future file are
+/// still detected.
 pub fn paths_refer_to_same_file(
-    output_path: &Path,
-    input_path: &Path,
-    context: &str,
-) -> Result<bool, String> {
-    if output_path == Path::new("-") || input_path == Path::new("-") {
-        return Ok(false);
-    }
-    if output_path == input_path {
-        return Ok(true);
-    }
-
-    let output_metadata = match fs::metadata(output_path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            // The output leaf does not exist yet, so inode comparison is
-            // impossible; fall back to normalized destination comparison so
-            // lexical aliases of the same future file are still rejected.
-            return Ok(normalized_destination(output_path, context)?
-                == normalized_destination(input_path, context)?);
-        }
-        Err(error) => {
-            return Err(format!(
-                "cannot inspect output path {} for {context}: {error}",
-                output_path.display()
-            ));
-        }
-    };
-    let input_metadata = fs::metadata(input_path).map_err(|error| {
-        format!(
-            "cannot inspect input path {} for {context}: {error}",
-            input_path.display()
-        )
-    })?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-
-        if output_metadata.dev() == input_metadata.dev()
-            && output_metadata.ino() == input_metadata.ino()
-        {
-            return Ok(true);
-        }
-    }
-
-    let output_canonical = fs::canonicalize(output_path).map_err(|error| {
-        format!(
-            "cannot resolve output path {} for {context}: {error}",
-            output_path.display()
-        )
-    })?;
-    let input_canonical = fs::canonicalize(input_path).map_err(|error| {
-        format!(
-            "cannot resolve input path {} for {context}: {error}",
-            input_path.display()
-        )
-    })?;
-    Ok(output_canonical == input_canonical)
-}
-
-pub fn output_paths_refer_to_same_file(
     first_path: &Path,
     second_path: &Path,
     context: &str,
@@ -439,17 +385,56 @@ pub fn output_paths_refer_to_same_file(
     if first_path == second_path {
         return Ok(true);
     }
-    match fs::metadata(second_path) {
-        Ok(_) => paths_refer_to_same_file(first_path, second_path, context),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            Ok(normalized_destination(first_path, context)?
-                == normalized_destination(second_path, context)?)
+
+    let first_metadata = match fs::metadata(first_path) {
+        Ok(metadata) => Some(metadata),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "cannot inspect path {} for {context}: {error}",
+                first_path.display()
+            ));
         }
-        Err(error) => Err(format!(
-            "cannot inspect output path {} for {context}: {error}",
-            second_path.display()
-        )),
+    };
+    let second_metadata = match fs::metadata(second_path) {
+        Ok(metadata) => Some(metadata),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "cannot inspect path {} for {context}: {error}",
+                second_path.display()
+            ));
+        }
+    };
+    let (Some(first_metadata), Some(second_metadata)) = (first_metadata, second_metadata) else {
+        return Ok(normalized_destination(first_path, context)?
+            == normalized_destination(second_path, context)?);
+    };
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        if first_metadata.dev() == second_metadata.dev()
+            && first_metadata.ino() == second_metadata.ino()
+        {
+            return Ok(true);
+        }
     }
+
+    let first_canonical = fs::canonicalize(first_path).map_err(|error| {
+        format!(
+            "cannot resolve path {} for {context}: {error}",
+            first_path.display()
+        )
+    })?;
+    let second_canonical = fs::canonicalize(second_path).map_err(|error| {
+        format!(
+            "cannot resolve path {} for {context}: {error}",
+            second_path.display()
+        )
+    })?;
+    Ok(first_canonical == second_canonical)
 }
 
 /// Resolve a path to its normalized absolute destination without requiring

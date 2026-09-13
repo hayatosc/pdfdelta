@@ -25,9 +25,9 @@ use crate::{
     fs::{
         InputReadError, ensure_named_output_does_not_alias_input,
         ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
-        output_paths_refer_to_same_file, parse_external_font_identities, parse_lopdf,
-        read_limited_typed, read_password_file, write_json_atomically,
-        write_text_report_atomically, write_trace_atomically,
+        parse_external_font_identities, parse_lopdf, paths_refer_to_same_file, read_limited_typed,
+        read_password_file, write_json_atomically, write_text_report_atomically,
+        write_trace_atomically,
     },
     trace::{ExecutionTrace, TraceSide, duration_metric},
 };
@@ -141,7 +141,7 @@ fn compare_documents_inner<W: Write>(
         ),
     ] {
         if let (Some(left), Some(right)) = (left, right)
-            && output_paths_refer_to_same_file(left, right, label)?
+            && paths_refer_to_same_file(left, right, label)?
         {
             return Err(format!(
                 "refusing {left_noun} {} because it refers to the {right_noun} {}",
@@ -158,7 +158,7 @@ fn compare_documents_inner<W: Write>(
             (report_output, "text report output"),
         ] {
             if let Some(destination) = destination
-                && output_paths_refer_to_same_file(
+                && paths_refer_to_same_file(
                     destination,
                     cache_dir,
                     "extraction cache/output collision",
