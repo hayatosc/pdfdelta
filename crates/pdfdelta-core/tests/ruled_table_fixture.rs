@@ -718,6 +718,30 @@ fn counterpart_storage_limit_does_not_report_exhaustive_refinement() {
 }
 
 #[test]
+fn counterpart_missing_target_page_bounds_does_not_report_exhaustive_refinement() {
+    let old = table(["100 kg", "20 kg"], 1.0, true, false);
+    let mut new = table(["100 kg", "20 kg"], 1.0, false, false);
+    for page in &mut new.pages {
+        page.bounds = None;
+    }
+    let mut old_graph = graph(&old);
+    let mut new_graph = graph(&new);
+    let before = new_graph.nodes.clone();
+    let result = refine_table_views(
+        &mut old_graph,
+        &mut new_graph,
+        &old,
+        &new,
+        PipelineOptions::default(),
+        DocumentComparisonLimits::default(),
+    )
+    .expect("missing page geometry is an outcome, not an error");
+    assert!(result.new.is_empty());
+    assert!(!result.exhaustive);
+    assert_eq!(new_graph.nodes, before);
+}
+
+#[test]
 fn counterpart_missing_header_does_not_choose_between_native_views() {
     use pdfdelta_core::document::{GraphEdge, SourceRef, ViewBasis};
     use pdfdelta_core::normalize::ComparableToken;

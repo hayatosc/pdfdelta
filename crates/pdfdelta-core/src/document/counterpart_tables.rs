@@ -325,6 +325,7 @@ fn proposal_grid(
     store: &EvidenceStore,
     glyphs: &BTreeMap<GlyphId, &Glyph>,
     budget: &mut usize,
+    exhaustive: &mut bool,
 ) -> Option<Grid> {
     let common: Vec<_> = template
         .columns
@@ -389,7 +390,18 @@ fn proposal_grid(
     if anchors.values().any(|anchor| anchor.page != page) {
         return None;
     }
-    let frame = store.pages.iter().find(|item| item.page == page)?.bounds?;
+    let Some(frame) = store
+        .pages
+        .iter()
+        .find(|item| item.page == page)
+        .and_then(|item| item.bounds)
+    else {
+        // The target page geometry is missing, so an otherwise applicable
+        // grid cannot be checked. That is an incomplete search rather than an
+        // inapplicable template.
+        *exhaustive = false;
+        return None;
+    };
     let header_low = columns
         .iter()
         .map(|(_, anchor)| anchor.bounds.min.y)
@@ -520,7 +532,8 @@ fn apply(
         .map(|glyph| (glyph.id, glyph))
         .collect();
     for template in templates {
-        let Some(grid) = proposal_grid(&template, graph, store, &glyphs, budget) else {
+        let Some(grid) = proposal_grid(&template, graph, store, &glyphs, budget, &mut exhaustive)
+        else {
             continue;
         };
         let anchor_sources = grid.structure_sources.clone();
