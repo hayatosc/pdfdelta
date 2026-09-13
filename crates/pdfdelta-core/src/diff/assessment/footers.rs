@@ -15,7 +15,7 @@ use crate::{
     normalize::TextSourceAtom,
 };
 
-use super::{SentenceRecoveryInput, Side, charge_work, span_has_source_issues, views::LocalDomain};
+use super::{SentenceRecoveryInput, Side, charge, span_has_source_issues, views::LocalDomain};
 
 struct Footer {
     page: u32,
@@ -85,7 +85,7 @@ pub(super) fn discover(
         .saturating_mul(new.len())
         .saturating_add(key_bytes(&new_graph).saturating_mul(old.len()))
         .saturating_add(pairs);
-    if !charge_work(remaining, work) {
+    if !charge(remaining, work) {
         result.complete = false;
         result.work_limited = true;
         return Ok(result);
@@ -122,7 +122,7 @@ pub(super) fn discover(
     ) {
         Ok(matching) => matching,
         Err(crate::Error::LimitExceeded { .. }) => {
-            charge_work(remaining, phase_budget);
+            charge(remaining, phase_budget);
             result.complete = false;
             result.work_limited = true;
             return Ok(result);
@@ -135,7 +135,7 @@ pub(super) fn discover(
             .saturating_add(matching.ownership_visits),
         |total, component| total.saturating_add(component.explored_states),
     );
-    if !charge_work(remaining, work) || !matching.conflict_search_complete {
+    if !charge(remaining, work) || !matching.conflict_search_complete {
         result.complete = false;
         result.work_limited = true;
         return Ok(result);
@@ -182,7 +182,7 @@ fn candidate_graph(
                 .comparable_tokens_with_sources()?
             {
                 for atom in source.atoms {
-                    if !charge_work(remaining, 1) {
+                    if !charge(remaining, 1) {
                         return Ok(None);
                     }
                     match atom {
@@ -212,7 +212,7 @@ fn candidate_graph(
             .len()
             .saturating_add(footer.form.len())
             .saturating_add(footer.prefix.len());
-        if !charge_work(remaining, key_bytes) {
+        if !charge(remaining, key_bytes) {
             return Ok(None);
         }
         let id = NodeId(graph.nodes.len() as u64);

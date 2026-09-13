@@ -10,9 +10,8 @@ use crate::{
     Error, Result,
     alignment::BlockSeparator,
     diff::{
-        AssessmentReason, ChangeKind, ChangeTag, ChangedRegionProof, Comparison,
-        ComparisonAssumption, Confidence, ProvenChangedRegion, RelationOutcome, SearchCompleteness,
-        TextSpan,
+        AssessmentReason, ChangeKind, ChangeTag, Comparison, ComparisonAssumption, Confidence,
+        ProvenChangedRegion, RelationOutcome, SearchCompleteness, TextSpan,
     },
     layout::BlockId,
     model::FontProgramHash,
@@ -536,10 +535,9 @@ fn validate_proven_changed_region(region: &ProvenChangedRegion) -> Result<()> {
     }
     let old_non_empty = region.old_span.as_ref().is_some_and(non_empty_span);
     let new_non_empty = region.new_span.as_ref().is_some_and(non_empty_span);
-    let valid = match region.proof {
-        ChangedRegionProof::ExactTokenMultisetMismatch => old_non_empty && new_non_empty,
-        ChangedRegionProof::OneSidedNonEmptyRange => old_non_empty ^ new_non_empty,
-    };
+    let valid = region
+        .proof
+        .matches_span_shape(old_non_empty, new_non_empty);
     if !valid {
         return Err(Error::InvalidConfiguration(
             "proven changed region span shape does not match its proof".to_owned(),

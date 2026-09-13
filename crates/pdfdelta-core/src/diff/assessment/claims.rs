@@ -1168,7 +1168,7 @@ fn bools(length: usize, value: bool) -> Result<Vec<bool>> {
     Ok(values)
 }
 
-fn charge(remaining_work: &mut usize, amount: usize) -> bool {
+pub(super) fn charge(remaining_work: &mut usize, amount: usize) -> bool {
     if let Some(remaining) = remaining_work.checked_sub(amount) {
         *remaining_work = remaining;
         true
@@ -1178,19 +1178,19 @@ fn charge(remaining_work: &mut usize, amount: usize) -> bool {
     }
 }
 
-fn limit_error(resource: &'static str) -> Error {
+pub(super) fn limit_error(resource: &'static str) -> Error {
     Error::LimitExceeded {
         resource,
         limit: usize::MAX,
     }
 }
 
-fn invalid(message: &str) -> Error {
+pub(super) fn invalid(message: &str) -> Error {
     Error::InvalidConfiguration(message.to_owned())
 }
 
-fn allocation_error(resource: &'static str) -> Error {
-    Error::Unresolved(format!("{resource} allocation failed"))
+pub(super) fn allocation_error(resource: &'static str) -> Error {
+    Error::Unresolved(format!("assessment {resource} allocation failed"))
 }
 
 #[cfg(test)]

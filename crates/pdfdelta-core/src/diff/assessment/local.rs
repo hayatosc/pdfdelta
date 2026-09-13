@@ -1,6 +1,6 @@
 use super::{
     Assessor, ChangeCandidate, ChangeEvent, Ownership, ProposedRelation, RelationOutcome,
-    SourceInterval, charge_work, occurrence_indices, project, proof_groups, visit_domain_hunks,
+    SourceInterval, charge, occurrence_indices, project, proof_groups, visit_domain_hunks,
 };
 use crate::{Result, diff::Confidence};
 
@@ -182,7 +182,7 @@ impl Assessor<'_, '_> {
                 .sum();
             let complete = visit_domain_hunks(&groups[0], &groups[1], &proof.edits, |hunk, _| {
                 if local_changes.len() >= self.options.max_assessment_ranges
-                    || !charge_work(&mut self.remaining_work, cost)
+                    || !charge(&mut self.remaining_work, cost)
                 {
                     return false;
                 }
@@ -370,7 +370,7 @@ impl Assessor<'_, '_> {
 }
 
 fn overlaps(old: &[SourceInterval], new: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
-    if !charge_work(
+    if !charge(
         remaining,
         old.len().saturating_mul(new.len()).saturating_add(1),
     ) {

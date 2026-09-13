@@ -194,6 +194,16 @@ pub enum ChangedRegionProof {
     OneSidedNonEmptyRange,
 }
 
+impl ChangedRegionProof {
+    /// Whether the proof is consistent with spans of the given non-emptiness.
+    pub(crate) fn matches_span_shape(self, old_nonempty: bool, new_nonempty: bool) -> bool {
+        match self {
+            Self::ExactTokenMultisetMismatch => old_nonempty && new_nonempty,
+            Self::OneSidedNonEmptyRange => old_nonempty ^ new_nonempty,
+        }
+    }
+}
+
 /// A source-backed region whose content is proven to differ but is not exactly localized.
 ///
 /// These regions remain unresolved and do not contribute to alignment coverage. They let

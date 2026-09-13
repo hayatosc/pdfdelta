@@ -1,5 +1,6 @@
 //! Bounded semantic uniqueness checks for optimal insertion/deletion paths.
 
+use super::charge;
 use crate::{Error, Result, diff::AtomicEdit};
 
 const MAX_SEMANTIC_MEMORY_BYTES: usize = 64 * 1024 * 1024;
@@ -114,10 +115,7 @@ where
     let token_count = old
         .len()
         .checked_add(new.len())
-        .ok_or(Error::LimitExceeded {
-            resource: DP_CELLS_RESOURCE,
-            limit: usize::MAX,
-        })?;
+        .ok_or_else(cells_limit_error)?;
 
     if old.is_empty() || new.is_empty() {
         let edits = one_sided_edits(old.len(), new.len())?;
@@ -169,10 +167,7 @@ where
 {
     let callback_work = token_count
         .checked_add(edits.len())
-        .ok_or(Error::LimitExceeded {
-            resource: DP_CELLS_RESOURCE,
-            limit: usize::MAX,
-        })?;
+        .ok_or_else(cells_limit_error)?;
     if !charge(remaining_work, callback_work) {
         return Ok(Outcome::BudgetExceeded);
     }
@@ -210,25 +205,13 @@ fn build_suffix<T: Eq>(
     new: &[T],
     remaining_work: &mut usize,
 ) -> Result<Option<Vec<usize>>> {
-    let rows = old.len().checked_add(1).ok_or(Error::LimitExceeded {
-        resource: DP_CELLS_RESOURCE,
-        limit: usize::MAX,
-    })?;
-    let columns = new.len().checked_add(1).ok_or(Error::LimitExceeded {
-        resource: DP_CELLS_RESOURCE,
-        limit: usize::MAX,
-    })?;
-    let cells = rows.checked_mul(columns).ok_or(Error::LimitExceeded {
-        resource: DP_CELLS_RESOURCE,
-        limit: usize::MAX,
-    })?;
+    let rows = old.len().checked_add(1).ok_or_else(cells_limit_error)?;
+    let columns = new.len().checked_add(1).ok_or_else(cells_limit_error)?;
+    let cells = rows.checked_mul(columns).ok_or_else(cells_limit_error)?;
     let interior_cells = old
         .len()
         .checked_mul(new.len())
-        .ok_or(Error::LimitExceeded {
-            resource: DP_CELLS_RESOURCE,
-            limit: usize::MAX,
-        })?;
+        .ok_or_else(cells_limit_error)?;
     if !chargeable(*remaining_work, interior_cells) {
         *remaining_work = 0;
         return Ok(None);
@@ -254,10 +237,7 @@ fn build_suffix<T: Eq>(
             suffix[current] = if old[old_index] == new[new_index] {
                 suffix[(old_index + 1) * columns + new_index + 1]
                     .checked_add(1)
-                    .ok_or(Error::LimitExceeded {
-                        resource: DP_CELLS_RESOURCE,
-                        limit: usize::MAX,
-                    })?
+                    .ok_or_else(cells_limit_error)?
             } else {
                 suffix[(old_index + 1) * columns + new_index]
                     .max(suffix[old_index * columns + new_index + 1])
@@ -281,10 +261,7 @@ where
     S: Eq,
     F: FnMut(&[AtomicEdit], &mut usize) -> Result<Option<S>>,
 {
-    let columns = new.len().checked_add(1).ok_or(Error::LimitExceeded {
-        resource: DP_CELLS_RESOURCE,
-        limit: usize::MAX,
-    })?;
+    let columns = new.len().checked_add(1).ok_or_else(cells_limit_error)?;
     let mut stack = Vec::new();
     stack.try_reserve_exact(1).map_err(|_| {
         Error::Unresolved("semantic uniqueness traversal allocation failed".to_owned())
@@ -307,13 +284,9 @@ where
                 return Ok(Outcome::BudgetExceeded);
             }
             let edits = canonicalize(&path)?;
-            let callback_work =
-                token_count
-                    .checked_add(edits.len())
-                    .ok_or(Error::LimitExceeded {
-                        resource: DP_CELLS_RESOURCE,
-                        limit: usize::MAX,
-                    })?;
+            let callback_work = token_count
+                .checked_add(edits.len())
+                .ok_or_else(cells_limit_error)?;
             if !charge(remaining_work, callback_work) {
                 return Ok(Outcome::BudgetExceeded);
             }
@@ -432,14 +405,14 @@ fn canonicalize(path: &[PathEdit]) -> Result<Vec<AtomicEdit>> {
         Error::Unresolved("semantic uniqueness canonical edit allocation failed".to_owned())
     })?;
     for step in path {
-        let old_end = step.old_index.checked_add(1).ok_or(Error::LimitExceeded {
-            resource: DP_CELLS_RESOURCE,
-            limit: usize::MAX,
-        })?;
-        let new_end = step.new_index.checked_add(1).ok_or(Error::LimitExceeded {
-            resource: DP_CELLS_RESOURCE,
-            limit: usize::MAX,
-        })?;
+        let old_end = step
+            .old_index
+            .checked_add(1)
+            .ok_or_else(cells_limit_error)?;
+        let new_end = step
+            .new_index
+            .checked_add(1)
+            .ok_or_else(cells_limit_error)?;
         let edit = if step.deletion {
             AtomicEdit {
                 old: step.old_index..old_end,
@@ -477,69 +450,37 @@ fn canonicalize(path: &[PathEdit]) -> Result<Vec<AtomicEdit>> {
 fn preflight_memory(old_len: usize, new_len: usize) -> Result<()> {
     let bytes = required_memory_bytes(old_len, new_len)?;
     if bytes > MAX_SEMANTIC_MEMORY_BYTES {
-        return Err(Error::LimitExceeded {
-            resource: DP_MEMORY_RESOURCE,
-            limit: MAX_SEMANTIC_MEMORY_BYTES,
-        });
+        return Err(memory_limit_error());
     }
     Ok(())
 }
 
 fn required_memory_bytes(old_len: usize, new_len: usize) -> Result<usize> {
-    let rows = old_len.checked_add(1).ok_or(Error::LimitExceeded {
-        resource: DP_MEMORY_RESOURCE,
-        limit: MAX_SEMANTIC_MEMORY_BYTES,
-    })?;
-    let columns = new_len.checked_add(1).ok_or(Error::LimitExceeded {
-        resource: DP_MEMORY_RESOURCE,
-        limit: MAX_SEMANTIC_MEMORY_BYTES,
-    })?;
-    let token_count = old_len.checked_add(new_len).ok_or(Error::LimitExceeded {
-        resource: DP_MEMORY_RESOURCE,
-        limit: MAX_SEMANTIC_MEMORY_BYTES,
-    })?;
-    let cells = rows.checked_mul(columns).ok_or(Error::LimitExceeded {
-        resource: DP_MEMORY_RESOURCE,
-        limit: MAX_SEMANTIC_MEMORY_BYTES,
-    })?;
-    let suffix_bytes =
-        cells
-            .checked_mul(std::mem::size_of::<usize>())
-            .ok_or(Error::LimitExceeded {
-                resource: DP_MEMORY_RESOURCE,
-                limit: MAX_SEMANTIC_MEMORY_BYTES,
-            })?;
-    let frame_count = token_count.checked_add(1).ok_or(Error::LimitExceeded {
-        resource: DP_MEMORY_RESOURCE,
-        limit: MAX_SEMANTIC_MEMORY_BYTES,
-    })?;
+    let rows = old_len.checked_add(1).ok_or_else(memory_limit_error)?;
+    let columns = new_len.checked_add(1).ok_or_else(memory_limit_error)?;
+    let token_count = old_len
+        .checked_add(new_len)
+        .ok_or_else(memory_limit_error)?;
+    let cells = rows.checked_mul(columns).ok_or_else(memory_limit_error)?;
+    let suffix_bytes = cells
+        .checked_mul(std::mem::size_of::<usize>())
+        .ok_or_else(memory_limit_error)?;
+    let frame_count = token_count.checked_add(1).ok_or_else(memory_limit_error)?;
     let stack_bytes = frame_count
         .checked_mul(std::mem::size_of::<Frame>())
-        .ok_or(Error::LimitExceeded {
-            resource: DP_MEMORY_RESOURCE,
-            limit: MAX_SEMANTIC_MEMORY_BYTES,
-        })?;
+        .ok_or_else(memory_limit_error)?;
     let path_bytes = token_count
         .checked_mul(std::mem::size_of::<PathEdit>())
-        .ok_or(Error::LimitExceeded {
-            resource: DP_MEMORY_RESOURCE,
-            limit: MAX_SEMANTIC_MEMORY_BYTES,
-        })?;
+        .ok_or_else(memory_limit_error)?;
     let witness_bytes = token_count
         .checked_mul(std::mem::size_of::<AtomicEdit>())
         .and_then(|bytes| bytes.checked_mul(2))
-        .ok_or(Error::LimitExceeded {
-            resource: DP_MEMORY_RESOURCE,
-            limit: MAX_SEMANTIC_MEMORY_BYTES,
-        })?;
+        .ok_or_else(memory_limit_error)?;
     suffix_bytes
         .checked_add(stack_bytes)
         .and_then(|bytes| bytes.checked_add(path_bytes))
         .and_then(|bytes| bytes.checked_add(witness_bytes))
-        .ok_or(Error::LimitExceeded {
-            resource: DP_MEMORY_RESOURCE,
-            limit: MAX_SEMANTIC_MEMORY_BYTES,
-        })
+        .ok_or_else(memory_limit_error)
 }
 
 #[derive(Clone, Copy)]
@@ -558,17 +499,22 @@ struct PathEdit {
     deletion: bool,
 }
 
-fn chargeable(remaining_work: usize, work: usize) -> bool {
-    remaining_work >= work
+fn cells_limit_error() -> Error {
+    Error::LimitExceeded {
+        resource: DP_CELLS_RESOURCE,
+        limit: usize::MAX,
+    }
 }
 
-fn charge(remaining_work: &mut usize, work: usize) -> bool {
-    if !chargeable(*remaining_work, work) {
-        *remaining_work = 0;
-        return false;
+fn memory_limit_error() -> Error {
+    Error::LimitExceeded {
+        resource: DP_MEMORY_RESOURCE,
+        limit: MAX_SEMANTIC_MEMORY_BYTES,
     }
-    *remaining_work -= work;
-    true
+}
+
+fn chargeable(remaining_work: usize, work: usize) -> bool {
+    remaining_work >= work
 }
 
 fn traversal_error() -> Error {

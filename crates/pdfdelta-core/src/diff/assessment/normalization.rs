@@ -1,6 +1,6 @@
 //! Source-backed optional tokens for unresolved discretionary line-end hyphens.
 
-use super::{GroupText, Side, allocation_error, charge_work, space_token};
+use super::{GroupText, Side, allocation_error, charge, space_token};
 use crate::{Result, alignment::BlockSeparator, normalize::ComparableToken};
 
 /// Returns a compact linear DAG: each marked token has retain and skip edges.
@@ -38,7 +38,7 @@ pub(super) fn optional_tokens(
                 .saturating_add(block.normalization_events.len())
                 .saturating_add(block.canonical.unmapped.len())
                 .saturating_mul(block.issues.len().saturating_add(1));
-            if !charge_work(remaining, work) {
+            if !charge(remaining, work) {
                 return Ok(None);
             }
             let Ok(ranges) = block.checked_normalization_issue_ranges() else {

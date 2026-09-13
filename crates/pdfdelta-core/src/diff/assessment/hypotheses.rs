@@ -8,6 +8,7 @@
 use std::{hash::Hash, mem::size_of};
 
 use super::claims::{self, CountBounds};
+use super::{allocation_error, charge, invalid, limit_error};
 use crate::{Error, Result};
 
 const MAX_HYPOTHESIS_MEMORY_BYTES: usize = 64 * 1024 * 1024;
@@ -345,31 +346,6 @@ fn project(input: &[bool], indices: &[usize]) -> Result<Vec<bool>> {
         );
     }
     Ok(output)
-}
-
-fn charge(remaining_work: &mut usize, amount: usize) -> bool {
-    if let Some(remaining) = remaining_work.checked_sub(amount) {
-        *remaining_work = remaining;
-        true
-    } else {
-        *remaining_work = 0;
-        false
-    }
-}
-
-fn invalid(message: &str) -> Error {
-    Error::InvalidConfiguration(message.to_owned())
-}
-
-fn limit_error(resource: &'static str) -> Error {
-    Error::LimitExceeded {
-        resource,
-        limit: usize::MAX,
-    }
-}
-
-fn allocation_error(resource: &'static str) -> Error {
-    Error::Unresolved(format!("{resource} allocation failed"))
 }
 
 #[cfg(test)]
