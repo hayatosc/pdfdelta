@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-breach-examples-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "1.The GDPR introduces the requirement for a personal data breach to be notified to the competentnational supervisory authority (hereinafter“SA”) and, in certain cases, to communicate the breach tothe individuals whose personal data have been affected by the breach (Articles 33 and 34).",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "1.The GDPR introduces, in certain cases, the requirement for a personal data breach to be notified to thecompetent national supervisory authority (hereinafter “SA”) and to communicate the breach totheindividuals whose personal data have been affected by the breach (Articles 33 and 34).",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "a0f6747f940d3fe711484165118c5ab7ce86b565a446b1812b89a725506fb05e",
+  "new_sha256": "3a488520ab3a14500911ae44ac9cc5bcc3aa2242b2457f87bcd5286a10ae5949"
+}

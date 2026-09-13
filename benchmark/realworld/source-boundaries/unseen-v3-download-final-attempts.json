@@ -1,0 +1,38 @@
+{
+  "version": 3,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202101_databreachnotificationexamples_v1_en.pdf",
+      "started_utc": "2026-09-13T12:27:30.760578+00:00",
+      "wall_seconds": 2.884422265997273,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-old.pdf",
+        "sha256": "a0f6747f940d3fe711484165118c5ab7ce86b565a446b1812b89a725506fb05e"
+      },
+      "bytes": 332254
+    },
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/documents/2022-01/edpb_guidelines_012021_pdbnotification_adopted_en.pdf",
+      "started_utc": "2026-09-13T12:27:30.760895+00:00",
+      "wall_seconds": 2.0477511529970798,
+      "exit_code": 0,
+      "http_code": "200",
+      "stderr": "",
+      "status": "downloaded",
+      "input": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-new.pdf",
+        "sha256": "3a488520ab3a14500911ae44ac9cc5bcc3aa2242b2457f87bcd5286a10ae5949"
+      },
+      "bytes": 330519
+    }
+  ]
+}

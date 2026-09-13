@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-uri-2396-to-3986",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "5d2a9618a315b415458067d871b1c8f841d7b492dc6a5f9b40e48e1ee8b6f09b",
+  "body_eligible": true,
+  "reason": "The complete abstract reorganizes two old paragraphs into one new paragraph and changes URI definitions, reference resolution and security considerations. Both old paragraphs are retained at their full raw extent."
+}

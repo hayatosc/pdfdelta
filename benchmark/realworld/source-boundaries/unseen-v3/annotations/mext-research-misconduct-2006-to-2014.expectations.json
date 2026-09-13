@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "mext-research-misconduct-2006-to-2014",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "473b6ffc9c5004466219a82f3400b80927b77340144b1a65ccfbcb21dcc101ae",
+  "body_eligible": true,
+  "reason": "The corresponding research-results-publication paragraph changes researcher community to scientific community and revises the explanation of the mutual-checking system. Earlier old introductory pages have no extracted glyphs and remain unresolved; the first common fully available named subsection is used. Original paragraph boundaries are retained."
+}

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "c3c1d8512530849fbd67dad1e69ccb5c3219e240975ccd13e21b55439806afe9",
+  "attempts": [
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-anchored-page-v40/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T12:27:57.858111+00:00",
+      "exit_code": 0,
+      "input_sha256": "a0f6747f940d3fe711484165118c5ab7ce86b565a446b1812b89a725506fb05e",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-old.glyphs.txt",
+        "sha256": "91a3777e362815ab2f10f388a870b2fdbec2bc13468c78d30d65960ffb30f378"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-anchored-page-v40/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T12:27:58.516264+00:00",
+      "exit_code": 0,
+      "input_sha256": "3a488520ab3a14500911ae44ac9cc5bcc3aa2242b2457f87bcd5286a10ae5949",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-new.glyphs.txt",
+        "sha256": "c7e19cab56339d495787fc060da66ed9591374aa9b038600c9d29ed91f4ccb11"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/edpb-breach-examples-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

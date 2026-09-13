@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "reason": "The first changed prose paragraph crosses unmapped mathematical glyphs; no missing symbol may become empty text or a fabricated literal quote.",
+  "rows": [
+    {
+      "side": "old",
+      "glyph_range": [
+        15233,
+        15385
+      ],
+      "unmapped_ids": [
+        15292,
+        15293,
+        15374,
+        15375,
+        15376
+      ],
+      "source_inspection": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-reformer-v1-to-v2-old.glyphs.txt",
+        "sha256": "e4b0efbf3a267020fd5c09a7490907737ef6ed8b941b4a264b4d0ff6e275a09f"
+      }
+    },
+    {
+      "side": "new",
+      "glyph_range": [
+        15233,
+        15465
+      ],
+      "unmapped_ids": [
+        15292,
+        15293,
+        15374,
+        15375,
+        15376
+      ],
+      "source_inspection": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-reformer-v1-to-v2-new.glyphs.txt",
+        "sha256": "a0d8d7114e6461c79edebb5fb222c93abee0b27213dbe4d693ca0317f1c27bde"
+      }
+    }
+  ]
+}

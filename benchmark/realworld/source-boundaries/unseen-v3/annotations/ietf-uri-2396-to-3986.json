@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "ietf-uri-2396-to-3986",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "A Uniform Resource Identifier (URI) is a compact string of characters   for identifying an abstract or physical resource.  This document   defines the generic syntax of URI, including both absolute and   relative forms, and guidelines for their use; it revises and replaces   the generic definitions in RFC 1738 and RFC 1808.   This document defines a grammar that is a superset of all valid URI,   such that an implementation can parse the common components of a URI   reference without knowing the scheme-specific requirements of every   possible identifier type.  This document does not define a generative   grammar for URI; that task will be performed by the individual   specifications of each URI scheme.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "A Uniform Resource Identifier (URI) is a compact sequence of   characters that identifies an abstract or physical resource.  This   specification defines the generic URI syntax and a process for   resolving URI references that might be in relative form, along with   guidelines and security considerations for the use of URIs on the   Internet.  The URI syntax defines a grammar that is a superset of all   valid URIs, allowing an implementation to parse the common components   of a URI reference without knowing the scheme-specific requirements   of every possible identifier.  This specification does not define a   generative grammar for URIs; that task is performed by the individual   specifications of each URI scheme.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "ff6d7baadda20f3fdd2d2ac537a8a2a8c47a58bf3f088eceffd6dc0e41c85d88",
+  "new_sha256": "dedf9d14546df86753d84f671c3ed49e6ae35ddae49c9961fdd4c009acf5019f"
+}

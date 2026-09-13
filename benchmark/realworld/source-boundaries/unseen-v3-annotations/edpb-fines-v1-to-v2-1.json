@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-fines-v1-to-v2-1",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "1. The EU has – with the General Data Protection Regulation (hereinafter referred to as the “GDPR”), which has been applicable since 25 May 2018 – completed a comprehensive reform of data protection regulation in Europe. The Regulation rests on several key components, one being stronger enforcement powers for supervisory authorities. The Regulation imposes a new, substantially increased level of fines, as well as providing for harmonization of fines between Member States.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "1.1 - Legal framework",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 5
+      },
+      "literal_quote": "1. The EU has – with the General Data Protection Regulation (hereinafter referred to as the “GDPR”), which has been applicable since 25 May 2018 – completed a comprehensive reform of data protection regulation in Europe. The protection of natural persons in relation to the processing of personal data is a fundamental right. The Regulation rests on several key components, one being stronger enforcement powers for supervisory authorities. The Regulation imposes a new, substantially increased level of fines, as well as providing for harmonization of fines between Member States.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 5
+      },
+      "literal_quote": "1.1 - Legal framework",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "e2ab1dbac785e114ac551adf5f595c351d1ebd9111c8f72930bbe288abfd585f",
+  "new_sha256": "9e1ce64002f26700db89084cb1734ff5cb6fe54dec5c9203ea0dc27a3871d72a"
+}
