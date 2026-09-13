@@ -2683,6 +2683,73 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     );
 }
 
+#[test]
+fn presentation_channel_reports_unsupported_coverage_without_changes() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-presentation.pdf");
+    let new = directory.join("new-presentation.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let report_path = directory.join("presentation.json");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "presentation"])
+        .arg(&old)
+        .arg(&new)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("presentation comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["typed_changes"], 0);
+    let coverage = report["coverage"]
+        .as_array()
+        .expect("coverage")
+        .iter()
+        .find(|coverage| coverage["channel"] == "presentation")
+        .expect("presentation coverage");
+    assert_eq!(coverage["complete"], false);
+    assert!(
+        report["old"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .any(|issue| issue["channel"] == "presentation" && issue["kind"] == "unsupported"),
+        "{report}"
+    );
+}
+
+#[test]
+fn external_font_identity_flags_are_validated_end_to_end() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-identity.pdf");
+    let new = directory.join("new-identity.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let accepted = compare(
+        &old,
+        &new,
+        &[
+            "--old-font-identity",
+            "Helvetica=windows-v1",
+            "--new-font-identity",
+            "Helvetica=windows-v1",
+        ],
+    );
+    assert_eq!(accepted.status.code(), Some(0), "{}", stderr(&accepted));
+
+    let malformed = compare(&old, &new, &["--old-font-identity", "Helvetica"]);
+    assert_eq!(malformed.status.code(), Some(2), "{}", stderr(&malformed));
+    assert!(
+        stderr(&malformed).contains("BASE_FONT=IDENTITY"),
+        "{}",
+        stderr(&malformed)
+    );
+}
+
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .arg("--native-text-only")
