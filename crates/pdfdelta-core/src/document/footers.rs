@@ -84,12 +84,14 @@ pub(crate) fn candidates(
             return Ok(Vec::new());
         }
         // Missing page-local geometry can hide competing material below the
-        // proposed footer. Multi-page blocks need a finer source view first.
+        // proposed footer. Multi-page blocks and missing line-boundary
+        // evidence need a finer source view first.
         if indices.iter().any(|&index| {
             let block = &blocks[index];
             block.pages != [page]
                 || block.position_signatures.is_none()
                 || block.font_size_signatures.is_none()
+                || block.line_breaks.is_none()
         }) {
             discovery.complete = false;
             continue;
@@ -432,6 +434,80 @@ impl super::DocumentGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        layout::BlockId,
+        model::Vec2,
+        normalize::{ComparableToken, FontSizeSignature, MappedText, PositionSignature},
+    };
+
+    fn terminal_block(line_breaks: Option<Vec<usize>>) -> BlockText {
+        let text = "Cat. No. 1234";
+        let tokens = text
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let sizes = tokens
+            .iter()
+            .map(|_| FontSizeSignature::new(&[10.0]).expect("single size"))
+            .collect();
+        let positions = tokens
+            .iter()
+            .enumerate()
+            .map(|(index, _)| {
+                PositionSignature::new(
+                    Vec2 {
+                        x: 10.0 + index as f64,
+                        y: 10.0,
+                    },
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("horizontal position")
+            })
+            .collect();
+        BlockText {
+            block: BlockId(1),
+            role: BlockRole::RepeatedFooter,
+            raw: MappedText {
+                text: text.to_owned(),
+                source_map: Vec::new(),
+                unmapped: Vec::new(),
+            },
+            canonical: MappedText {
+                text: text.to_owned(),
+                source_map: Vec::new(),
+                unmapped: Vec::new(),
+            },
+            matching: text.to_owned(),
+            matching_tokens: tokens,
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: Some(sizes),
+            position_signatures: Some(positions),
+            line_breaks,
+            page_breaks: Some(Vec::new()),
+        }
+    }
+
+    #[test]
+    fn missing_line_break_evidence_keeps_footer_discovery_incomplete() {
+        let mut discovery = CandidateSearch {
+            complete: true,
+            work_limited: false,
+        };
+        let mut remaining = 1_000_000;
+        let found = candidates(
+            std::slice::from_ref(&terminal_block(None)),
+            1,
+            &mut remaining,
+            64,
+            &mut discovery,
+        )
+        .expect("valid terminal block");
+        assert!(found.is_empty());
+        assert!(!discovery.complete);
+    }
 
     #[test]
     fn catalog_and_form_identity_is_generic_and_duplicates_are_visible() {
