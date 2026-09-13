@@ -205,6 +205,35 @@ fn unrelated_wide_glyphs_do_not_suppress_a_word_space() {
 }
 
 #[test]
+fn font_switch_alone_does_not_suppress_a_word_space() {
+    let mut glyphs = [
+        (1, "a", 0.0),
+        (2, "b", 6.3),
+        (3, "c", 12.3 + 1.776),
+        (4, "d", 18.6 + 1.776),
+    ]
+    .into_iter()
+    .map(|(id, text, x)| glyph(id, text, 0, x, 0.0, 6.0, 12.0, 12.0, 0.0))
+    .collect::<Vec<_>>();
+    for glyph in &mut glyphs[2..] {
+        glyph.font_id = FontId(2);
+    }
+    let document = Document::new(glyphs);
+
+    let lines = reconstruct_lines(&document, LineOptions::default())
+        .expect("font transition should be reconstructed");
+
+    assert_eq!(lines.len(), 1);
+    assert_eq!(
+        lines[0].synthetic_spaces,
+        [SyntheticSpace {
+            preceding: GlyphId(2),
+            following: GlyphId(3),
+        }]
+    );
+}
+
+#[test]
 fn rejects_non_finite_glyph_geometry() {
     let document = Document::new(vec![glyph(1, "A", 0, 0.0, f64::NAN, 5.0, 10.0, 10.0, 0.0)]);
 

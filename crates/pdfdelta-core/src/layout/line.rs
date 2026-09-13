@@ -461,14 +461,17 @@ fn reconstruct_spaces(
             let font_size = f64::midpoint(preceding.font_size, following.font_size);
             let threshold = (options.space_gap_font_size_ratio * font_size)
                 .max(options.space_gap_advance_ratio * typical_advance);
-            // CJK side bearings and font changes can create gaps inside a word.
-            // Keep those boundaries conservative while recovering compressed
-            // word spaces inside a uniform run. Raw glyphs remain unchanged.
+            // CJK side bearings and size transitions can create gaps inside a
+            // word. Keep those boundaries conservative while recovering
+            // compressed word spaces inside a uniform run. A same-size font
+            // switch alone does not widen the threshold: its side-bearing
+            // difference stays below the base gap floor, and doubling here
+            // would erase a real word space when only the font changed.
             let cjk_boundary = matches!(&preceding.text, DecodedText::Mapped(text) if text.chars().next_back().is_some_and(is_cjk))
                 || matches!(&following.text, DecodedText::Mapped(text) if text.chars().next().is_some_and(is_cjk));
             let threshold = if cjk_boundary {
                 threshold * 4.0
-            } else if preceding.font_id != following.font_id || preceding.font_size != following.font_size {
+            } else if preceding.font_size != following.font_size {
                 threshold * 2.0
             } else {
                 threshold
