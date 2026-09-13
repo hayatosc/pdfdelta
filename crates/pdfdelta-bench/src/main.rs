@@ -1266,34 +1266,23 @@ fn revisions<W: Write>(
     summary_json_output: Option<&Path>,
     evaluation_json_output: Option<&Path>,
 ) -> Result<u8, String> {
-    if let (Some(full_path), Some(summary_path)) = (json_output, summary_json_output) {
-        let norm_full = normalize_output_destination(full_path).map_err(|e| e.to_string())?;
-        let norm_summary = normalize_output_destination(summary_path).map_err(|e| e.to_string())?;
-        if norm_full == norm_summary {
-            return Err(format!(
-                "--json-output and --summary-json-output must specify distinct paths; got conflicting destination {}",
-                full_path.display()
-            ));
-        }
-    }
-    for (left_name, left, right_name, right) in [
-        (
-            "--json-output",
-            json_output,
-            "--evaluation-json-output",
-            evaluation_json_output,
-        ),
-        (
-            "--summary-json-output",
-            summary_json_output,
-            "--evaluation-json-output",
-            evaluation_json_output,
-        ),
-    ] {
-        if let (Some(left), Some(right)) = (left, right) {
-            let norm_left = normalize_output_destination(left).map_err(|e| e.to_string())?;
-            let norm_right = normalize_output_destination(right).map_err(|e| e.to_string())?;
-            if norm_left == norm_right {
+    // Every pair of publication destinations must be distinct. The table
+    // preserves the original check order (json/summary, json/evaluation,
+    // summary/evaluation) and its left-to-right refusal message.
+    let outputs = [
+        ("--json-output", json_output),
+        ("--summary-json-output", summary_json_output),
+        ("--evaluation-json-output", evaluation_json_output),
+    ];
+    for (index, (left_name, left)) in outputs.iter().enumerate() {
+        let Some(left) = left else { continue };
+        for (right_name, right) in &outputs[index + 1..] {
+            let Some(right) = right else { continue };
+            let normalized_left =
+                normalize_output_destination(left).map_err(|error| error.to_string())?;
+            let normalized_right =
+                normalize_output_destination(right).map_err(|error| error.to_string())?;
+            if normalized_left == normalized_right {
                 return Err(format!(
                     "{left_name} and {right_name} must specify distinct paths; got conflicting destination {}",
                     left.display()
