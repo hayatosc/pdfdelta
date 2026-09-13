@@ -4,7 +4,7 @@
 use std::{
     collections::BTreeSet,
     io::{BufRead, Read, Write},
-    path::{Path, PathBuf},
+    path::Path,
     process::Command,
     sync::Arc,
     time::Duration,
@@ -56,7 +56,9 @@ struct Request {
     /// original assertion bytes, and only the digest determines extraction
     /// identity and the extraction-cache key.
     font_identities: Vec<(String, String)>,
-    cache_dir: Option<PathBuf>,
+    /// A UTF-8 cache directory, or `None` to disable the cache: the transport
+    /// is JSON, and a non-UTF-8 path must not fail the whole acquisition.
+    cache_dir: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -180,11 +182,15 @@ pub fn collect(
         })
         .collect::<Vec<_>>();
     let hash = revision(bytes);
+    // The worker request is JSON, so a non-UTF-8 cache directory can only be
+    // transported by dropping the cache; the cache is best-effort and must
+    // never turn a valid comparison into missing evidence.
+    let cache_dir = cache_dir.and_then(|path| path.to_str().map(str::to_owned));
     let request = |job| Request {
         job,
         password: password.map(str::to_owned),
         font_identities: identities.clone(),
-        cache_dir: cache_dir.map(Path::to_path_buf),
+        cache_dir: cache_dir.clone(),
     };
     let forms = channels.contains(&Channel::Forms) || channels.contains(&Channel::Relations);
     let mut metadata = forms.then(|| invoke(bytes, &request(Job::Metadata { forms }), &hash));
@@ -471,24 +477,27 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
         .collect();
     let extraction = match request.job {
         Job::Metadata { .. } => ExtractionOutcome::complete(Document::new(Vec::new())),
-        Job::Content { .. } => match request.cache_dir.as_deref().map(ExtractionCache::new) {
-            Some(cache) => cache
-                .get_or_extract(
-                    &bytes,
-                    &ParseLimits::default(),
-                    request.password.as_deref(),
-                    &fonts,
-                    || {
-                        extractor
-                            .extract_outcome_with_external_font_identities(
-                                parsed.as_ref(),
-                                ExtractionLimits::default(),
-                                &fonts,
-                            )
-                            .map_err(Failure::core)
-                    },
-                )
-                .map(|(outcome, _)| outcome)?,
+        Job::Content { .. } => match request.cache_dir.as_deref().map(Path::new) {
+            Some(cache_dir) => {
+                let cache = ExtractionCache::new(cache_dir);
+                cache
+                    .get_or_extract(
+                        &bytes,
+                        &ParseLimits::default(),
+                        request.password.as_deref(),
+                        &fonts,
+                        || {
+                            extractor
+                                .extract_outcome_with_external_font_identities(
+                                    parsed.as_ref(),
+                                    ExtractionLimits::default(),
+                                    &fonts,
+                                )
+                                .map_err(Failure::core)
+                        },
+                    )
+                    .map(|(outcome, _)| outcome)?
+            }
             None => extractor
                 .extract_outcome_with_external_font_identities(
                     parsed.as_ref(),

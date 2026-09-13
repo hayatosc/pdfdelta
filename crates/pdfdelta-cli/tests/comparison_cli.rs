@@ -2955,6 +2955,38 @@ fn default_report_displays_inferred_text_changes_and_exact_mask_counts() {
     assert!(text.contains("Unresolved old Visual"), "{text}");
 }
 
+#[cfg(unix)]
+#[test]
+fn non_utf8_cache_directories_do_not_disable_native_evidence() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let cache_dir = directory
+        .0
+        .join(std::ffi::OsString::from_vec(b"cache-\xff".to_vec()));
+    fs::create_dir_all(&cache_dir).expect("non-UTF-8 cache directory");
+    let report_path = directory.join("non-utf8-cache.json");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text"])
+        .arg(&old)
+        .arg(&new)
+        .arg("--extraction-cache-dir")
+        .arg(&cache_dir)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("non-UTF-8 cache comparison");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["old"]["native_glyphs"], 34, "{report}");
+    assert_eq!(report["new"]["native_glyphs"], 34, "{report}");
+}
+
 #[test]
 fn default_evidence_path_publishes_json_text_and_trace_reports() {
     let directory = TestDirectory::new();
