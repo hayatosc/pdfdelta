@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    marker::PhantomData,
     mem::size_of,
     ops::Range,
 };
@@ -18310,25 +18311,49 @@ struct GlobalLengthAwareBoundaryKey {
     signature: u64,
 }
 
-struct LocalFragmentPairStreamFingerprint {
+/// Hash-only fingerprint of a stream of fragment queries consumed by one
+/// retained-pair pass. Only each query's count and digest enter the stream.
+struct StreamFingerprint<Q> {
     hasher: Sha256,
+    query: PhantomData<Q>,
 }
 
-struct ExactBoundaryCertificationStreamFingerprint {
-    hasher: Sha256,
+/// Digest-bearing query whose contents are absorbed by a [`StreamFingerprint`].
+trait QueryFingerprint {
+    fn count(&self) -> usize;
+    fn into_digest(self) -> [u8; 32];
 }
 
-impl ExactBoundaryCertificationStreamFingerprint {
+type LocalFragmentPairStreamFingerprint = StreamFingerprint<LocalFragmentQueryFingerprint>;
+type ExactBoundaryCertificationStreamFingerprint =
+    StreamFingerprint<ExactBoundaryCertificationQueryFingerprint>;
+
+impl StreamFingerprint<LocalFragmentQueryFingerprint> {
     fn new() -> Self {
+        Self::with_domain(b"pdfdelta-local-fragment-pair-stream-v1")
+    }
+}
+
+impl StreamFingerprint<ExactBoundaryCertificationQueryFingerprint> {
+    fn new() -> Self {
+        Self::with_domain(b"pdfdelta-exact-boundary-certification-stream-v1")
+    }
+}
+
+impl<Q: QueryFingerprint> StreamFingerprint<Q> {
+    fn with_domain(domain: &[u8]) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(b"pdfdelta-exact-boundary-certification-stream-v1");
-        Self { hasher }
+        hasher.update(domain);
+        Self {
+            hasher,
+            query: PhantomData,
+        }
     }
 
     fn commit_query(
         &mut self,
         old_fragment_index: usize,
-        query: ExactBoundaryCertificationQueryFingerprint,
+        query: Q,
     ) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
         self.hasher.update(
             u64::try_from(old_fragment_index)
@@ -18336,11 +18361,11 @@ impl ExactBoundaryCertificationStreamFingerprint {
                 .to_le_bytes(),
         );
         self.hasher.update(
-            u64::try_from(query.count)
+            u64::try_from(query.count())
                 .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
                 .to_le_bytes(),
         );
-        self.hasher.update(query.hasher.finalize());
+        self.hasher.update(query.into_digest());
         Ok(())
     }
 
@@ -18391,33 +18416,12 @@ impl ExactBoundaryCertificationQueryFingerprint {
     }
 }
 
-impl LocalFragmentPairStreamFingerprint {
-    fn new() -> Self {
-        let mut hasher = Sha256::new();
-        hasher.update(b"pdfdelta-local-fragment-pair-stream-v1");
-        Self { hasher }
+impl QueryFingerprint for ExactBoundaryCertificationQueryFingerprint {
+    fn count(&self) -> usize {
+        self.count
     }
 
-    fn commit_query(
-        &mut self,
-        old_fragment_index: usize,
-        query: LocalFragmentQueryFingerprint,
-    ) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
-        self.hasher.update(
-            u64::try_from(old_fragment_index)
-                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
-                .to_le_bytes(),
-        );
-        self.hasher.update(
-            u64::try_from(query.count)
-                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
-                .to_le_bytes(),
-        );
-        self.hasher.update(query.hasher.finalize());
-        Ok(())
-    }
-
-    fn finish(self) -> [u8; 32] {
+    fn into_digest(self) -> [u8; 32] {
         self.hasher.finalize().into()
     }
 }
@@ -18448,6 +18452,16 @@ impl LocalFragmentQueryFingerprint {
                 .to_le_bytes(),
         );
         Ok(())
+    }
+}
+
+impl QueryFingerprint for LocalFragmentQueryFingerprint {
+    fn count(&self) -> usize {
+        self.count
+    }
+
+    fn into_digest(self) -> [u8; 32] {
+        self.hasher.finalize().into()
     }
 }
 
