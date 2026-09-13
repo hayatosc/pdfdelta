@@ -483,7 +483,7 @@ pub fn normalized_destination(path: &Path, context: &str) -> Result<PathBuf, Str
 
 #[cfg(test)]
 mod tests {
-    use super::{InputReadError, read_limited_typed};
+    use super::{InputReadError, MAX_PASSWORD_FILE_BYTES, read_limited_typed, read_password_file};
 
     #[test]
     fn classifies_input_size_limits_separately_from_io_failures() {
@@ -500,6 +500,110 @@ mod tests {
             error,
             InputReadError::LimitExceeded { limit: 3, .. }
         ));
+    }
+
+    #[test]
+    fn accepts_input_at_the_byte_limit_and_rejects_one_byte_more() {
+        let path = std::env::temp_dir().join(format!(
+            "pdfdelta-input-boundary-test-{}.pdf",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"abc").expect("input boundary fixture should be written");
+
+        let exact = read_limited_typed(&path, 3).expect("input at the limit is accepted");
+        assert_eq!(exact.as_ref(), b"abc");
+        let error = read_limited_typed(&path, 2).expect_err("input above the limit is rejected");
+        std::fs::remove_file(path).expect("input boundary fixture should be removed");
+
+        assert!(matches!(
+            error,
+            InputReadError::LimitExceeded { limit: 2, .. }
+        ));
+    }
+
+    #[test]
+    fn password_files_strip_one_line_ending_and_enforce_their_byte_limit() {
+        let path = std::env::temp_dir().join(format!(
+            "pdfdelta-password-file-test-{}",
+            std::process::id()
+        ));
+
+        std::fs::write(&path, b"secret\r\n").expect("CRLF password fixture");
+        assert_eq!(
+            read_password_file(&path).expect("CRLF password should parse"),
+            "secret"
+        );
+        std::fs::write(&path, b"secret\n").expect("LF password fixture");
+        assert_eq!(
+            read_password_file(&path).expect("LF password should parse"),
+            "secret"
+        );
+        std::fs::write(&path, b"").expect("empty password fixture");
+        assert_eq!(
+            read_password_file(&path).expect("empty password should be accepted"),
+            ""
+        );
+
+        let exact = vec![b'a'; MAX_PASSWORD_FILE_BYTES];
+        std::fs::write(&path, &exact).expect("password at the limit");
+        assert_eq!(
+            read_password_file(&path)
+                .expect("password at the limit should parse")
+                .len(),
+            MAX_PASSWORD_FILE_BYTES
+        );
+
+        let oversized = vec![b'a'; MAX_PASSWORD_FILE_BYTES + 1];
+        std::fs::write(&path, oversized).expect("oversized password fixture");
+        let error = read_password_file(&path).expect_err("oversized password should be rejected");
+        std::fs::remove_file(path).expect("password fixture should be removed");
+
+        assert!(error.contains("password file"), "{error}");
+    }
+
+    #[test]
+    fn existing_aliases_compare_by_identity_and_missing_leaves_by_destination() {
+        let directory = std::env::temp_dir().join(format!(
+            "pdfdelta-path-alias-test-{}-{}",
+            std::process::id(),
+            super::NEXT_TEMPORARY_FILE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&directory).expect("alias fixture directory");
+        let pdf = directory.join("input.pdf");
+        std::fs::write(&pdf, b"pdf").expect("input fixture");
+        #[cfg(unix)]
+        let link = {
+            let link = directory.join("alias.pdf");
+            std::os::unix::fs::symlink(&pdf, &link).expect("symlink fixture");
+            link
+        };
+
+        assert!(
+            super::paths_refer_to_same_file(&pdf, &pdf, "self collision").expect("identical paths")
+        );
+        #[cfg(unix)]
+        assert!(
+            super::paths_refer_to_same_file(&pdf, &link, "symlink collision")
+                .expect("symlinked alias")
+        );
+        assert!(
+            !super::paths_refer_to_same_file(
+                &directory.join("future.json"),
+                &directory.join("other.json"),
+                "distinct missing leaves"
+            )
+            .expect("distinct future destinations")
+        );
+        assert!(
+            super::paths_refer_to_same_file(
+                &directory.join("future.json"),
+                &directory.join(".").join("future.json"),
+                "lexical alias"
+            )
+            .expect("lexically aliased future destination")
+        );
+
+        std::fs::remove_dir_all(directory).expect("alias fixture cleanup");
     }
 
     #[cfg(unix)]
