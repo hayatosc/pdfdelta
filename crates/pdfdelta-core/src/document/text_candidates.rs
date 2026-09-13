@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     CorrespondenceProposal, CorrespondenceScope, DocumentGraph, GraphNode, MatchingLimits,
-    NodeContent, NodeKind, ProposalBasis, ScopeProposals, TextNormalization,
+    NodeContent, NodeKind, ProposalBasis, ScopeProposals, TextNormalization, TextView,
     matching::selected_children,
 };
 use crate::{Result, normalize::ComparableToken};
@@ -41,18 +41,29 @@ pub struct TextCandidateSearch {
 }
 
 pub(super) fn eligible(node: &GraphNode) -> bool {
-    node.identity.is_none()
-        && matches!(
-            node.kind,
-            NodeKind::Paragraph
-                | NodeKind::Header
-                | NodeKind::Footer
-                | NodeKind::Caption
-                | NodeKind::ListItem
-                | NodeKind::Code
-                | NodeKind::Formula
-        )
-        && matches!(&node.content, NodeContent::Text { view } if !view.tokens.is_empty() && view.normalization == TextNormalization::Exact)
+    eligible_view(node).is_some()
+}
+
+fn eligible_view(node: &GraphNode) -> Option<&TextView> {
+    if node.identity.is_some() {
+        return None;
+    }
+    if !matches!(
+        node.kind,
+        NodeKind::Paragraph
+            | NodeKind::Header
+            | NodeKind::Footer
+            | NodeKind::Caption
+            | NodeKind::ListItem
+            | NodeKind::Code
+            | NodeKind::Formula
+    ) {
+        return None;
+    }
+    let NodeContent::Text { view } = &node.content else {
+        return None;
+    };
+    (!view.tokens.is_empty() && view.normalization == TextNormalization::Exact).then_some(view)
 }
 
 struct Features<'a> {
@@ -68,9 +79,9 @@ fn features<'a>(
     limits: TextCandidateLimits,
 ) -> Option<Vec<Features<'a>>> {
     let mut output = Vec::new();
-    for &node in nodes.iter().filter(|node| eligible(node)) {
-        let NodeContent::Text { view } = &node.content else {
-            unreachable!()
+    for &node in nodes {
+        let Some(view) = eligible_view(node) else {
+            continue;
         };
         let width = 3.min(view.tokens.len());
         let work = view.tokens.len().saturating_mul(width);
