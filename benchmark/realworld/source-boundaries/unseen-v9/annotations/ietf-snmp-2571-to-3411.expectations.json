@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-snmp-2571-to-3411",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "be51bf956e36b326b4ba847c9144e2d6d71c1ee4656a1ab21e899da2ea8ad56c",
+  "body_eligible": true,
+  "reason": "Complete Abstract paragraph; the protocol abbreviation is expanded and the RFC 2571 obsoletes sentence added. All original internal indentation remains."
+}

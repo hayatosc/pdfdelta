@@ -1,0 +1,9 @@
+{
+  "comparison_performed": false,
+  "pair": "faa-weight-27e-to-27f",
+  "reason": "Move the unchanged selector from (AC), which overlaps the new target, to the disjoint Date: label before immutable registration.",
+  "prior_resolution": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/faa-control-draft.resolved.json",
+    "sha256": "b189534903313309acbc031e2ebd09fc0d410d4b11069ed3bcdd580a66bfce77"
+  }
+}

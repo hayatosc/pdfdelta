@@ -1,0 +1,1117 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "reviewed_page_count": 27,
+  "reviewed_utc": "2026-09-14T06:00:13.693152+00:00",
+  "method": "All target and control pages visually inspected before comparison. Full finite paragraph text checked against raw glyph render order; every resolved source scalar and glyph identifier independently matched to source inspection. Internal spaces and line-end hyphens are literal. Rendering and local resolution do not establish whole-document extraction completeness.",
+  "inspection_evidence": [
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-source-inspection-attempts.json",
+      "sha256": "8b6e216b04ade4ac6b1ced55af24c8760f41f7932d12a1681621f701fb4db242"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-objects-attempts.json",
+      "sha256": "43d29517e57287252ac9d3d70b6b4e9bd7bb582d2fdd007800e628e98435f5ac"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-target-pages-captures.json",
+      "sha256": "bc5134e846a818485c64577eb21e32019b078c49d8f90b75c669e87a343399e1"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-extra-pages-captures.json",
+      "sha256": "2fb3815d4aa4693e95e411e7b7f80c4afd36def32a68a27e14a808a79f939120"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-resolution-attempts.json",
+      "sha256": "1aa60761c6238c8c69fbcdb724c40bfd4ebd220095946f0a1a14fa1b22d3f918"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-resolution-source-checks.json",
+      "sha256": "e3646ea7b098701fc50d096ac9d31b206b843734a69f3f1c0975774545b4baf2"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-source-proposals.json",
+      "sha256": "381f2bd9bd7dd60437b64e9ce24e84ea6727ea4cda29d04fe13b5ceef00dc357"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-source-inspection-correction-attempts.json",
+      "sha256": "514cb304f1952aba0c0d13a10d0263c455a8610a171b04abcfc92fa0d0a72718"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-objects-correction-attempts.json",
+      "sha256": "ebcda72ec0949fe7eac809d623232b0c7d76d37c922750a0118cffbf9cec8d6d"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-pages-captures.json",
+      "sha256": "39fa52b397557f02cb3b89cdc44f8ce8aaa20aff44eca195ec73cff99f5d7bf2"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-resolution-attempts.json",
+      "sha256": "6aa2d11e194551628c3a8c802bc3adbb0830551f78d776dc9d1bd4af51276713"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-resolution-source-checks.json",
+      "sha256": "689cf3ed051428c5adf17b12a608334960b7a0f62ef0db918bfcc9b56cbadfba"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-source-proposals.json",
+      "sha256": "5953f049434c1e7881a4ce6d0729d0e93d4734a70ceca357d49a147de21982ce"
+    }
+  ],
+  "reviews": [
+    {
+      "pair": "nist-126-r2-to-r3",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/nist-126-r2-to-r3.json",
+        "sha256": "d15e22188e2bb7dcbf6cbb922069403f70ae0d3351f9b776619e1e76c00bcf6e"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/nist-126-r2-to-r3.resolved.json",
+        "sha256": "46a92cfc4c188c910db5aa48b5357eb95690641a430bb68ecd960d01ca985296"
+      },
+      "source_pages": [
+        {
+          "id": "nist-126-r2-to-r3",
+          "side": "old",
+          "page": 7,
+          "input_sha256": "5216c1ee5f70ebb96b134081e7d81ecfc39c44d9dea39da289971ecb15e0a8b1",
+          "object_evidence_sha256": "586a33019a9cd06c760d1566dd30da6fda2743a82bb25ed1216a48f7dc5531cf",
+          "width": 612,
+          "height": 792,
+          "object_number": 16,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "7",
+            "66",
+            "612",
+            "792",
+            "16",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "09e44ec159d6cb3ddb7d1c643b4d547178f30697aedfddcd22bb3377d32dd965",
+          "warning": false,
+          "png_sha256": "c09aaec8f43565a442d5244d9d49509a6ad9386de2a69bf035d55e31998e75fa",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/nist-126-r2-to-r3-old-p7.png",
+            "sha256": "c09aaec8f43565a442d5244d9d49509a6ad9386de2a69bf035d55e31998e75fa"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "nist-126-r2-to-r3",
+          "side": "new",
+          "page": 9,
+          "input_sha256": "413361b946c70dbe117c5491ebc6fb18598cb099bd5510986f737f15c5d211bc",
+          "object_evidence_sha256": "96edd122301c21cdb502cfdbeac52bcf9dcf52f738c7a584267008987130d00f",
+          "width": 612,
+          "height": 792,
+          "object_number": 23,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "9",
+            "64",
+            "612",
+            "792",
+            "23",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "d5222107aee5a5527de41ffc512fc5299c6d8160d139ee31a602d7bea4efa2c9",
+          "warning": false,
+          "png_sha256": "2095eb719d3bf46deae6754f27fb571fa38f5a15a7ecc8ca255fe82616306780",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/nist-126-r2-to-r3-new-p9.png",
+            "sha256": "2095eb719d3bf46deae6754f27fb571fa38f5a15a7ecc8ca255fe82616306780"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete first changed Executive Summary lead-in paragraph: SCAP version 1.2 and eleven component specifications become version 1.3 and twelve. The preceding full paragraph is unchanged; the following bullet list is a separate paragraph structure."
+    },
+    {
+      "pair": "nist-131a-r1-to-r2",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/nist-131a-r1-to-r2.json",
+        "sha256": "636e343a4802aef79f264245aa54e267c60c2c2ece3dc589b76e4a04844314a3"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/nist-131a-r1-to-r2.resolved.json",
+        "sha256": "9dea8c619ec94c060cc7dc11753d5180bbcd0fb8568a3a2446e1631ffc66e704"
+      },
+      "source_pages": [
+        {
+          "id": "nist-131a-r1-to-r2",
+          "side": "old",
+          "page": 4,
+          "input_sha256": "89ab3caf1dfc7a10f94893b0c85084d774322e0b9181c5b4c3fa2315ec53bc47",
+          "object_evidence_sha256": "c04c1771b3d5dc9bca92923fb9ca7d7fb22138b1ea3750f2a087274f9c205906",
+          "width": 612,
+          "height": 792,
+          "object_number": 15,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "4",
+            "30",
+            "612",
+            "792",
+            "15",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "f181efed00d0e7f4765a5f12b1357cf03f9d0aad72c939d7f81e22f27f275f29",
+          "warning": false,
+          "png_sha256": "831c7d1b7fe165ed6e832a99b4dc4496a6f9559ab6ad06a5977d876c56e720b7",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/nist-131a-r1-to-r2-old-p4.png",
+            "sha256": "831c7d1b7fe165ed6e832a99b4dc4496a6f9559ab6ad06a5977d876c56e720b7"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "nist-131a-r1-to-r2",
+          "side": "new",
+          "page": 3,
+          "input_sha256": "5c81a1095e0eee35ce0e627b8cc672c1c2239367b0de9bb53d7271c9ab9d7d27",
+          "object_evidence_sha256": "643e4651cd57064767e4aef56442cc53d2c6e0e63b0d51b8373bbcef8fb228df",
+          "width": 612,
+          "height": 792,
+          "object_number": 9,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "3",
+            "33",
+            "612",
+            "792",
+            "9",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "5a992b521a0d8f41f52b4298bbae4141144d36baf3f725206683782120b55b9e",
+          "warning": false,
+          "png_sha256": "40fca91c49785dd38a10d19b8486e1d1ed68cf049026972a2d8976bf73db5cb9",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/nist-131a-r1-to-r2-new-p3.png",
+            "sha256": "40fca91c49785dd38a10d19b8486e1d1ed68cf049026972a2d8976bf73db5cb9"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete Abstract; the referenced key-management publication title is added and the Revision 1 qualifier removed. All source spaces and line-end punctuation remain."
+    },
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.json",
+        "sha256": "1ff8ffeac854aa3af5dce8607043bf33f983e5ed593c26e0d177f1d31cdece45"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.resolved.json",
+        "sha256": "77e65e4c5dba4b612ad4221b4d9a742ded68ae9f6c301f017b89c3d02b5cc39f"
+      },
+      "source_pages": [
+        {
+          "id": "edpb-objection-v1-to-v2",
+          "side": "old",
+          "page": 3,
+          "input_sha256": "a7fe602114ce43209fdd6eba65f6aa2281a40686750cb571b8b49fa5740d1a82",
+          "object_evidence_sha256": "f02dbcded29a7965eb4de4388ecf4874d0cafd57e0cf6f03f0a9912c2e276f52",
+          "width": 596,
+          "height": 842,
+          "object_number": 31,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "3",
+            "11",
+            "596",
+            "842",
+            "31",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "0ddd4b84fd6016f3e7b0e1a7c07baa7ebbefa507f9c29587abe22443926911ac",
+          "warning": false,
+          "png_sha256": "0c78dceffe08fe6060490d5d68980f54f60c2331fa4386176bb2f5825a14cd86",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/correction-pages/edpb-objection-v1-to-v2-old-p3.png",
+            "sha256": "0c78dceffe08fe6060490d5d68980f54f60c2331fa4386176bb2f5825a14cd86"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "edpb-objection-v1-to-v2",
+          "side": "new",
+          "page": 4,
+          "input_sha256": "79c498fd2f076e4aeed657717753085f007a5f83432e1c7b29d8ff8b98d2bf7d",
+          "object_evidence_sha256": "472743062804700f88b7ecf485dbb987a23b18f53842047fac96cdcf4ee1c9d6",
+          "width": 596,
+          "height": 842,
+          "object_number": 33,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "4",
+            "12",
+            "596",
+            "842",
+            "33",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "da7853ec6de4b9bf61c1cb89c17924b17a4836da5c76cb2eba59a244a9549e0e",
+          "warning": false,
+          "png_sha256": "4ab336d60f5f98909cf3871517adfa49ac9f9bee3d9928514bb5cd3ec3c48806",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/correction-pages/edpb-objection-v1-to-v2-new-p4.png",
+            "sha256": "4ab336d60f5f98909cf3871517adfa49ac9f9bee3d9928514bb5cd3ec3c48806"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete paragraph 7 in both editions, visually reviewed on old page 3 and new page 4. The new paragraph adds and explains the Article 4(24) threshold and rewrites the consequences of deficient draft decisions. No sentence is omitted; all literal source spacing remains. The unchanged Article 4(24) GDPR defines phrase in paragraph 5 is a disjoint control."
+    },
+    {
+      "pair": "edpb-article65-v1-to-v2",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-article65-v1-to-v2.json",
+        "sha256": "c42e3976967009853fd794ad9f362f9a3e70c43384fb5ecfe57d7ba3e760bafa"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-article65-v1-to-v2.resolved.json",
+        "sha256": "5869d239196736838be976060cd89b266cb519da7702a1e217ebe1ff5862608d"
+      },
+      "source_pages": [
+        {
+          "id": "edpb-article65-v1-to-v2",
+          "side": "old",
+          "page": 5,
+          "input_sha256": "ef2277418004336e3b09877a852cae42b7e302fc56788d1682aacd76f0d4086c",
+          "object_evidence_sha256": "955f786d348f3b9d1d35b188945ef854895a7ac5b794fe5a20cc6f0e1f3ba0b2",
+          "width": 596,
+          "height": 842,
+          "object_number": 14,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "5",
+            "30",
+            "596",
+            "842",
+            "14",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "dafd998bf9efffb6ca11335e5514620667c8c8123217d183f75b172c2be846f9",
+          "warning": false,
+          "png_sha256": "b0f05d40e64dabd08b2412793e2eb17ece9db004135f10a863f262e1d1422439",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/edpb-article65-v1-to-v2-old-p5.png",
+            "sha256": "b0f05d40e64dabd08b2412793e2eb17ece9db004135f10a863f262e1d1422439"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "edpb-article65-v1-to-v2",
+          "side": "new",
+          "page": 7,
+          "input_sha256": "a586d2247fb2b9d65deec7799927d29bda4fb5fe66355887ab4e5a5319af06aa",
+          "object_evidence_sha256": "50b3e98c743acbbbf53fca2625a41517a7e8642ceccd328a400586aec352ba79",
+          "width": 596,
+          "height": 842,
+          "object_number": 15,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "7",
+            "31",
+            "596",
+            "842",
+            "15",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "4babe361f2d650a6afb369446cc16ff1135d280199c148f5172419da970a1fd8",
+          "warning": false,
+          "png_sha256": "1c597aa210420dbe53326b933bbd2f33d852133f107d5c62cccd2f13b2b1735a",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/edpb-article65-v1-to-v2-new-p7.png",
+            "sha256": "1c597aa210420dbe53326b933bbd2f33d852133f107d5c62cccd2f13b2b1735a"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete paragraph 11 in the GDPR section; wording is unchanged while inline citation 12 is added and literal spacing changes. Source-resolved but excluded from prose-recovery eligibility; retained in the twelve-pair denominator."
+    },
+    {
+      "pair": "arxiv-adam-v1-to-v9",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/arxiv-adam-v1-to-v9.json",
+        "sha256": "f2fcc411c8d6b05b190029e6bb07ca678de045bbb44c4086411a85a2b53b4c44"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/arxiv-adam-v1-to-v9.resolved.json",
+        "sha256": "899c0c97e77eabb7bc6bd15276ad6e20b1ad18c4569619fdd703f17b7c7ad87a"
+      },
+      "source_pages": [
+        {
+          "id": "arxiv-adam-v1-to-v9",
+          "side": "old",
+          "page": 0,
+          "input_sha256": "935a5a15616961aff21529d86a754570028843407adfe858f1d18584b84293a7",
+          "object_evidence_sha256": "d08b707899fb0c1b3e0e1ebf82ff07e1486e3b90f44a7698deddba16945225e0",
+          "width": 612,
+          "height": 792,
+          "object_number": 55,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "9",
+            "612",
+            "792",
+            "55",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "2cd8adce6dbf6f981f7d75986d6d60fbd25b1433f760ff585cf4f11388fe132d",
+          "warning": false,
+          "png_sha256": "eafb3d12470790f0d88d585e249b400cd35a222191edd346ff2f05cd7353a1fd",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/arxiv-adam-v1-to-v9-old-p0.png",
+            "sha256": "eafb3d12470790f0d88d585e249b400cd35a222191edd346ff2f05cd7353a1fd"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "arxiv-adam-v1-to-v9",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "eab9c73ae2ceda884b94830bda99312254bac4806f6c9f045cbab90721ecda31",
+          "object_evidence_sha256": "82d1a20e0928c8bda8bfb64a477e92a413007c44351b1bfddefc9d039b2e0e87",
+          "width": 596,
+          "height": 842,
+          "object_number": 3,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "15",
+            "596",
+            "842",
+            "3",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "66589f36999ae5b8a3559d5cc5061a92f536552192350ae1109f838f66d9f27b",
+          "warning": false,
+          "png_sha256": "f3d8fa488374053ec89387fc6a7b379ef9f87a2b37ada3353f888c5cd9fbcd71",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/arxiv-adam-v1-to-v9-new-p0.png",
+            "sha256": "f3d8fa488374053ec89387fc6a7b379ef9f87a2b37ada3353f888c5cd9fbcd71"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete Abstract in both editions; the optimization method description and empirical discussion are rewritten, including the new AdaMax sentence. Unmapped mathematics elsewhere are not omitted from document evidence or treated as complete interpretation."
+    },
+    {
+      "pair": "arxiv-batchnorm-v1-to-v3",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/arxiv-batchnorm-v1-to-v3.json",
+        "sha256": "ec1aa9a287947d4c3d96c74c603c05f6caead62769a9a47b198701dc0ce545a6"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/arxiv-batchnorm-v1-to-v3.resolved.json",
+        "sha256": "762bc5a84fcf3351faac2f87e62ce082cdb9b44b2dce20bac5c11f31ec53ab3e"
+      },
+      "source_pages": [
+        {
+          "id": "arxiv-batchnorm-v1-to-v3",
+          "side": "old",
+          "page": 0,
+          "input_sha256": "4591881ed6e7b3815eaa7c13cb8d8cc1c807ca5411150c11d11f718e6ba48949",
+          "object_evidence_sha256": "36f1fbb2a36a8f324f6d5073bb029e33eefa4f2f1a9c35350bafedde64846212",
+          "width": 612,
+          "height": 792,
+          "object_number": 4,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "10",
+            "612",
+            "792",
+            "4",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "1da4d1d72f42bed8ab5be1cfaf7e81b13123f447db86163620005ef819df48d7",
+          "warning": false,
+          "png_sha256": "6ef14d77135e677b123904abe356a9d16a6de6dc2567bc08e26ccd7c8c5e918b",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/arxiv-batchnorm-v1-to-v3-old-p0.png",
+            "sha256": "6ef14d77135e677b123904abe356a9d16a6de6dc2567bc08e26ccd7c8c5e918b"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "arxiv-batchnorm-v1-to-v3",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "bdc69e0b568f41d8d3181cc9077a461f58fcdd1c70c9f49efe60a05ee6109655",
+          "object_evidence_sha256": "07abff32591167853012b39aa4db89e09bc30324f34d386f037a122c0088127e",
+          "width": 612,
+          "height": 792,
+          "object_number": 4,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "11",
+            "612",
+            "792",
+            "4",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "d759ac12ad2012c556be5168428e4a90e503abef9715dcb4e8c7ec201cbeadd4",
+          "warning": false,
+          "png_sha256": "4b42be1bd04b6c0f5c5fb60e7a215c1b70a8eb41c2f43fb1527797f0c38775d1",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/arxiv-batchnorm-v1-to-v3-new-p0.png",
+            "sha256": "4b42be1bd04b6c0f5c5fb60e7a215c1b70a8eb41c2f43fb1527797f0c38775d1"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "arxiv-batchnorm-v1-to-v3",
+          "side": "old",
+          "page": 5,
+          "input_sha256": "4591881ed6e7b3815eaa7c13cb8d8cc1c807ca5411150c11d11f718e6ba48949",
+          "object_evidence_sha256": "36f1fbb2a36a8f324f6d5073bb029e33eefa4f2f1a9c35350bafedde64846212",
+          "width": 612,
+          "height": 792,
+          "object_number": 149,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "5",
+            "10",
+            "612",
+            "792",
+            "149",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "3d74b4c459e47c3c43292a617cf220f33581fc1aa88fbd294214822de7ab009c",
+          "warning": false,
+          "png_sha256": "9b3ad18221f8876681542edf7173cebd0739b4ac67c9bbbe446cf862343f4ca4",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/extra-pages/arxiv-batchnorm-v1-to-v3-old-p5.png",
+            "sha256": "9b3ad18221f8876681542edf7173cebd0739b4ac67c9bbbe446cf862343f4ca4"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "arxiv-batchnorm-v1-to-v3",
+          "side": "new",
+          "page": 5,
+          "input_sha256": "bdc69e0b568f41d8d3181cc9077a461f58fcdd1c70c9f49efe60a05ee6109655",
+          "object_evidence_sha256": "07abff32591167853012b39aa4db89e09bc30324f34d386f037a122c0088127e",
+          "width": 612,
+          "height": 792,
+          "object_number": 121,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "5",
+            "11",
+            "612",
+            "792",
+            "121",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "89fb7ef06d8150fe1a0a48446051c4b16a416e48a7b1b8981db73fb762fcedec",
+          "warning": false,
+          "png_sha256": "87bcad89aa2efe9f34e2f97ec215976b7f77a4b8c9a3e17dee2634a4e4dd6089",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/extra-pages/arxiv-batchnorm-v1-to-v3-new-p5.png",
+            "sha256": "87bcad89aa2efe9f34e2f97ec215976b7f77a4b8c9a3e17dee2634a4e4dd6089"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "The original intended Abstract is visibly unchanged and unavailable to glyph extraction on both sides; pages 0 through 4 retain extraction failures. The complete first ImageNet classification paragraph, spanning both columns of page 5, is source-resolved for diagnostic registration; it changes only citation punctuation and line wrapping. It is ineligible for prose recovery and cannot replace the missing Abstract with a success claim."
+    },
+    {
+      "pair": "arxiv-vae-v1-to-v11",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/arxiv-vae-v1-to-v11.json",
+        "sha256": "5c33b72dc291a9692b7b3543b4cc27757b4fe054b15c32c5bb4a10430f7a823d"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/arxiv-vae-v1-to-v11.resolved.json",
+        "sha256": "7c12747c38b15b70b37deef4baca4a138407ea68c2401a6b75f2d9f08d092c5a"
+      },
+      "source_pages": [
+        {
+          "id": "arxiv-vae-v1-to-v11",
+          "side": "old",
+          "page": 0,
+          "input_sha256": "1a320bb73327d1ccb5d8df2d290ade85f80a22e2131635b2d87b5df9b6994153",
+          "object_evidence_sha256": "421c83c7a4406a78d0d0690268ddd49d8e0a9085c7fff16c22ac3d6095d8bab1",
+          "width": 612,
+          "height": 792,
+          "object_number": 46,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "9",
+            "612",
+            "792",
+            "46",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "5c585aa81735121349a5e7db0c11e540ec1af49bccf8c64c9220e6726b8d4816",
+          "warning": false,
+          "png_sha256": "50c3a39eca7d172c953a61d95752139f81834c845a381f7d410473f3d7e44fd8",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/arxiv-vae-v1-to-v11-old-p0.png",
+            "sha256": "50c3a39eca7d172c953a61d95752139f81834c845a381f7d410473f3d7e44fd8"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "arxiv-vae-v1-to-v11",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "bdcb63b79ed88f64f8ee2d43a721930d01dde5441a4dba20ecaa2342b34e017c",
+          "object_evidence_sha256": "b92347dc6404aa521ee876080db081a9387b9ffcababd6e93abd0de8caedaf47",
+          "width": 612,
+          "height": 792,
+          "object_number": 86,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "14",
+            "612",
+            "792",
+            "86",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "5e9233b2a20c12baa661fdb53e6e8dd06ae34e66264005fd4cc9c023a20a32c3",
+          "warning": false,
+          "png_sha256": "511d2ea15f1fb42524506bc58e79d87619e15bcc4f1ca64ea21bad45213857bd",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/arxiv-vae-v1-to-v11-new-p0.png",
+            "sha256": "511d2ea15f1fb42524506bc58e79d87619e15bcc4f1ca64ea21bad45213857bd"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete Abstract in both editions, retaining both old paragraphs and the corresponding new full block. The inference method explanation is rewritten; internal ligatures and line-end hyphens remain literal."
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/faa-weight-27e-to-27f.json",
+        "sha256": "c9434e7f2ffd85289312d33ac11054fc79e300e9cf5e3d01f4503c872b22eaef"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/faa-weight-27e-to-27f.resolved.json",
+        "sha256": "7ad84bd2ec479e6ee6c728c6eb452c07979d15006fc3c70f38462258131a8281"
+      },
+      "source_pages": [
+        {
+          "id": "faa-weight-27e-to-27f",
+          "side": "old",
+          "page": 2,
+          "input_sha256": "66f26c5ffd13300aca69621ef6963ec9a3cfbc6dc5a1d0bec22d9c6d9a7f7237",
+          "object_evidence_sha256": "dad6213dd2173e65ab4d1005f9cbb808f721e5987558f93c0974e16cce139a44",
+          "width": 612,
+          "height": 792,
+          "object_number": 4,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "2",
+            "71",
+            "612",
+            "792",
+            "4",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "6aef81649800b1bb7c53821f6cab3fb5c86215501757a2ffd372e8bad5c06157",
+          "warning": false,
+          "png_sha256": "bab430edd2e91eb50510a48ca36c6028722bfc17c7c67bce707b8d6648294c2d",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/faa-weight-27e-to-27f-old-p2.png",
+            "sha256": "bab430edd2e91eb50510a48ca36c6028722bfc17c7c67bce707b8d6648294c2d"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "faa-weight-27e-to-27f",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "726adba4c7050d366e430f17d117e25baf80308b564ffaaaacd4e7f337131f78",
+          "object_evidence_sha256": "a57db1c0bbc8c7ba7b5d03e7dea0f056b388d72d2068da04862ee7eb370f8125",
+          "width": 612,
+          "height": 792,
+          "object_number": 4575,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "58",
+            "612",
+            "792",
+            "4575",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "8d2df95f7b2fa9616065c8aca6fab25aa6afc27a6532a272e2ddca909193e71f",
+          "warning": false,
+          "png_sha256": "91f513fd9c9582e375d8b98eeb929d1d27546775547f274fefad3b92cb8a5a01",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/faa-weight-27e-to-27f-new-p0.png",
+            "sha256": "91f513fd9c9582e375d8b98eeb929d1d27546775547f274fefad3b92cb8a5a01"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete old Purpose subparagraphs a and b and their corresponding combined new opening paragraph. Changes include W&B terminology and scope references. The old paragraph labels and the following NOTE are outside the registered prose; neither source paragraph is shortened. Date: is a disjoint unchanged control."
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/mhlw-harassment-2020-to-2026.json",
+        "sha256": "43729953a1a55a044fccd2269903834e36a0cee404cac1da67916014e86e45ac"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/mhlw-harassment-2020-to-2026.resolved.json",
+        "sha256": "69e4125c55974df5892e60470004b9bdcd9cb7fa6d2f467f3965488d137ddfc1"
+      },
+      "source_pages": [
+        {
+          "id": "mhlw-harassment-2020-to-2026",
+          "side": "old",
+          "page": 0,
+          "input_sha256": "aa690e27a22f58386d6f3da13d8c7634456a608960a84e24bb9f3a7256bcf09b",
+          "object_evidence_sha256": "df2b906fe59ba4d4988de5bda81386522861222f18614014e94cdcd25418c1ba",
+          "width": 596,
+          "height": 842,
+          "object_number": 3,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "11",
+            "596",
+            "842",
+            "3",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "c2b6cae4e8880f87d10942569f302206ddd6b471df4853b180b8d16dfb889437",
+          "warning": false,
+          "png_sha256": "bd59786a00991a3d4dcd7fc179d2b9a7c9d239228a5127bc7b284095b02c97a3",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/mhlw-harassment-2020-to-2026-old-p0.png",
+            "sha256": "bd59786a00991a3d4dcd7fc179d2b9a7c9d239228a5127bc7b284095b02c97a3"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "mhlw-harassment-2020-to-2026",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "5c788209702529c1c68694708ba99eee9c2e6352aeefe18398511bb90f0bd804",
+          "object_evidence_sha256": "71f52a62d71c0207d7cd72f28463c6e1a8227901b07b0b6ac5f1544bf562c252",
+          "width": 596,
+          "height": 842,
+          "object_number": 3,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "8",
+            "596",
+            "842",
+            "3",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "98f5fca64cf254a737224fdd2c6888a58c3539e9ca21a6e9cb9629923a486066",
+          "warning": false,
+          "png_sha256": "7f49c06738e354a8a4d4c7a2901864eab541fe575c223904d08fc5fb7713d87d",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/mhlw-harassment-2020-to-2026-new-p0.png",
+            "sha256": "7f49c06738e354a8a4d4c7a2901864eab541fe575c223904d08fc5fb7713d87d"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "mhlw-harassment-2020-to-2026",
+          "side": "old",
+          "page": 1,
+          "input_sha256": "aa690e27a22f58386d6f3da13d8c7634456a608960a84e24bb9f3a7256bcf09b",
+          "object_evidence_sha256": "df2b906fe59ba4d4988de5bda81386522861222f18614014e94cdcd25418c1ba",
+          "width": 596,
+          "height": 842,
+          "object_number": 21,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "1",
+            "11",
+            "596",
+            "842",
+            "21",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "477023186ad5d36712093babacf5666a9644e0d10e4fd629f7de4bd39fd5019a",
+          "warning": false,
+          "png_sha256": "c7b458dc5e2805b36f50a21fcadc2623bcbcd5e5dba8ea80e094842ea6455b71",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/extra-pages/mhlw-harassment-2020-to-2026-old-p1.png",
+            "sha256": "c7b458dc5e2805b36f50a21fcadc2623bcbcd5e5dba8ea80e094842ea6455b71"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete item 2(1), including both old paragraphs and the corresponding merged new paragraph. The old body crosses physical pages 0 and 1; page counters are separate source evidence. The definition of victim is removed and 性自認 becomes ジェンダーアイデンティティ. The preceding introduction changes only character width; this is the first lexical prose change. No page separator or glyph is fabricated."
+    },
+    {
+      "pair": "ietf-ntp-1305-to-5905",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/ietf-ntp-1305-to-5905.json",
+        "sha256": "ee99179d383cf24ab0b5d8442450979d246fac5f828e6653a70840bcb7effcc9"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/ietf-ntp-1305-to-5905.resolved.json",
+        "sha256": "6c3b7e53ee619797285dbd46b32eff1a75653a207693c43572b76b3bc2eed186"
+      },
+      "source_pages": [
+        {
+          "id": "ietf-ntp-1305-to-5905",
+          "side": "old",
+          "page": 0,
+          "input_sha256": "528e279c741ae6f2c78ee0e1ed9586a5cdb6a55db269a94f4b7546982eefd3c2",
+          "object_evidence_sha256": "c1f821333291030ed0e97d15d77523392f8201b58d0f08502239e5608216bc20",
+          "width": 612,
+          "height": 792,
+          "object_number": 613,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "120",
+            "612",
+            "792",
+            "613",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "489413c721fced510d326c847f895d49132ca400c4e3a3d54a27a1b57675496f",
+          "warning": false,
+          "png_sha256": "67d8de86cc7f2fa91e407452c86edc53791c3f3e449ac8a317a0dc7e19e8f2dc",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/ietf-ntp-1305-to-5905-old-p0.png",
+            "sha256": "67d8de86cc7f2fa91e407452c86edc53791c3f3e449ac8a317a0dc7e19e8f2dc"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "ietf-ntp-1305-to-5905",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "68f6551293f7e3d14aeed7a2f9cb89bb5a5ba842a51b50587abf542fa40089d4",
+          "object_evidence_sha256": "6d55e0de330253592492882f1839c0fcf50e7c15a3a0edcf5a7b17202e422e85",
+          "width": 612,
+          "height": 792,
+          "object_number": 4,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "110",
+            "612",
+            "792",
+            "4",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "449d5d359b1862672b8b0b80bfb390b8ec3b216886440cab40bf07f236eb6366",
+          "warning": false,
+          "png_sha256": "4f82e451b06c7b3e809f4cbff0cea8d897955ea0e172e47a05bd52550e46ab2e",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/ietf-ntp-1305-to-5905-new-p0.png",
+            "sha256": "4f82e451b06c7b3e809f4cbff0cea8d897955ea0e172e47a05bd52550e46ab2e"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete Abstract paragraph in both protocol revisions. NTP version 4 capabilities replace the version 3 overview. All literal indentation and line-end hyphens remain."
+    },
+    {
+      "pair": "ietf-snmp-2571-to-3411",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/ietf-snmp-2571-to-3411.json",
+        "sha256": "be51bf956e36b326b4ba847c9144e2d6d71c1ee4656a1ab21e899da2ea8ad56c"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/ietf-snmp-2571-to-3411.resolved.json",
+        "sha256": "248b76ef38c151b34fccc9c3b3cd6a43661fe7493d61d4d2817fe04ab5c27cf2"
+      },
+      "source_pages": [
+        {
+          "id": "ietf-snmp-2571-to-3411",
+          "side": "old",
+          "page": 0,
+          "input_sha256": "56a24a53052e7bd353671eee3f5ec27ba616ef02157f2ba639243123e6bbeae6",
+          "object_evidence_sha256": "fe4c312d4ee16d5b26f1fa1b7feee054532256a29c272353584739aadda4e6ce",
+          "width": 612,
+          "height": 792,
+          "object_number": 3,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "62",
+            "612",
+            "792",
+            "3",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "d8ea62f908d713a50afc7ebf9b572e4327126ef1e7a993ab6eb6dff0c270da83",
+          "warning": false,
+          "png_sha256": "15b749834a54defdaae9308d47c9a5c09a5db82df8c5a331f137498090f13662",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/ietf-snmp-2571-to-3411-old-p0.png",
+            "sha256": "15b749834a54defdaae9308d47c9a5c09a5db82df8c5a331f137498090f13662"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "ietf-snmp-2571-to-3411",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "c70f4e50e3be53fddef62a284c6e0e7a835be2b51375e376898fedc828dff3a3",
+          "object_evidence_sha256": "5a78ecb09708dc75291e2a455152f5d4ee2e95db3294e3cdfbe0799a523ea31b",
+          "width": 612,
+          "height": 792,
+          "object_number": 3,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "64",
+            "612",
+            "792",
+            "3",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "cb2f3382c4c8dba85d7f01d3a96b37ef207ac691fda94bc3ce4c152612546f37",
+          "warning": false,
+          "png_sha256": "93eca20535ebc3bc261a13b879c77efe346d8cd5f9cdd1c2d7dbd9d4c7ac019c",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/ietf-snmp-2571-to-3411-new-p0.png",
+            "sha256": "93eca20535ebc3bc261a13b879c77efe346d8cd5f9cdd1c2d7dbd9d4c7ac019c"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete Abstract paragraph; the protocol abbreviation is expanded and the RFC 2571 obsoletes sentence added. All original internal indentation remains."
+    },
+    {
+      "pair": "ietf-igmp-2236-to-3376",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/ietf-igmp-2236-to-3376.json",
+        "sha256": "8098e89064d70b241278c18b6dab32bdc1839658ba5a093f252b6497f748c9f7"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/ietf-igmp-2236-to-3376.resolved.json",
+        "sha256": "f61d68d40519e5535f891d4c7af499256a2e1bc1229f5161b1e6dd99a7590b0d"
+      },
+      "source_pages": [
+        {
+          "id": "ietf-igmp-2236-to-3376",
+          "side": "old",
+          "page": 0,
+          "input_sha256": "9b827082df3fb06e4caadcc9d849eec23cf754e1af77e54d190a5d74ed29e52f",
+          "object_evidence_sha256": "88c4ae43f69205e4481756c0d1bbfe1fb9e311a7054ecd976569c02bc7d29c77",
+          "width": 612,
+          "height": 792,
+          "object_number": 3,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "24",
+            "612",
+            "792",
+            "3",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "ac038c2fd34bf293d9e0762f397c3db68c4d404636015bbe8abd79d37db237ae",
+          "warning": false,
+          "png_sha256": "dd3b9a0cc41d72e07fc8f62d28cfaab9e00ae4c0c8ff193490dafdb7017f4e8e",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/ietf-igmp-2236-to-3376-old-p0.png",
+            "sha256": "dd3b9a0cc41d72e07fc8f62d28cfaab9e00ae4c0c8ff193490dafdb7017f4e8e"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "ietf-igmp-2236-to-3376",
+          "side": "new",
+          "page": 0,
+          "input_sha256": "07ba143b4e803b8485d63dda6802a5b7b87bc19ed0bbea9c03dda581bb952228",
+          "object_evidence_sha256": "2ce7861571dfd7a01d0ae3418c90a5acc04f51651db9aaf15d1a3e09fcb1514a",
+          "width": 612,
+          "height": 792,
+          "object_number": 3,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "0",
+            "53",
+            "612",
+            "792",
+            "3",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "c5eb64e638cc9c0717d8252d196a7fd35aa32cfa19a78f79b4c0b8b136c87e1e",
+          "warning": false,
+          "png_sha256": "689869b2724f3b1b49df316d203f55e84fe8cdc49420ce79f37a40c6bf520e26",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/target-pages/ietf-igmp-2236-to-3376-new-p0.png",
+            "sha256": "689869b2724f3b1b49df316d203f55e84fe8cdc49420ce79f37a40c6bf520e26"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete first Abstract paragraph in each revision, describing version 2 and version 3 respectively. The following old termination paragraph and new obsoletes paragraph are outside these first-paragraph extents."
+    }
+  ],
+  "correction_evidence": [
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-novelty-correction.json",
+      "sha256": "cf76d44d25eee95ce0e011c6f1826b9a4d75d95df0608a8926da5c53aec395ca"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction/source-review.json",
+      "sha256": "04213759826b06fe828143589635c8e1927572f39e76e66a295741aad6d32088"
+    }
+  ]
+}

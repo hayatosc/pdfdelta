@@ -1,0 +1,36 @@
+{
+  "version": 9,
+  "recorded_utc": "2026-09-14T05:41:52.611478+00:00",
+  "comparison_performed": false,
+  "chronology_correction": "The immutable V9 intent chronology_note contains stale V8/V67 labels copied from its predecessor. The version, production hash, binary hash, build, implementation_commit and development references correctly bind V9/V75. No selection or search for these new series preceded the V9 intent commit. This addendum corrects only the prose labels; it changes no freeze setting.",
+  "intent_sha256": "3495468c19a22da22d37478d7ca4c664e67a14ec43e104bc3913c30801e45d60",
+  "candidate_series": [
+    "NIST SP 800-126",
+    "NIST SP 800-131A",
+    "EDPB Guidelines 01/2022 right of access",
+    "EDPB Guidelines 03/2021 Article 65",
+    "arXiv 1412.6980 Adam",
+    "arXiv 1502.03167 Batch Normalization",
+    "arXiv 1312.6114 Auto-Encoding Variational Bayes",
+    "FAA AC 120-27 weight and balance",
+    "MHLW sexual harassment prevention guidelines Notice 615",
+    "IETF Network Time Protocol",
+    "IETF SNMP management architecture",
+    "IETF Internet Group Management Protocol"
+  ],
+  "metadata_only_nonselections": [
+    {
+      "series": "NIST SP 800-128",
+      "reason": "Prior V5 selection prose already considered this series; excluded by novelty audit before acquisition."
+    },
+    {
+      "series": "NIST SP 800-137",
+      "reason": "No draft URL established; metadata-only consideration retained and excluded from future unseen sets."
+    },
+    {
+      "series": "arXiv 2304.02643 Segment Anything",
+      "reason": "Primary submission history contains only v1."
+    }
+  ],
+  "source_rule": "Register full finite changed prose paragraph before any comparison. Retain source-only failures and all eventual comparison outcomes."
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-batchnorm-v1-to-v3",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "ec1aa9a287947d4c3d96c74c603c05f6caead62769a9a47b198701dc0ce545a6",
+  "body_eligible": false,
+  "reason": "The original intended Abstract is visibly unchanged and unavailable to glyph extraction on both sides; pages 0 through 4 retain extraction failures. The complete first ImageNet classification paragraph, spanning both columns of page 5, is source-resolved for diagnostic registration; it changes only citation punctuation and line wrapping. It is ineligible for prose recovery and cannot replace the missing Abstract with a success claim."
+}

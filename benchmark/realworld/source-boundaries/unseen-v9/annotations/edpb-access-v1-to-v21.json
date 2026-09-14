@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "edpb-access-v1-to-v21",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 1,
+        "block": 1,
+        "range": {
+          "start": 64,
+          "end": 334
+        }
+      },
+      "literal_quote": "The right of access of data subjects is enshrined in Arti. 8 of the EU Charter of Fundamental Rights. It has been a part of the European data protection legal framework since its beginning and is now further developed by more specified and precise rules in Art. 15 GDPR.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 1,
+        "block": 1,
+        "range": {
+          "start": 45,
+          "end": 62
+        }
+      },
+      "literal_quote": "EXECUTIVE SUMMARY",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 31,
+          "end": 300
+        }
+      },
+      "literal_quote": "The right of access of data subjects is enshrined in Art. 8 of the EU Charter of Fundamental Rights. It has been a part of the European data protection legal framework since its beginning and is now further developed by more specified and precise rules in Art. 15 GDPR.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 12,
+          "end": 29
+        }
+      },
+      "literal_quote": "EXECUTIVE SUMMARY",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "90df6b680463318d266a804e91e57543ed891180fdd671594b952ad3863734df",
+  "new_sha256": "b399b25634b379576378d725284d5ed2b1a81c93c34ade9ee8eb48ef5eb75032"
+}

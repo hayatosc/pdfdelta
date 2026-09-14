@@ -1,0 +1,19 @@
+{
+  "version": 9,
+  "comparison_performed": false,
+  "recorded_utc": "2026-09-14T05:56:03.001961+00:00",
+  "failures": [
+    {
+      "pair": "edpb-access-v1-to-v21",
+      "reason": "Guidelines 01/2022 access was explicitly excluded in the V3 intent and retained in V4-V6 intents. The initial novelty statement was incomplete; its selection, acquisition, annotations and source review are retained as a rejected pre-comparison registration.",
+      "evidence": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v3-intent.json",
+        "sha256": "83a4329ba9296e478a92d7c3f08cb099d0b52b2813e3fb65304d19cc33f2ce1d"
+      }
+    }
+  ],
+  "unchanged_freeze": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v9-intent.json",
+    "sha256": "3495468c19a22da22d37478d7ca4c664e67a14ec43e104bc3913c30801e45d60"
+  }
+}

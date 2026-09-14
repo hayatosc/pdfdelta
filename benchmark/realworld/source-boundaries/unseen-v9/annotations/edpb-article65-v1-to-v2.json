@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "edpb-article65-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 248,
+          "end": 815
+        }
+      },
+      "literal_quote": "In case of a dispute resolution on the basis ofArticle 65(1)(a)GDPR,regard must also begiventoArticle 60 GDPR, whichapplies tothe cooperation between the LSA and CSAin individual casesinvolvingcross-border processingand specifies in which cases the LSA submit the matter to the EDPBfor dispute resolution.Whilethese Guidelines focus primarily onthe application ofArticle 65(1)(a)GDPR, referencewill alsobe made to the provisionsofArticle 60GDPRinsofar as they are relevant toclarify the main stages of the procedure and competence of the EDPBunderArticle65(1)(a)GDPR.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1408,
+          "end": 1450
+        }
+      },
+      "literal_quote": "Conditions for adopting a binding decision",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 7,
+        "block": 7,
+        "range": {
+          "start": 241,
+          "end": 839
+        }
+      },
+      "literal_quote": "In case of a dispute resolution on the basis of Article 65(1)(a) GDPR, regard must also be given to Article 60 GDPR, which applies to the cooperation between the LSA and CSA in individual cases involving cross-border processing and specifies in which cases the LSA submit the matter to the EDPB for dispute resolution. While these Guidelines focus primarily on the application of Article 65(1)(a) GDPR, reference will also be made to the provisions of Article 60 GDPR insofar as they are relevant to clarify the main stages of the procedure and competence of the EDPB under Article 65(1)(a) GDPR12.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 7,
+        "block": 7,
+        "range": {
+          "start": 1472,
+          "end": 1514
+        }
+      },
+      "literal_quote": "Conditions for adopting a binding decision",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "ef2277418004336e3b09877a852cae42b7e302fc56788d1682aacd76f0d4086c",
+  "new_sha256": "a586d2247fb2b9d65deec7799927d29bda4fb5fe66355887ab4e5a5319af06aa"
+}

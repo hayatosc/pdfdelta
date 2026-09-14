@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "edpb-objection-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 1467,
+          "end": 2129
+        }
+      },
+      "literal_quote": "Anobjection submitted byaCSA should indicate each part of the draft decision that is considereddeficient, erroneous or lacking some necessaryelements, either by referring to specificarticles/paragraphs or by other clear indication, and showing why such issues are to be deemed“relevant” as further explained below. Therefore,the objection aims, first of all,at pointing out howand whyaccording to the CSAthe draft decisiondoes not appropriately address the situation ofinfringement of the GDPR and/or does not envision appropriate action towards the controller orprocessor.The proposals for amendments put forward by the objection should aimto remedytheseerrors.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 565,
+          "end": 591
+        }
+      },
+      "literal_quote": "Article 4(24) GDPR defines",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 1227,
+          "end": 2315
+        }
+      },
+      "literal_quote": "In order to meet the threshold set by Article 4(24) GDPR, a submission by a CSA should in principleexplicitly mention each element of the definition in relation to each specific objection. Therefore,theobjection aims, first of all, at pointing out how and why, according to the CSA, the draft decisiondoes not appropriately address the situation of infringement of the GDPR, and/or does not envisionappropriate action towards the controller or processor in the light of the demonstration of the risksthat such draft decision, if left unchanged, would entail for the rights and freedoms of data subjectsand for the free flow ofpersonaldata in the Union, where applicable. An objection submitted by aCSA should indicate each part of the draft decision that is considereddeficient, erroneous or lackingsome necessary elements, either by referring to specific articles/paragraphs or by other clearindications, and showing why such issues areto be deemed “relevant” as further explained below. Theproposals for amendments put forward by the objection should aim to remedy thesepotentialerrors.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 305,
+          "end": 331
+        }
+      },
+      "literal_quote": "Article 4(24) GDPR defines",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "a7fe602114ce43209fdd6eba65f6aa2281a40686750cb571b8b49fa5740d1a82",
+  "new_sha256": "79c498fd2f076e4aeed657717753085f007a5f83432e1c7b29d8ff8b98d2bf7d"
+}

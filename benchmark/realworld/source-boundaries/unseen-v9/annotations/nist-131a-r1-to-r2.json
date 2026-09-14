@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "nist-131a-r1-to-r2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 1030,
+          "end": 1719
+        }
+      },
+      "literal_quote": "The National Institute of Standards and Technology (NIST) provides cryptographic key management guidance for defining and implementing appropriate key management procedures, using algorithms that adequately protect sensitive information, and planning ahead for possible changes in the use of cryptography because of algorithm breaks or the availability of more powerful computing techniques. NIST Special Publication (SP) 800-57 Part 1 includes a general approach for transitioning from one algorithm or key length to another. This Recommendation (SP 800-131A Revision 1) provides more specific guidance for transitions to the use of stronger cryptographic keys and more robust algorithms.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 1021,
+          "end": 1029
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 1134,
+          "end": 1858
+        }
+      },
+      "literal_quote": "The National Institute of Standards and Technology (NIST) provides cryptographic key management guidance for defining and implementing appropriate key management procedures, using algorithms that adequately protect sensitive information, and planning ahead for possible changes in the use of cryptography because of algorithm breaks or the availability of more powerful computing techniques. NIST Special Publication (SP) 800-57, Part 1, Recommendation for Key Management: General, includes a general approach for transitioning from one algorithm or key length to another. This Recommendation (SP 800-131A) provides more specific guidance for transitions to the use of stronger cryptographic keys and more robust algorithms.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 1125,
+          "end": 1133
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "89ab3caf1dfc7a10f94893b0c85084d774322e0b9181c5b4c3fa2315ec53bc47",
+  "new_sha256": "5c81a1095e0eee35ce0e627b8cc672c1c2239367b0de9bb53d7271c9ab9d7d27"
+}

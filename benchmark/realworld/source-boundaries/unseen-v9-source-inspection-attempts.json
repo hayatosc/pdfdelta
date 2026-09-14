@@ -1,0 +1,470 @@
+{
+  "version": 1,
+  "binary_sha256": "5edefbd89bd4f6d8990d4d7553fb34645892815ad5e41a28ddf0ab10056dbffc",
+  "inputs_sha256": "9ba1a41729145d5619e5a9995c403c7a9eaad77f399337dcfe97531af364de5c",
+  "command": [
+    "inspect",
+    "--glyphs"
+  ],
+  "timeout_seconds": 180,
+  "output_limit_bytes": 268435456,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "id": "nist-126-r2-to-r3",
+      "side": "old",
+      "input_sha256": "5216c1ee5f70ebb96b134081e7d81ecfc39c44d9dea39da289971ecb15e0a8b1",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 51631226,
+      "output_sha256": "41058bf9f5b87d657a40dc516261d6b83b0a073213f7dcf3b30657580ed554b9",
+      "evidence_counts": {
+        "glyphs": 155598,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 66
+      },
+      "stderr": "",
+      "wall_seconds": 0.58,
+      "peak_rss_kib": 59880
+    },
+    {
+      "id": "nist-126-r2-to-r3",
+      "side": "new",
+      "input_sha256": "413361b946c70dbe117c5491ebc6fb18598cb099bd5510986f737f15c5d211bc",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 62856683,
+      "output_sha256": "4881b545ebb1bb570e9502b1c9740ee7120396c419f532535d3680d6b546840e",
+      "evidence_counts": {
+        "glyphs": 176651,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 5734,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 64
+      },
+      "stderr": "",
+      "wall_seconds": 0.62,
+      "peak_rss_kib": 56472
+    },
+    {
+      "id": "nist-131a-r1-to-r2",
+      "side": "old",
+      "input_sha256": "89ab3caf1dfc7a10f94893b0c85084d774322e0b9181c5b4c3fa2315ec53bc47",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 18641203,
+      "output_sha256": "3e28631a5d49d307ae16e5fd3d88b11ba036ecfd393c924f361427e6717cc5ac",
+      "evidence_counts": {
+        "glyphs": 52690,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 30
+      },
+      "stderr": "",
+      "wall_seconds": 0.2,
+      "peak_rss_kib": 29872
+    },
+    {
+      "id": "nist-131a-r1-to-r2",
+      "side": "new",
+      "input_sha256": "5c81a1095e0eee35ce0e627b8cc672c1c2239367b0de9bb53d7271c9ab9d7d27",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 24759665,
+      "output_sha256": "d8258f19a5616fcfc955c3fd54a69ea6eae470a4d37cd3aaed44f4165926e142",
+      "evidence_counts": {
+        "glyphs": 70467,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 2850,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 33
+      },
+      "stderr": "",
+      "wall_seconds": 0.26,
+      "peak_rss_kib": 32548
+    },
+    {
+      "id": "edpb-access-v1-to-v21",
+      "side": "old",
+      "input_sha256": "90df6b680463318d266a804e91e57543ed891180fdd671594b952ad3863734df",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 72201392,
+      "output_sha256": "8802f9e526bd96d6edd388a10bd5f9ab4159e79499373dd4a5d4249c4f73d468",
+      "evidence_counts": {
+        "glyphs": 218492,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 480,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 60
+      },
+      "stderr": "",
+      "wall_seconds": 0.75,
+      "peak_rss_kib": 67104
+    },
+    {
+      "id": "edpb-access-v1-to-v21",
+      "side": "new",
+      "input_sha256": "b399b25634b379576378d725284d5ed2b1a81c93c34ade9ee8eb48ef5eb75032",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 73956813,
+      "output_sha256": "8661437e4ddd337a10ec637b1ff0f599231a9134902e06facc911e21d7ff2e65",
+      "evidence_counts": {
+        "glyphs": 223589,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 63
+      },
+      "stderr": "",
+      "wall_seconds": 0.74,
+      "peak_rss_kib": 67592
+    },
+    {
+      "id": "edpb-article65-v1-to-v2",
+      "side": "old",
+      "input_sha256": "ef2277418004336e3b09877a852cae42b7e302fc56788d1682aacd76f0d4086c",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 32732752,
+      "output_sha256": "906b7ac31e95860ea3afabc4b474a8e959c6705fb99406c73389c4672bbb2801",
+      "evidence_counts": {
+        "glyphs": 95960,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 240,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 30
+      },
+      "stderr": "",
+      "wall_seconds": 0.56,
+      "peak_rss_kib": 95748
+    },
+    {
+      "id": "edpb-article65-v1-to-v2",
+      "side": "new",
+      "input_sha256": "a586d2247fb2b9d65deec7799927d29bda4fb5fe66355887ab4e5a5319af06aa",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 31793663,
+      "output_sha256": "dc0680a00270b82b177024ba18b4152552cf08cd5a3da2af5863cad3d99f601a",
+      "evidence_counts": {
+        "glyphs": 100344,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 31
+      },
+      "stderr": "",
+      "wall_seconds": 0.34,
+      "peak_rss_kib": 40400
+    },
+    {
+      "id": "arxiv-adam-v1-to-v9",
+      "side": "old",
+      "input_sha256": "935a5a15616961aff21529d86a754570028843407adfe858f1d18584b84293a7",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 9965222,
+      "output_sha256": "374899f61feb560f627e92af64844b5f2bf131580655c2fce0ea554621aee0c9",
+      "evidence_counts": {
+        "glyphs": 25623,
+        "unmapped_glyphs": 1316,
+        "nondefault_directions": 108,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 9
+      },
+      "stderr": "",
+      "wall_seconds": 0.11,
+      "peak_rss_kib": 20644
+    },
+    {
+      "id": "arxiv-adam-v1-to-v9",
+      "side": "new",
+      "input_sha256": "eab9c73ae2ceda884b94830bda99312254bac4806f6c9f045cbab90721ecda31",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 4326310,
+      "output_sha256": "cc82ca94103d377e3f3e0213f8e71eff2ed15ee9fc1e2f5c97d88560d8f7ed11",
+      "evidence_counts": {
+        "glyphs": 11071,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 65,
+        "extraction_issues": 11,
+        "pages_with_glyphs": 4
+      },
+      "stderr": "",
+      "wall_seconds": 0.06,
+      "peak_rss_kib": 17344
+    },
+    {
+      "id": "arxiv-batchnorm-v1-to-v3",
+      "side": "old",
+      "input_sha256": "4591881ed6e7b3815eaa7c13cb8d8cc1c807ca5411150c11d11f718e6ba48949",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 6264214,
+      "output_sha256": "aab503a0a5896f50d3191b59819e9b2723b1d3357b7d2bbdd82c99d26d4d60da",
+      "evidence_counts": {
+        "glyphs": 16361,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 5,
+        "pages_with_glyphs": 5
+      },
+      "stderr": "",
+      "wall_seconds": 0.07,
+      "peak_rss_kib": 15556
+    },
+    {
+      "id": "arxiv-batchnorm-v1-to-v3",
+      "side": "new",
+      "input_sha256": "bdc69e0b568f41d8d3181cc9077a461f58fcdd1c70c9f49efe60a05ee6109655",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 6699975,
+      "output_sha256": "746a7b5f84e4e8aec73937a3a20eb9cfce950c7c2d35b4866f6dbfeef1258db2",
+      "evidence_counts": {
+        "glyphs": 17586,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 5,
+        "pages_with_glyphs": 6
+      },
+      "stderr": "",
+      "wall_seconds": 0.08,
+      "peak_rss_kib": 15488
+    },
+    {
+      "id": "arxiv-vae-v1-to-v11",
+      "side": "old",
+      "input_sha256": "1a320bb73327d1ccb5d8df2d290ade85f80a22e2131635b2d87b5df9b6994153",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 10661601,
+      "output_sha256": "d1ba5334ebb0f2e5878120a90b77788d7bcc4b4a498d3036288155514044564d",
+      "evidence_counts": {
+        "glyphs": 24206,
+        "unmapped_glyphs": 1877,
+        "nondefault_directions": 66,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 9
+      },
+      "stderr": "",
+      "wall_seconds": 0.12,
+      "peak_rss_kib": 26276
+    },
+    {
+      "id": "arxiv-vae-v1-to-v11",
+      "side": "new",
+      "input_sha256": "bdcb63b79ed88f64f8ee2d43a721930d01dde5441a4dba20ecaa2342b34e017c",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 16317014,
+      "output_sha256": "e758d56cc21cdaeda640292467ae84126134b68a30f68874abe130f60f7d2b76",
+      "evidence_counts": {
+        "glyphs": 34820,
+        "unmapped_glyphs": 3767,
+        "nondefault_directions": 67,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 14
+      },
+      "stderr": "",
+      "wall_seconds": 0.19,
+      "peak_rss_kib": 33020
+    },
+    {
+      "id": "faa-weight-27e-to-27f",
+      "side": "old",
+      "input_sha256": "66f26c5ffd13300aca69621ef6963ec9a3cfbc6dc5a1d0bec22d9c6d9a7f7237",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 44298553,
+      "output_sha256": "6935fb71bd6a130d1d2366c9309a92bc47c124dc16155c237aeaf4a579709c0c",
+      "evidence_counts": {
+        "glyphs": 132650,
+        "unmapped_glyphs": 9,
+        "nondefault_directions": 99,
+        "extraction_issues": 3,
+        "pages_with_glyphs": 64
+      },
+      "stderr": "",
+      "wall_seconds": 0.46,
+      "peak_rss_kib": 51604
+    },
+    {
+      "id": "faa-weight-27e-to-27f",
+      "side": "new",
+      "input_sha256": "726adba4c7050d366e430f17d117e25baf80308b564ffaaaacd4e7f337131f78",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 43360678,
+      "output_sha256": "065fa92adbe171f985195d0e262ce83fb1b5de59e1a75e4b9a5f0d1c872a3fc8",
+      "evidence_counts": {
+        "glyphs": 125072,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 24,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 58
+      },
+      "stderr": "",
+      "wall_seconds": 0.45,
+      "peak_rss_kib": 51780
+    },
+    {
+      "id": "mhlw-harassment-2020-to-2026",
+      "side": "old",
+      "input_sha256": "aa690e27a22f58386d6f3da13d8c7634456a608960a84e24bb9f3a7256bcf09b",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 3204036,
+      "output_sha256": "4087f9a29d495d7c00c12b5a07ec768dfcc055de2f7dd737fb4a726bec8aedf1",
+      "evidence_counts": {
+        "glyphs": 10095,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 11
+      },
+      "stderr": "",
+      "wall_seconds": 0.05,
+      "peak_rss_kib": 14652
+    },
+    {
+      "id": "mhlw-harassment-2020-to-2026",
+      "side": "new",
+      "input_sha256": "5c788209702529c1c68694708ba99eee9c2e6352aeefe18398511bb90f0bd804",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 3117608,
+      "output_sha256": "6787592191126391f43f14d49076004c2eeb4f6eaf29a1aba8fc7380d46de5fb",
+      "evidence_counts": {
+        "glyphs": 9321,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 8
+      },
+      "stderr": "",
+      "wall_seconds": 0.04,
+      "peak_rss_kib": 11732
+    },
+    {
+      "id": "ietf-ntp-1305-to-5905",
+      "side": "old",
+      "input_sha256": "528e279c741ae6f2c78ee0e1ed9586a5cdb6a55db269a94f4b7546982eefd3c2",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 103463999,
+      "output_sha256": "3cb5ae64e546f68eb3e0d8e938abc5eba31bdc1a201da4eee7143f2050c62d75",
+      "evidence_counts": {
+        "glyphs": 297109,
+        "unmapped_glyphs": 2275,
+        "nondefault_directions": 0,
+        "extraction_issues": 2,
+        "pages_with_glyphs": 118
+      },
+      "stderr": "",
+      "wall_seconds": 1.03,
+      "peak_rss_kib": 80312
+    },
+    {
+      "id": "ietf-ntp-1305-to-5905",
+      "side": "new",
+      "input_sha256": "68f6551293f7e3d14aeed7a2f9cb89bb5a5ba842a51b50587abf542fa40089d4",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 66830064,
+      "output_sha256": "b8414f538f4379cef676e2bfa4c48e486b1266653818d416c5ba9d8bb723d6e0",
+      "evidence_counts": {
+        "glyphs": 234823,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 110
+      },
+      "stderr": "",
+      "wall_seconds": 0.71,
+      "peak_rss_kib": 63360
+    },
+    {
+      "id": "ietf-snmp-2571-to-3411",
+      "side": "old",
+      "input_sha256": "56a24a53052e7bd353671eee3f5ec27ba616ef02157f2ba639243123e6bbeae6",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 38489734,
+      "output_sha256": "ae2dabb0b8222699699ef8a915f84dd385cbc351ed2fc6e169ae86b952311fd6",
+      "evidence_counts": {
+        "glyphs": 135840,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 62
+      },
+      "stderr": "",
+      "wall_seconds": 0.38,
+      "peak_rss_kib": 40064
+    },
+    {
+      "id": "ietf-snmp-2571-to-3411",
+      "side": "new",
+      "input_sha256": "c70f4e50e3be53fddef62a284c6e0e7a835be2b51375e376898fedc828dff3a3",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 38669818,
+      "output_sha256": "3dc059b71ad2cf6cdb6e5af11ea5d0145a3f89522173bd3a49e86934bc7c08b5",
+      "evidence_counts": {
+        "glyphs": 136445,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 64
+      },
+      "stderr": "",
+      "wall_seconds": 0.4,
+      "peak_rss_kib": 40064
+    },
+    {
+      "id": "ietf-igmp-2236-to-3376",
+      "side": "old",
+      "input_sha256": "9b827082df3fb06e4caadcc9d849eec23cf754e1af77e54d190a5d74ed29e52f",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 13997286,
+      "output_sha256": "2acf5270ba88ccafe10ec19070fdb4df6484bb205a7a6ddaa76f746d341c26d0",
+      "evidence_counts": {
+        "glyphs": 49677,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 24
+      },
+      "stderr": "",
+      "wall_seconds": 0.14,
+      "peak_rss_kib": 19968
+    },
+    {
+      "id": "ietf-igmp-2236-to-3376",
+      "side": "new",
+      "input_sha256": "07ba143b4e803b8485d63dda6802a5b7b87bc19ed0bbea9c03dda581bb952228",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 33024008,
+      "output_sha256": "7e1c392036709659e0e2dcaf7ad4abb9d06ffba4d062877d4e8d8cbf279e2463",
+      "evidence_counts": {
+        "glyphs": 116702,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 53
+      },
+      "stderr": "",
+      "wall_seconds": 0.33,
+      "peak_rss_kib": 35328
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "reviewed_page_count": 2,
+  "reviewed_utc": "2026-09-14T06:00:13.693152+00:00",
+  "method": "All target and control pages visually inspected before comparison. Full finite paragraph text checked against raw glyph render order; every resolved source scalar and glyph identifier independently matched to source inspection. Internal spaces and line-end hyphens are literal. Rendering and local resolution do not establish whole-document extraction completeness.",
+  "inspection_evidence": [
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-source-inspection-correction-attempts.json",
+      "sha256": "514cb304f1952aba0c0d13a10d0263c455a8610a171b04abcfc92fa0d0a72718"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-objects-correction-attempts.json",
+      "sha256": "ebcda72ec0949fe7eac809d623232b0c7d76d37c922750a0118cffbf9cec8d6d"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-pages-captures.json",
+      "sha256": "39fa52b397557f02cb3b89cdc44f8ce8aaa20aff44eca195ec73cff99f5d7bf2"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-resolution-attempts.json",
+      "sha256": "6aa2d11e194551628c3a8c802bc3adbb0830551f78d776dc9d1bd4af51276713"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-resolution-source-checks.json",
+      "sha256": "689cf3ed051428c5adf17b12a608334960b7a0f62ef0db918bfcc9b56cbadfba"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v9-correction-source-proposals.json",
+      "sha256": "5953f049434c1e7881a4ce6d0729d0e93d4734a70ceca357d49a147de21982ce"
+    }
+  ],
+  "reviews": [
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.json",
+        "sha256": "1ff8ffeac854aa3af5dce8607043bf33f983e5ed593c26e0d177f1d31cdece45"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.resolved.json",
+        "sha256": "77e65e4c5dba4b612ad4221b4d9a742ded68ae9f6c301f017b89c3d02b5cc39f"
+      },
+      "source_pages": [
+        {
+          "id": "edpb-objection-v1-to-v2",
+          "side": "old",
+          "page": 3,
+          "input_sha256": "a7fe602114ce43209fdd6eba65f6aa2281a40686750cb571b8b49fa5740d1a82",
+          "object_evidence_sha256": "f02dbcded29a7965eb4de4388ecf4874d0cafd57e0cf6f03f0a9912c2e276f52",
+          "width": 596,
+          "height": 842,
+          "object_number": 31,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "3",
+            "11",
+            "596",
+            "842",
+            "31",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "0ddd4b84fd6016f3e7b0e1a7c07baa7ebbefa507f9c29587abe22443926911ac",
+          "warning": false,
+          "png_sha256": "0c78dceffe08fe6060490d5d68980f54f60c2331fa4386176bb2f5825a14cd86",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/correction-pages/edpb-objection-v1-to-v2-old-p3.png",
+            "sha256": "0c78dceffe08fe6060490d5d68980f54f60c2331fa4386176bb2f5825a14cd86"
+          },
+          "reviewed": true
+        },
+        {
+          "id": "edpb-objection-v1-to-v2",
+          "side": "new",
+          "page": 4,
+          "input_sha256": "79c498fd2f076e4aeed657717753085f007a5f83432e1c7b29d8ff8b98d2bf7d",
+          "object_evidence_sha256": "472743062804700f88b7ecf485dbb987a23b18f53842047fac96cdcf4ee1c9d6",
+          "width": 596,
+          "height": 842,
+          "object_number": 33,
+          "generation": 0,
+          "command": [
+            "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+            "render-page",
+            "4",
+            "12",
+            "596",
+            "842",
+            "33",
+            "0"
+          ],
+          "exit_code": 0,
+          "status": "rendered",
+          "stderr": "",
+          "raw_sha256": "da7853ec6de4b9bf61c1cb89c17924b17a4836da5c76cb2eba59a244a9549e0e",
+          "warning": false,
+          "png_sha256": "4ab336d60f5f98909cf3871517adfa49ac9f9bee3d9928514bb5cd3ec3c48806",
+          "image": {
+            "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/correction-pages/edpb-objection-v1-to-v2-new-p4.png",
+            "sha256": "4ab336d60f5f98909cf3871517adfa49ac9f9bee3d9928514bb5cd3ec3c48806"
+          },
+          "reviewed": true
+        }
+      ],
+      "reviewed": true,
+      "reason": "Complete paragraph 7 in both editions, visually reviewed on old page 3 and new page 4. The new paragraph adds and explains the Article 4(24) threshold and rewrites the consequences of deficient draft decisions. No sentence is omitted; all literal source spacing remains. The unchanged Article 4(24) GDPR defines phrase in paragraph 5 is a disjoint control."
+    }
+  ]
+}

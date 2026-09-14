@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "checks": [
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "selector": "body-old-1",
+      "glyph_count": 662,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "selector": "control-old",
+      "glyph_count": 26,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "selector": "body-new-1",
+      "glyph_count": 1088,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "selector": "control-new",
+      "glyph_count": 26,
+      "raw_glyph_order_matches": true
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "ietf-ntp-1305-to-5905",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 8,
+          "end": 646
+        }
+      },
+      "literal_quote": "This document describes the Network Time Protocol (NTP), specifies its formal structure andsummarizes information useful for its implementation. NTP provides the mechanisms to synchro-nize time and coordinate time distribution in a large, diverse internet operating at rates from mundaneto lightwave. It uses a returnable-time design in which a distributed subnet of time servers operatingin a self-organizing, hierarchical-master-slave configuration synchronizes local clocks within thesubnet and to national time standards via wire or radio. The servers can also redistribute referencetime via local routing algorithms and time daemons.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 0,
+          "end": 8
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 658,
+          "end": 1473
+        }
+      },
+      "literal_quote": "The Network Time Protocol (NTP) is widely used to synchronize   computer clocks in the Internet.  This document describes NTP version   4 (NTPv4), which is backwards compatible with NTP version 3 (NTPv3),   described in RFC 1305, as well as previous versions of the protocol.   NTPv4 includes a modified protocol header to accommodate the Internet   Protocol version 6 address family.  NTPv4 includes fundamental   improvements in the mitigation and discipline algorithms that extend   the potential accuracy to the tens of microseconds with modern   workstations and fast LANs.  It includes a dynamic server discovery   scheme, so that in many cases, specific server configuration is not   required.  It corrects certain errors in the NTPv3 design and   implementation and includes an optional extension mechanism.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 647,
+          "end": 655
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "528e279c741ae6f2c78ee0e1ed9586a5cdb6a55db269a94f4b7546982eefd3c2",
+  "new_sha256": "68f6551293f7e3d14aeed7a2f9cb89bb5a5ba842a51b50587abf542fa40089d4"
+}
