@@ -1,0 +1,59 @@
+{
+  "comparison_performed": false,
+  "checks": [
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "body-old-1",
+      "glyph_count": 111,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "body-old-2",
+      "glyph_count": 402,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "control-old",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "body-new-1",
+      "glyph_count": 678,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "control-new",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "body-old-1",
+      "glyph_count": 264,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "body-new-1",
+      "glyph_count": 584,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    }
+  ]
+}

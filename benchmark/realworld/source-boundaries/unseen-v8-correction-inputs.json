@@ -1,0 +1,63 @@
+{
+  "version": 8,
+  "frozen": true,
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "nist-55-r1-to-v1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-55 information security measurement",
+      "old_revision": "Revision 1 (2008)",
+      "new_revision": "Volume 1 (2024)",
+      "language": "en",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-55r1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-55-r1-to-v1-old.pdf",
+        "sha256": "05a3addfb2f3d74cdbfe3dc95f1a7e88ba1a7d24d24d2bbd10014d6a9d8c26ca",
+        "bytes": 1671268,
+        "status": "downloaded"
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-55v1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-55-r1-to-v1-new.pdf",
+        "sha256": "29435d0db5af6dcb307e3de10e843c6eef474a0e7ae1e8993ab60af3cfc1bd04",
+        "bytes": 1130125,
+        "status": "downloaded"
+      },
+      "primary_publication_pages": [
+        "https://csrc.nist.gov/pubs/sp/800/55/r1/final",
+        "https://csrc.nist.gov/pubs/sp/800/55/v1/final"
+      ],
+      "selected_utc": "2026-09-14T04:02:17.883346+00:00"
+    },
+    {
+      "id": "ietf-sctp-4960-to-9260",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Stream Control Transmission Protocol",
+      "old_revision": "RFC 4960",
+      "new_revision": "RFC 9260",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc4960.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-sctp-4960-to-9260-old.pdf",
+        "sha256": "49772625bea1d7d26976352bcde851ce9e01e3391a36c66e0ceed26fbdde8970",
+        "bytes": 210400,
+        "status": "downloaded"
+      },
+      "new": {
+        "url": "https://www.rfc-editor.org/rfc/rfc9260.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-sctp-4960-to-9260-new.pdf",
+        "sha256": "fbc6fd94c31456bf8871dc775ac9196fa4580dd07d9a5835831be5bcfe267df9",
+        "bytes": 1300128,
+        "status": "downloaded"
+      },
+      "primary_publication_pages": [
+        "https://www.rfc-editor.org/info/rfc4960/",
+        "https://www.rfc-editor.org/info/rfc9260/"
+      ],
+      "selected_utc": "2026-09-14T04:02:17.883346+00:00"
+    }
+  ]
+}

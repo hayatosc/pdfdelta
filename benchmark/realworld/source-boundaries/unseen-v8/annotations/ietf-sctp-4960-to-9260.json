@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "ietf-sctp-4960-to-9260",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 622,
+          "end": 886
+        }
+      },
+      "literal_quote": "This document obsoletes RFC 2960 and RFC 3309.  It describes the   Stream Control Transmission Protocol (SCTP).  SCTP is designed to   transport Public Switched Telephone Network (PSTN) signaling messages   over IP networks, but is capable of broader applications.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 611,
+          "end": 619
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 52,
+          "end": 636
+        }
+      },
+      "literal_quote": "This document describes the Stream Control Transmission Protocol (SCTP) and obsoletes RFC4960. It incorporates the speciﬁcation of the chunk ﬂags registry from RFC 6096 and thespeciﬁcation of the I bit of DATA chunks from RFC 7053. Therefore, RFCs 6096 and 7053 are alsoobsoleted by this document. In addition, RFCs 4460 and 8540, which describe errata for SCTP, areobsoleted by this document.SCTP was originally designed to transport Public Switched Telephone Network (PSTN) signalingmessages over IP networks. It is also suited to be used for other applications, for example,WebRTC.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 44,
+          "end": 52
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "49772625bea1d7d26976352bcde851ce9e01e3391a36c66e0ceed26fbdde8970",
+  "new_sha256": "fbc6fd94c31456bf8871dc775ac9196fa4580dd07d9a5835831be5bcfe267df9"
+}
