@@ -1,0 +1,38 @@
+{
+  "scope": "Diagnostic-only instrumentation on V65. Independent acquisition work was measured without changing the production budget or supplying candidates or source order. All diagnostic code was removed after the capture.",
+  "base_commit": "58d1e6ad794246292e8f41d2b9f2a36f18d27a90",
+  "instrumentation": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-budget-v66/diagnostic2.patch",
+    "sha256": "453bd52b736dd3b076f328a55c7e2c7349fe13b658c7105e02bb568cec3ccb04"
+  },
+  "command": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-budget-v66/diagnostic2-command.json",
+    "sha256": "bcf22d10c4bc947ff57724c9b9a5552e3214ec1e58bd389ba169620c1c22bba2"
+  },
+  "log": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-budget-v66/diagnostic2.log",
+    "sha256": "9eda0a8adf6b6e35d93a18193b941059d45d65838c38cd77f4c7b796d269abff"
+  },
+  "report": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-budget-v66/diagnostic2-report.json",
+    "sha256": "ec1bfb9cfc442dd83dd33d8e690a2f14e9f434b8082416e621c86ce12dc3e4ff"
+  },
+  "observations": {
+    "total_cap": 1000000,
+    "whole_node_stage_remaining": 434259,
+    "whole_cut_work": 108564,
+    "reviews_after_whole_cuts": 22,
+    "literal_edge_refinement_work": 325693,
+    "reviews_after_refinement": 32,
+    "remaining_before_enclosing_and_standard": 2,
+    "old_source_index_work": 52449,
+    "new_source_index_work": 57758,
+    "old_native_order_work": 0,
+    "new_native_order_work": 235044
+  },
+  "decision": "Moving declared-order acquisition immediately before the general cut search cannot reach it: retained literal-edge refinement has already spent the remaining work and added ten reviews. Do not reorder these proved results or increase the shared work cap based on this diagnosis. Natural segmented recovery remains unproved; this diagnostic is not a new A/B result.",
+  "report_identity": {
+    "equal_except_comparison_wall_time_ms": true,
+    "baseline_report": "benchmark/realworld/cache/source-boundaries-column-edges-v65/segmented-diagnosis/edpb-restrictions-v1-to-final/report.json"
+  }
+}

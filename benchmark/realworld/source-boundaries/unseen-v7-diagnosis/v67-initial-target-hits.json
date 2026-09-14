@@ -1,0 +1,42 @@
+{
+  "version": 67,
+  "unadjudicated": true,
+  "hits": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "pointers": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ]
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "pointers": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ]
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "pointers": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ]
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "pointers": [
+        "/comparison/scopes/0/result/text_scope_reviews/5"
+      ]
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "pointers": [
+        "/comparison/scopes/0/result/text_scope_reviews/11"
+      ]
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "pointers": [
+        "/comparison/scopes/0/result/text_scope_reviews/25"
+      ]
+    }
+  ]
+}

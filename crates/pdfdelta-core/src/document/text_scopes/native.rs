@@ -7,6 +7,7 @@ use crate::{
     model::{
         Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus, PageId, Rect, TextRenderMode, Vec2,
     },
+    normalize::ComparableToken,
 };
 
 use super::{
@@ -98,15 +99,37 @@ pub(super) fn external_continuation(
         let NodeContent::Text { view } = &node.content else {
             continue;
         };
-        spend(remaining, view.tokens.len().saturating_mul(4))?;
-        if view
-            .display_text()
-            .is_some_and(|text| text.trim_matches(' ') == remainder)
-        {
+        if continuation_matches(&view.tokens, remainder, remaining)? {
             return Some(true);
         }
     }
     Some(false)
+}
+
+/// Match a remainder with no outer ASCII spaces, charging each inspected token.
+/// A mismatch needs no allocation or inspection of the rest of the candidate;
+/// a match still requires every token, including trailing spaces, to be mapped.
+fn continuation_matches(
+    tokens: &[ComparableToken],
+    remainder: &str,
+    remaining: &mut usize,
+) -> Option<bool> {
+    let mut expected = remainder.chars();
+    let mut leading = true;
+    for token in tokens {
+        spend(remaining, 4)?;
+        let value = token.as_scalar();
+        if leading && value == Some(' ') {
+            continue;
+        }
+        leading = false;
+        match expected.next() {
+            Some(expected) if value != Some(expected) => return Some(false),
+            None if value != Some(' ') => return Some(false),
+            _ => {}
+        }
+    }
+    Some(expected.next().is_none())
 }
 
 /// Runs are discovery paths only. A path becomes a closed interval only after
@@ -936,6 +959,56 @@ impl<'a> Sources<'a> {
 mod tests {
     use super::*;
     use crate::document::{DocumentGraph, EvidenceStore};
+
+    #[test]
+    fn continuation_stream_matches_materialized_text_with_unmapped_and_unicode_tokens() {
+        let alphabet = [
+            ComparableToken::Scalar(' '),
+            ComparableToken::Scalar('a'),
+            ComparableToken::Scalar('日'),
+            ComparableToken::Scalar('\t'),
+            ComparableToken::Unmapped {
+                font_hash: crate::model::FontProgramHash(vec![1]),
+                glyph_id: 7,
+            },
+        ];
+        for length in 0..=4 {
+            for mut index in 0..alphabet.len().pow(length) {
+                let tokens: Vec<_> = (0..length)
+                    .map(|_| {
+                        let token = alphabet[index % alphabet.len()].clone();
+                        index /= alphabet.len();
+                        token
+                    })
+                    .collect();
+                let text: Option<String> = tokens.iter().map(ComparableToken::as_scalar).collect();
+                for remainder in ["", "a", "日", "\t", "a a", "a日", "日\ta"] {
+                    let expected = text
+                        .as_ref()
+                        .is_some_and(|text| text.trim_matches(' ') == remainder);
+                    let mut work = 4 * tokens.len();
+                    assert_eq!(
+                        continuation_matches(&tokens, remainder, &mut work),
+                        Some(expected),
+                        "{tokens:?} versus {remainder:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn continuation_mismatch_is_bounded_but_a_match_checks_the_entire_candidate() {
+        let tokens = vec![ComparableToken::Scalar('x'); 100_000];
+        let mut work = 4;
+        assert_eq!(continuation_matches(&tokens, "a", &mut work), Some(false));
+        assert_eq!(work, 0);
+        let tokens: Vec<_> = " a ".chars().map(ComparableToken::Scalar).collect();
+        let mut work = 8;
+        assert_eq!(continuation_matches(&tokens, "a", &mut work), None);
+        let mut work = 12;
+        assert_eq!(continuation_matches(&tokens, "a", &mut work), Some(true));
+    }
 
     #[test]
     fn continuation_budget_distinguishes_impossible_lengths_from_unknown_matches() {

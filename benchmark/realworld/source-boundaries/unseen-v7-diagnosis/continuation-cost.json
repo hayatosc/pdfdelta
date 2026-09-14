@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "scope": "Diagnostic-only instrumentation on unchanged V65, after seventh campaign retirement. Instrumentation was removed before the streaming comparison prototype.",
+  "commands": {
+    "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/commands.json",
+    "sha256": "00f75a34abe8c97ba74e3deed24e16b8de55d4ff6fd0fca7cabba9f78bd9904b"
+  },
+  "instrumentation": {
+    "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/instrumentation.patch",
+    "sha256": "e59b6fa7f956b5d55c669c9b64d79a856ed698bb66a78a5f41e77907b62ceaf1"
+  },
+  "observations": [
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "continuation_calls": 32,
+      "total_continuation_work": 633179,
+      "largest_calls": [
+        377923,
+        241895,
+        3822,
+        1406,
+        1391
+      ],
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/ietf-dhcp-1541-to-2131.log",
+        "sha256": "73f22b7755f69021ed19298a04161b6e75987bb61c8ff295a83b2beab5b9e778"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/ietf-dhcp-1541-to-2131.json",
+        "sha256": "02aa40c229eb3944616102dee28c55ab4c0f594c50846cda80fed5ccf64117ca"
+      },
+      "equal_to_v65_except_wall_time": true
+    },
+    {
+      "pair": "nist-107-original-to-r1",
+      "continuation_calls": 30,
+      "total_continuation_work": 17427,
+      "largest_calls": [
+        2743,
+        2732,
+        2731,
+        2175,
+        1990
+      ],
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/nist-107-original-to-r1.log",
+        "sha256": "3f906937555a406acb24f894d81030973e7d8525dd5c0537a99c27e6bdd709e4"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/nist-107-original-to-r1.json",
+        "sha256": "0ffdf34476eb91cd2e6b1c2aab525c8586f6a746691c07f8c784e65941d866aa"
+      },
+      "equal_to_v65_except_wall_time": true
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "continuation_calls": 44,
+      "total_continuation_work": 6186,
+      "largest_calls": [
+        2935,
+        1513,
+        438,
+        435,
+        429
+      ],
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/arxiv-mlp-mixer-v1-to-v4.log",
+        "sha256": "c6d03fe55a2f339ea67b150fa048f5da3da4cb4a2471dcd413584fb61ea1f135"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-budget-audit-v67/arxiv-mlp-mixer-v1-to-v4.json",
+        "sha256": "e4410848444db6474901bbecd1deb9ad1f91268ad711a4fc9a18428f913cb86f"
+      },
+      "equal_to_v65_except_wall_time": true
+    }
+  ],
+  "decision": "Replace repeated materialization of each candidate display string with a bounded exact scalar comparison. Preserve the complete mapped-token requirement for a match, ASCII-only outer-space trimming, excluded interior nodes and the original global work cap. A differing first scalar can reject a long candidate without allocating or visiting its suffix. This is a measured work reduction; no scheduling or source certificate is weakened."
+}

@@ -1,0 +1,83 @@
+{
+  "version": 67,
+  "pair": "ietf-dhcp-1541-to-2131",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-continuation-stream-v67/build.json",
+    "sha256": "209f3a56e81c5666c8ed230be636f66f66f520da8fe63abea9d837ea47bfd9bc"
+  },
+  "targets": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v7/targets.json",
+    "sha256": "f4c1d25a2c5c82a88546a1c9cd059c534c9fa03a9bb0f27e38a60389ad201a5d"
+  },
+  "observations": [
+    {
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-continuation-stream-v67/dhcp-pilot/ietf-dhcp-1541-to-2131-text.json",
+        "sha256": "d30ed3e46a9d1b9e00f40f29046b0572823ec90b5a887492b48c492121819c4c"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-continuation-stream-v67/dhcp-pilot/runs.json",
+        "sha256": "4b53c2ee99c7fb3129c62eaa2f5f9c09d28d246016656f91d3e31d2fd807bbfb"
+      }
+    },
+    {
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-continuation-stream-v67/source-exports/ietf-dhcp-1541-to-2131/report.json",
+        "sha256": "b383ad0a73d56bf397f52a08e3695e2984908d93e507ad741ec5e7fc6087527d"
+      },
+      "command_evidence": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v7-diagnosis/v67-source-export-attempts.json",
+        "sha256": "4c35253c96f42fc5797d7e28ed9489d1f9b6aa4f099e809072761a5f8f34b027"
+      }
+    }
+  ],
+  "same_complete_payloads_in_independent_observations": true,
+  "pointer": "/comparison/scopes/0/result/text_scope_reviews/24",
+  "event_sha256": "62ce8d84dc1f11b5da04c4a0f2d6dd497df21c1845f5e1cc8776a62aecbac43e",
+  "source_export": {
+    "path": "benchmark/realworld/cache/source-boundaries-continuation-stream-v67/source-exports/ietf-dhcp-1541-to-2131/review/sources.json",
+    "sha256": "c0e3a058fe4119e81e2922905fa8fea49a5e68369c00b374a05091855f937ab0"
+  },
+  "validator": {
+    "path": "benchmark/realworld/source-boundaries/review-v67.py",
+    "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+  },
+  "source_checks": {
+    "old": {
+      "page": 0,
+      "glyphs": 554,
+      "raw": "The Dynamic Host Configuration Protocol (DHCP) provides a framework   for passing configuration information to hosts on a TCP/IP network.   DHCP is based on the Bootstrap Protocol (BOOTP) [7], adding the   capability of automatic allocation of reusable network addresses and   additional configuration options [19].  DHCP captures the behavior of   BOOTP relay agents [7, 23], and DHCP participants can interoperate   with BOOTP participants [9].  Due to some errors introduced into RFC   1531 in the editorial process, this memo is reissued as RFC 1541.",
+      "display": "The Dynamic Host Configuration Protocol (DHCP) provides a framework   for passing configuration information to hosts on a TCP/IP network.   DHCP is based on the Bootstrap Protocol (BOOTP) [7], adding the   capability of automatic allocation of reusable network addresses and   additional configuration options [19].  DHCP captures the behavior of   BOOTP relay agents [7, 23], and DHCP participants can interoperate   with BOOTP participants [9].  Due to some errors introduced into RFC   1531 in the editorial process, this memo is reissued as RFC 1541.",
+      "population_nodes": [
+        44,
+        45,
+        46
+      ],
+      "population_glyphs": 582,
+      "source_census_exact": true,
+      "strictly_descending_node_bands": true,
+      "original_cut_projection_checked": true,
+      "page_text_inventory_complete": true,
+      "disjoint_non_text_paint": []
+    },
+    "new": {
+      "page": 0,
+      "glyphs": 445,
+      "raw": "The Dynamic Host Configuration Protocol (DHCP) provides a framework   for passing configuration information to hosts on a TCPIP network.   DHCP is based on the Bootstrap Protocol (BOOTP) [7], adding the   capability of automatic allocation of reusable network addresses and   additional configuration options [19].  DHCP captures the behavior of   BOOTP relay agents [7, 21], and DHCP participants can interoperate   with BOOTP participants [9].",
+      "display": "The Dynamic Host Configuration Protocol (DHCP) provides a framework   for passing configuration information to hosts on a TCPIP network.   DHCP is based on the Bootstrap Protocol (BOOTP) [7], adding the   capability of automatic allocation of reusable network addresses and   additional configuration options [19].  DHCP captures the behavior of   BOOTP relay agents [7, 21], and DHCP participants can interoperate   with BOOTP participants [9].",
+      "population_nodes": [
+        50,
+        51,
+        52
+      ],
+      "population_glyphs": 473,
+      "source_census_exact": true,
+      "strictly_descending_node_bands": true,
+      "original_cut_projection_checked": true,
+      "page_text_inventory_complete": true,
+      "disjoint_non_text_paint": []
+    }
+  },
+  "source_content_rationale": "The full abstract changes the literal TCP/IP spelling, a reference number and removes the RFC-1531 editorial sentence. Original inline indentation remains; exactly the three outer leading spaces on each side are recorded as excluded padding under the existing content-edge certificate. Page 0 on both sides was visually reviewed before the retired campaign comparison.",
+  "scope": "One additional exact finite target in an already retired series, at 554 old and 445 new original glyphs. The other seventeen added outputs remain unadjudicated in this diagnostic and are not new recovery or correctness claims. All fifteen prior event payloads are retained; none of this counts as fresh unseen recovery."
+}

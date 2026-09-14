@@ -1,0 +1,99 @@
+{
+  "version": 7,
+  "retired_utc": "2026-09-14T02:38:50.340301+00:00",
+  "reason": "G2 fails even at the unadjudicated upper bound of zero additional pairs. All twelve series and all metadata-only considerations remain exposed before any subsequent production change. No target is widened or replaced.",
+  "summary": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v7-summary.json",
+    "sha256": "038af79c24452250b75fad30e2db84acbc08d12ce8a9362c43718ae622c319d8"
+  },
+  "selection": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+    "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+  },
+  "retired_series": [
+    {
+      "pair": "nist-107-original-to-r1",
+      "series": "SP 800-107 applications using approved hash algorithms"
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "series": "SP 800-108 key derivation using pseudorandom functions"
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "series": "SP 800-133 cryptographic key generation"
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "series": "Guidelines 2/2023 technical scope of Article 5(3) ePrivacy Directive"
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "series": "Guidelines 05/2022 facial recognition in law enforcement"
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "series": "arXiv 1905.11946 EfficientNet"
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "series": "arXiv 2201.03545 A ConvNet for the 2020s"
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "series": "arXiv 2105.01601 MLP-Mixer"
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "series": "AC 120-53 Flight Standardization Board evaluations"
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "series": "Employer measures for accurate working time records"
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "series": "Internet Message Format"
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "series": "Dynamic Host Configuration Protocol"
+    }
+  ],
+  "metadata_only_nonselections": [
+    {
+      "series": "NIST SP 800-38A",
+      "reason": "No published revised edition was established from the primary publication record and revision announcement."
+    },
+    {
+      "series": "NIST SP 800-77",
+      "reason": "Considered but not selected; prefer shorter NIST publications for this panel. No pair comparison was performed."
+    },
+    {
+      "series": "NIST SP 800-132",
+      "reason": "Considered but not selected; three other NIST series were selected. No pair comparison was performed."
+    },
+    {
+      "series": "arXiv 1905.02244 MobileNetV3",
+      "reason": "Conservatively exclude as related to the already exposed MobileNet research series."
+    },
+    {
+      "series": "arXiv 2204.02311 PaLM",
+      "reason": "Considered but not selected; prefer shorter research papers for this panel. No pair comparison was performed."
+    },
+    {
+      "series": "FAA AC 120-100",
+      "reason": "A revised edition was not established from the primary records."
+    },
+    {
+      "series": "FAA AC 120-54",
+      "reason": "The original edition record links to the revised PDF; no distinct original PDF was established. Another FAA series is selected."
+    },
+    {
+      "series": "FAA AC 120-35",
+      "reason": "Considered but not selected; AC 120-53 has an explicit current supersession record."
+    }
+  ],
+  "targets_remain_immutable": true,
+  "reuse_as_unseen_allowed": false
+}
