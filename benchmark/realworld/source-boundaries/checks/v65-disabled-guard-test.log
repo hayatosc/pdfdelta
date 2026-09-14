@@ -1,0 +1,26 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.17s
+     Running tests/document_text_scopes_fixture.rs (target/debug/deps/document_text_scopes_fixture-7f742ad567f64beb)
+
+running 1 test
+test native_layout_edges_across_columns_do_not_displace_local_boundaries ... FAILED
+
+failures:
+
+---- native_layout_edges_across_columns_do_not_displace_local_boundaries stdout ----
+
+thread 'native_layout_edges_across_columns_do_not_displace_local_boundaries' (409) panicked at crates/pdfdelta-core/tests/document_text_scopes_fixture.rs:857:9:
+assertion failed: result.scopes[0].result.text_scope_reviews.iter().any(|review|
+        {
+            review.old_sources == old.1.nodes[2].sources &&
+                review.new_sources == new.1.nodes[2].sources
+        })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    native_layout_edges_across_columns_do_not_displace_local_boundaries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 50 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pdfdelta-core --test document_text_scopes_fixture`

@@ -1,0 +1,112 @@
+{
+  "version": 6,
+  "retired_utc": "2026-09-13T18:27:22.797537+00:00",
+  "reason": "G2 fails even at the unadjudicated upper bound of zero additional pairs. All twelve evaluated series and all source-only and metadata-only rejections remain exposed before any subsequent implementation/configuration change.",
+  "summary": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v6-summary.json",
+    "sha256": "2e3bda8047b3e4acce13fe872b56c563428a785823de62cb2dfacb2f6c7ad005"
+  },
+  "selection": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+    "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+  },
+  "retired_series": [
+    {
+      "pair": "nist-73-3-to-4",
+      "series": "SP 800-73 interfaces for personal identity verification, Part 1"
+    },
+    {
+      "pair": "nist-78-3-to-4",
+      "series": "SP 800-78 cryptographic algorithms and key sizes for PIV"
+    },
+    {
+      "pair": "nist-90a-original-to-r1",
+      "series": "SP 800-90A deterministic random bit generators"
+    },
+    {
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "series": "Guidelines 03/2022 deceptive design patterns"
+    },
+    {
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "series": "Guidelines 08/2022 identifying a lead supervisory authority"
+    },
+    {
+      "pair": "arxiv-mae-v1-to-v2",
+      "series": "arXiv 2111.06377 Masked Autoencoders"
+    },
+    {
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "series": "arXiv 1801.04381 MobileNetV2"
+    },
+    {
+      "pair": "arxiv-opt-v1-to-v4",
+      "series": "arXiv 2205.01068 OPT"
+    },
+    {
+      "pair": "faa-stall-109-to-109a",
+      "series": "AC 120-109 stall prevention and recovery training"
+    },
+    {
+      "pair": "mext-generative-ai-2023-to-2024",
+      "series": "Generative AI guidelines for primary and secondary education"
+    },
+    {
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "series": "HTTP semantics"
+    },
+    {
+      "pair": "ietf-ldap-2251-to-4511",
+      "series": "LDAP protocol"
+    }
+  ],
+  "source_only_rejections": [
+    {
+      "pair": "meti-digital-governance-v1-to-v2",
+      "reason": "Both official release pages, the policy page and both direct PDF URLs returned 403; primary bytes could not be obtained before comparison.",
+      "evidence": [
+        "unseen-v6-metadata-attempts.json",
+        "unseen-v6-download-alternate-attempts.json"
+      ]
+    },
+    {
+      "pair": "arxiv-detr-v1-to-v3",
+      "reason": "The opening body prose cannot be resolved to mapped glyph text under the frozen source reader. Page 0 retains its unmapped font/glyph identities; it must not become empty or guessed text.",
+      "evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-detr-source-rejection.json",
+          "sha256": "8ad441702af667b3a663312fd2b52bd4af974b90d0919ff290c57652e1928a55"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-breach-notification-v1-to-v2",
+      "reason": "The official old PDF repeatedly terminates before a complete HTTP response under urllib and curl, including the download query. A byte-range probe returns an unknown total length and no strong entity validator, so its partial bytes cannot establish a complete immutable source.",
+      "evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v6-breach-source-rejection.json",
+          "sha256": "7890733611f971177d85cc7947850a2e7b8355b16902afc29173c15e36128708"
+        }
+      ]
+    }
+  ],
+  "metadata_only_rejections": [
+    {
+      "series": "arXiv 1910.13461 BART",
+      "reason": "The primary arXiv submission history lists only v1.",
+      "url": "https://arxiv.org/abs/1910.13461"
+    },
+    {
+      "series": "arXiv 2103.00020 CLIP",
+      "reason": "The primary arXiv submission history lists only v1.",
+      "url": "https://arxiv.org/abs/2103.00020"
+    },
+    {
+      "series": "FAA AC 120-90 LOSA",
+      "reason": "The primary FAA record identifies the original as active; no revised edition was established.",
+      "url": "https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentID/22478"
+    }
+  ],
+  "targets_remain_immutable": true,
+  "reuse_as_unseen_allowed": false
+}

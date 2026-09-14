@@ -1,5 +1,5 @@
 {
-  "source_sha256": "c773d5ecf18f0eb5cc56dd89469582371cc553c1ba3a704ea87870ac3df42e42",
+  "source_sha256": "daf83cfd26ade93033b14f2d8e98673aa9108ac91da69c8c0a8fc75521cddc97",
   "checks": [
     {
       "command": [
@@ -11,7 +11,7 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v65-fmt.log",
+        "path": "benchmark/realworld/source-boundaries/checks/v60-fmt.log",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -28,8 +28,8 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v65-clippy.log",
-        "sha256": "6ae4e4bc5cd8a103ec6203c7b93b5fc3017544275e9ec1e1de1c44de1a6f1a86"
+        "path": "benchmark/realworld/source-boundaries/checks/v60-locked-clippy.log",
+        "sha256": "71e9fce9776a40e493ef1bffe1d229eb5a1631f920ad1724583f9cff457eb89f"
       }
     },
     {
@@ -41,8 +41,8 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v65-tests.log",
-        "sha256": "421303b244895724bd8a4170eac8c9c4ec24e5b5b139e151df06c276d115e8c0"
+        "path": "benchmark/realworld/source-boundaries/checks/v60-locked-tests.log",
+        "sha256": "c9ad39507c03ff483bdc77fc7ce6800917176143d5b9223f8459782184e8d846"
       }
     },
     {
@@ -57,10 +57,10 @@
       ],
       "exit_code": 0,
       "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v65-generated.log",
-        "sha256": "9c6ed990931aaa169bf8eb21f23170a13602c2ac24666da0bdd40abeabf1dace"
+        "path": "benchmark/realworld/source-boundaries/checks/v60-generated.log",
+        "sha256": "eb3d5a1a19fad1e00bba9f77d33c7a35fe3f3bc5a6ab8f59f44400e373856edb"
       }
     }
   ],
-  "reuse_note": "The four canonical commands completed against the frozen V65 Rust and Cargo source snapshot. The deliberately disabled-guard negative test is separate and was restored before these checks."
+  "reuse_note": "All four canonical commands completed successfully against the frozen V60 Rust and Cargo sources."
 }

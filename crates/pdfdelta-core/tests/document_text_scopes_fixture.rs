@@ -828,6 +828,58 @@ fn unresolved_opening_rows_remain_inside_the_enclosing_source_interval() {
 }
 
 #[test]
+fn native_layout_edges_across_columns_do_not_displace_local_boundaries() {
+    let mut old = fixture_rows(&["BEGIN", "old body", "old side", "END", "TAIL"]);
+    let mut new = fixture_rows(&["BEGIN", "new body", "new side", "END", "TAIL"]);
+    for fixture in [&mut old, &mut new] {
+        let side = &fixture.1.nodes[3].sources;
+        let mut glyphs = fixture.0.native.items().to_vec();
+        for glyph in &mut glyphs {
+            if side.contains(&SourceRef::Native { glyph: glyph.id }) {
+                glyph.baseline.x += 1000.0;
+                glyph.bbox.min.x += 1000.0;
+                glyph.bbox.max.x += 1000.0;
+            }
+        }
+        let mut order = 0;
+        for is_side in [false, true] {
+            for glyph in &mut glyphs {
+                if side.contains(&SourceRef::Native { glyph: glyph.id }) == is_side {
+                    glyph.render_order = order;
+                    order += 1;
+                }
+            }
+        }
+        fixture.0.native = Document::new(glyphs);
+    }
+    for (old, new) in [(&old, &new), (&new, &old)] {
+        let result = compare(old, new);
+        assert!(
+            result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| {
+                    review.old_sources == old.1.nodes[2].sources
+                        && review.new_sources == new.1.nodes[2].sources
+                })
+        );
+        let mut gap = old.clone();
+        append_unassigned(&mut gap, PageId(0), 70.0);
+        assert!(
+            compare(&gap, new).scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .all(|review| {
+                    review.old_sources != old.1.nodes[2].sources
+                        || review.new_sources != new.1.nodes[2].sources
+                })
+        );
+    }
+}
+
+#[test]
 fn native_interval_survives_unrelated_pages_storage_order_and_reversal() {
     let mut old = fixture("a");
     let mut new = fixture("aa");

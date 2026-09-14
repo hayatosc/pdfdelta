@@ -154,9 +154,28 @@ pub(super) fn runs<'a>(
         if edge.basis != ViewBasis::NativeLayout {
             blocked.extend([edge.from, edge.to]);
         } else if nodes.contains_key(&edge.from) && nodes.contains_key(&edge.to) {
-            if let Some(page) = paint_rows::reverse_row(sources, nodes[&edge.from], nodes[&edge.to])
+            if let Some((a, b)) =
+                paint_rows::edge_glyphs(sources, nodes[&edge.from], nodes[&edge.to])
             {
-                paint_pages.insert(page);
+                // Reuse the row-order witnesses already acquired for this edge.
+                // Diagonal jumps over other paint or against paint order can
+                // displace the same-column successor. Splitting proves no order;
+                // every new interval still needs complete source and paint closure.
+                if a.page == b.page
+                    && a.direction == (Vec2 { x: 1.0, y: 0.0 })
+                    && b.direction == (Vec2 { x: 1.0, y: 0.0 })
+                    && a.bbox.min.y > b.bbox.max.y
+                    && ((a.bbox.max.x < b.bbox.min.x
+                        && a.render_order
+                            .checked_add(1)
+                            .is_some_and(|next| next < b.render_order))
+                        || (b.bbox.max.x < a.bbox.min.x && b.render_order < a.render_order))
+                {
+                    continue;
+                }
+                if let Some(page) = paint_rows::reverse_row(a, b) {
+                    paint_pages.insert(page);
+                }
             }
             connected.extend([edge.from, edge.to]);
             next.entry(edge.from).or_default().insert(edge.to);

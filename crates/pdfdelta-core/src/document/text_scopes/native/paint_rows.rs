@@ -155,13 +155,20 @@ pub(super) fn separated(
     close_row(&mut pieces, remaining)
 }
 
-pub(super) fn reverse_row(sources: &Sources<'_>, a: &GraphNode, b: &GraphNode) -> Option<PageId> {
+pub(super) fn edge_glyphs<'a>(
+    sources: &Sources<'a>,
+    a: &GraphNode,
+    b: &GraphNode,
+) -> Option<(&'a Glyph, &'a Glyph)> {
     let (Some(SourceRef::Native { glyph: a }), Some(SourceRef::Native { glyph: b })) =
         (a.sources.last(), b.sources.first())
     else {
         return None;
     };
-    let (a, b) = (sources.glyphs.get(a)?, sources.glyphs.get(b)?);
+    Some((*sources.glyphs.get(a)?, *sources.glyphs.get(b)?))
+}
+
+pub(super) fn reverse_row(a: &Glyph, b: &Glyph) -> Option<PageId> {
     (a.page == b.page
         && same_baseline(a.baseline.y, b.baseline.y)
         && a.bbox.min.x > b.bbox.max.x

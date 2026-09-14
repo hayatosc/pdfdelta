@@ -1,0 +1,16 @@
+diff --git a/crates/pdfdelta-core/src/document/text_scopes/native.rs b/crates/pdfdelta-core/src/document/text_scopes/native.rs
+index c0a2466..92f1e4b 100644
+--- a/crates/pdfdelta-core/src/document/text_scopes/native.rs
++++ b/crates/pdfdelta-core/src/document/text_scopes/native.rs
+@@ -210,6 +210,11 @@ pub(super) fn runs<'a>(
+     if rows {
+         let _ = hanging::attach(sources, &mut runs, &connected, remaining);
+     }
++    if std::env::var_os("PDFDELTA_DIAG_RUNS").is_some() {
++        for run in &runs {
++            eprintln!("DIAG_RUN {:?}", run.iter().map(|n| n.id).collect::<Vec<_>>());
++        }
++    }
+     Ok(runs)
+ }
+ 

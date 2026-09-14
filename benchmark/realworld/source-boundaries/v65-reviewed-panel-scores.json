@@ -1,0 +1,2651 @@
+{
+  "version": 1,
+  "historical_scores": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 23,
+        "C": 0,
+        "new_AB_outputs": 23,
+        "adjudicated_AB_outputs": 23,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 32,
+        "C": 0,
+        "new_AB_outputs": 32,
+        "adjudicated_AB_outputs": 32,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 14,
+        "C": 0,
+        "new_AB_outputs": 14,
+        "adjudicated_AB_outputs": 14,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 5,
+        "C": 0,
+        "new_AB_outputs": 5,
+        "adjudicated_AB_outputs": 5,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 6,
+        "C": 0,
+        "new_AB_outputs": 6,
+        "adjudicated_AB_outputs": 6,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 13,
+        "C": 0,
+        "new_AB_outputs": 13,
+        "adjudicated_AB_outputs": 13,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 1,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 1,
+        "adjudicated_AB_outputs": 1,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 1,
+        "C": 0,
+        "new_AB_outputs": 1,
+        "adjudicated_AB_outputs": 1,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 29,
+        "C": 0,
+        "new_AB_outputs": 29,
+        "adjudicated_AB_outputs": 29,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 43,
+        "C": 0,
+        "new_AB_outputs": 43,
+        "adjudicated_AB_outputs": 43,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 18,
+        "C": 0,
+        "new_AB_outputs": 18,
+        "adjudicated_AB_outputs": 18,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 23,
+        "C": 0,
+        "new_AB_outputs": 23,
+        "adjudicated_AB_outputs": 23,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 32,
+        "C": 0,
+        "new_AB_outputs": 32,
+        "adjudicated_AB_outputs": 32,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 14,
+        "C": 0,
+        "new_AB_outputs": 14,
+        "adjudicated_AB_outputs": 14,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 5,
+        "C": 0,
+        "new_AB_outputs": 5,
+        "adjudicated_AB_outputs": 5,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 6,
+        "C": 0,
+        "new_AB_outputs": 6,
+        "adjudicated_AB_outputs": 6,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 13,
+        "C": 0,
+        "new_AB_outputs": 13,
+        "adjudicated_AB_outputs": 13,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 1,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 1,
+        "adjudicated_AB_outputs": 1,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 1,
+        "C": 0,
+        "new_AB_outputs": 1,
+        "adjudicated_AB_outputs": 1,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 29,
+        "C": 0,
+        "new_AB_outputs": 29,
+        "adjudicated_AB_outputs": 29,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 43,
+        "C": 0,
+        "new_AB_outputs": 43,
+        "adjudicated_AB_outputs": 43,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 18,
+        "C": 0,
+        "new_AB_outputs": 18,
+        "adjudicated_AB_outputs": 18,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    }
+  ],
+  "incremental_599855d_scores": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 23,
+        "C": 0,
+        "new_AB_outputs": 23,
+        "adjudicated_AB_outputs": 23,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 32,
+        "C": 0,
+        "new_AB_outputs": 32,
+        "adjudicated_AB_outputs": 32,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 14,
+        "C": 0,
+        "new_AB_outputs": 14,
+        "adjudicated_AB_outputs": 14,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 5,
+        "C": 0,
+        "new_AB_outputs": 5,
+        "adjudicated_AB_outputs": 5,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 6,
+        "C": 0,
+        "new_AB_outputs": 6,
+        "adjudicated_AB_outputs": 6,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 13,
+        "C": 0,
+        "new_AB_outputs": 13,
+        "adjudicated_AB_outputs": 13,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 1,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 1,
+        "C": 0,
+        "new_AB_outputs": 1,
+        "adjudicated_AB_outputs": 1,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 29,
+        "C": 0,
+        "new_AB_outputs": 29,
+        "adjudicated_AB_outputs": 29,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 43,
+        "C": 0,
+        "new_AB_outputs": 43,
+        "adjudicated_AB_outputs": 43,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 18,
+        "C": 0,
+        "new_AB_outputs": 18,
+        "adjudicated_AB_outputs": 18,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "repetition": 1,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 23,
+        "C": 0,
+        "new_AB_outputs": 23,
+        "adjudicated_AB_outputs": 23,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 32,
+        "C": 0,
+        "new_AB_outputs": 32,
+        "adjudicated_AB_outputs": 32,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 14,
+        "C": 0,
+        "new_AB_outputs": 14,
+        "adjudicated_AB_outputs": 14,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 3,
+        "C": 0,
+        "new_AB_outputs": 3,
+        "adjudicated_AB_outputs": 3,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 5,
+        "C": 0,
+        "new_AB_outputs": 5,
+        "adjudicated_AB_outputs": 5,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 6,
+        "C": 0,
+        "new_AB_outputs": 6,
+        "adjudicated_AB_outputs": 6,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 13,
+        "C": 0,
+        "new_AB_outputs": 13,
+        "adjudicated_AB_outputs": 13,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 1,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 1,
+        "C": 0,
+        "new_AB_outputs": 1,
+        "adjudicated_AB_outputs": 1,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [
+          "B"
+        ],
+        "correct": true,
+        "A": 0,
+        "B": 29,
+        "C": 0,
+        "new_AB_outputs": 29,
+        "adjudicated_AB_outputs": 29,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 43,
+        "C": 0,
+        "new_AB_outputs": 43,
+        "adjudicated_AB_outputs": 43,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 18,
+        "C": 0,
+        "new_AB_outputs": 18,
+        "adjudicated_AB_outputs": 18,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 11,
+        "C": 0,
+        "new_AB_outputs": 11,
+        "adjudicated_AB_outputs": 11,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "repetition": 2,
+      "score": {
+        "additional_categories": [],
+        "correct": true,
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "new_AB_outputs": 0,
+        "adjudicated_AB_outputs": 0,
+        "strict_control_atoms_claimed": 0,
+        "strict_event_precision": null,
+        "strict_event_recall": null,
+        "strict_source_precision": null,
+        "strict_source_recall": null
+      }
+    }
+  ],
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v65-repeated-observations.json",
+    "sha256": "e62819f80247828b16f01d6388160a5e08f5f7f38ff428bc219dd7796d42b10f"
+  },
+  "adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v65-adjudications.json",
+    "sha256": "ea37489da6c77c9f6c8023def3af0d39981475c83cce116284e315a54dc0ccbf"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "version": 64,
+  "adopted": false,
+  "reason": "Retaining the original Rows pass does not recover the missing SSDF refinement. Extra endpoint acquisition in the initial Page pass still reduces the shared discovery budget.",
+  "rows": [
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "before": {
+        "path": "benchmark/realworld/cache/source-boundaries-matched-prefix-v60-full-panel/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "2ce4e7bb549e471b2053c234c5b30cfa7668d02eec54a1f00b00c89e072241b6"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/source-boundaries-column-edges-v64-pilot/nist-ssdf-draft-to-final/report.json",
+        "sha256": "0f53067ad02da4a7ad7d877a4963ccadd0ec376f68ce06a37da08eea8f3bb6fd"
+      },
+      "lost": [
+        "fede31f3b504f527a938d6f92261d0f0137ac949d1f69cb683a725dda852c738"
+      ],
+      "added": []
+    },
+    {
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "before": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/diagnosis-v60/arxiv-mobilenetv2-v1-to-v4/report.json",
+        "sha256": "42a705114f3781ff14f26e5cd77a3c17d42437e33dc89335bef5021b84a4449e"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/source-boundaries-column-edges-v64-pilot/arxiv-mobilenetv2-v1-to-v4/report.json",
+        "sha256": "3784ece899e66de75ef8de7a1bf4e65a2280c587af20539786b0d7d8c64eb50a"
+      },
+      "lost": [],
+      "added": [
+        "2626087b6ff30c7b25ac4d64f2d6485a9ed22fa6a847e67e3ce137ca71d72c32"
+      ]
+    }
+  ]
+}
