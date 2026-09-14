@@ -1,0 +1,1452 @@
+{
+  "version": 75,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/build.json",
+    "sha256": "a9d77d8ded90d45ab0d1ebc5bca076fd61158d317d2862c7081aff181cfd37af"
+  },
+  "reproducer": {
+    "path": "benchmark/realworld/source-boundaries/review-v75.py",
+    "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+  },
+  "scope": "Eight additional finite B views checked against five inspected EDPB page images, original source populations, six independently solved masks and two comma-multiplicity proofs. No new fixed target recovery is claimed.",
+  "records": [
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/22",
+        "event_sha256": "744f04c9a23afb47e9d3d93b62dd6a3ba80df9a8919e1a9fe7235f088aa83a20",
+        "verdict": "source_supported",
+        "source_content_rationale": "The inspected bullet wording is visibly unchanged. Only the retained literal-source spacing differs, including bold-run joins and trailing spaces. Independent all-optimal alignment over every optional separator interpretation reproduces the complete reported mask and source-cost bounds. This is a source-space encoding difference, not a lexical change, author-intent claim or fixed prose-target gain.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-15.png",
+            "sha256": "32cd505b7d0cfdabff6f820220133fc1a5bdaa17bbc6bd5326233e3c5922824d"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-16.png",
+            "sha256": "d8b2f6fcb4ce18219a26730b612ffb754afddeed3ae635c54502ff395c3ac91a"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 15,
+          "glyphs": 127,
+          "raw": "orderthe controller or theprocessorto complywith the data subject's requests to exercise hisor her rights pursuant to the GDPR;",
+          "display": "orderthe controller or the processorto complywith the data subject's requests to exercise his or her rights pursuant to the GDPR;",
+          "population_nodes": [
+            336,
+            338,
+            340
+          ],
+          "population_glyphs": 325,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 16,
+          "glyphs": 134,
+          "raw": "order the controller or the processor to comply with the data subject's requests to exercise his or her rights pursuant to the GDPR;  ",
+          "display": "order the controller or the processor to comply with the data subject's requests to exercise his or her rights pursuant to the GDPR; ",
+          "population_nodes": [
+            350,
+            352,
+            354
+          ],
+          "population_glyphs": 340,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 4,
+        "source_lower": 4,
+        "source_upper": 6,
+        "mandatory_positions": {
+          "old": [],
+          "new": [
+            5,
+            37,
+            47,
+            132
+          ]
+        }
+      },
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-15.png",
+          "sha256": "32cd505b7d0cfdabff6f820220133fc1a5bdaa17bbc6bd5326233e3c5922824d"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-16.png",
+          "sha256": "d8b2f6fcb4ce18219a26730b612ffb754afddeed3ae635c54502ff395c3ac91a"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/23",
+        "event_sha256": "bd367c95350d8b29d45849634e6257a28abdde698fa0320bc0c77f817c153888",
+        "verdict": "source_supported",
+        "source_content_rationale": "The inspected bullet wording is visibly unchanged. Only the retained literal-source spacing differs, including bold-run joins and trailing spaces. Independent all-optimal alignment over every optional separator interpretation reproduces the complete reported mask and source-cost bounds. This is a source-space encoding difference, not a lexical change, author-intent claim or fixed prose-target gain.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-15.png",
+            "sha256": "32cd505b7d0cfdabff6f820220133fc1a5bdaa17bbc6bd5326233e3c5922824d"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-16.png",
+            "sha256": "d8b2f6fcb4ce18219a26730b612ffb754afddeed3ae635c54502ff395c3ac91a"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 15,
+          "glyphs": 148,
+          "raw": "orderthe controllerto communicate a personal data breach to the data subject;imposea temporary or definitive limitation includinga banon processing;",
+          "display": "orderthe controllerto communicate a personal data breach to the data subject;imposea temporary or definitive limitation includinga banon processing;",
+          "population_nodes": [
+            341,
+            343,
+            345,
+            347
+          ],
+          "population_glyphs": 504,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 16,
+          "glyphs": 157,
+          "raw": "order the controller to communicate a personal data breach to the data subject;  impose a temporary or definitive limitation including a ban on processing;  ",
+          "display": "order the controller to communicate a personal data breach to the data subject; impose a temporary or definitive limitation including a ban on processing; ",
+          "population_nodes": [
+            355,
+            357,
+            359,
+            361
+          ],
+          "population_glyphs": 520,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 1,
+        "source_lower": 7,
+        "source_upper": 7,
+        "mandatory_positions": {
+          "old": [],
+          "new": [
+            5,
+            20,
+            79,
+            86,
+            133,
+            139,
+            154
+          ]
+        }
+      },
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-15.png",
+          "sha256": "32cd505b7d0cfdabff6f820220133fc1a5bdaa17bbc6bd5326233e3c5922824d"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-16.png",
+          "sha256": "d8b2f6fcb4ce18219a26730b612ffb754afddeed3ae635c54502ff395c3ac91a"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/34",
+        "event_sha256": "7a7edec2d5810eb0880e3007499609639b04429aedea108a53eaed6c5c5a5d4f",
+        "verdict": "source_supported",
+        "source_content_rationale": "The first body line is visibly renumbered from 31 to 32 or from 32 to 33; its prose is unchanged. Both original-token cut projections and all-optimal masks were checked independently across every optional spacing interpretation. The raw and outer-space-refined views do not count as separate author changes or prose-target gains.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+            "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-9.png",
+            "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 8,
+          "glyphs": 103,
+          "raw": "31.These are cases in which an investigation does notrelate in principle with criminal offencesas,where",
+          "display": "31. These are cases in which an investigation does not relate in principle with criminal offences as, where",
+          "population_nodes": [
+            175,
+            176,
+            177
+          ],
+          "population_glyphs": 216,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 9,
+          "glyphs": 108,
+          "raw": "32. These are cases in which an investigation does not relate in principle with criminal offences as, where ",
+          "display": "32. These are cases in which an investigation does not relate in principle with criminal offences as, where ",
+          "population_nodes": [
+            189,
+            190,
+            191
+          ],
+          "population_glyphs": 228,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 9,
+              "render_order": 26642,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 136.7999999999999
+                },
+                "max": {
+                  "x": 215.2000000000002,
+                  "y": 137.6000000000002
+                }
+              },
+              "content_stream": {
+                "object_number": 30,
+                "generation": 0
+              },
+              "operator_index": 606
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 16,
+        "source_lower": 3,
+        "source_upper": 7,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1,
+            107
+          ]
+        }
+      },
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+          "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-9.png",
+          "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/35",
+        "event_sha256": "3f2b2706372bb490f0215aeb00ed66dae5b4a6d9f586166365f64d8dc29cc791",
+        "verdict": "source_supported",
+        "source_content_rationale": "The first body line is visibly renumbered from 31 to 32 or from 32 to 33; its prose is unchanged. Both original-token cut projections and all-optimal masks were checked independently across every optional spacing interpretation. The raw and outer-space-refined views do not count as separate author changes or prose-target gains.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+            "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-9.png",
+            "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 8,
+          "glyphs": 103,
+          "raw": "31.These are cases in which an investigation does notrelate in principle with criminal offencesas,where",
+          "display": "31. These are cases in which an investigation does not relate in principle with criminal offences as, where",
+          "population_nodes": [
+            175,
+            176,
+            177
+          ],
+          "population_glyphs": 216,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 9,
+          "glyphs": 107,
+          "raw": "32. These are cases in which an investigation does not relate in principle with criminal offences as, where",
+          "display": "32. These are cases in which an investigation does not relate in principle with criminal offences as, where",
+          "population_nodes": [
+            189,
+            190,
+            191
+          ],
+          "population_glyphs": 228,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 9,
+              "render_order": 26642,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 136.7999999999999
+                },
+                "max": {
+                  "x": 215.2000000000002,
+                  "y": 137.6000000000002
+                }
+              },
+              "content_stream": {
+                "object_number": 30,
+                "generation": 0
+              },
+              "operator_index": 606
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 16,
+        "source_lower": 2,
+        "source_upper": 6,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            1
+          ]
+        }
+      },
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+          "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-9.png",
+          "sha256": "738497cd5d2103223938642811954d7b711c31116b77063a0d8ed14fbc5ac881"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/36",
+        "event_sha256": "d4963bc4a161ffde4bca9d9095e9d8dd2d3e9087da9d6c83e8049dccc46b4725",
+        "verdict": "source_supported",
+        "source_content_rationale": "The first body line is visibly renumbered from 31 to 32 or from 32 to 33; its prose is unchanged. Both original-token cut projections and all-optimal masks were checked independently across every optional spacing interpretation. The raw and outer-space-refined views do not count as separate author changes or prose-target gains.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+            "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+            "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 8,
+          "glyphs": 107,
+          "raw": "32.Article 23(1)(i) GDPR referstoa groundforrestriction that aims to protect the data subject or the rights",
+          "display": "32. Article 23(1)(i) GDPR refers to a ground for restriction that aims to protect the data subject or the rights",
+          "population_nodes": [
+            181,
+            182,
+            183
+          ],
+          "population_glyphs": 209,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 10,
+          "glyphs": 113,
+          "raw": "33. Article 23(1)(i) GDPR refers to a ground for restriction that aims to protect the data subject or the rights ",
+          "display": "33. Article 23(1)(i) GDPR refers to a ground for restriction that aims to protect the data subject or the rights ",
+          "population_nodes": [
+            199,
+            200,
+            201
+          ],
+          "population_glyphs": 218,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 10,
+              "render_order": 30660,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 138.3999999999999
+                },
+                "max": {
+                  "x": 215.2000000000002,
+                  "y": 139.2000000000002
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 755
+            },
+            {
+              "page": 10,
+              "render_order": 30771,
+              "bounds": {
+                "min": {
+                  "x": 97.59999999999992,
+                  "y": 121.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 122.4000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 793
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 362.4000000000004,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 821
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 383.9999999999997,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 823
+            },
+            {
+              "page": 10,
+              "render_order": 30990,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 96.79999999999993
+                },
+                "max": {
+                  "x": 524.8000000000008,
+                  "y": 97.5990000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 847
+            },
+            {
+              "page": 10,
+              "render_order": 31049,
+              "bounds": {
+                "min": {
+                  "x": 89.59999999999994,
+                  "y": 84.79999999999994
+                },
+                "max": {
+                  "x": 308.7990000000003,
+                  "y": 85.6000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 886
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 32,
+        "source_lower": 3,
+        "source_upper": 8,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": [
+            112
+          ]
+        }
+      },
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+          "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+          "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/37",
+        "event_sha256": "bad53db5b859ed227f397502312707a220fc90d12610f47b951e594fec43ba12",
+        "verdict": "source_supported",
+        "source_content_rationale": "The first body line is visibly renumbered from 31 to 32 or from 32 to 33; its prose is unchanged. Both original-token cut projections and all-optimal masks were checked independently across every optional spacing interpretation. The raw and outer-space-refined views do not count as separate author changes or prose-target gains.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+            "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+            "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 8,
+          "glyphs": 107,
+          "raw": "32.Article 23(1)(i) GDPR referstoa groundforrestriction that aims to protect the data subject or the rights",
+          "display": "32. Article 23(1)(i) GDPR refers to a ground for restriction that aims to protect the data subject or the rights",
+          "population_nodes": [
+            181,
+            182,
+            183
+          ],
+          "population_glyphs": 209,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 10,
+          "glyphs": 112,
+          "raw": "33. Article 23(1)(i) GDPR refers to a ground for restriction that aims to protect the data subject or the rights",
+          "display": "33. Article 23(1)(i) GDPR refers to a ground for restriction that aims to protect the data subject or the rights",
+          "population_nodes": [
+            199,
+            200,
+            201
+          ],
+          "population_glyphs": 218,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 10,
+              "render_order": 30660,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 138.3999999999999
+                },
+                "max": {
+                  "x": 215.2000000000002,
+                  "y": 139.2000000000002
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 755
+            },
+            {
+              "page": 10,
+              "render_order": 30771,
+              "bounds": {
+                "min": {
+                  "x": 97.59999999999992,
+                  "y": 121.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 122.4000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 793
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 362.4000000000004,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 821
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 383.9999999999997,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 823
+            },
+            {
+              "page": 10,
+              "render_order": 30990,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 96.79999999999993
+                },
+                "max": {
+                  "x": 524.8000000000008,
+                  "y": 97.5990000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 847
+            },
+            {
+              "page": 10,
+              "render_order": 31049,
+              "bounds": {
+                "min": {
+                  "x": 89.59999999999994,
+                  "y": 84.79999999999994
+                },
+                "max": {
+                  "x": 308.7990000000003,
+                  "y": 85.6000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 886
+            }
+          ]
+        }
+      },
+      "independent_mask": {
+        "normalization_pairs": 32,
+        "source_lower": 2,
+        "source_upper": 7,
+        "mandatory_positions": {
+          "old": [
+            1
+          ],
+          "new": []
+        }
+      },
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+          "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+          "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/38",
+        "event_sha256": "da0d89a3a784770b1d5ec820ec233d8190bb70dddc0ae7f3ccad5468d52e3521",
+        "verdict": "source_supported",
+        "source_content_rationale": "The renumbered example expands investigation into administrative inquiry, disciplinary proceedings and workplace harassment, adding privacy and access-right qualifications. The inspected pages and original glyphs support the finite range; one versus two commas independently proves change. Exact masks remain unresolved. The raw and refined views retain the same lexical change and are outside the fixed target.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+            "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+            "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 8,
+          "glyphs": 247,
+          "raw": "33.One can illustrate a restriction to protect the rights and freedoms of others with an example of aninvestigation where the identity of an alleged victim, witnesses or whistle-blower cannot be disclosedin order to protect them from retaliations.",
+          "display": "33. One can illustrate a restriction to protect the rights and freedoms of others with an example of aninvestigation where the identity of an alleged victim, witnesses or whistle-blower cannot be disclosed in order to protect them from retaliations.",
+          "population_nodes": [
+            183,
+            184,
+            185,
+            186
+          ],
+          "population_glyphs": 313,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 10,
+          "glyphs": 725,
+          "raw": "34. One can illustrate a restriction to protect the rights and freedoms of others with an example of an administrative inquiry and/or disciplinary proceedings or investigation on allegations of harassment in the workplace. In this case, a legislative measure may provide that the person subject to an inquiry or disciplinary proceedings may experience a limitation to his or her right of access, where the identity of an alleged victim or witness or whistle-blower cannot be disclosed in order to protect him or her from retaliation. The victim or witness may also see his or her right of access restricted to respect the rights to privacy and data protection of the person subject to an inquiry or disciplinary proceedings. ",
+          "display": "34. One can illustrate a restriction to protect the rights and freedoms of others with an example of an administrative inquiry and/or disciplinary proceedings or investigation on allegations of harassment in the workplace. In this case, a legislative measure may provide that the person subject to an inquiry or disciplinary proceedings may experience a limitation to his or her right of access, where the identity of an alleged victim or witness or whistle-blower cannot be disclosed in order to protect him or her from retaliation. The victim or witness may also see his or her right of access restricted to respect the rights to privacy and data protection of the person subject to an inquiry or disciplinary proceedings. ",
+          "population_nodes": [
+            201,
+            202,
+            203,
+            204
+          ],
+          "population_glyphs": 794,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 10,
+              "render_order": 30660,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 138.3999999999999
+                },
+                "max": {
+                  "x": 215.2000000000002,
+                  "y": 139.2000000000002
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 755
+            },
+            {
+              "page": 10,
+              "render_order": 30771,
+              "bounds": {
+                "min": {
+                  "x": 97.59999999999992,
+                  "y": 121.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 122.4000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 793
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 362.4000000000004,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 821
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 383.9999999999997,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 823
+            },
+            {
+              "page": 10,
+              "render_order": 30990,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 96.79999999999993
+                },
+                "max": {
+                  "x": 524.8000000000008,
+                  "y": 97.5990000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 847
+            },
+            {
+              "page": 10,
+              "render_order": 31049,
+              "bounds": {
+                "min": {
+                  "x": 89.59999999999994,
+                  "y": 84.79999999999994
+                },
+                "max": {
+                  "x": 308.7990000000003,
+                  "y": 85.6000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 886
+            }
+          ]
+        }
+      },
+      "independent_mask": null,
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+          "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+          "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75-full-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f19d568d266fe59bab394cdb406929d2854fa38a1a1c23184014f5bfd2d44c75"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/39",
+        "event_sha256": "ff9bbbc39ab39829e8d9d5758de46befd2bbe75ba9190707ca94f450aeb72e7d",
+        "verdict": "source_supported",
+        "source_content_rationale": "The renumbered example expands investigation into administrative inquiry, disciplinary proceedings and workplace harassment, adding privacy and access-right qualifications. The inspected pages and original glyphs support the finite range; one versus two commas independently proves change. Exact masks remain unresolved. The raw and refined views retain the same lexical change and are outside the fixed target.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/sources.json",
+            "sha256": "0afc02c537652d7de1a36026ae5149e42953123b7fde4b1c25ec22d019ce5c56"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+            "sha256": "49ce476984f389a4e85e9e63cc2cbc9aa4a7327b25e4187a9f18145be447fd5f"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.json",
+            "sha256": "58b77b9eec5dce9b58c38e48762d9c958b410bf3a3a9a14d9b151a451e361499"
+          },
+          {
+            "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+            "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/capture.json",
+            "sha256": "324d5c7fc96248889caf371aa02e796caacf0af283910b2c0ec1781d53c14de8"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+            "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+            "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 8,
+          "glyphs": 247,
+          "raw": "33.One can illustrate a restriction to protect the rights and freedoms of others with an example of aninvestigation where the identity of an alleged victim, witnesses or whistle-blower cannot be disclosedin order to protect them from retaliations.",
+          "display": "33. One can illustrate a restriction to protect the rights and freedoms of others with an example of aninvestigation where the identity of an alleged victim, witnesses or whistle-blower cannot be disclosed in order to protect them from retaliations.",
+          "population_nodes": [
+            183,
+            184,
+            185,
+            186
+          ],
+          "population_glyphs": 313,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 10,
+          "glyphs": 724,
+          "raw": "34. One can illustrate a restriction to protect the rights and freedoms of others with an example of an administrative inquiry and/or disciplinary proceedings or investigation on allegations of harassment in the workplace. In this case, a legislative measure may provide that the person subject to an inquiry or disciplinary proceedings may experience a limitation to his or her right of access, where the identity of an alleged victim or witness or whistle-blower cannot be disclosed in order to protect him or her from retaliation. The victim or witness may also see his or her right of access restricted to respect the rights to privacy and data protection of the person subject to an inquiry or disciplinary proceedings.",
+          "display": "34. One can illustrate a restriction to protect the rights and freedoms of others with an example of an administrative inquiry and/or disciplinary proceedings or investigation on allegations of harassment in the workplace. In this case, a legislative measure may provide that the person subject to an inquiry or disciplinary proceedings may experience a limitation to his or her right of access, where the identity of an alleged victim or witness or whistle-blower cannot be disclosed in order to protect him or her from retaliation. The victim or witness may also see his or her right of access restricted to respect the rights to privacy and data protection of the person subject to an inquiry or disciplinary proceedings.",
+          "population_nodes": [
+            201,
+            202,
+            203,
+            204
+          ],
+          "population_glyphs": 794,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 10,
+              "render_order": 30660,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 138.3999999999999
+                },
+                "max": {
+                  "x": 215.2000000000002,
+                  "y": 139.2000000000002
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 755
+            },
+            {
+              "page": 10,
+              "render_order": 30771,
+              "bounds": {
+                "min": {
+                  "x": 97.59999999999992,
+                  "y": 121.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 122.4000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 793
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 362.4000000000004,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 821
+            },
+            {
+              "page": 10,
+              "render_order": 30878,
+              "bounds": {
+                "min": {
+                  "x": 383.9999999999997,
+                  "y": 109.59999999999992
+                },
+                "max": {
+                  "x": 524.8000000000006,
+                  "y": 110.40000000000008
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 823
+            },
+            {
+              "page": 10,
+              "render_order": 30990,
+              "bounds": {
+                "min": {
+                  "x": 71.19999999999995,
+                  "y": 96.79999999999993
+                },
+                "max": {
+                  "x": 524.8000000000008,
+                  "y": 97.5990000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 847
+            },
+            {
+              "page": 10,
+              "render_order": 31049,
+              "bounds": {
+                "min": {
+                  "x": 89.59999999999994,
+                  "y": 84.79999999999994
+                },
+                "max": {
+                  "x": 308.7990000000003,
+                  "y": 85.6000000000001
+                }
+              },
+              "content_stream": {
+                "object_number": 33,
+                "generation": 0
+              },
+              "operator_index": 886
+            }
+          ]
+        }
+      },
+      "independent_mask": null,
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/old-region-8.png",
+          "sha256": "74bbc1fe7de6c4c20c9427b9bd4083a7d97221352905a45ef21c199ec8096586"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/edpb-restrictions-v1-to-final/review/new-region-10.png",
+          "sha256": "41de23013fc97de89f5a565446eabbf60f4b60bc2d92426e4f01f8c966e93d9a"
+        }
+      ]
+    }
+  ]
+}

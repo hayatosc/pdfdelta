@@ -1,0 +1,483 @@
+{
+  "version": 75,
+  "diagnostic_only": true,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/build.json",
+    "sha256": "a9d77d8ded90d45ab0d1ebc5bca076fd61158d317d2862c7081aff181cfd37af"
+  },
+  "target": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8/targets-corrected.json",
+    "sha256": "75985cbc2277b3a334f38e49ef47ecb5363241c46a4f8155041369254cdcc681"
+  },
+  "exact_range_hits": [
+    "1f5ed2bc8b76da3aedfa29909596f435b34875b0f2f48a65025641f26a5db062"
+  ],
+  "scope": "Three new finite B views are source-reviewed on a retired series; the other ten outputs are not newly adjudicated here. One view matches the unchanged 1,899-atom target. No fresh unseen recovery or exact-mask validation is claimed by this diagnostic.",
+  "records": [
+    {
+      "pair": "nist-184-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/report.json",
+        "sha256": "487c2d8584766ee04fca2b2518c850917940c0cefa9633f3d56cb37e1d51b05b"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/6",
+        "event_sha256": "3d69a79491b86f292968efff80d65842e458a3aa9dd012efd0dc050863d24e0d",
+        "verdict": "source_supported",
+        "source_content_rationale": "The Abstract loses 'that' before 'recovery planning' and 'the' before 'information systems'. Both inspected pages bound the full body by Abstract and Keywords. Old margin counters and the new vertical watermark lie outside the proved source band. The whole interval, raw cut parent and outer-space refinement are three non-owning views of the same two word deletions. This retired series is not unseen evidence.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/sources.json",
+            "sha256": "639273c1329f1b4858a06efdb5b79880b9bb222a662020d168c328dd981c1f95"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/manifest.json",
+            "sha256": "bbe7bf848a9bf4ed0b002c1b544a180e2e8a1ac4f7e250f982d8db030d6d199a"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-184-draft-to-final.json",
+            "sha256": "ebe0c6b3a377caf306b797e7180179510f2932bc4ba1fece1cfdbadc44fa06f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-184-draft-to-final.resolved.json",
+            "sha256": "f2f56c963fecc4fc3ccc24e8523fb32693d25829f6b81890a0c3ffe322bbde31"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/capture.json",
+            "sha256": "54c3b03aae106b5416eae3b1c4cfc55960adfd449443b3dff10e3e7e99594780"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/old-region-5.png",
+            "sha256": "68c384fcc5f22796090c69e2a214bcb6d64a1b0ba10eef9a27c6e7eb37b8e031"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/new-region-3.png",
+            "sha256": "5aeb3cdd0e19e7839c6c1d8aedb77f3e29b8248b567c72e5c530711b824293f8"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 5,
+          "glyphs": 955,
+          "raw": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving that recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of the information systems. ",
+          "display": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving that recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of the information systems. ",
+          "population_nodes": [
+            269,
+            272,
+            274,
+            276,
+            278,
+            280,
+            282,
+            284,
+            286,
+            288,
+            290,
+            291
+          ],
+          "population_glyphs": 973,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 3,
+          "glyphs": 946,
+          "raw": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems. ",
+          "display": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems. ",
+          "population_nodes": [
+            135,
+            136,
+            137
+          ],
+          "population_glyphs": 964,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 3,
+              "render_order": 7885,
+              "bounds": {
+                "min": {
+                  "x": 2.279999999999998,
+                  "y": 164.09999999999988
+                },
+                "max": {
+                  "x": 36.060000000000045,
+                  "y": 591.7200000000006
+                }
+              },
+              "content_stream": {
+                "object_number": 8,
+                "generation": 0
+              },
+              "operator_index": 95
+            },
+            {
+              "page": 3,
+              "render_order": 7977,
+              "bounds": {
+                "min": {
+                  "x": 37.529999999999944,
+                  "y": 71.12999999999846
+                },
+                "max": {
+                  "x": 39.09000000000006,
+                  "y": 720.6900000000009
+                }
+              },
+              "content_stream": {
+                "object_number": 8,
+                "generation": 0
+              },
+              "operator_index": 212
+            }
+          ]
+        }
+      },
+      "independent_mask": null,
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/old-region-5.png",
+          "sha256": "68c384fcc5f22796090c69e2a214bcb6d64a1b0ba10eef9a27c6e7eb37b8e031"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/new-region-3.png",
+          "sha256": "5aeb3cdd0e19e7839c6c1d8aedb77f3e29b8248b567c72e5c530711b824293f8"
+        }
+      ]
+    },
+    {
+      "pair": "nist-184-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/report.json",
+        "sha256": "487c2d8584766ee04fca2b2518c850917940c0cefa9633f3d56cb37e1d51b05b"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/11",
+        "event_sha256": "b66826f3844acfbc6c8c8e55c9d78daa9bc73db51024ee1f73db375b72b5e3de",
+        "verdict": "source_supported",
+        "source_content_rationale": "The Abstract loses 'that' before 'recovery planning' and 'the' before 'information systems'. Both inspected pages bound the full body by Abstract and Keywords. Old margin counters and the new vertical watermark lie outside the proved source band. The whole interval, raw cut parent and outer-space refinement are three non-owning views of the same two word deletions. This retired series is not unseen evidence.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/sources.json",
+            "sha256": "639273c1329f1b4858a06efdb5b79880b9bb222a662020d168c328dd981c1f95"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/manifest.json",
+            "sha256": "bbe7bf848a9bf4ed0b002c1b544a180e2e8a1ac4f7e250f982d8db030d6d199a"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-184-draft-to-final.json",
+            "sha256": "ebe0c6b3a377caf306b797e7180179510f2932bc4ba1fece1cfdbadc44fa06f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-184-draft-to-final.resolved.json",
+            "sha256": "f2f56c963fecc4fc3ccc24e8523fb32693d25829f6b81890a0c3ffe322bbde31"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/capture.json",
+            "sha256": "54c3b03aae106b5416eae3b1c4cfc55960adfd449443b3dff10e3e7e99594780"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/old-region-5.png",
+            "sha256": "68c384fcc5f22796090c69e2a214bcb6d64a1b0ba10eef9a27c6e7eb37b8e031"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/new-region-3.png",
+            "sha256": "5aeb3cdd0e19e7839c6c1d8aedb77f3e29b8248b567c72e5c530711b824293f8"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 5,
+          "glyphs": 955,
+          "raw": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving that recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of the information systems. ",
+          "display": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving that recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of the information systems. ",
+          "population_nodes": [
+            269,
+            272,
+            274,
+            276,
+            278,
+            280,
+            282,
+            284,
+            286,
+            288,
+            290,
+            291
+          ],
+          "population_glyphs": 973,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 3,
+          "glyphs": 946,
+          "raw": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems. ",
+          "display": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems. ",
+          "population_nodes": [
+            135,
+            136,
+            137
+          ],
+          "population_glyphs": 964,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 3,
+              "render_order": 7885,
+              "bounds": {
+                "min": {
+                  "x": 2.279999999999998,
+                  "y": 164.09999999999988
+                },
+                "max": {
+                  "x": 36.060000000000045,
+                  "y": 591.7200000000006
+                }
+              },
+              "content_stream": {
+                "object_number": 8,
+                "generation": 0
+              },
+              "operator_index": 95
+            },
+            {
+              "page": 3,
+              "render_order": 7977,
+              "bounds": {
+                "min": {
+                  "x": 37.529999999999944,
+                  "y": 71.12999999999846
+                },
+                "max": {
+                  "x": 39.09000000000006,
+                  "y": 720.6900000000009
+                }
+              },
+              "content_stream": {
+                "object_number": 8,
+                "generation": 0
+              },
+              "operator_index": 212
+            }
+          ]
+        }
+      },
+      "independent_mask": null,
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/old-region-5.png",
+          "sha256": "68c384fcc5f22796090c69e2a214bcb6d64a1b0ba10eef9a27c6e7eb37b8e031"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/new-region-3.png",
+          "sha256": "5aeb3cdd0e19e7839c6c1d8aedb77f3e29b8248b567c72e5c530711b824293f8"
+        }
+      ]
+    },
+    {
+      "pair": "nist-184-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/report.json",
+        "sha256": "487c2d8584766ee04fca2b2518c850917940c0cefa9633f3d56cb37e1d51b05b"
+      },
+      "event": {
+        "pointer": "/comparison/scopes/0/result/text_scope_reviews/12",
+        "event_sha256": "1f5ed2bc8b76da3aedfa29909596f435b34875b0f2f48a65025641f26a5db062",
+        "verdict": "source_supported",
+        "source_content_rationale": "The Abstract loses 'that' before 'recovery planning' and 'the' before 'information systems'. Both inspected pages bound the full body by Abstract and Keywords. Old margin counters and the new vertical watermark lie outside the proved source band. The whole interval, raw cut parent and outer-space refinement are three non-owning views of the same two word deletions. This retired series is not unseen evidence.",
+        "correspondence_rationale": "Accepted native endpoints delimit the conditional finite interval. Original cuts, exact glyph census, descending native node bands, inventory, source conflicts and disjoint paint are independently checked; graph grouping is not a semantic paragraph claim.",
+        "source_evidence": [
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/sources.json",
+            "sha256": "639273c1329f1b4858a06efdb5b79880b9bb222a662020d168c328dd981c1f95"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/manifest.json",
+            "sha256": "bbe7bf848a9bf4ed0b002c1b544a180e2e8a1ac4f7e250f982d8db030d6d199a"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-184-draft-to-final.json",
+            "sha256": "ebe0c6b3a377caf306b797e7180179510f2932bc4ba1fece1cfdbadc44fa06f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-184-draft-to-final.resolved.json",
+            "sha256": "f2f56c963fecc4fc3ccc24e8523fb32693d25829f6b81890a0c3ffe322bbde31"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/capture.json",
+            "sha256": "54c3b03aae106b5416eae3b1c4cfc55960adfd449443b3dff10e3e7e99594780"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v31.py",
+            "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v51.py",
+            "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v67.py",
+            "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+          },
+          {
+            "path": "benchmark/realworld/source-boundaries/review-v75.py",
+            "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/old-region-5.png",
+            "sha256": "68c384fcc5f22796090c69e2a214bcb6d64a1b0ba10eef9a27c6e7eb37b8e031"
+          },
+          {
+            "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/new-region-3.png",
+            "sha256": "5aeb3cdd0e19e7839c6c1d8aedb77f3e29b8248b567c72e5c530711b824293f8"
+          }
+        ]
+      },
+      "source_checks": {
+        "old": {
+          "page": 5,
+          "glyphs": 954,
+          "raw": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving that recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of the information systems.",
+          "display": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving that recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of the information systems.",
+          "population_nodes": [
+            269,
+            272,
+            274,
+            276,
+            278,
+            280,
+            282,
+            284,
+            286,
+            288,
+            290,
+            291
+          ],
+          "population_glyphs": 973,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 3,
+          "glyphs": 945,
+          "raw": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems.",
+          "display": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems.",
+          "population_nodes": [
+            135,
+            136,
+            137
+          ],
+          "population_glyphs": 964,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": true,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 3,
+              "render_order": 7885,
+              "bounds": {
+                "min": {
+                  "x": 2.279999999999998,
+                  "y": 164.09999999999988
+                },
+                "max": {
+                  "x": 36.060000000000045,
+                  "y": 591.7200000000006
+                }
+              },
+              "content_stream": {
+                "object_number": 8,
+                "generation": 0
+              },
+              "operator_index": 95
+            },
+            {
+              "page": 3,
+              "render_order": 7977,
+              "bounds": {
+                "min": {
+                  "x": 37.529999999999944,
+                  "y": 71.12999999999846
+                },
+                "max": {
+                  "x": 39.09000000000006,
+                  "y": 720.6900000000009
+                }
+              },
+              "content_stream": {
+                "object_number": 8,
+                "generation": 0
+              },
+              "operator_index": 212
+            }
+          ]
+        }
+      },
+      "independent_mask": null,
+      "reviewed_pages": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/old-region-5.png",
+          "sha256": "68c384fcc5f22796090c69e2a214bcb6d64a1b0ba10eef9a27c6e7eb37b8e031"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/source-exports/nist-184-draft-to-final/review/new-region-3.png",
+          "sha256": "5aeb3cdd0e19e7839c6c1d8aedb77f3e29b8248b567c72e5c530711b824293f8"
+        }
+      ]
+    }
+  ]
+}

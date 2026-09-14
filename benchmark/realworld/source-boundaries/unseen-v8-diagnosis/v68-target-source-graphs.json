@@ -1,0 +1,1716 @@
+{
+  "version": 1,
+  "scope": "Post-retirement diagnostics only. Target source membership and nearby accepted proposals do not establish a closed candidate interval, review correctness, or new holdout recovery. No annotation is used by production discovery.",
+  "pairs": [
+    {
+      "pair": "nist-184-draft-to-final",
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/nist-184-draft-to-final/sources.json",
+        "sha256": "639273c1329f1b4858a06efdb5b79880b9bb222a662020d168c328dd981c1f95"
+      },
+      "comparison": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/nist-184-draft-to-final/comparison.json",
+        "sha256": "4587070b0a8b31dab5af4e3f4f6541fd619be4c167edf6ccf5212c1fe63464eb"
+      },
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-184-draft-to-final.resolved.json",
+        "sha256": "f2f56c963fecc4fc3ccc24e8523fb32693d25829f6b81890a0c3ffe322bbde31"
+      },
+      "sides": {
+        "old": {
+          "body_atoms": 954,
+          "intersecting_nodes": [
+            272,
+            274,
+            276,
+            278,
+            280,
+            282,
+            284,
+            286,
+            288,
+            290,
+            2959
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 270,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "106 "
+            },
+            {
+              "id": 271,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "107 "
+            },
+            {
+              "id": 272,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 107,
+              "body_atom_count": 107,
+              "text": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring "
+            },
+            {
+              "id": 273,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "108 "
+            },
+            {
+              "id": 274,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 94,
+              "body_atom_count": 94,
+              "text": "that their risk management processes include comprehensive recovery planning. Identifying and "
+            },
+            {
+              "id": 275,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "109 "
+            },
+            {
+              "id": 276,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 102,
+              "body_atom_count": 102,
+              "text": "prioritizing organization resources helps to guide effective plans and realistic test scenarios. This "
+            },
+            {
+              "id": 277,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "110 "
+            },
+            {
+              "id": 278,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 102,
+              "body_atom_count": 102,
+              "text": "preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on "
+            },
+            {
+              "id": 279,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "111 "
+            },
+            {
+              "id": 280,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 101,
+              "body_atom_count": 101,
+              "text": "the organization and its constituents. Additionally, continually improving that recovery planning by "
+            },
+            {
+              "id": 281,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "112 "
+            },
+            {
+              "id": 282,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 109,
+              "body_atom_count": 109,
+              "text": "learning lessons from past events, including those of other organizations, helps to ensure the continuity of "
+            },
+            {
+              "id": 283,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "113 "
+            },
+            {
+              "id": 284,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 101,
+              "body_atom_count": 101,
+              "text": "important mission functions. This publication provides tactical and strategic guidance regarding the "
+            },
+            {
+              "id": 285,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "114 "
+            },
+            {
+              "id": 286,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 98,
+              "body_atom_count": 98,
+              "text": "planning, playbook developing, testing, and improvement of recovery planning. It also provides an "
+            },
+            {
+              "id": 287,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "115 "
+            },
+            {
+              "id": 288,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 102,
+              "body_atom_count": 102,
+              "text": "example scenario that demonstrates guidance and informative metrics that may be helpful for improving "
+            },
+            {
+              "id": 289,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "116 "
+            },
+            {
+              "id": 290,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 39,
+              "body_atom_count": 38,
+              "text": "resilience of the information systems. "
+            },
+            {
+              "id": 291,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 9,
+              "body_atom_count": 0,
+              "text": "Keywords "
+            },
+            {
+              "id": 292,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 4,
+              "body_atom_count": 0,
+              "text": "117 "
+            },
+            {
+              "id": 2957,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 927,
+              "body_atom_count": 0,
+              "text": "The Information Technology Laboratory (ITL) at the National Institute of Standards and Technology 97 (NIST) promotes the U.S. economy and public welfare by providing technical leadership for the Nation\u2019s 98 measurement and standards infrastructure. ITL develops tests, test methods, reference data, proof of 99 concept implementations, and technical analyses to advance the development and productive use of 100 information technology. ITL\u2019s responsibilities include the development of management, administrative, 101 technical, and physical standards and guidelines for the cost-effective security and privacy of other than 102 national security-related information in federal information systems. The Special Publication 800-series 103 reports on ITL\u2019s research, guidelines, and outreach efforts in information system security, and its 104 collaborative activities with industry, government, and academic organizations. 105 "
+            },
+            {
+              "id": 2958,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 14,
+              "body_atom_count": 0,
+              "text": "Abstract 106 "
+            },
+            {
+              "id": 2959,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 996,
+              "body_atom_count": 954,
+              "text": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring 107 that their risk management processes include comprehensive recovery planning. Identifying and 108 prioritizing organization resources helps to guide effective plans and realistic test scenarios. This 109 preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on 110 the organization and its constituents. Additionally, continually improving that recovery planning by 111 learning lessons from past events, including those of other organizations, helps to ensure the continuity of 112 important mission functions. This publication provides tactical and strategic guidance regarding the 113 planning, playbook developing, testing, and improvement of recovery planning. It also provides an 114 example scenario that demonstrates guidance and informative metrics that may be helpful for improving 115 resilience of the information systems. 116 "
+            },
+            {
+              "id": 2960,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 14,
+              "body_atom_count": 0,
+              "text": "Keywords 117 "
+            },
+            {
+              "id": 2961,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 208,
+              "body_atom_count": 0,
+              "text": "cyber event; cybersecurity; Cybersecurity Framework (CSF); Cybersecurity National Action Plan 118 (CNAP); Cybersecurity Strategy and Implementation Plan (CSIP); metrics; planning; recovery; resilience   119 "
+            }
+          ]
+        },
+        "new": {
+          "body_atoms": 945,
+          "intersecting_nodes": [
+            136,
+            1487
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 134,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 893,
+              "body_atom_count": 0,
+              "text": "The Information Technology Laboratory (ITL) at the National Institute of Standards and Technology (NIST) promotes the U.S. economy and public welfare by providing technical leadership for the Nation\u2019s measurement and standards infrastructure. ITL develops tests, test methods, reference data, proof of concept implementations, and technical analyses to advance the development and productive use of information technology. ITL\u2019s responsibilities include the development of management, administrative, technical, and physical standards and guidelines for the cost-effective security and privacy of other than national security-related information in federal information systems. The Special Publication 800-series reports on ITL\u2019s research, guidelines, and outreach efforts in information system security, and its collaborative activities with industry, government, and academic organizations. "
+            },
+            {
+              "id": 135,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 9,
+              "body_atom_count": 0,
+              "text": "Abstract "
+            },
+            {
+              "id": 136,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 946,
+              "body_atom_count": 945,
+              "text": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems. "
+            },
+            {
+              "id": 137,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 9,
+              "body_atom_count": 0,
+              "text": "Keywords "
+            },
+            {
+              "id": 138,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 198,
+              "body_atom_count": 0,
+              "text": "cyber event; cybersecurity; Cybersecurity Framework (CSF); Cybersecurity National Action Plan (CNAP); Cybersecurity Strategy and Implementation Plan (CSIP); metrics; planning; recovery; resilience "
+            },
+            {
+              "id": 1485,
+              "pages": [
+                3
+              ],
+              "kind": "unknown",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 894,
+              "body_atom_count": 0,
+              "text": "The Information Technology Laboratory (ITL) at the National Institute of Standards and Technology (NIST) promotes the U.S. economy and public welfare by providing technical leadership for the Nation\u2019s measurement and standards infrastructure. ITL develops tests, test methods, reference data, proof of concept implementations, and technical analyses to advance the development and productive use of information technology. ITL\u2019s responsibilities include the development of management, administrative, technical, and physical standards and guidelines for the cost-effective security and privacy of other than national security-related information in federal information systems. The Special Publication 800-series reports on ITL\u2019s research, guidelines, and outreach efforts in information system security, and its collaborative activities with industry, government, and academic organizations. "
+            },
+            {
+              "id": 1486,
+              "pages": [
+                3
+              ],
+              "kind": "unknown",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 10,
+              "body_atom_count": 0,
+              "text": "Abstract "
+            },
+            {
+              "id": 1487,
+              "pages": [
+                3
+              ],
+              "kind": "unknown",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 947,
+              "body_atom_count": 945,
+              "text": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems. "
+            },
+            {
+              "id": 1488,
+              "pages": [
+                3
+              ],
+              "kind": "unknown",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 10,
+              "body_atom_count": 0,
+              "text": "Keywords "
+            },
+            {
+              "id": 1489,
+              "pages": [
+                3
+              ],
+              "kind": "unknown",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 200,
+              "body_atom_count": 0,
+              "text": "cyber event; cybersecurity; Cybersecurity Framework (CSF); Cybersecurity National Action Plan (CNAP); Cybersecurity Strategy and Implementation Plan (CSIP); metrics; planning; recovery; resilience   "
+            }
+          ]
+        }
+      },
+      "nearby_boundary_proposals": [
+        {
+          "scope": 0,
+          "proposal_index": 2264,
+          "proposal": {
+            "old": [
+              269
+            ],
+            "new": [
+              135
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "accepted": true,
+          "padding": false,
+          "mandatory": true,
+          "inferred": false
+        },
+        {
+          "scope": 0,
+          "proposal_index": 2265,
+          "proposal": {
+            "old": [
+              291
+            ],
+            "new": [
+              137
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "accepted": true,
+          "padding": false,
+          "mandatory": true,
+          "inferred": false
+        }
+      ]
+    },
+    {
+      "pair": "nist-150-draft-to-final",
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/nist-150-draft-to-final/sources.json",
+        "sha256": "850b9a63342453051a36d429495fb67fb2bdf5ca5c89677de3ff0984512186bb"
+      },
+      "comparison": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/nist-150-draft-to-final/comparison.json",
+        "sha256": "437a40664c857dba2e8bb48861e595c14765c1090d9966c7f2acc42919aeccda"
+      },
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-150-draft-to-final.resolved.json",
+        "sha256": "b18297fedaa23fc27f4465d0a3d8be38b4cbbd43e4a1d0899bea8e4eb8d70c29"
+      },
+      "sides": {
+        "old": {
+          "body_atoms": 985,
+          "intersecting_nodes": [
+            260,
+            261,
+            262,
+            263,
+            264,
+            265,
+            266,
+            267,
+            268,
+            269
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 258,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 9,
+              "body_atom_count": 0,
+              "text": "Abstract "
+            },
+            {
+              "id": 259,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 1,
+              "body_atom_count": 0,
+              "text": " "
+            },
+            {
+              "id": 260,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 105,
+              "body_atom_count": 105,
+              "text": "Cyber threat information is any information that can help an organization identify, assess, monitor, and "
+            },
+            {
+              "id": 261,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 107,
+              "body_atom_count": 107,
+              "text": "respond to cyber threats. Cyber threat information includes indicators of compromise; tactics, techniques, "
+            },
+            {
+              "id": 262,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 104,
+              "body_atom_count": 104,
+              "text": "and procedures used by threat actors; suggested actions to detect, contain, or prevent attacks; and the "
+            },
+            {
+              "id": 263,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 103,
+              "body_atom_count": 103,
+              "text": "findings from the analyses of incidents. Organizations that share cyber threat information can improve "
+            },
+            {
+              "id": 264,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 106,
+              "body_atom_count": 106,
+              "text": "their own security postures as well as those of other organizations. This publication provides guidelines "
+            },
+            {
+              "id": 265,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 106,
+              "body_atom_count": 106,
+              "text": "for establishing and participating in cyber threat information sharing relationships. This guidance helps "
+            },
+            {
+              "id": 266,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 100,
+              "body_atom_count": 100,
+              "text": "organizations establish information sharing goals, identify cyber threat information sources, scope "
+            },
+            {
+              "id": 267,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 102,
+              "body_atom_count": 102,
+              "text": "information sharing activities, develop rules that control the publication and distribution of threat "
+            },
+            {
+              "id": 268,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 103,
+              "body_atom_count": 103,
+              "text": "information, engage with existing sharing communities, and make effective use of threat information in "
+            },
+            {
+              "id": 269,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 50,
+              "body_atom_count": 49,
+              "text": "support of their overall cybersecurity practices. "
+            },
+            {
+              "id": 270,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 1,
+              "body_atom_count": 0,
+              "text": " "
+            },
+            {
+              "id": 271,
+              "pages": [
+                5
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 9,
+              "body_atom_count": 0,
+              "text": "Keywords "
+            }
+          ]
+        },
+        "new": {
+          "body_atoms": 999,
+          "intersecting_nodes": [
+            92,
+            1159,
+            1160
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 90,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 9,
+              "body_atom_count": 0,
+              "text": "Abstract "
+            },
+            {
+              "id": 91,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 1,
+              "body_atom_count": 0,
+              "text": " "
+            },
+            {
+              "id": 92,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 1001,
+              "body_atom_count": 999,
+              "text": "Cyber threat information is any information that can help an organization identify, assess, monitor, and respond to cyber threats. Cyber threat information includes indicators of compromise; tactics, techniques, and procedures used by threat actors; suggested actions to detect, contain, or prevent attacks; and the findings from the analyses of incidents. Organizations that share cyber threat information can improve their own security postures as well as those of other organizations. This publication provides guidelines for establishing and participating in cyber threat information sharing relationships. This guidance helps organizations establish information sharing goals, identify cyber threat information sources, scope information sharing activities, develop rules that control the publication and distribution of threat information, engage with existing sharing communities, and make effective use of threat information in support of the organization\u2019s overall cybersecurity practices.  "
+            },
+            {
+              "id": 93,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 10,
+              "body_atom_count": 0,
+              "text": "Keyw ords "
+            },
+            {
+              "id": 94,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 104,
+              "body_atom_count": 0,
+              "text": "cyber threat; cyber threat information sharing; indicators; information security; information sharing  "
+            },
+            {
+              "id": 1157,
+              "pages": [
+                3
+              ],
+              "kind": "unknown",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 10,
+              "body_atom_count": 0,
+              "text": "Abstract "
+            },
+            {
+              "id": 1158,
+              "pages": [
+                3
+              ],
+              "kind": "header",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 2,
+              "body_atom_count": 0,
+              "text": " "
+            },
+            {
+              "id": 1159,
+              "pages": [
+                3
+              ],
+              "kind": "header",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 490,
+              "body_atom_count": 489,
+              "text": "Cyber threat information is any information that can help an organization identify, assess, monitor, and respond to cyber threats. Cyber threat information includes indicators of compromise; tactics, techniques, and procedures used by threat actors; suggested actions to detect, contain, or prevent attacks; and the findings from the analyses of incidents. Organizations that share cyber threat information can improve their own security postures as well as those of other organizations.  "
+            },
+            {
+              "id": 1160,
+              "pages": [
+                3
+              ],
+              "kind": "header",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 512,
+              "body_atom_count": 510,
+              "text": "This publication provides guidelines for establishing and participating in cyber threat information sharing relationships. This guidance helps organizations establish information sharing goals, identify cyber threat information sources, scope information sharing activities, develop rules that control the publication and distribution of threat information, engage with existing sharing communities, and make effective use of threat information in support of the organization\u2019s overall cybersecurity practices. "
+            },
+            {
+              "id": 1161,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 2,
+              "body_atom_count": 0,
+              "text": " "
+            },
+            {
+              "id": 1162,
+              "pages": [
+                3
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "source_structure"
+              },
+              "source_count": 10,
+              "body_atom_count": 0,
+              "text": "Keywords "
+            }
+          ]
+        }
+      },
+      "nearby_boundary_proposals": [
+        {
+          "scope": 0,
+          "proposal_index": 4670,
+          "proposal": {
+            "old": [
+              258
+            ],
+            "new": [
+              90
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "accepted": true,
+          "padding": false,
+          "mandatory": true,
+          "inferred": false
+        }
+      ]
+    },
+    {
+      "pair": "ietf-ipv6-2460-to-8200",
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/ietf-ipv6-2460-to-8200/sources.json",
+        "sha256": "c89eef7abdb0608e18f3b154e8c8f2d74a87cdf7683f0e26cb864e996c39e26c"
+      },
+      "comparison": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/ietf-ipv6-2460-to-8200/comparison.json",
+        "sha256": "5af7156311c29d12289616fd952db14ecb7cbad20a5ca1593e30cd394b23e485"
+      },
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/ietf-ipv6-2460-to-8200.resolved.json",
+        "sha256": "66fc3efe0db77fd33d856d1a5ddd2ce6a575ee427bbc0a53bd694ae1cc3cbd48"
+      },
+      "sides": {
+        "old": {
+          "body_atoms": 126,
+          "intersecting_nodes": [
+            47
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 45,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 67,
+              "body_atom_count": 0,
+              "text": " Copyright (C) The Internet Society (1998). All Rights Reserved."
+            },
+            {
+              "id": 46,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 8,
+              "body_atom_count": 0,
+              "text": "Abstract"
+            },
+            {
+              "id": 47,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 129,
+              "body_atom_count": 126,
+              "text": " This document specifies version 6 of the Internet Protocol (IPv6), also sometimes referred to as IP Next Generation or IPng."
+            },
+            {
+              "id": 48,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 17,
+              "body_atom_count": 0,
+              "text": "Table of Contents"
+            },
+            {
+              "id": 49,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 1311,
+              "body_atom_count": 0,
+              "text": " 1. Introduction..................................................2 2. Terminology...................................................3 3. IPv6 Header Format............................................4 4. IPv6 Extension Headers........................................6 4.1 Extension Header Order...................................7 4.2 Options..................................................9 4.3 Hop-by-Hop Options Header...............................11 4.4 Routing Header..........................................12 4.5 Fragment Header.........................................18 4.6 Destination Options Header..............................23 4.7 No Next Header..........................................24 5. Packet Size Issues...........................................24 6. Flow Labels..................................................25 7. Traffic Classes..............................................25 8. Upper-Layer Protocol Issues..................................27 8.1 Upper-Layer Checksums...................................27 8.2 Maximum Packet Lifetime.................................28 8.3 Maximum Upper-Layer Payload Size........................28 8.4 Responding to Packets Carrying Routing Headers..........29"
+            }
+          ]
+        },
+        "new": {
+          "body_atoms": 91,
+          "intersecting_nodes": [
+            46
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 44,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 60,
+              "body_atom_count": 0,
+              "text": " Internet Protocol, Version 6 (IPv6) Specification"
+            },
+            {
+              "id": 45,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 8,
+              "body_atom_count": 0,
+              "text": "Abstract"
+            },
+            {
+              "id": 46,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 94,
+              "body_atom_count": 91,
+              "text": " This document specifies version 6 of the Internet Protocol (IPv6). It obsoletes RFC 2460."
+            },
+            {
+              "id": 47,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 19,
+              "body_atom_count": 0,
+              "text": "Status of This Memo"
+            },
+            {
+              "id": 48,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 48,
+              "body_atom_count": 0,
+              "text": " This is an Internet Standards Track document."
+            }
+          ]
+        }
+      },
+      "nearby_boundary_proposals": [
+        {
+          "scope": 0,
+          "proposal_index": 161,
+          "proposal": {
+            "old": [
+              41
+            ],
+            "new": [
+              44
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "accepted": true,
+          "padding": false,
+          "mandatory": true,
+          "inferred": false
+        },
+        {
+          "scope": 0,
+          "proposal_index": 163,
+          "proposal": {
+            "old": [
+              46
+            ],
+            "new": [
+              45
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "accepted": true,
+          "padding": false,
+          "mandatory": true,
+          "inferred": false
+        },
+        {
+          "scope": 0,
+          "proposal_index": 164,
+          "proposal": {
+            "old": [
+              48
+            ],
+            "new": [
+              59
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "accepted": true,
+          "padding": false,
+          "mandatory": true,
+          "inferred": false
+        }
+      ]
+    },
+    {
+      "pair": "arxiv-cot-v1-to-v6",
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/arxiv-cot-v1-to-v6/sources.json",
+        "sha256": "c7db5b673dea479f492b66d38d96e938118bfe0315992865d30071a6bcdd695c"
+      },
+      "comparison": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/source-exports/retry/arxiv-cot-v1-to-v6/comparison.json",
+        "sha256": "1906aa7502230ac40c53d16070fbb5635aa6662cf80d3643be898fbce8a81490"
+      },
+      "annotation": {
+        "path": "benchmark/realworld/source-boundaries/unseen-v8/annotations/arxiv-cot-v1-to-v6.resolved.json",
+        "sha256": "b537805a4f9b9edbf652f972e9c61d2bc1c2154890021b7b97f8db115daeb0be"
+      },
+      "sides": {
+        "old": {
+          "body_atoms": 542,
+          "intersecting_nodes": [
+            31,
+            33,
+            37,
+            39,
+            41,
+            43,
+            45,
+            47,
+            49,
+            52,
+            54,
+            56
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 29,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 50,
+              "body_atom_count": 0,
+              "text": "Q: Shawn has five toys. For Christmas, he got two "
+            },
+            {
+              "id": 30,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 6,
+              "body_atom_count": 0,
+              "text": "Input:"
+            },
+            {
+              "id": 31,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 40,
+              "body_atom_count": 40,
+              "text": "Although scaling up language model size has re-"
+            },
+            {
+              "id": 32,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 46,
+              "body_atom_count": 0,
+              "text": "toys each from his mom and dad. How many toys "
+            },
+            {
+              "id": 33,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 38,
+              "body_atom_count": 38,
+              "text": "liably improved performance on a range of NLP"
+            },
+            {
+              "id": 34,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 18,
+              "body_atom_count": 0,
+              "text": "does he have now? "
+            },
+            {
+              "id": 35,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 40,
+              "body_atom_count": 0,
+              "text": "arXiv:2201.11903v1 [cs.CL] 28 Jan 2022"
+            },
+            {
+              "id": 36,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 19,
+              "body_atom_count": 0,
+              "text": "A: The answer is 9."
+            },
+            {
+              "id": 37,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 43,
+              "body_atom_count": 43,
+              "text": "tasks, even the largest models currently struggle"
+            },
+            {
+              "id": 38,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 1,
+              "body_atom_count": 0,
+              "text": "\u2026"
+            },
+            {
+              "id": 39,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 39,
+              "body_atom_count": 39,
+              "text": "with certain reasoning tasks such as math word"
+            },
+            {
+              "id": 40,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 50,
+              "body_atom_count": 0,
+              "text": "Q: John takes care of 10 dogs. Each dog takes .5 "
+            },
+            {
+              "id": 41,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 40,
+              "body_atom_count": 40,
+              "text": "problems, symbolic manipulation, and common-"
+            },
+            {
+              "id": 42,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 43,
+              "body_atom_count": 0,
+              "text": "hours a day to walk and take care of their "
+            },
+            {
+              "id": 43,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 42,
+              "body_atom_count": 42,
+              "text": "sense reasoning. This paper explores the ability"
+            },
+            {
+              "id": 44,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 41,
+              "body_atom_count": 0,
+              "text": "business. How many hours a week does he "
+            },
+            {
+              "id": 45,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 40,
+              "body_atom_count": 40,
+              "text": "of language models to generate a coherent chain"
+            },
+            {
+              "id": 46,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 27,
+              "body_atom_count": 0,
+              "text": "spend taking care of dogs? "
+            },
+            {
+              "id": 47,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 42,
+              "body_atom_count": 42,
+              "text": "of thought\u2014a series of short sentences that mimic"
+            },
+            {
+              "id": 48,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 3,
+              "body_atom_count": 0,
+              "text": "A: "
+            },
+            {
+              "id": 49,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 39,
+              "body_atom_count": 39,
+              "text": "the reasoning process a person might have when"
+            },
+            {
+              "id": 50,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 6,
+              "body_atom_count": 0,
+              "text": "Model "
+            },
+            {
+              "id": 51,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 17,
+              "body_atom_count": 0,
+              "text": "The answer is 50."
+            },
+            {
+              "id": 52,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 41,
+              "body_atom_count": 41,
+              "text": "responding to a question. Experiments show that"
+            },
+            {
+              "id": 53,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 7,
+              "body_atom_count": 0,
+              "text": "output:"
+            },
+            {
+              "id": 54,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 83,
+              "body_atom_count": 83,
+              "text": "inducing a chain of thought via prompting can en-able sufficiently large language models to better"
+            },
+            {
+              "id": 55,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 26,
+              "body_atom_count": 0,
+              "text": "Chain of thought prompting"
+            },
+            {
+              "id": 56,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 55,
+              "body_atom_count": 55,
+              "text": "perform reasoning tasks that otherwise have flat scaling curves."
+            },
+            {
+              "id": 57,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 50,
+              "body_atom_count": 0,
+              "text": "Q: Shawn has five toys. For Christmas, he got two "
+            },
+            {
+              "id": 58,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 6,
+              "body_atom_count": 0,
+              "text": "Input:"
+            }
+          ]
+        },
+        "new": {
+          "body_atoms": 718,
+          "intersecting_nodes": [
+            59
+          ],
+          "neighbor_nodes": [
+            {
+              "id": 57,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 31,
+              "body_atom_count": 0,
+              "text": "{jasonwei,dennyzhou}@google.com"
+            },
+            {
+              "id": 58,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 8,
+              "body_atom_count": 0,
+              "text": "Abstract"
+            },
+            {
+              "id": 59,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 718,
+              "body_atom_count": 718,
+              "text": "We explore how generating a chain of thought\u2014a series of intermediate reasoning steps\u2014significantly improves the ability of large language models to perform complex reasoning. In particular, we show how such reasoning abilities emerge naturally in sufficiently large language models via a simple method calledchain-of-thought prompting, where a few chain of thought demonstrations are provided as exemplars in prompting.\nExperiments on three large language models show that chain-of-thought prompting improves performance on a range of arithmetic, commonsense, and symbolic reasoning tasks. The empirical gains can be striking. For instance, prompting a PaLM 540B with just eight chain-of-thought exemplars achieves state-of-the-art accuracy on the GSM8K benchmark of math word problems, surpassing even finetuned GPT-3 with a verifier."
+            },
+            {
+              "id": 60,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 18,
+              "body_atom_count": 0,
+              "text": "Standard Prompting"
+            },
+            {
+              "id": 61,
+              "pages": [
+                0
+              ],
+              "kind": "paragraph",
+              "basis": {
+                "kind": "native_layout"
+              },
+              "source_count": 26,
+              "body_atom_count": 0,
+              "text": "Chain-of-Thought Prompting"
+            }
+          ]
+        }
+      },
+      "nearby_boundary_proposals": [
+        {
+          "scope": 0,
+          "proposal_index": 262,
+          "proposal": {
+            "old": [
+              27
+            ],
+            "new": [
+              58
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "accepted": true,
+          "padding": false,
+          "mandatory": true,
+          "inferred": false
+        }
+      ]
+    }
+  ]
+}

@@ -1193,6 +1193,107 @@ fn source_content_edges_preserve_coarse_space_changes_and_exact_body_sources() {
 }
 
 #[test]
+fn detached_margin_nodes_do_not_prevent_a_closed_body_interval() {
+    fn center_endpoints(fixture: &mut Fixture) {
+        let last = fixture.1.nodes.len() - 1;
+        let mut glyphs = fixture.0.native.items().to_vec();
+        for index in [1, last] {
+            for source in &fixture.1.nodes[index].sources {
+                let SourceRef::Native { glyph } = source else {
+                    unreachable!()
+                };
+                let glyph = glyphs
+                    .iter_mut()
+                    .find(|g| g.id == *glyph)
+                    .expect("heading source");
+                glyph.baseline.x += 100.0;
+                glyph.bbox.min.x += 100.0;
+                glyph.bbox.max.x += 100.0;
+            }
+        }
+        fixture.0.native = Document::new(glyphs);
+    }
+    let setup = || {
+        let mut old = fixture_rows(&["BEGIN", "101", "Budget 10. ", "102", "Cost 10. ", "END"]);
+        let mut glyphs = old.0.native.items().to_vec();
+        for index in [2, 4] {
+            for source in &old.1.nodes[index].sources {
+                let SourceRef::Native { glyph } = source else {
+                    unreachable!()
+                };
+                let glyph = glyphs
+                    .iter_mut()
+                    .find(|g| g.id == *glyph)
+                    .expect("margin source");
+                glyph.baseline.x -= 50.0;
+                glyph.bbox.min.x -= 50.0;
+                glyph.bbox.max.x -= 50.0;
+                glyph.baseline.y -= 30.0;
+                glyph.bbox.min.y -= 30.0;
+                glyph.bbox.max.y -= 30.0;
+            }
+        }
+        old.0.native = Document::new(glyphs);
+        center_endpoints(&mut old);
+        old
+    };
+    let mut new = fixture_rows(&["BEGIN", "Budget 20. ", "Cost 20. ", "END"]);
+    center_endpoints(&mut new);
+    for mutation in 0..4 {
+        let mut old = setup();
+        if mutation == 2 {
+            append_unassigned(&mut old, PageId(0), 40.0);
+        } else if mutation != 0 {
+            let mut glyphs = old.0.native.items().to_vec();
+            let node = if mutation == 1 { 2 } else { 3 };
+            let SourceRef::Native { glyph } = old.1.nodes[node].sources[0] else {
+                unreachable!()
+            };
+            let glyph = glyphs
+                .iter_mut()
+                .find(|g| g.id == glyph)
+                .expect("mutated source");
+            if mutation == 1 {
+                glyph.bbox.max.x = 0.0;
+            } else {
+                glyph.path_clip_status = GlyphPathClipStatus::PartiallyOutside;
+            }
+            old.0.native = Document::new(glyphs);
+        }
+        let original_nodes = old.1.nodes.clone();
+        let expected_old: Vec<_> = [3, 5]
+            .into_iter()
+            .flat_map(|i| old.1.nodes[i].sources.iter().copied())
+            .collect();
+        let expected_new: Vec<_> = [2, 3]
+            .into_iter()
+            .flat_map(|i| new.1.nodes[i].sources.iter().copied())
+            .collect();
+        let result = compare(&old, &new);
+        let found = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| review.old_sources == expected_old && review.new_sources == expected_new);
+        assert_eq!(found, mutation == 0, "mutation {mutation}");
+        if mutation == 0 {
+            assert!(
+                result.scopes[0]
+                    .result
+                    .text_scope_reviews
+                    .iter()
+                    .any(|review| {
+                        review.source_cuts.is_some()
+                            && review.old_sources == expected_old[..expected_old.len() - 1]
+                            && review.new_sources == expected_new[..expected_new.len() - 1]
+                    })
+            );
+        }
+        assert_eq!(old.1.nodes, original_nodes);
+    }
+}
+
+#[test]
 fn isolated_same_row_prefixes_preserve_source_cuts_and_reject_gaps_or_overlap() {
     fn setup(text: &str, detached: bool) -> Fixture {
         let heading = if detached {

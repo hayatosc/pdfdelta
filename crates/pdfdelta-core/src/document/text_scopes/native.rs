@@ -271,6 +271,76 @@ struct NodeGeometry {
 }
 
 impl<'a> Sources<'a> {
+    /// The horizontal box component containing both endpoints, in path order.
+    /// Centered headings may connect through wider body rows; disjoint margin
+    /// nodes remain outside. This proves no closure: retained glyphs, paint and
+    /// ordering still need the usual checks. The original graph stays unchanged.
+    pub(super) fn boundary_lane<'b>(
+        &self,
+        path: &[&'b GraphNode],
+        remaining: &mut usize,
+    ) -> Option<Vec<&'b GraphNode>> {
+        let [page] = path.first()?.pages.as_slice() else {
+            return None;
+        };
+        if path.len() < 2 {
+            return None;
+        }
+        let mut bounds = Vec::new();
+        spend(remaining, path.len())?;
+        for (index, node) in path.iter().enumerate() {
+            if node.pages != [*page] || node.sources.is_empty() {
+                return None;
+            }
+            spend(remaining, node.sources.len())?;
+            let mut left = f64::INFINITY;
+            let mut right = f64::NEG_INFINITY;
+            for source in &node.sources {
+                let SourceRef::Native { glyph } = source else {
+                    return None;
+                };
+                let glyph = self.glyphs.get(glyph)?;
+                if !glyph.bbox.min.x.is_finite()
+                    || !glyph.bbox.max.x.is_finite()
+                    || glyph.bbox.min.x > glyph.bbox.max.x
+                {
+                    return None;
+                }
+                left = left.min(glyph.bbox.min.x);
+                right = right.max(glyph.bbox.max.x);
+            }
+            bounds.push((left, right, index));
+        }
+        spend(
+            remaining,
+            path.len()
+                .saturating_mul(path.len().saturating_add(1).ilog2() as usize + 4),
+        )?;
+        bounds.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
+        let mut components = vec![0; path.len()];
+        let mut component = 0;
+        let mut right = f64::NEG_INFINITY;
+        for (start, end, index) in bounds {
+            // Touching boxes stay together. No geometric tolerance or text
+            // classification may turn a coupled node into excluded evidence.
+            if start > right {
+                component += 1;
+            }
+            right = right.max(end);
+            components[index] = component;
+        }
+        let selected = components[0];
+        if components[components.len() - 1] != selected {
+            return None;
+        }
+        Some(
+            path.iter()
+                .zip(components)
+                .filter_map(|(&node, component)| (component == selected).then_some(node))
+                .collect(),
+        )
+    }
+
     pub(super) fn page_sources_match(
         &self,
         page: PageId,

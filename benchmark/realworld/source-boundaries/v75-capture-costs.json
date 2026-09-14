@@ -1,0 +1,50 @@
+{
+  "version": 75,
+  "scope": "Measured native common-text capture costs under identical registered input bytes, timeout 180 seconds and limit scale 1. Timings are observations, not a controlled performance benchmark.",
+  "records": [
+    {
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v67-panel-observations.json",
+        "sha256": "f70b2a7ac4a940af21185eed565604d641d117043d6019c335b343f1d47d654d"
+      },
+      "attempts": 36,
+      "wall_seconds_sum": 347.96,
+      "peak_rss_kib_max": 1228428,
+      "report_bytes_sum": 116998929,
+      "report_bytes_max": 14708866
+    },
+    {
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v67-panel-repetition2-observations.json",
+        "sha256": "86946b5ca1e0e92539303e613ccffcbe9b44efc6a34dcd3628e45cf73158b0e9"
+      },
+      "attempts": 36,
+      "wall_seconds_sum": 350.1,
+      "peak_rss_kib_max": 1228272,
+      "report_bytes_sum": 116998929,
+      "report_bytes_max": 14708866
+    },
+    {
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v75-panel-observations.json",
+        "sha256": "30846c6f7a07d665ad9fb0a36d43db7f5ec6e2d5b9f76d40e83133cc3b38fbd1"
+      },
+      "attempts": 36,
+      "wall_seconds_sum": 362.85,
+      "peak_rss_kib_max": 1232956,
+      "report_bytes_sum": 117744317,
+      "report_bytes_max": 14708866
+    },
+    {
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v75-panel-repetition2-observations.json",
+        "sha256": "167746cf143418e49af44bd64ca03e3d4ffcc6b59992ee45dbc8d3d7f5962cc0"
+      },
+      "attempts": 36,
+      "wall_seconds_sum": 355.84,
+      "peak_rss_kib_max": 1236060,
+      "report_bytes_sum": 117744317,
+      "report_bytes_max": 14708866
+    }
+  ]
+}

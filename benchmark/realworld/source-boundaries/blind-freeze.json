@@ -1,24 +1,13 @@
 {
-  "version": 7,
-  "production_sha256": "a03f782ed1700006bfd2a161e8cc9b8952e1bccf5e41680184abb3278d763c13",
-  "binary": {
-    "path": "benchmark/realworld/cache/source-boundaries-column-edges-v65/pdfdelta",
-    "sha256": "7c8b3dafb6bbcfaa6da1aa564a65a1a1d67506f7002b1989b6917afc86f80275"
+  "version": 8,
+  "status": "retired",
+  "freeze": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-freeze.json",
+    "sha256": "bd71f4ae3d83e5ddd46f472f4321f45c009b72ff06e27b7b9c1c7e6bc7a33b48"
   },
-  "build": {
-    "path": "benchmark/realworld/cache/source-boundaries-column-edges-v65/build.json",
-    "sha256": "ac4c2820dc21783bbeff6fc6d84ee568687f48a58b9685a6f559adf0f0ff416e"
+  "retirement": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-retirement.json",
+    "sha256": "f4ea6f6ad7d805413673b2cf8f6f342c0931813e2dffbd636376f98ba8d4f964"
   },
-  "freeze_utc": "2026-09-14T02:01:44.372763+00:00",
-  "panel": {
-    "path": "benchmark/realworld/source-boundaries/unseen-v7/inputs.json",
-    "sha256": "6b19856397954e4ea728fe4070653a148b8274d6abb8c704549b41fd670d256a"
-  },
-  "targets": {
-    "path": "benchmark/realworld/source-boundaries/unseen-v7/targets.json",
-    "sha256": "f4c1d25a2c5c82a88546a1c9cd059c534c9fa03a9bb0f27e38a60389ad201a5d"
-  },
-  "registration_commit": "1af81dece281959a9a11613c3a75fad7d7801712",
-  "selection_started_utc": "2026-09-14T02:01:58.199405+00:00",
-  "annotation_completed_utc": "2026-09-14T02:29:50.992966+00:00"
+  "reuse_as_unseen_allowed": false
 }

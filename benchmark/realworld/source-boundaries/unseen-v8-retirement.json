@@ -1,0 +1,163 @@
+{
+  "version": 8,
+  "retired_utc": "2026-09-14T04:19:30.911715+00:00",
+  "reason": "G2 fails at the unadjudicated upper bound of zero additional pairs. Retire the full set and all considered series before any subsequent production change. Do not widen or replace registered targets.",
+  "summary": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-summary.json",
+    "sha256": "505ef0332302ff961e7ec12600c80fe316ae446e6875921a95b65ff6ad84f3df"
+  },
+  "selection": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-selection-corrected.json",
+    "sha256": "cb4af0e7a44abe82eca9666d2e51902afeae446996f33a60b309aaf626e86cb8"
+  },
+  "original_selection": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-selection-resolved.json",
+    "sha256": "4d44bb801dfe776ab5d721c64922176d8a593dd81af2448beacfc958388e0593"
+  },
+  "novelty_correction": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-novelty-correction.json",
+    "sha256": "251336ada5aaadd70fb5a9a8fa516411ca6a48974c8c390e8b8f259aefc3ccdb"
+  },
+  "source_only_replacements": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-source-replacements.json",
+    "sha256": "81e372a4be7e7fa958ecf325b19b3fe0c90362e3ca3bef7141ef78dd066cc1c3"
+  },
+  "retired_series": [
+    {
+      "pair": "nist-55-r1-to-v1",
+      "series": "SP 800-55 information security measurement"
+    },
+    {
+      "pair": "nist-184-draft-to-final",
+      "series": "SP 800-184 cybersecurity event recovery"
+    },
+    {
+      "pair": "nist-150-draft-to-final",
+      "series": "SP 800-150 cyber threat information sharing"
+    },
+    {
+      "pair": "edpb-codes-v1-to-v2",
+      "series": "Guidelines 1/2019 codes of conduct and monitoring bodies"
+    },
+    {
+      "pair": "edpb-certification-v1-to-v3",
+      "series": "Guidelines 1/2018 certification criteria"
+    },
+    {
+      "pair": "arxiv-cot-v1-to-v6",
+      "series": "arXiv 2201.11903 Chain-of-Thought Prompting"
+    },
+    {
+      "pair": "arxiv-react-v1-to-v3",
+      "series": "arXiv 2210.03629 ReAct"
+    },
+    {
+      "pair": "faa-rnav-100a-to-chg2",
+      "series": "AC 90-100 RNAV operations"
+    },
+    {
+      "pair": "mhlw-vdt-2002-to-2019",
+      "series": "VDT and information equipment occupational health guidelines"
+    },
+    {
+      "pair": "ietf-rtp-1889-to-3550",
+      "series": "Real-time Transport Protocol"
+    },
+    {
+      "pair": "ietf-ipv6-2460-to-8200",
+      "series": "Internet Protocol Version 6"
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "series": "Stream Control Transmission Protocol"
+    }
+  ],
+  "metadata_only_nonselections": [
+    {
+      "series": "NIST SP 800-122",
+      "reason": "No revised final edition established."
+    },
+    {
+      "series": "NIST SP 800-153",
+      "reason": "No revised final edition established."
+    },
+    {
+      "series": "NIST SP 800-162",
+      "reason": "Considered metadata only; selected other NIST series with distinct revisions."
+    },
+    {
+      "series": "EDPB Guidelines 08/2020 social targeting",
+      "reason": "Already exposed historical series; excluded."
+    },
+    {
+      "series": "EDPB Guidelines 1/2024 legitimate interests",
+      "reason": "No final revised edition established."
+    },
+    {
+      "series": "EDPB Guidelines 06/2022 amicable settlements",
+      "reason": "Earlier version was an internal document; no primary public revision pair established."
+    },
+    {
+      "series": "EDPB Guidelines 4/2018 accreditation",
+      "reason": "Considered metadata only; selected two other EDPB publications."
+    },
+    {
+      "series": "arXiv 2205.01068 OPT",
+      "reason": "Already exposed V6 series; excluded."
+    },
+    {
+      "series": "arXiv 2106.04560 Scaling Vision Transformers",
+      "reason": "Conservatively excluded as related to exposed ViT series."
+    },
+    {
+      "series": "arXiv 2203.02155 InstructGPT",
+      "reason": "Primary submission history contains only v1."
+    },
+    {
+      "series": "arXiv 2303.08774 GPT-4",
+      "reason": "Considered but not searched; conservatively excluded as related to exposed GPT research."
+    },
+    {
+      "series": "arXiv 2206.07682 Emergent Abilities",
+      "reason": "Considered but not searched; two other research papers selected."
+    },
+    {
+      "series": "arXiv 2305.13048 RWKV",
+      "reason": "Considered but not searched; two other research papers selected."
+    },
+    {
+      "series": "EDPB Guidelines 2/2018 derogations",
+      "reason": "Considered but not searched; two other EDPB publications selected."
+    },
+    {
+      "series": "MEXT basic policy for prevention of bullying 2013/2017",
+      "reason": "Source-only alternative considered during acquisition; not selected and excluded from future unseen sets."
+    },
+    {
+      "series": "MEXT serious bullying investigation guidelines 2017/2024",
+      "reason": "Source-only alternative considered during acquisition; not selected and excluded from future unseen sets."
+    },
+    {
+      "series": "MEXT educational opportunity guidelines 2017",
+      "reason": "Source-only alternative considered during acquisition; not selected and excluded from future unseen sets."
+    },
+    {
+      "series": "NIST SP 800-115",
+      "reason": "Considered but not acquired during source-only novelty correction; excluded from future unseen sets."
+    },
+    {
+      "series": "OSPF",
+      "reason": "Considered but not acquired during source-only novelty correction; excluded from future unseen sets."
+    },
+    {
+      "series": "Resource Reservation Protocol",
+      "reason": "Considered but not acquired during source-only novelty correction; excluded from future unseen sets."
+    },
+    {
+      "series": "QUIC",
+      "reason": "Considered but not acquired during source-only novelty correction; excluded from future unseen sets."
+    }
+  ],
+  "targets_remain_immutable": true,
+  "reuse_as_unseen_allowed": false
+}

@@ -296,6 +296,16 @@ enum Discovery {
     NativeStructure,
 }
 
+// The borrowed nodes keep each proof bound to one immutable document pair and
+// ordered path. Node IDs alone cannot identify sliced or projected views.
+struct NativeClosureProof<'a> {
+    old: Vec<&'a GraphNode>,
+    new: Vec<&'a GraphNode>,
+    bounded_paint: [bool; 2],
+}
+
+type NativeProofs<'a> = BTreeMap<[usize; 2], NativeClosureProof<'a>>;
+
 fn merge_cut_search(result: &mut ScopeViewComparison, prior: Option<SourceCutSearch>, work: usize) {
     if let Some(mut prior) = prior {
         if let Some(additional) = result.source_cut_search.take() {
@@ -348,6 +358,7 @@ fn append_pass(
         }
     };
     let native = sources.is_some();
+    let mut native_proofs = NativeProofs::new();
     let positions = |runs: &[Vec<&GraphNode>]| {
         runs.iter()
             .enumerate()
@@ -420,6 +431,7 @@ fn append_pass(
                 &left,
                 &right,
                 sources.as_ref(),
+                &native_proofs,
                 &anchors,
                 rows,
                 pass,
@@ -430,10 +442,36 @@ fn append_pass(
         return Ok(());
     }
     let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
-    // Preserve the existing two-sided recovery budget before attempting new
-    // empty-sided claims. All stages still share the same finite work cap.
-    for empty_sided in [false, true] {
-        if empty_sided {
+    // Established whole-node and raw-interval discovery precede narrower
+    // component views. In particular, a margin-free view must not consume the
+    // budget needed by an existing full paint-order range.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum IntervalPass {
+        Whole,
+        Component,
+        Empty,
+        DeferredComponent,
+        EmptyComponent,
+    }
+    let mut defer_components = false;
+    for pass in [
+        IntervalPass::Whole,
+        IntervalPass::Component,
+        IntervalPass::Empty,
+        IntervalPass::DeferredComponent,
+        IntervalPass::EmptyComponent,
+    ] {
+        let empty_sided = matches!(pass, IntervalPass::Empty | IntervalPass::EmptyComponent);
+        let inset = matches!(
+            pass,
+            IntervalPass::Component
+                | IntervalPass::DeferredComponent
+                | IntervalPass::EmptyComponent
+        );
+        if pass == IntervalPass::DeferredComponent && !defer_components {
+            continue;
+        }
+        if pass == IntervalPass::Component {
             // A global normalization failure need not invalidate the retained
             // raw interval. Recheck its source projection and closure before
             // lexical searches spend the shared budget on finer boundaries.
@@ -452,6 +490,7 @@ fn append_pass(
                 &left,
                 &right,
                 sources.as_ref(),
+                &native_proofs,
                 &anchors,
                 rows,
                 cuts::Pass::WholeIntervals,
@@ -462,34 +501,49 @@ fn append_pass(
                 search.budget_at_entry = before;
             }
             merge_cut_search(result, prior, before - *remaining);
-            if sources.is_some()
-                && result
-                    .text_scope_reviews
-                    .iter()
-                    .any(|review| review.source_cuts.is_none())
-            {
-                // A raw cut certificate can support finer literal-space edges even
-                // when a whole-node review already covers the same source interval.
-                // Reuse the acquired sources after all nonempty whole-node reviews,
-                // before new boundary searches spend their shared remaining budget.
-                let prior = result.source_cut_search.take();
-                let before = *remaining;
-                cuts::append(
-                    old,
-                    new,
-                    result,
-                    parent,
-                    limits,
-                    &left,
-                    &right,
-                    sources.as_ref(),
-                    &anchors,
-                    false,
-                    cuts::Pass::RefineExisting,
-                    remaining,
-                )?;
-                merge_cut_search(result, prior, before - *remaining);
+            // With no whole-node review, the established next step is general
+            // source-cut discovery. A new component must not insert an expensive
+            // refinement stage ahead of those previously reachable ranges.
+            defer_components = !result
+                .text_scope_reviews
+                .iter()
+                .any(|review| review.source_cuts.is_none());
+            if defer_components {
+                continue;
             }
+        }
+        if (pass == IntervalPass::Empty
+            || (pass == IntervalPass::EmptyComponent && defer_components))
+            && sources.is_some()
+            && result
+                .text_scope_reviews
+                .iter()
+                .any(|review| review.source_cuts.is_none())
+        {
+            // A raw cut certificate can support finer literal-space edges even
+            // when a whole-node review already covers the same source interval.
+            // Reuse the acquired sources after all nonempty whole-node reviews,
+            // before new boundary searches spend their shared remaining budget.
+            let prior = result.source_cut_search.take();
+            let before = *remaining;
+            cuts::append(
+                old,
+                new,
+                result,
+                parent,
+                limits,
+                &left,
+                &right,
+                sources.as_ref(),
+                &native_proofs,
+                &anchors,
+                false,
+                cuts::Pass::RefineExisting,
+                remaining,
+            )?;
+            merge_cut_search(result, prior, before - *remaining);
+        }
+        if pass == IntervalPass::Empty {
             // Unmasked raw intervals need a turn before general page and
             // lexical discovery exhausts the remaining work. Keep half of that
             // work for those established searches; the total cap is unchanged.
@@ -506,6 +560,7 @@ fn append_pass(
                 &left,
                 &right,
                 sources.as_ref(),
+                &native_proofs,
                 &anchors,
                 rows,
                 cuts::Pass::EnclosingIntervals,
@@ -527,6 +582,7 @@ fn append_pass(
                 &left,
                 &right,
                 sources.as_ref(),
+                &native_proofs,
                 &anchors,
                 rows,
                 cuts::Pass::Standard,
@@ -552,8 +608,38 @@ fn append_pass(
             }
             let left = &left[*ar0];
             let right = &right[*br0];
-            let a = &left[(a0 + 1)..*a1];
-            let b = &right[(b0 + 1)..*b1];
+            let mut old_lane = Vec::new();
+            let mut new_lane = Vec::new();
+            let original_old = &left[*a0..=*a1];
+            let original_new = &right[*b0..=*b1];
+            if inset {
+                if spend(remaining, result.text_scope_reviews.len()).is_none() {
+                    break;
+                }
+                if result.text_scope_reviews.iter().any(|review| {
+                    review.source_cuts.is_none() && review.boundaries == [*first, *last]
+                }) {
+                    continue;
+                }
+                let Some((old_sources, new_sources)) = &sources else {
+                    break;
+                };
+                let (Some(a), Some(b)) = (
+                    old_sources.boundary_lane(original_old, remaining),
+                    new_sources.boundary_lane(original_new, remaining),
+                ) else {
+                    continue;
+                };
+                if a.len() == original_old.len() && b.len() == original_new.len() {
+                    continue;
+                }
+                old_lane = a;
+                new_lane = b;
+            }
+            let old_path = if inset { &old_lane } else { original_old };
+            let new_path = if inset { &new_lane } else { original_new };
+            let a = &old_path[1..old_path.len() - 1];
+            let b = &new_path[1..new_path.len() - 1];
             if (a.is_empty() || b.is_empty()) != empty_sided {
                 continue;
             }
@@ -591,18 +677,27 @@ fn append_pass(
                     // the same complete source and paint checks.
                     let mut bounded_paint = false;
                     let mut native_regions = None;
+                    let mut reusable_closure = None;
                     if let Some((old_sources, new_sources)) = &sources {
                         let Some(old_closure) =
-                            old_sources.closed(old, scope.old, &left[*a0..=*a1], remaining)
+                            old_sources.closed(old, scope.old, old_path, remaining)
                         else {
                             continue;
                         };
                         let Some(new_closure) =
-                            new_sources.closed(new, scope.new, &right[*b0..=*b1], remaining)
+                            new_sources.closed(new, scope.new, new_path, remaining)
                         else {
                             continue;
                         };
                         bounded_paint = old_closure.bounded_paint() || new_closure.bounded_paint();
+                        // Segmented proofs carry an owned transition chain;
+                        // leave their reconstruction on the existing path.
+                        if !matches!(old_closure, native::Closure::Segmented(_))
+                            && !matches!(new_closure, native::Closure::Segmented(_))
+                        {
+                            reusable_closure =
+                                Some([old_closure.bounded_paint(), new_closure.bounded_paint()]);
+                        }
                         let (old, new) = (old_closure.chain(), new_closure.chain());
                         if old.is_some() || new.is_some() {
                             native_regions = Some(NativeRegionChains { old, new });
@@ -691,6 +786,24 @@ fn append_pass(
                             continue;
                         }
                     }
+                    if let Some(bounded_paint) = reusable_closure {
+                        let work = old_path
+                            .len()
+                            .saturating_add(new_path.len())
+                            .saturating_add(
+                                native_proofs.len().saturating_add(1).ilog2() as usize + 1,
+                            );
+                        if spend(remaining, work).is_some() {
+                            native_proofs.insert(
+                                [*first, *last],
+                                NativeClosureProof {
+                                    old: old_path.to_vec(),
+                                    new: new_path.to_vec(),
+                                    bounded_paint,
+                                },
+                            );
+                        }
+                    }
                     result.text_scope_reviews.push(review);
                 }
                 Ok(_) | Err(crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)) => {}
@@ -711,6 +824,7 @@ fn append_pass(
         &left,
         &right,
         sources.as_ref(),
+        &native_proofs,
         &anchors,
         rows,
         cuts::Pass::Paint,

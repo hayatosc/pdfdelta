@@ -150,6 +150,10 @@ pub struct SourceCutSearch {
 type Position = (usize, usize, usize);
 type Anchor = ((usize, usize), (usize, usize), usize);
 
+fn same_nodes(left: &[&GraphNode], right: &[&GraphNode]) -> bool {
+    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| std::ptr::eq(*a, *b))
+}
+
 type OriginalCuts = BTreeMap<NodeId, Vec<Option<usize>>>;
 
 #[derive(Default)]
@@ -530,6 +534,7 @@ pub(super) fn append(
     left: &[Vec<&GraphNode>],
     right: &[Vec<&GraphNode>],
     sources: Option<&(native::Sources<'_>, native::Sources<'_>)>,
+    proofs: &NativeProofs<'_>,
     anchors: &[Anchor],
     rows: bool,
     pass: Pass,
@@ -670,7 +675,7 @@ pub(super) fn append(
                 .take_while(move |&first| adjacent(first, first + 1))
                 .map(move |first| (first, last + 1))
         });
-    for (first, last) in ends
+    'intervals: for (first, last) in ends
         .filter(|_| !enclosing)
         .map(|first| (first, first + 1))
         .chain(wider)
@@ -758,8 +763,41 @@ pub(super) fn append(
             aggregate.exhaustive = false;
             break;
         }
-        let left = [left[a.0][a.1..=c.1].to_vec()];
-        let right = [right[b.0][b.1..=d.1].to_vec()];
+        let mut left = [left[a.0][a.1..=c.1].to_vec()];
+        let mut right = [right[b.0][b.1..=d.1].to_vec()];
+        if refine_existing {
+            let Some(review) = result.text_scope_reviews.iter().find(|review| {
+                review.source_cuts.is_none() && review.boundaries == [*entry, *exit]
+            }) else {
+                continue;
+            };
+            for (path, sources, expected) in [
+                (&mut left[0], old_sources, &review.old_sources),
+                (&mut right[0], new_sources, &review.new_sources),
+            ] {
+                let work = path.iter().map(|node| node.sources.len()).sum::<usize>();
+                if spend(remaining, work.saturating_mul(2)).is_none() {
+                    aggregate.exhaustive = false;
+                    break 'intervals;
+                }
+                let matches = |nodes: &[&GraphNode]| {
+                    nodes[1..nodes.len() - 1]
+                        .iter()
+                        .flat_map(|node| &node.sources)
+                        .eq(expected)
+                };
+                if matches(path) {
+                    continue;
+                }
+                let Some(lane) = sources.boundary_lane(path, remaining) else {
+                    continue 'intervals;
+                };
+                if !matches(&lane) {
+                    continue 'intervals;
+                }
+                *path = lane;
+            }
+        }
         if pass == Pass::Paint {
             let (Some(old_hint), Some(new_hint)) = (
                 old_sources.has_ordered_row(&left[0], remaining),
@@ -780,27 +818,66 @@ pub(super) fn append(
             }
             Some(false) => {}
         }
+        let cached = if refine_existing && !proofs.is_empty() {
+            let work = proofs.len().saturating_add(1).ilog2() as usize
+                + left[0].len()
+                + right[0].len()
+                + 1;
+            if spend(remaining, work).is_none() {
+                aggregate.exhaustive = false;
+                break;
+            }
+            proofs.get(&[*entry, *exit]).filter(|proof| {
+                same_nodes(&proof.old, &left[0]) && same_nodes(&proof.new, &right[0])
+            })
+        } else {
+            None
+        };
+        // RefineExisting uses the non-row, non-paint census. A successful
+        // closure on these very same borrowed nodes is its complete proof.
+        let census = cached.map_or_else(
+            || {
+                (
+                    old_sources.census(
+                        old,
+                        result.matching.scope.old,
+                        &left[0],
+                        remaining,
+                        rows,
+                        pass != Pass::RefineExisting,
+                    ),
+                    new_sources.census(
+                        new,
+                        result.matching.scope.new,
+                        &right[0],
+                        remaining,
+                        rows,
+                        pass != Pass::RefineExisting,
+                    ),
+                )
+            },
+            |proof| {
+                let closure = |bounded| {
+                    Some((
+                        if bounded {
+                            native::Closure::BoundedPaint
+                        } else {
+                            native::Closure::WholePage
+                        },
+                        Vec::new(),
+                        None,
+                    ))
+                };
+                (
+                    closure(proof.bounded_paint[0]),
+                    closure(proof.bounded_paint[1]),
+                )
+            },
+        );
         let (
             Some((old_closure, old_padding, old_rows)),
             Some((new_closure, new_padding, new_rows)),
-        ) = (
-            old_sources.census(
-                old,
-                result.matching.scope.old,
-                &left[0],
-                remaining,
-                rows,
-                pass != Pass::RefineExisting,
-            ),
-            new_sources.census(
-                new,
-                result.matching.scope.new,
-                &right[0],
-                remaining,
-                rows,
-                pass != Pass::RefineExisting,
-            ),
-        )
+        ) = census
         else {
             aggregate.exhaustive = false;
             continue;
@@ -1779,6 +1856,21 @@ fn population(
 mod tests {
     use super::*;
     use crate::{document::NodeKind, model::GlyphId};
+
+    #[test]
+    fn cached_closure_requires_the_same_ordered_borrowed_nodes() {
+        let first = node();
+        let mut last = node();
+        last.id = NodeId(99);
+        assert!(same_nodes(&[&first, &last], &[&first, &last]));
+        assert!(!same_nodes(&[&first, &last], &[&last, &first]));
+        assert!(!same_nodes(&[&first, &last], &[&first]));
+        let mut projected = first.clone();
+        assert!(!same_nodes(&[&first], &[&projected]));
+        projected.sources.truncate(1);
+        assert_eq!(projected.id, first.id);
+        assert!(!same_nodes(&[&first], &[&projected]));
+    }
 
     #[test]
     fn mandatory_census_has_linear_work_for_repeated_prefixes() {
