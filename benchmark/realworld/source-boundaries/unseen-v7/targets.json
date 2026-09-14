@@ -1,0 +1,533 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "pair": "nist-107-original-to-r1",
+      "publisher": "NIST",
+      "independent_producer": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "Complete Abstract, including changed cryptographic-hash wording and the FIPS revision.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-107-original-to-r1.json",
+          "sha256": "897a322db71309dc51b6057434dad7c6d6f85f7c140d63ef4229a4a6f1d07e0f"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-107-original-to-r1.resolved.json",
+          "sha256": "7127e786390b502d54fd66ba0118af590b7e9f4398f4283856c2d6a7a71e2a13"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-107-original-to-r1.expectations.json",
+          "sha256": "27703fe0c47da69a9901511d1fe79274422eb4cff716af62b68f62b1c7cf7732"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "publisher": "NIST",
+      "independent_producer": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "Complete Abstract; revision names the HMAC, CMAC and KMAC pseudorandom functions.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-108-original-to-r1.json",
+          "sha256": "5f1b2dfeee32dbc839a493c61b4a2c896cd8dbe32105b635aa7ec00976d4ad21"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-108-original-to-r1.resolved.json",
+          "sha256": "45391473b90976c53468ce1cb0f555a8c00ad4ea280a8dd2449930a2bb2a49b5"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-108-original-to-r1.expectations.json",
+          "sha256": "3998f0b73852837b0241b385a170d62322f4925957afb5b4049a711f2995dc2e"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "publisher": "NIST",
+      "independent_producer": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "Introduction, complete opening paragraph. Abstract prose is unchanged; this paragraph changes transmission/storage wording and function to process.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-133-r1-to-r2.json",
+          "sha256": "8a2f0e18b855fce778cdad21f604c99033a9b9b4ce193a86913a89e1c45f93f7"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-133-r1-to-r2.resolved.json",
+          "sha256": "2999963e01eb31ae9f428326a1227547ce0671cd8416dc2a7fa416ce4058c3e0"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/nist-133-r1-to-r2.expectations.json",
+          "sha256": "8ba509434b457e48a439882aab5cbb2ffe52ecffb687364679e2889c7df108f8"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "publisher": "EDPB",
+      "independent_producer": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "Introduction, complete first numbered prose paragraph, excluding its paragraph label and external footnote bodies but retaining inline footnote markers. The Article 29 Working Party explanation is removed.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/edpb-eprivacy-scope-v1-to-v2.json",
+          "sha256": "6e7cee139e57c0f2698a755f83eb4adc3c1f1fcecc16540ac3536fceb61ea062"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/edpb-eprivacy-scope-v1-to-v2.resolved.json",
+          "sha256": "f7ff0177f6d1f28d1087ebce3735044e6a0505b41fda0b73806ae478f799f7c0"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/edpb-eprivacy-scope-v1-to-v2.expectations.json",
+          "sha256": "0b85701f5e6b8fe660eee6ad1502908e7127dfef7cb40552c2de5a64ff9a9843"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "publisher": "EDPB",
+      "independent_producer": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "Executive Summary, complete fifth paragraph; the preceding four prose paragraphs are unchanged. The comma after FRT is removed and by Article 7 changes to in Article 7. The obsolete watermark remains in raw source evidence outside the selected render-order interval.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/edpb-facial-recognition-v1-to-v2.json",
+          "sha256": "fdea988ff0b021797749b85c3b09e879fdb6273c82edfc13c35cc621f107df69"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/edpb-facial-recognition-v1-to-v2.resolved.json",
+          "sha256": "9c8b0c5a099674bcb6880079ae7980c101bf388867698f9928231e3a99f5a9e1"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/edpb-facial-recognition-v1-to-v2.expectations.json",
+          "sha256": "d9c56fb3335c3231a8340dfbb1d3d5e26536f3f964e0a92164f6d2ee86354097"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "publisher": "Google",
+      "independent_producer": "Google",
+      "body_eligible": true,
+      "eligibility_reason": "Complete second Abstract paragraph, including its source-code URL. The first paragraph is unchanged; the selected paragraph changes the stated accuracy and removes the top-5 claim. Literal line-end hyphens remain.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-efficientnet-v1-to-v5.json",
+          "sha256": "b1861bac75fe6462e7da0cc78fd908c83d4e6a4f0707b707ca68eb081280c0a2"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-efficientnet-v1-to-v5.resolved.json",
+          "sha256": "422cc982d8298ec712996429e29517fe6faf7225a31f2cf703ac8f53732ee9a2"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-efficientnet-v1-to-v5.expectations.json",
+          "sha256": "6d73616ec977f3ee39c388ede5d4d0fbcf5d96076e95d85b1dd698d01a1e0d0f"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "publisher": "Meta",
+      "independent_producer": "Meta",
+      "body_eligible": true,
+      "eligibility_reason": "Training Techniques, complete opening paragraph from Apart from the design through three different random seeds, crossing from the bottom of the left column to the top of the right column. Earlier abstract prose is unchanged and introduction citation-only changes are not prose targets. This paragraph changes A recent paper demonstrates how to Recent studies demonstrate that, as well as references.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-convnext-v1-to-v2.json",
+          "sha256": "6c6f99b9b8736ae9cba1ea357d675485a28361f4339294a1b3f4cf1d0e715983"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-convnext-v1-to-v2.resolved.json",
+          "sha256": "3866400b29c88a0591255bffcb3e967f60d063743000da8dec8b8ebe1bbfc19b"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-convnext-v1-to-v2.expectations.json",
+          "sha256": "0aa2e358f14765ae99fe8b955538bb1fcb58d7e037cb969235e0027ef81e005b"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "publisher": "Google",
+      "independent_producer": "Google",
+      "body_eligible": true,
+      "eligibility_reason": "Introduction, complete second paragraph. Abstract and first introduction paragraph are unchanged. The inline word non-linearities changes to nonlinearities; the original hyphen is visibly internal to a line, not a line-wrap artifact. The full paragraph remains the extent.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-mlp-mixer-v1-to-v4.json",
+          "sha256": "d49bd3939e48d8796889db4ec84923aa55022ced9f94bdedf2211075ba9cd4f1"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-mlp-mixer-v1-to-v4.resolved.json",
+          "sha256": "ba826aee335121050707e211b93b692c7b99b348ca17ec50aeb9832b389b977b"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/arxiv-mlp-mixer-v1-to-v4.expectations.json",
+          "sha256": "0cfd9edd16b7a61a006a5d17d370de57f8ad21bd9cd5ede9efff212759d0c2b0"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "publisher": "FAA",
+      "independent_producer": "FAA",
+      "body_eligible": true,
+      "eligibility_reason": "Complete body of the first corresponding manufactured/modified-aircraft purpose subparagraph: old Purpose a and new 1.1.1.1. Excludes each bold subheading and retains new inline footnote markers 1 and 2. The new cover is general introductory prose; the corresponding specific use appears on page 4.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/faa-fsb-53b-to-53c.json",
+          "sha256": "bd0a21b059810fced08c0c9d317ea13ae68271840a0b2e49a1c0d4ed1036f411"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/faa-fsb-53b-to-53c.resolved.json",
+          "sha256": "c5eab4b90a75333dc75582efe5d6fa78faeefa770ee3660e0b10610ed56bcb21"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/faa-fsb-53b-to-53c.expectations.json",
+          "sha256": "b1d914cd645d302bdaaaffb4e3c6534a587858fed52b653612f58ff24e15725e"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "publisher": "MHLW",
+      "independent_producer": "MHLW",
+      "body_eligible": true,
+      "eligibility_reason": "Complete opening context paragraph; the first following however paragraph is separate. The older 2001 standard is the version reproduced in the 2010 official release. The final responsibility clause changes.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/mhlw-working-time-2001-to-2017.json",
+          "sha256": "7869e8c8ae589fddeffdbba4b0cb1330c56bfcd60b2d5fde5ac0b6b3a0388b45"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/mhlw-working-time-2001-to-2017.resolved.json",
+          "sha256": "29248041ba247c18bb57df2cc514b0caebb0ce6461a4c292602b9100bb240116"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/mhlw-working-time-2001-to-2017.expectations.json",
+          "sha256": "e293bcc67d1a80580372ae8a7df2e65af1ade01139529f20572e5583771783e4"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "publisher": "IETF",
+      "independent_producer": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "Complete Abstract. The definition and relationship to prior message-format editions change. All original internal indentation spaces remain.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/ietf-message-format-2822-to-5322.json",
+          "sha256": "5423cc55265af76c48ffb12b75d273828485470ee3a4ad20a953f55287a5a05f"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/ietf-message-format-2822-to-5322.resolved.json",
+          "sha256": "1c449007a59989a690e63197e7c6865df5068dfc2c4e254350ee5bf6b109b2e0"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/ietf-message-format-2822-to-5322.expectations.json",
+          "sha256": "fc8cd35c90c0000983acb15af8e87a876ac6953d6007a608d48b3377b78f8a93"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "publisher": "IETF",
+      "independent_producer": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "Complete Abstract, including the old final RFC-1531 editorial sentence that is removed in the revision. The primary PDF also prints TCPIP in place of TCP/IP; literal source text and internal indentation remain.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/ietf-dhcp-1541-to-2131.json",
+          "sha256": "46f41071b9c48732104b68464618a556e97efd24f3e02ae3d820e1709ca1d7c0"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/ietf-dhcp-1541-to-2131.resolved.json",
+          "sha256": "c1e6aa5f86325bf30c7cb13f2a0842db26b53e4168a2bf3d1211201c9d25bbe8"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7/annotations/ietf-dhcp-1541-to-2131.expectations.json",
+          "sha256": "727695416bc72acb71adffd068158645d175b83e69d290563445fce3b9bf6fbd"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    }
+  ]
+}

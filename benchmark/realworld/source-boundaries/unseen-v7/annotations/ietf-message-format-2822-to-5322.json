@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "ietf-message-format-2822-to-5322",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 749,
+          "end": 1149
+        }
+      },
+      "literal_quote": "This standard specifies a syntax for text messages that are sent   between computer users, within the framework of \"electronic mail\"   messages.  This standard supersedes the one specified in Request For   Comments (RFC) 822, \"Standard for the Format of ARPA Internet Text   Messages\", updating it to reflect current practice and incorporating   incremental changes that were specified in other RFCs.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 738,
+          "end": 746
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 679,
+          "end": 1163
+        }
+      },
+      "literal_quote": "This document specifies the Internet Message Format (IMF), a syntax   for text messages that are sent between computer users, within the   framework of \"electronic mail\" messages.  This specification is a   revision of Request For Comments (RFC) 2822, which itself superseded   Request For Comments (RFC) 822, \"Standard for the Format of ARPA   Internet Text Messages\", updating it to reflect current practice and   incorporating incremental changes that were specified in other RFCs.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 668,
+          "end": 676
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "6ccf5ff890bacf32c84aeac0478f875f727968cca46f9878950aa11c4f90306b",
+  "new_sha256": "a6a766b763b5357cf4258203409802c028bb6469fa53c669b9490c8d623049cb"
+}

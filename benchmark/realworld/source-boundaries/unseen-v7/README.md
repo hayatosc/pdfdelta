@@ -1,0 +1,9 @@
+# Seventh unseen source-boundary campaign
+
+Twelve previously unexposed natural revision series were selected after freezing the V65 production source, executable and capture settings. All twelve have complete finite prose targets and unchanged external controls. The set covers six publication families, seven independent producers, English and Japanese. All 25 target and control pages were visually inspected before comparison, and all 48 literal selectors were resolved against original glyphs and checked independently against source inspection.
+
+Targets retain full corresponding paragraphs, including internal spaces, line-end hyphens and inline footnote markers. The ConvNeXt training paragraph crosses columns. The EfficientNet paragraph includes its source-code URL. MLP-Mixer changes an inline hyphenated word; the full paragraph remains the target. FAA targets corresponding aircraft-evaluation subparagraph bodies under their named headings. The older Japanese standard is the version reproduced in the official 2010 release, not a claim about the exact bytes originally published in 2001. The DHCP abstract retains its removed editorial sentence and the literal printed TCPIP spelling.
+
+The EDPB facial-recognition watermark remains in source evidence. Source resolution does not establish the absence of geometric interference or whole-document extraction completeness. Those premises remain subject to production checks. All download failures and alternate official RFC PDF URLs remain recorded. No input or target replacement based on comparison output is allowed, and any production change retires this entire set.
+
+The input and target manifests become immutable at registration. Registration does not claim recovery, correctness of comparison outputs, or completion of the unseen gate.

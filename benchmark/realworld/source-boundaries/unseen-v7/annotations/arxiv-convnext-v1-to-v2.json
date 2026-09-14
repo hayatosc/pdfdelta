@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "arxiv-convnext-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 1678,
+          "end": 3089
+        }
+      },
+      "literal_quote": "Apartfromthedesignofthenetworkarchitecture,thetrainingprocedurealsoaffectstheultimateperformance.NotonlydidvisionTransformersbringanewsetofmodulesandarchitecturaldesigndecisions,buttheyalsointroduceddifferenttrainingtechniques(e.g.AdamWoptimizer)tovi-sion.Thispertainsmostlytotheoptimizationstrategyandassociatedhyper-parametersettings.Thus,theﬁrststepofourexplorationistotrainabaselinemodelwiththevi-sionTransformertrainingprocedure,inthiscase,ResNet-50/200.Arecentpaper[76]demonstrateshowasetofmoderntrainingtechniquescansigniﬁcantlyenhancetheperformanceofasimpleResNet-50model.Inourstudy,weuseatrainingrecipethatisclosetoDeiT’s[68]andSwinTransformer’s[42].Thetrainingisextendedto300epochsfromtheoriginal90epochsforResNets.WeusetheAdamWoptimizer[43],dataaugmentationtechniquessuchasMixup[85],Cutmix[84],RandAugment[12],RandomErasing[86],andregularizationschemesincludingStochas-ticDepth[33]andLabelSmoothing[65].Thecompletesetofhyper-parametersweusecanbefoundinAppendixA.1.Byitself,thisenhancedtrainingrecipeincreasedtheperfor-manceoftheResNet-50modelfrom76.1%[1]to78.8%(+2.7%),implyingthatasigniﬁcantportionoftheperfor-mancedifferencebetweentraditionalConvNetsandvisionTransformersmaybeduetothetrainingtechniques.Wewillusethisﬁxedtrainingrecipewiththesamehyperparametersthroughoutthe“modernization”process.Eachreportedac-curacyontheResNet-50regimeisanaverageobtainedfromtrainingwiththreedifferentrandomseeds.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 1660,
+          "end": 1678
+        }
+      },
+      "literal_quote": "TrainingTechniques",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 1726,
+          "end": 3140
+        }
+      },
+      "literal_quote": "Apartfromthedesignofthenetworkarchitecture,thetrainingprocedurealsoaffectstheultimateperformance.NotonlydidvisionTransformersbringanewsetofmodulesandarchitecturaldesigndecisions,buttheyalsointroduceddifferenttrainingtechniques(e.g.AdamWoptimizer)tovi-sion.Thispertainsmostlytotheoptimizationstrategyandassociatedhyper-parametersettings.Thus,theﬁrststepofourexplorationistotrainabaselinemodelwiththevi-sionTransformertrainingprocedure,inthiscase,ResNet-50/200.Recentstudies[7,81]demonstratethatasetofmoderntrainingtechniquescansigniﬁcantlyenhancetheperformanceofasimpleResNet-50model.Inourstudy,weuseatrainingrecipethatisclosetoDeiT’s[73]andSwinTransformer’s[45].Thetrainingisextendedto300epochsfromtheoriginal90epochsforResNets.WeusetheAdamWoptimizer[46],dataaugmentationtechniquessuchasMixup[90],Cutmix[89],RandAugment[14],RandomErasing[91],andregularizationschemesincludingStochas-ticDepth[36]andLabelSmoothing[69].Thecompletesetofhyper-parametersweusecanbefoundinAppendixA.1.Byitself,thisenhancedtrainingrecipeincreasedtheperfor-manceoftheResNet-50modelfrom76.1%[1]to78.8%(+2.7%),implyingthatasigniﬁcantportionoftheperfor-mancedifferencebetweentraditionalConvNetsandvisionTransformersmaybeduetothetrainingtechniques.Wewillusethisﬁxedtrainingrecipewiththesamehyperparametersthroughoutthe“modernization”process.Eachreportedac-curacyontheResNet-50regimeisanaverageobtainedfromtrainingwiththreedifferentrandomseeds.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 1708,
+          "end": 1726
+        }
+      },
+      "literal_quote": "TrainingTechniques",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "d1d7a3bc34e584255fcf1407621d7de35d168e2c95cf69ace8b8cf5ba61499dc",
+  "new_sha256": "1fde2340370d0eb8045bda97fc94da7adb2a7abe8e6ded1a473d22475b945e1a"
+}

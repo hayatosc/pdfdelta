@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "edpb-facial-recognition-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 1589,
+          "end": 1934
+        }
+      },
+      "literal_quote": "Several other fundamental rights may be affected by the application of FRT, as well. Hence, the EU Charter of Fundamental Rights (“the Charter”) is essential for the interpretation of the LED, in particular the right to protection of personal data of Article 8 of the Charter, but also the right to privacy laid down by Article 7 of the Charter.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 45,
+          "end": 62
+        }
+      },
+      "literal_quote": "EXECUTIVE SUMMARY",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 1556,
+          "end": 1900
+        }
+      },
+      "literal_quote": "Several other fundamental rights may be affected by the application of FRT as well. Hence, the EU Charter of Fundamental Rights (“the Charter”) is essential for the interpretation of the LED, in particular the right to protection of personal data of Article 8 of the Charter, but also the right to privacy laid down in Article 7 of the Charter.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 12,
+          "end": 29
+        }
+      },
+      "literal_quote": "EXECUTIVE SUMMARY",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "9178b666bd2f7b5b8964772fc13e8b2ab2ad005450a93e113354704169118e0b",
+  "new_sha256": "ff64ebd61e11d5c23398d9ddde2c0eb117e532cf74e9cde11e8a13c5a09b6c37"
+}

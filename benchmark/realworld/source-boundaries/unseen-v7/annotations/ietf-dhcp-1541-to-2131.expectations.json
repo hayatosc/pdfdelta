@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-dhcp-1541-to-2131",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "46f41071b9c48732104b68464618a556e97efd24f3e02ae3d820e1709ca1d7c0",
+  "body_eligible": true,
+  "reason": "Complete Abstract, including the old final RFC-1531 editorial sentence that is removed in the revision. The primary PDF also prints TCPIP in place of TCP/IP; literal source text and internal indentation remain."
+}

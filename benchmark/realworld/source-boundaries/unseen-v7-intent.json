@@ -1,0 +1,132 @@
+{
+  "version": 7,
+  "freeze_utc": "2026-09-14T02:01:44.372763+00:00",
+  "production_sha256": "a03f782ed1700006bfd2a161e8cc9b8952e1bccf5e41680184abb3278d763c13",
+  "binary": {
+    "path": "benchmark/realworld/cache/source-boundaries-column-edges-v65/pdfdelta",
+    "sha256": "7c8b3dafb6bbcfaa6da1aa564a65a1a1d67506f7002b1989b6917afc86f80275"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-column-edges-v65/build.json",
+    "sha256": "ac4c2820dc21783bbeff6fc6d84ee568687f48a58b9685a6f559adf0f0ff416e"
+  },
+  "implementation_commit": "58d1e6ad794246292e8f41d2b9f2a36f18d27a90",
+  "lockfile_sha256": "8569dfacfce366a1f9ae51ce3ba9a4141a84e469bcd3e7dd09c37f3de9645ed7",
+  "development": {
+    "path": "benchmark/realworld/source-boundaries/v65-development.json",
+    "sha256": "a9b2ee8b61b9e3a55e9744d037ebd3c56411da1b7a6a0c16e1b811f7e831b98b"
+  },
+  "development_verification": {
+    "path": "benchmark/realworld/source-boundaries/checks/v65-development-verification.log",
+    "sha256": "4c1cbd9c73acac234f859c6a7b182a73f4adbd254f8a1ee35cfe34620d9396e5"
+  },
+  "settings": {
+    "channels": [
+      "text"
+    ],
+    "timeout_seconds": 180,
+    "limit_scale": 1,
+    "repetitions": 2,
+    "native_timeout_seconds": 35,
+    "native_max_response_bytes": 134217728
+  },
+  "selection_rule": "Select twelve previously unexposed natural revision series from primary sources, at least six publication families, English and Japanese and at least three independent producers. Register source-resolved finite prose targets before any comparison. Prefer the first changed prose paragraph within a corresponding named section, including an abstract when changed; source annotations must retain its full finite extent. Retain all selected failures. No output-driven replacement. Any implementation/configuration change retires the full set.",
+  "prior_exposure": [
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v1-intent.json",
+      "sha256": "efb67f3d96c9fc5f31f40c7e18283dcbbe7317445f9b5ec4c447c4aa99e58726"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v1-selection-resolved.json",
+      "sha256": "d605cfa29153514b291ba50420ebb01843342b9ce101246691e80988c17394d7"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v1-retirement.json",
+      "sha256": "d88b4c4bba86621d06fc6d69a8106b40fd79bfb06b10020086d1efa704ad7dbd"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v2-intent.json",
+      "sha256": "8f2c448c4fe242726dc5a1eed7258d1d37a391cdb42088c4842dd55798a8863d"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v2-selection.json",
+      "sha256": "e87e0b565c719ae2151a0c6e774c2410154ca9b8b75890d629a581dc3f7da59e"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v2-selection-resolved.json",
+      "sha256": "b6759f719ab40c3b4dd759f1bf3d0ec4d58c29a0b49fb1bb0cb5b2c657a6785a"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v2-retirement.json",
+      "sha256": "b9bb94f2d6b17aef01ad064fdd9892a1aec928f43a03f042fa8ab79a0c98e28e"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v3-intent.json",
+      "sha256": "83a4329ba9296e478a92d7c3f08cb099d0b52b2813e3fb65304d19cc33f2ce1d"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v3-selection.json",
+      "sha256": "9a376729e5c8fca6d98f806bfdc3be4d84944458b7b908c51c9633c013d07292"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v3-selection-resolved.json",
+      "sha256": "7b890ca6bd66ecb006ca4e227122bb2ac8f08cd30d371ca92387db0407b036e7"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v3-retirement.json",
+      "sha256": "fba836478e753687ff35f04881f7b52a8f59ee92389043fecb5d1710506ef91c"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v4-intent.json",
+      "sha256": "a111d82867192be93a40260c9d81501b135079f08a9b67e4d08296e5220eac07"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v4-selection-resolved.json",
+      "sha256": "94b5962e25ad0c88a94802bbd883ec456f231835c97ba4528b8f1545e1321959"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v4-retirement.json",
+      "sha256": "6db3385ece2bd8f30cecf9e7a016970befc2a792abd226524df5298e03983b47"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v4-simclr-source-rejection.json",
+      "sha256": "12a720b9775e7f2313bed50641d046fa49e32c120e9e2038727750ff4cff24f1"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v4-switch-source-rejection.json",
+      "sha256": "2b4c875ff58b82e4d945e091353d06f1fb0a186de6b4743125e82ab98fd86bdf"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v4-dino-source-rejection.json",
+      "sha256": "dc57b7e5dc3d33ac5bf86ee640c44c78edc9eb589270a035bf27e749e122e707"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v5-intent.json",
+      "sha256": "fb51ede21f3b240cb2fe5857282533ea72509afdacead6dec327a0916c3f02a6"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v5-selection-resolved.json",
+      "sha256": "60707f5b6337aa170b98cb5c915a66cd487336f48bc490eebc225351f4d93061"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v5-retirement.json",
+      "sha256": "baee8efc1c7671d0d273e040f200216b862fac835f7f513f3d14f3bcb272a4c1"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-intent.json",
+      "sha256": "fd52a8b36e8f4edd99f4edf2b93846a77237a4e7a779af1fe91f66626f337a94"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-selection-resolved.json",
+      "sha256": "a7186d9e9241388a6992b797e3d89fe6504d7bf245d0c3aaf4107da944422833"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-retirement.json",
+      "sha256": "57c900f541351b74583f4e241975d30141cfdaf982e132e051e669a62b9a6e43"
+    }
+  ],
+  "chronology_note": "Written before selecting, searching primary sources for, downloading or comparing any new V7 series. The temporary V65 budget diagnostic was fully removed and the source fingerprint rechecked. All prior selected, rejected and considered series, including edition aliases and translations, remain excluded. Natural segmented recovery is unproved and is not counted as an achieved result.",
+  "pre_freeze_considerations_excluded": [
+    "NIST SP 800-56 (all parts and revisions)"
+  ]
+}

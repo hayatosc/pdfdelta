@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-convnext-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "6c6f99b9b8736ae9cba1ea357d675485a28361f4339294a1b3f4cf1d0e715983",
+  "body_eligible": true,
+  "reason": "Training Techniques, complete opening paragraph from Apart from the design through three different random seeds, crossing from the bottom of the left column to the top of the right column. Earlier abstract prose is unchanged and introduction citation-only changes are not prose targets. This paragraph changes A recent paper demonstrates how to Recent studies demonstrate that, as well as references."
+}

@@ -1,0 +1,49 @@
+{
+  "version": 7,
+  "frozen": true,
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "ietf-message-format-2822-to-5322",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Internet Message Format",
+      "old_revision": "RFC 2822",
+      "new_revision": "RFC 5322",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2822.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-message-format-2822-to-5322-old.pdf",
+        "sha256": "6ccf5ff890bacf32c84aeac0478f875f727968cca46f9878950aa11c4f90306b",
+        "bytes": 67879
+      },
+      "new": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc5322.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-message-format-2822-to-5322-new.pdf",
+        "sha256": "a6a766b763b5357cf4258203409802c028bb6469fa53c669b9490c8d623049cb",
+        "bytes": 76795
+      }
+    },
+    {
+      "id": "ietf-dhcp-1541-to-2131",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Dynamic Host Configuration Protocol",
+      "old_revision": "RFC 1541",
+      "new_revision": "RFC 2131",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc1541.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-dhcp-1541-to-2131-old.pdf",
+        "sha256": "a59766f280cf373a93873bc35b743a9e9a3a5f1da7908fcc2b1ca8cc1b6feb9c",
+        "bytes": 52305
+      },
+      "new": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2131.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-dhcp-1541-to-2131-new.pdf",
+        "sha256": "2e0aa93deca92fc13d8d712ec2d1f332a79fc49e00a514de32c51aab75379758",
+        "bytes": 62073
+      }
+    }
+  ]
+}

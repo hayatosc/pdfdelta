@@ -1,0 +1,176 @@
+{
+  "version": 7,
+  "selection_started_utc": "2026-09-14T02:01:58.199405+00:00",
+  "selection_recorded_utc": "2026-09-14T02:06:31.075910+00:00",
+  "comparison_performed": false,
+  "rule": "Twelve post-freeze natural revision series. Register source-resolved full finite prose paragraphs before comparison; retain acquisition and source-only failures. No output-driven replacement.",
+  "chronology": "Primary publication metadata and linked publication headers were scouted after the intent freeze; no local source inspection or PDF pair comparison has run. Selected original and revised editions will be verified from primary bytes.",
+  "pairs": [
+    {
+      "id": "nist-107-original-to-r1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-107 applications using approved hash algorithms",
+      "old_revision": "2009",
+      "new_revision": "Revision 1",
+      "language": "en",
+      "old": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-107.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-107r1.pdf"
+    },
+    {
+      "id": "nist-108-original-to-r1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-108 key derivation using pseudorandom functions",
+      "old_revision": "2009 revised edition",
+      "new_revision": "Revision 1 Update 1",
+      "language": "en",
+      "old": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-108.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-108r1-upd1.pdf"
+    },
+    {
+      "id": "nist-133-r1-to-r2",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-133 cryptographic key generation",
+      "old_revision": "Revision 1",
+      "new_revision": "Revision 2",
+      "language": "en",
+      "old": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-133r1.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-133r2.pdf"
+    },
+    {
+      "id": "edpb-eprivacy-scope-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 2/2023 technical scope of Article 5(3) ePrivacy Directive",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "language": "en",
+      "old": "https://www.edpb.europa.eu/system/files/2023-11/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_en.pdf",
+      "new": "https://www.edpb.europa.eu/system/files/documents/2024-10/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_v2_en_0.pdf"
+    },
+    {
+      "id": "edpb-facial-recognition-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 05/2022 facial recognition in law enforcement",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "language": "en",
+      "old": "https://www.edpb.europa.eu/system/files/2022-05/edpb-guidelines_202205_frtlawenforcement_en_1.pdf",
+      "new": "https://www.edpb.europa.eu/system/files/documents/2023-05/edpb_guidelines_202304_frtlawenforcement_v2_en.pdf"
+    },
+    {
+      "id": "arxiv-efficientnet-v1-to-v5",
+      "family": "arxiv-paper",
+      "independent_producer": "Google",
+      "series": "arXiv 1905.11946 EfficientNet",
+      "old_revision": "v1",
+      "new_revision": "v5",
+      "language": "en",
+      "old": "https://arxiv.org/pdf/1905.11946v1",
+      "new": "https://arxiv.org/pdf/1905.11946v5"
+    },
+    {
+      "id": "arxiv-convnext-v1-to-v2",
+      "family": "arxiv-paper",
+      "independent_producer": "Meta",
+      "series": "arXiv 2201.03545 A ConvNet for the 2020s",
+      "old_revision": "v1",
+      "new_revision": "v2",
+      "language": "en",
+      "old": "https://arxiv.org/pdf/2201.03545v1",
+      "new": "https://arxiv.org/pdf/2201.03545v2"
+    },
+    {
+      "id": "arxiv-mlp-mixer-v1-to-v4",
+      "family": "arxiv-paper",
+      "independent_producer": "Google",
+      "series": "arXiv 2105.01601 MLP-Mixer",
+      "old_revision": "v1",
+      "new_revision": "v4",
+      "language": "en",
+      "old": "https://arxiv.org/pdf/2105.01601v1",
+      "new": "https://arxiv.org/pdf/2105.01601v4"
+    },
+    {
+      "id": "faa-fsb-53b-to-53c",
+      "family": "faa-advisory",
+      "independent_producer": "FAA",
+      "series": "AC 120-53 Flight Standardization Board evaluations",
+      "old_revision": "Revision B",
+      "new_revision": "Revision C",
+      "language": "en",
+      "old": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-53B.pdf",
+      "new": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-53C.pdf"
+    },
+    {
+      "id": "mhlw-working-time-2001-to-2017",
+      "family": "japanese-guidance",
+      "independent_producer": "MHLW",
+      "series": "Employer measures for accurate working time records",
+      "old_revision": "2001 standard",
+      "new_revision": "2017 guideline",
+      "language": "ja",
+      "old": "https://www.mhlw.go.jp/content/11201000/6.pdf",
+      "new": "https://www.mhlw.go.jp/file/06-Seisakujouhou-11200000-Roudoukijunkyoku/0000149439.pdf"
+    },
+    {
+      "id": "ietf-message-format-2822-to-5322",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Internet Message Format",
+      "old_revision": "RFC 2822",
+      "new_revision": "RFC 5322",
+      "language": "en",
+      "old": "https://www.rfc-editor.org/rfc/rfc2822.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc5322.pdf"
+    },
+    {
+      "id": "ietf-dhcp-1541-to-2131",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Dynamic Host Configuration Protocol",
+      "old_revision": "RFC 1541",
+      "new_revision": "RFC 2131",
+      "language": "en",
+      "old": "https://www.rfc-editor.org/rfc/rfc1541.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc2131.pdf"
+    }
+  ],
+  "metadata_only_nonselections": [
+    {
+      "series": "NIST SP 800-38A",
+      "reason": "No published revised edition was established from the primary publication record and revision announcement."
+    },
+    {
+      "series": "NIST SP 800-77",
+      "reason": "Considered but not selected; prefer shorter NIST publications for this panel. No pair comparison was performed."
+    },
+    {
+      "series": "NIST SP 800-132",
+      "reason": "Considered but not selected; three other NIST series were selected. No pair comparison was performed."
+    },
+    {
+      "series": "arXiv 1905.02244 MobileNetV3",
+      "reason": "Conservatively exclude as related to the already exposed MobileNet research series."
+    },
+    {
+      "series": "arXiv 2204.02311 PaLM",
+      "reason": "Considered but not selected; prefer shorter research papers for this panel. No pair comparison was performed."
+    },
+    {
+      "series": "FAA AC 120-100",
+      "reason": "A revised edition was not established from the primary records."
+    },
+    {
+      "series": "FAA AC 120-54",
+      "reason": "The original edition record links to the revised PDF; no distinct original PDF was established. Another FAA series is selected."
+    },
+    {
+      "series": "FAA AC 120-35",
+      "reason": "Considered but not selected; AC 120-53 has an explicit current supersession record."
+    }
+  ]
+}

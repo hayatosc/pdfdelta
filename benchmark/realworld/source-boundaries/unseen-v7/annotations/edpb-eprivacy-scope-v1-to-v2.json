@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "edpb-eprivacy-scope-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 974,
+          "end": 1788
+        }
+      },
+      "literal_quote": "According to Article 5(3) ePD, ‘the storing of information, or the gaining of access to information already stored, in the terminal equipment of a subscriber or user’ is only allowed on the basis of consent or necessity for specific purposes set out in that Article. As reminded in Recital 24 of the ePD, the goal of that provision is to protect the users’ terminal equipment, as they are part of the private sphere of the users. It results from the wording of the Article and has been made clear (for example, in the Article 29 Working Party (hereinafter, ‘WP29’) Opinion 4/2012 on Cookie Consent Exemption2), that Article 5(3) ePD does not exclusively apply to cookies, but also to ‘similar technologies’. However, there is currently no comprehensive list of the technical operations covered by Article 5(3) ePD.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 957,
+          "end": 969
+        }
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 977,
+          "end": 1658
+        }
+      },
+      "literal_quote": "According to Article 5(3) ePD, ‘the storing of information, or the gaining of access to information already stored, in the terminal equipment of a subscriber or user’ is only allowed on the basis of consent or necessity for specific purposes set out in that Article. As reminded in Recital 24 of the ePD2, the goal of that provision is to protect the users’ terminal equipment, as they are part of the private sphere  of the users.  It results from the wording of the Article, that Article 5(3) ePD does not exclusively apply to cookies, but also to ‘similar technologies’. However, there is currently no comprehensive list  of the technical operations covered by Article 5(3) ePD.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 960,
+          "end": 972
+        }
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "3ed136e340596b022366c47fba4aa179c3050667057f319a6443167c1fcb1e0b",
+  "new_sha256": "dbc1d37783e35ae8668925f92a590ae282eec24c98381a5a8f91b5c2048b5b03"
+}

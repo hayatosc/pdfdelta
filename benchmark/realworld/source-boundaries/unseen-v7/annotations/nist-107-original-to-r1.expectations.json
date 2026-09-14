@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-107-original-to-r1",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "897a322db71309dc51b6057434dad7c6d6f85f7c140d63ef4229a4a6f1d07e0f",
+  "body_eligible": true,
+  "reason": "Complete Abstract, including changed cryptographic-hash wording and the FIPS revision."
+}
