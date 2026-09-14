@@ -1668,6 +1668,137 @@ fn whole_node_intervals_can_retain_a_raw_parent_for_content_edge_refinement() {
 }
 
 #[test]
+fn interleaved_layout_tokens_do_not_prove_a_native_source_change() {
+    for interleaved_paint in [false, true] {
+        for reverse in [false, true] {
+            for independent_change in [false, true] {
+                let mut old =
+                    fixture_rows(&["BEGIN", "abcd", "WXYZ", "MIDDLE", "Budget 10.", "END"]);
+                let mut new = fixture_rows(&[
+                    "BEGIN",
+                    "abcd",
+                    "WXYZ",
+                    "MIDDLE",
+                    if independent_change {
+                        "Budget 20."
+                    } else {
+                        "Budget 10."
+                    },
+                    "END",
+                ]);
+                merge_following_node(&mut old, 2);
+                merge_following_node(&mut new, 2);
+                let NodeContent::Text { view } = &mut new.1.nodes[2].content else {
+                    unreachable!()
+                };
+                let original = view.clone();
+                for (position, source) in [0, 4, 1, 5, 2, 6, 3, 7].into_iter().enumerate() {
+                    view.tokens[position] = original.tokens[source].clone();
+                    view.origins[position] = original.origins[source].clone();
+                }
+                if interleaved_paint {
+                    let mut glyphs = new.0.native.items().to_vec();
+                    let first = view.origins[0][0];
+                    let SourceRef::Native { glyph: first } = first else {
+                        unreachable!()
+                    };
+                    let base = glyphs
+                        .iter()
+                        .find(|glyph| glyph.id == first)
+                        .expect("first interleaved glyph")
+                        .render_order;
+                    for (position, origins) in view.origins.iter().enumerate() {
+                        let SourceRef::Native { glyph: id } = origins[0] else {
+                            unreachable!()
+                        };
+                        glyphs
+                            .iter_mut()
+                            .find(|glyph| glyph.id == id)
+                            .expect("interleaved glyph")
+                            .render_order = base + position as u32;
+                    }
+                    new.0.native = Document::new(glyphs);
+                }
+                let control = old.1.nodes[2].sources.clone();
+                let result = if reverse {
+                    compare(&new, &old)
+                } else {
+                    compare(&old, &new)
+                };
+                let reviews: Vec<_> = result
+                    .scopes
+                    .iter()
+                    .flat_map(|scope| &scope.result.text_scope_reviews)
+                    .collect();
+                assert!(
+                    reviews.iter().all(|review| {
+                        review
+                            .old_sources
+                            .iter()
+                            .chain(&review.new_sources)
+                            .all(|source| !control.contains(source))
+                    }),
+                    "reconstructed order cannot manufacture a change: {reviews:?}"
+                );
+                assert_eq!(
+                    reviews.is_empty(),
+                    !independent_change,
+                    "an independent, source-ordered change must survive"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn raised_native_markers_retain_their_source_order() {
+    let mut old = fixture("Reference1 continues.");
+    let mut new = fixture("Reference2 continues.");
+    for fixture in [&mut old, &mut new] {
+        let SourceRef::Native { glyph: marker } = fixture.1.nodes[2].sources[9] else {
+            unreachable!()
+        };
+        let mut glyphs = fixture.0.native.items().to_vec();
+        let glyph = glyphs
+            .iter_mut()
+            .find(|glyph| glyph.id == marker)
+            .expect("retained footnote marker");
+        glyph.baseline.y += 3.0;
+        glyph.bbox.min.y += 3.0;
+        glyph.bbox.max.y += 3.0;
+        fixture.0.native = Document::new(glyphs);
+    }
+    let result = compare(&old, &new);
+    assert!(result.scopes.iter().any(|scope| {
+        scope.result.text_scope_reviews.iter().any(|review| {
+            review.source_cuts.is_none()
+                && review.old_sources == old.1.nodes[2].sources
+                && review.new_sources == new.1.nodes[2].sources
+                && review.comparison.text_mask.is_none()
+                && review.comparison.text_change_proof.is_some()
+        })
+    }));
+}
+
+#[test]
+fn literal_space_projection_does_not_manufacture_a_whole_range_change() {
+    let mut old = fixture("Value 10.  ");
+    let new = fixture("Value 10.  ");
+    collapse_last_two_literal_spaces(&mut old.1.nodes[2]);
+    let NodeContent::Text { view } = &mut old.1.nodes[2].content else {
+        unreachable!()
+    };
+    view.normalization = TextNormalization::Exact;
+    let result = compare(&old, &new);
+    assert!(
+        result
+            .scopes
+            .iter()
+            .all(|scope| scope.result.text_scope_reviews.is_empty())
+    );
+}
+
+#[test]
 fn native_context_outside_an_interval_keeps_its_adjacent_boundaries() {
     for (header, footer) in [(true, false), (false, true), (true, true)] {
         let mut old = fixture_rows(&["TITLE", "BEGIN", "Budget 10.  ", "END", "STOP", "FOOT"]);

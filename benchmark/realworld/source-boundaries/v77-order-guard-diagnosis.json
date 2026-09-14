@@ -1,0 +1,102 @@
+{
+  "version": 77,
+  "status": "superseded_by_a_confirmed_interleaved_paint_counterexample",
+  "initial_failure": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v9-correctness-failure.json",
+    "sha256": "2c27ed3c5f4c9689c1da0023e5d2e6ac6698bcf914f4f0df3989958b268dc5c3"
+  },
+  "retirement": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v9-retirement.json",
+    "sha256": "63e522da457b7c1c442f2ac43b6eb534a785a2729d7817c6592d7f0dd6a2962f"
+  },
+  "rejected_initial_fix": {
+    "path": "benchmark/realworld/source-boundaries/v76-panel-summary.json",
+    "sha256": "9108494c09dd16839e41ce1c3cef4f4cfe1977f6ec3a7924385535e7feee11c4"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-guard-v77-final/build.json",
+    "sha256": "0e3c0d5fbd026716cff8de491fe00f2c5a0618787faa77b1360b477e9271f060"
+  },
+  "quality": {
+    "path": "benchmark/realworld/source-boundaries/checks/v77-quality-retry.json",
+    "sha256": "b74a2f57caf942a5b9dbd91f6e9ca0e17d26a04294545bb81417d0db387b0b35"
+  },
+  "benchmark": {
+    "command": [
+      "cargo",
+      "run",
+      "-p",
+      "pdfdelta-bench",
+      "--locked",
+      "--",
+      "verify"
+    ],
+    "exit_code": 0,
+    "result": "48/48 passed",
+    "log": {
+      "path": "benchmark/realworld/source-boundaries/checks/v77-bench-verify.log",
+      "sha256": "9c7373b907a19d717d01229c48fbf489f13cb307eb3cc8e5571fa6975b9f3fbf"
+    }
+  },
+  "regressions": {
+    "interleaved_two_line_view": "no native source change, both revision directions, with and without an independent genuine change",
+    "raised_marker": "whole-node changed range remains supported under retained paint order",
+    "without_guard_exit_code": 101,
+    "without_guard_log": {
+      "path": "benchmark/realworld/source-boundaries/checks/v76-regression-without-guard.log",
+      "sha256": "2527916535ee57ddc7dd5fad5a7eb810ef0fde7bc837662133cb224a8a889343"
+    }
+  },
+  "nist126": {
+    "prior_report": {
+      "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/current-repetition1/nist-126-r2-to-r3-text.json",
+      "sha256": "1971c17207ea744c13ff8c7fdb40137ba86b139c27b2f99b85413665f2aed50c"
+    },
+    "candidate_report": {
+      "path": "benchmark/realworld/cache/source-boundaries-order-guard-v77/nist-126-r2-to-r3/nist-126-r2-to-r3-text.json",
+      "sha256": "3eefb983c1e00299bf1f109820f60d3f90f741142fd049a096589e685534d998"
+    },
+    "prior_count": 23,
+    "candidate_count": 19,
+    "added": [],
+    "removed": [
+      "/comparison/scopes/0/result/text_scope_reviews/15",
+      "/comparison/scopes/0/result/text_scope_reviews/16",
+      "/comparison/scopes/0/result/text_scope_reviews/17",
+      "/comparison/scopes/0/result/text_scope_reviews/22"
+    ],
+    "retained_full_review_payloads_identical": true,
+    "known_false_indices_absent": [
+      16,
+      17
+    ],
+    "contaminated_mask_index_absent": 15
+  },
+  "fixed_target_pilots": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-order-guard-v77/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "393f92289c0aa3115ce7b86a5d3b31e69d3042f5dec1ff3834ee29c9a1f23929"
+      },
+      "exact_fixed_range_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ]
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-order-guard-v77/nist-ssdf-draft-to-final/nist-ssdf-draft-to-final-text.json",
+        "sha256": "fe432fc146fac27ebbccc42f419953f1334d5e644e7bdb141fd725ee3d4c485b"
+      },
+      "exact_fixed_range_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ]
+    }
+  ],
+  "scope": "No unseen or formal development claim. The rejected initial candidate removed two established fixed-range recoveries; the revised guard retains paint order for raised markers, independently checks spatial reordering, and preserves population-only closure for subsequent source cuts.",
+  "subsequent_result": {
+    "path": "benchmark/realworld/source-boundaries/v77-development-summary.json",
+    "sha256": "cf7c904b2faf37f786b7ac16aa6a6db7018816cdb9b9f948461993ac9b3db645"
+  }
+}

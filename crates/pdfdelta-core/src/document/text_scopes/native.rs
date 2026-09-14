@@ -409,6 +409,7 @@ impl<'a> Sources<'a> {
         }
         Some((projected, boundaries))
     }
+
     pub(super) fn project(
         &self,
         node: &GraphNode,

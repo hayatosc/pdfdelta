@@ -1,0 +1,62 @@
+{
+  "version": 77,
+  "gates_on_the_registered_panel": {
+    "G1": {
+      "observed_pairs": 6,
+      "required_pairs": 6,
+      "observed_producers": 3,
+      "required_producers": 3,
+      "passed": true
+    },
+    "G2": {
+      "observed_pairs": 0,
+      "required_pairs": 3,
+      "observed_producers": 0,
+      "required_producers": 2,
+      "passed": false
+    },
+    "G3": {
+      "gained_pairs": [],
+      "lost_pairs": [],
+      "required_gain": 2,
+      "allowed_losses": 0,
+      "passed": false
+    },
+    "G4": {
+      "passed": true
+    },
+    "G5": {
+      "passed": false
+    }
+  },
+  "verification": {
+    "path": "benchmark/realworld/source-boundaries/checks/v77-development-verification.log",
+    "sha256": "de805809fe77a4fce717ff9144757f7be40b2e47c579231b7907b72495c7bd42"
+  },
+  "development": {
+    "path": "benchmark/realworld/source-boundaries/v77-development.json",
+    "sha256": "45146efbad9adde655ee35f982b515331a6890b10467269c19703abbc76097e1"
+  },
+  "quality": {
+    "path": "benchmark/realworld/source-boundaries/v77-quality-checks.json",
+    "sha256": "a3d18ab3504b3a70e88bd2d091ae7419e6d44b36d5be254afa96b9bcbb17bf8b"
+  },
+  "controls": {
+    "path": "benchmark/realworld/source-boundaries/v77-reviewed-control-results.json",
+    "sha256": "7f50ff2f782b51023587d6574c13383291b850956acf1124908a1a3963a432a4"
+  },
+  "capture_costs": {
+    "path": "benchmark/realworld/source-boundaries/v77-capture-costs.json",
+    "sha256": "3e91a0e79834c5e91e8f9470073efc0ce4693cd02d1dea2f04acb2b2a4e1784f"
+  },
+  "later_counterexample": {
+    "log": {
+      "path": "benchmark/realworld/source-boundaries/checks/v77-interleaved-paint-regression.log",
+      "sha256": "6c80da2f6db5f5f03742f1572b0928e49eead14f8896d5db3fddd71a17b9e5d2"
+    },
+    "exit_code": 101,
+    "description": "Unchanged two-row glyph geometry with both the native paint sequence and reconstructed view interleaved still emits a false B. Retained paint order alone does not establish reading order."
+  },
+  "adoption": "rejected_after_new_counterexample",
+  "scope": "The registered G1/G4 calculation passes, but the broader correctness obligation fails. V77 is not frozen for a new unseen campaign or adopted as a sound final fix."
+}

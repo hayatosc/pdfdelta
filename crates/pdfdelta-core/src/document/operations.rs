@@ -407,6 +407,31 @@ fn source_multiplicity_change(
     })
 }
 
+/// Recheck an already compared native range using an order-independent witness.
+/// Whitespace cannot supply this witness, and optional source tokens retain
+/// their full count intervals. The caller must discard the ordered mask.
+pub(super) fn native_count_change(
+    old: &[&GraphNode],
+    new: &[&GraphNode],
+    limits: LocalComparisonLimits,
+    remaining: &mut usize,
+) -> Result<Option<SourceTokenMultiplicity>> {
+    let mut tokens = 0;
+    let mut references = 0;
+    let a = concatenate_text(old, limits, &mut tokens, &mut references)?;
+    let b = concatenate_text(new, limits, &mut tokens, &mut references)?;
+    let work = tokens
+        .saturating_add(references)
+        .saturating_add(old.len())
+        .saturating_add(new.len());
+    let Some(next) = remaining.checked_sub(work) else {
+        *remaining = 0;
+        return Ok(None);
+    };
+    *remaining = next;
+    Ok(source_multiplicity_change(&a, &b, remaining))
+}
+
 fn concatenate_text(
     nodes: &[&GraphNode],
     limits: LocalComparisonLimits,

@@ -47,24 +47,6 @@
         "path": "benchmark/realworld/source-boundaries/checks/v78-final-quality-2.log",
         "sha256": "9c90d084618530434f873cda6fcf343d47ac4fe60fe368093a09e0b42b569271"
       }
-    },
-    {
-      "command": [
-        "cargo",
-        "run",
-        "-p",
-        "pdfdelta-bench",
-        "--locked",
-        "--",
-        "verify"
-      ],
-      "exit_code": 0,
-      "seconds": 15.652512794997165,
-      "log": {
-        "path": "benchmark/realworld/source-boundaries/checks/v78-quality-3.log",
-        "sha256": "a425b6e4ed05c7beb31a855625eafb09394d0d402a684e69301ff074ccba4757"
-      },
-      "reused_check_note": "The only subsequent Rust change adds a passing whitespace-projection integration test. Production source, benchmark source and fixtures are unchanged, and the final build has the same executable hash."
     }
   ]
 }

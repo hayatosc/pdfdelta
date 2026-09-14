@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "production_sha256": "a35ac75f9dc29ef2f81d317e17b50ec2fa8d1e33ad4f3d8d64a66b7f7611625f",
+  "binary": {
+    "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+    "sha256": "5edefbd89bd4f6d8990d4d7553fb34645892815ad5e41a28ddf0ab10056dbffc"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-closed-components-v75/build.json",
+    "sha256": "a9d77d8ded90d45ab0d1ebc5bca076fd61158d317d2862c7081aff181cfd37af"
+  },
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v75-repeated-observations.json",
+    "sha256": "3ba76f0f1e76aab2ae700402990a395ec0598ae85f9d6fee7e315766a7fbcac9"
+  },
+  "adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v75-formal-adjudications.json",
+    "sha256": "34739385c982d2ed4120a992cbcf508c2157e27edf451dbc07e741d68319f4ba"
+  },
+  "controls": {
+    "path": "benchmark/realworld/source-boundaries/v75-reviewed-control-observations.json",
+    "sha256": "44692409fe3533fb72457c4e66410fb76b11b79ad8adb93f309703c124dd9896"
+  },
+  "scope": "V75 adds source-closed horizontal component views under the unchanged budget, preserving established whole-node and raw-interval priority. Closure reuse requires identical ordered borrowed nodes in the same immutable pair and pass. Both 36-pair repetitions have identical 227 event and complete review payloads: one A and 226 B. Eight additions are independently source-reviewed; two outside-target B outputs are lost. All 189 control payloads are unchanged. The retired NIST target recovery is diagnostic only; fresh unseen and natural segmented recovery remain unproved."
+}

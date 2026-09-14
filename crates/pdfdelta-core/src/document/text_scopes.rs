@@ -738,7 +738,7 @@ fn append_pass(
                     if parent == InterpretationStatus::Inferred {
                         comparison.interpretation = InterpretationStatus::Inferred;
                     }
-                    let review = TextScopeReview {
+                    let mut review = TextScopeReview {
                         convention: if padding_boundary && bounded_paint {
                             "closed-native-paint-bounds-padding-interval-v1"
                         } else if padding_boundary {
@@ -801,6 +801,37 @@ fn append_pass(
                                     new: new_path.to_vec(),
                                     bounded_paint,
                                 },
+                            );
+                        }
+                    }
+                    if review.comparison.text_mask.is_some()
+                        && let Some((old_sources, new_sources)) = &sources
+                    {
+                        // Population closure does not validate the order inside a
+                        // layout node. Require a source-checked projection before
+                        // allowing its reconstructed token order to establish change.
+                        if [(old_sources, a), (new_sources, b)].into_iter().any(
+                            |(sources, nodes)| {
+                                nodes.iter().any(|node| {
+                                    sources
+                                        .project_census(node, &[], false, remaining)
+                                        .is_none()
+                                })
+                            },
+                        ) {
+                            let Some(proof) = super::operations::native_count_change(
+                                a,
+                                b,
+                                limits.local,
+                                remaining,
+                            )?
+                            else {
+                                continue;
+                            };
+                            review.comparison.text_mask = None;
+                            review.comparison.text_change_proof = Some(proof);
+                            review.comparison.unresolved.push(
+                                "native token order is unresolved; source multiplicity proves change without a mask".into(),
                             );
                         }
                     }

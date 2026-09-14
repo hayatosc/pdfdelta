@@ -1,0 +1,53 @@
+{
+  "version": 78,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-proof-v78-final/build.json",
+    "sha256": "1caaf34ddeca4ecfe629c3f62a3939c3c2ab9c0300f8e5b9704f9937ed89a996"
+  },
+  "known_failure": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v9-correctness-failure.json",
+    "sha256": "2c27ed3c5f4c9689c1da0023e5d2e6ac6698bcf914f4f0df3989958b268dc5c3"
+  },
+  "retirement": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v9-retirement.json",
+    "sha256": "63e522da457b7c1c442f2ac43b6eb534a785a2729d7817c6592d7f0dd6a2962f"
+  },
+  "rejected_v77": {
+    "path": "benchmark/realworld/source-boundaries/v77-development-summary.json",
+    "sha256": "cf7c904b2faf37f786b7ac16aa6a6db7018816cdb9b9f948461993ac9b3db645"
+  },
+  "current_report": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-proof-v78/nist-126-r2-to-r3/nist-126-r2-to-r3-text.json",
+    "sha256": "761e89d3d1e6ec9b2155a1885a405a00ebbf6ae92c7939b7a0c3ebcd4422670a"
+  },
+  "prior_report": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/current-repetition1/nist-126-r2-to-r3-text.json",
+    "sha256": "1971c17207ea744c13ff8c7fdb40137ba86b139c27b2f99b85413665f2aed50c"
+  },
+  "before": 23,
+  "after": 15,
+  "added": [],
+  "removed": [
+    "/comparison/scopes/0/result/text_scope_reviews/15",
+    "/comparison/scopes/0/result/text_scope_reviews/16",
+    "/comparison/scopes/0/result/text_scope_reviews/17",
+    "/comparison/scopes/0/result/text_scope_reviews/18",
+    "/comparison/scopes/0/result/text_scope_reviews/19",
+    "/comparison/scopes/0/result/text_scope_reviews/20",
+    "/comparison/scopes/0/result/text_scope_reviews/21",
+    "/comparison/scopes/0/result/text_scope_reviews/22"
+  ],
+  "retained_complete_payloads_identical": true,
+  "scope": "The two known unchanged-XML false masks and contaminated mask 15 are absent. Additional outputs are conservatively lost; this retired pair is diagnostic and does not establish an unseen gain.",
+  "new_controls": {
+    "interleaved_layout_and_paint": "Pass in both revision directions, preserving an independent change.",
+    "raised_marker": "Only a source-count witness remains; there is no ordered mask.",
+    "literal_space_projection": {
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v78-space-projection-regression.log",
+        "sha256": "e768f1eaab5b8a3656703784ff52affafd3e7df2b190cd6b8bf4276ffb2d9da1"
+      }
+    }
+  }
+}

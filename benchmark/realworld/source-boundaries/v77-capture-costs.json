@@ -1,0 +1,57 @@
+{
+  "scope": "Both complete 36-pair current and preceding development panels under unchanged bytes, routes and resource settings.",
+  "rows": [
+    {
+      "version": 75,
+      "repetition": 1,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v75-panel-observations.json",
+        "sha256": "30846c6f7a07d665ad9fb0a36d43db7f5ec6e2d5b9f76d40e83133cc3b38fbd1"
+      },
+      "attempts": 36,
+      "captured": 36,
+      "wall_seconds": 362.85,
+      "peak_rss_kib": 1232956,
+      "report_bytes": 117744317
+    },
+    {
+      "version": 75,
+      "repetition": 2,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v75-panel-repetition2-observations.json",
+        "sha256": "167746cf143418e49af44bd64ca03e3d4ffcc6b59992ee45dbc8d3d7f5962cc0"
+      },
+      "attempts": 36,
+      "captured": 36,
+      "wall_seconds": 355.84,
+      "peak_rss_kib": 1236060,
+      "report_bytes": 117744317
+    },
+    {
+      "version": 77,
+      "repetition": 1,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v77-panel-observations.json",
+        "sha256": "6df7922074e26e45fa09b090a869287e2ed773ffd1532cd2577cdfe54aa43e9f"
+      },
+      "attempts": 36,
+      "captured": 36,
+      "wall_seconds": 397.39,
+      "peak_rss_kib": 1229524,
+      "report_bytes": 117409075
+    },
+    {
+      "version": 77,
+      "repetition": 2,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v77-panel-repetition2-observations.json",
+        "sha256": "be2adbeb6ee8bb792e9d01e12d92785dd279ad25819256a0d54ac7c7b7ac4856"
+      },
+      "attempts": 36,
+      "captured": 36,
+      "wall_seconds": 360.5,
+      "peak_rss_kib": 1228552,
+      "report_bytes": 117409075
+    }
+  ]
+}

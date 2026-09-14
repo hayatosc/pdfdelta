@@ -1,0 +1,362 @@
+[
+  {
+    "pair": "nist-131a-r1-to-r2",
+    "review_index": 4,
+    "source_checked_optional_hyphens": {
+      "old": [],
+      "new": [
+        {
+          "position": 425,
+          "glyph": 5537
+        }
+      ]
+    },
+    "independent_mask": {
+      "normalization_pairs": 2,
+      "source_lower": 60,
+      "source_upper": 61,
+      "mandatory_positions": {
+        "old": [
+          559,
+          560,
+          561,
+          562,
+          563,
+          564,
+          565,
+          566,
+          567,
+          568,
+          569
+        ],
+        "new": [
+          428,
+          436,
+          438,
+          439,
+          440,
+          441,
+          442,
+          443,
+          444,
+          445,
+          446,
+          447,
+          448,
+          450,
+          453,
+          454,
+          455,
+          457,
+          458,
+          459,
+          461,
+          462,
+          464,
+          465,
+          466,
+          467,
+          468,
+          470,
+          471,
+          473,
+          474,
+          476,
+          477,
+          478,
+          479,
+          480
+        ]
+      }
+    }
+  },
+  {
+    "pair": "nist-131a-r1-to-r2",
+    "review_index": 5,
+    "source_checked_optional_hyphens": {
+      "old": [],
+      "new": [
+        {
+          "position": 425,
+          "glyph": 5537
+        }
+      ]
+    },
+    "independent_mask": {
+      "normalization_pairs": 2,
+      "source_lower": 57,
+      "source_upper": 58,
+      "mandatory_positions": {
+        "old": [
+          559,
+          560,
+          561,
+          562,
+          563,
+          564,
+          565,
+          566,
+          567,
+          568,
+          569
+        ],
+        "new": [
+          428,
+          436,
+          438,
+          439,
+          440,
+          441,
+          442,
+          443,
+          444,
+          445,
+          446,
+          447,
+          448,
+          450,
+          453,
+          454,
+          455,
+          457,
+          458,
+          459,
+          461,
+          462,
+          464,
+          465,
+          466,
+          467,
+          468,
+          470,
+          471,
+          473,
+          474,
+          476,
+          477,
+          478,
+          479,
+          480
+        ]
+      }
+    }
+  },
+  {
+    "pair": "nist-131a-r1-to-r2",
+    "review_index": 12,
+    "source_checked_optional_hyphens": {
+      "old": [],
+      "new": [
+        {
+          "position": 340,
+          "glyph": 5537
+        }
+      ]
+    },
+    "independent_mask": {
+      "normalization_pairs": 2,
+      "source_lower": 57,
+      "source_upper": 58,
+      "mandatory_positions": {
+        "old": [
+          474,
+          475,
+          476,
+          477,
+          478,
+          479,
+          480,
+          481,
+          482,
+          483,
+          484
+        ],
+        "new": [
+          343,
+          351,
+          353,
+          354,
+          355,
+          356,
+          357,
+          358,
+          359,
+          360,
+          361,
+          362,
+          363,
+          365,
+          368,
+          369,
+          370,
+          372,
+          373,
+          374,
+          376,
+          377,
+          379,
+          380,
+          381,
+          382,
+          383,
+          385,
+          386,
+          388,
+          389,
+          391,
+          392,
+          393,
+          394,
+          395
+        ]
+      }
+    }
+  },
+  {
+    "pair": "nist-131a-r1-to-r2",
+    "review_index": 14,
+    "source_checked_optional_hyphens": {
+      "old": [],
+      "new": [
+        {
+          "position": 340,
+          "glyph": 5537
+        }
+      ]
+    },
+    "independent_mask": {
+      "normalization_pairs": 2,
+      "source_lower": 57,
+      "source_upper": 58,
+      "mandatory_positions": {
+        "old": [
+          474,
+          475,
+          476,
+          477,
+          478,
+          479,
+          480,
+          481,
+          482,
+          483,
+          484
+        ],
+        "new": [
+          343,
+          351,
+          353,
+          354,
+          355,
+          356,
+          357,
+          358,
+          359,
+          360,
+          361,
+          362,
+          363,
+          365,
+          368,
+          369,
+          370,
+          372,
+          373,
+          374,
+          376,
+          377,
+          379,
+          380,
+          381,
+          382,
+          383,
+          385,
+          386,
+          388,
+          389,
+          391,
+          392,
+          393,
+          394,
+          395
+        ]
+      }
+    }
+  },
+  {
+    "pair": "ietf-snmp-2571-to-3411",
+    "review_index": 29,
+    "source_checked_optional_hyphens": {
+      "old": [
+        {
+          "position": 203,
+          "glyph": 28838
+        }
+      ],
+      "new": [
+        {
+          "position": 203,
+          "glyph": 29072
+        }
+      ]
+    },
+    "independent_mask": {
+      "normalization_pairs": 4,
+      "source_lower": 10,
+      "source_upper": 11,
+      "mandatory_positions": {
+        "old": [
+          116,
+          118,
+          119,
+          120
+        ],
+        "new": [
+          113,
+          117,
+          118,
+          120,
+          121
+        ]
+      }
+    }
+  },
+  {
+    "pair": "ietf-snmp-2571-to-3411",
+    "review_index": 30,
+    "source_checked_optional_hyphens": {
+      "old": [
+        {
+          "position": 194,
+          "glyph": 28838
+        }
+      ],
+      "new": [
+        {
+          "position": 194,
+          "glyph": 29072
+        }
+      ]
+    },
+    "independent_mask": {
+      "normalization_pairs": 4,
+      "source_lower": 10,
+      "source_upper": 11,
+      "mandatory_positions": {
+        "old": [
+          107,
+          109,
+          110,
+          111
+        ],
+        "new": [
+          104,
+          108,
+          109,
+          111,
+          112
+        ]
+      }
+    }
+  }
+]
