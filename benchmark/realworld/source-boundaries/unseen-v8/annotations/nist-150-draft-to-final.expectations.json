@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-150-draft-to-final",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "b7ff6761ce97f0abf114677435da9dcfba1224d70dd0b974895e1b2cc4c3eea5",
+  "body_eligible": true,
+  "reason": "Complete old Abstract paragraph and both corresponding new Abstract paragraphs. Their overall cybersecurity practices becomes the organization’s overall cybersecurity practices. Old draft margin counters are excluded as visibly separate runs; no body sentence is omitted."
+}

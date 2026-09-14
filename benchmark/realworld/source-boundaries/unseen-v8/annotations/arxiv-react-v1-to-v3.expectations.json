@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-react-v1-to-v3",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "48b23326c4a92765aa39f4a3c66fcfb32b15afbad0d2b1e3f090edd0df0a62c0",
+  "body_eligible": false,
+  "reason": "Complete Abstract is identical in both editions. Retained as a source-resolved non-eligible observation in the twelve-series denominator; no changed-prose recovery can be claimed for this target."
+}

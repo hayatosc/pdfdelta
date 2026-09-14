@@ -1,0 +1,260 @@
+{
+  "version": 8,
+  "selection_started_utc": "2026-09-14T03:25:00+00:00",
+  "selection_recorded_utc": "2026-09-14T03:28:13.541024+00:00",
+  "comparison_performed": false,
+  "rule": "Twelve post-freeze natural revision series. Register source-resolved full finite prose paragraphs before comparison; retain acquisition and source-only failures. No output-driven replacement.",
+  "chronology": "Original selection followed the implementation freeze; three acquisition/source-identity replacements preceded all comparisons. Source-only alternatives are retained as exposed. Current source inputs and visual review are separately bound.",
+  "pairs": [
+    {
+      "id": "nist-57-r4-to-r5",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-57 Part 1 key management",
+      "old_revision": "Revision 4",
+      "new_revision": "Revision 5",
+      "language": "en",
+      "old": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r4.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r5.pdf"
+    },
+    {
+      "id": "nist-184-draft-to-final",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-184 cybersecurity event recovery",
+      "old_revision": "2016 draft",
+      "new_revision": "2016 final",
+      "old": "https://csrc.nist.gov/files/pubs/sp/800/184/ipd/docs/sp800_184_draft.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-184.pdf",
+      "language": "en",
+      "selected_utc": "2026-09-14T03:35:05.537191+00:00"
+    },
+    {
+      "id": "nist-150-draft-to-final",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-150 cyber threat information sharing",
+      "old_revision": "2016 second draft",
+      "new_revision": "2016 final",
+      "language": "en",
+      "old": "https://csrc.nist.gov/files/pubs/sp/800/150/ipd/docs/sp800_150_second_draft.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-150.pdf"
+    },
+    {
+      "id": "edpb-codes-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 1/2019 codes of conduct and monitoring bodies",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "language": "en",
+      "old": "https://www.edpb.europa.eu/sites/default/files/consultation/edpb-20190219_guidelines_coc_public_consultation_version_en.pdf",
+      "new": "https://www.edpb.europa.eu/sites/default/files/files/file1/edpb_guidelines_201901_v2.0_codesofconduct_en.pdf"
+    },
+    {
+      "id": "edpb-certification-v1-to-v3",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 1/2018 certification criteria",
+      "old_revision": "Version 1",
+      "new_revision": "Version 3",
+      "old": "https://www.edpb.europa.eu/sites/default/files/files/file1/edpb_guidelines_1_2018_certification_en.pdf",
+      "new": "https://www.edpb.europa.eu/sites/default/files/files/file1/edpb_guidelines_201801_v3.0_certificationcriteria_annex2_en.pdf",
+      "language": "en",
+      "selected_utc": "2026-09-14T03:35:05.537191+00:00"
+    },
+    {
+      "id": "arxiv-cot-v1-to-v6",
+      "family": "arxiv-paper",
+      "independent_producer": "Google",
+      "series": "arXiv 2201.11903 Chain-of-Thought Prompting",
+      "old_revision": "v1",
+      "new_revision": "v6",
+      "language": "en",
+      "old": "https://arxiv.org/pdf/2201.11903v1",
+      "new": "https://arxiv.org/pdf/2201.11903v6"
+    },
+    {
+      "id": "arxiv-react-v1-to-v3",
+      "family": "arxiv-paper",
+      "independent_producer": "Princeton/Google",
+      "series": "arXiv 2210.03629 ReAct",
+      "old_revision": "v1",
+      "new_revision": "v3",
+      "language": "en",
+      "old": "https://arxiv.org/pdf/2210.03629v1",
+      "new": "https://arxiv.org/pdf/2210.03629v3"
+    },
+    {
+      "id": "faa-rnav-100a-to-chg2",
+      "family": "faa-advisory",
+      "independent_producer": "FAA",
+      "series": "AC 90-100 RNAV operations",
+      "old_revision": "Revision A original 2007",
+      "new_revision": "Revision A Change 2",
+      "old": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_90-100A.pdf",
+      "new": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_90-100A_CHG_2.pdf",
+      "language": "en",
+      "selected_utc": "2026-09-14T03:35:05.537191+00:00"
+    },
+    {
+      "id": "mhlw-vdt-2002-to-2019",
+      "family": "japanese-guidance",
+      "independent_producer": "MHLW",
+      "series": "VDT and information equipment occupational health guidelines",
+      "old_revision": "2002",
+      "new_revision": "2019",
+      "language": "ja",
+      "old": "https://www.mhlw.go.jp/file/06-Seisakujouhou-11200000-Roudoukijunkyoku/0000184703.pdf",
+      "new": "https://www.mhlw.go.jp/content/000539604.pdf"
+    },
+    {
+      "id": "ietf-rtp-1889-to-3550",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Real-time Transport Protocol",
+      "old_revision": "RFC 1889",
+      "new_revision": "RFC 3550",
+      "language": "en",
+      "old": "https://www.rfc-editor.org/rfc/rfc1889.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc3550.pdf"
+    },
+    {
+      "id": "ietf-ipv6-2460-to-8200",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Internet Protocol Version 6",
+      "old_revision": "RFC 2460",
+      "new_revision": "RFC 8200",
+      "language": "en",
+      "old": "https://www.rfc-editor.org/rfc/rfc2460.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc8200.pdf"
+    },
+    {
+      "id": "ietf-sip-2543-to-3261",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Session Initiation Protocol",
+      "old_revision": "RFC 2543",
+      "new_revision": "RFC 3261",
+      "language": "en",
+      "old": "https://www.rfc-editor.org/rfc/rfc2543.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc3261.pdf"
+    }
+  ],
+  "metadata_only_nonselections": [
+    {
+      "series": "NIST SP 800-122",
+      "reason": "No revised final edition established."
+    },
+    {
+      "series": "NIST SP 800-153",
+      "reason": "No revised final edition established."
+    },
+    {
+      "series": "NIST SP 800-162",
+      "reason": "Considered metadata only; selected other NIST series with distinct revisions."
+    },
+    {
+      "series": "EDPB Guidelines 08/2020 social targeting",
+      "reason": "Already exposed historical series; excluded."
+    },
+    {
+      "series": "EDPB Guidelines 1/2024 legitimate interests",
+      "reason": "No final revised edition established."
+    },
+    {
+      "series": "EDPB Guidelines 06/2022 amicable settlements",
+      "reason": "Earlier version was an internal document; no primary public revision pair established."
+    },
+    {
+      "series": "EDPB Guidelines 4/2018 accreditation",
+      "reason": "Considered metadata only; selected two other EDPB publications."
+    },
+    {
+      "series": "arXiv 2205.01068 OPT",
+      "reason": "Already exposed V6 series; excluded."
+    },
+    {
+      "series": "arXiv 2106.04560 Scaling Vision Transformers",
+      "reason": "Conservatively excluded as related to exposed ViT series."
+    },
+    {
+      "series": "arXiv 2203.02155 InstructGPT",
+      "reason": "Primary submission history contains only v1."
+    },
+    {
+      "series": "arXiv 2303.08774 GPT-4",
+      "reason": "Considered but not searched; conservatively excluded as related to exposed GPT research."
+    },
+    {
+      "series": "arXiv 2206.07682 Emergent Abilities",
+      "reason": "Considered but not searched; two other research papers selected."
+    },
+    {
+      "series": "arXiv 2305.13048 RWKV",
+      "reason": "Considered but not searched; two other research papers selected."
+    },
+    {
+      "series": "EDPB Guidelines 2/2018 derogations",
+      "reason": "Considered but not searched; two other EDPB publications selected."
+    },
+    {
+      "series": "MEXT basic policy for prevention of bullying 2013/2017",
+      "reason": "Source-only alternative considered during acquisition; not selected and excluded from future unseen sets."
+    },
+    {
+      "series": "MEXT serious bullying investigation guidelines 2017/2024",
+      "reason": "Source-only alternative considered during acquisition; not selected and excluded from future unseen sets."
+    },
+    {
+      "series": "MEXT educational opportunity guidelines 2017",
+      "reason": "Source-only alternative considered during acquisition; not selected and excluded from future unseen sets."
+    }
+  ],
+  "url_resolution_status": "Acquired bytes and fallback URLs are bound in unseen-v8-inputs.json; source-only rejection and download ledgers retain all unsuccessful attempts.",
+  "source_only_rejections": [
+    {
+      "pair": {
+        "id": "nist-160-original-to-r1",
+        "family": "nist-guidance",
+        "independent_producer": "NIST",
+        "series": "SP 800-160 Volume 1 systems security engineering",
+        "old_revision": "2018 Volume 1",
+        "new_revision": "Revision 1",
+        "language": "en",
+        "old": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-160v1.pdf",
+        "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-160v1r1.pdf"
+      },
+      "reason": "Raw glyph inspection exceeded its unchanged 256 MiB output cap (exit 153). Partial output is retained and not treated as complete source evidence."
+    },
+    {
+      "pair": {
+        "id": "edpb-forgotten-v1-to-v2",
+        "family": "edpb-guidelines",
+        "independent_producer": "EDPB",
+        "series": "Guidelines 5/2019 right to be forgotten in search engines",
+        "old_revision": "Version 1.1",
+        "new_revision": "Version 2",
+        "language": "en",
+        "old": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_201905_rtbfsearchengines_forpublicconsultation.pdf",
+        "new": "https://www.edpb.europa.eu/system/files/documents/files/file1/edpb_guidelines_201905_rtbfsearchengines_afterpublicconsultation_en.pdf"
+      },
+      "reason": "The official consultation URL returns Version 2.0 with an obsolete watermark, not the selected Version 1.1. Source edition identity failed before comparison."
+    },
+    {
+      "pair": {
+        "id": "faa-taxi-74a-to-74b",
+        "family": "faa-advisory",
+        "independent_producer": "FAA",
+        "series": "AC 120-74 flightcrew taxi procedures",
+        "old_revision": "Revision A",
+        "new_revision": "Revision B",
+        "language": "en",
+        "old": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC120-74A.pdf",
+        "new": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC%20120-74B.pdf"
+      },
+      "reason": "The original PDF is unavailable: two official document-library filenames return 404, and the legacy official link has an unresolvable host."
+    }
+  ]
+}

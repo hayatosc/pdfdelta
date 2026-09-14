@@ -1,0 +1,37 @@
+{
+  "version": 8,
+  "selection_sha256": "bf233c62dc94009dd2f399cdcdd6433c68eb65331f6125ea5c6b9ec0e5ce3d6c",
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "id": "ietf-rtp-1889-to-3550",
+      "side": "new",
+      "url": "https://www.ietf.org/ietf-ftp/rfc/rfc3550.txt.pdf",
+      "command": [
+        "curl",
+        "--location",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--connect-timeout",
+        "20",
+        "--max-time",
+        "90",
+        "--max-filesize",
+        "104857600",
+        "--output",
+        "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-rtp-1889-to-3550-new-alternate.pdf",
+        "--write-out",
+        "%{http_code} %{url_effective}",
+        "https://www.ietf.org/ietf-ftp/rfc/rfc3550.txt.pdf"
+      ],
+      "status": "downloaded",
+      "exit_code": 0,
+      "http_result": "200 https://www.ietf.org/ietf-ftp/rfc/rfc3550.txt.pdf",
+      "stderr": "",
+      "bytes": 153096,
+      "sha256": "00e979dc119ef31e1f471da7742619a879c35467ddf30c58ec56bea976792a25",
+      "finished_utc": "2026-09-14T03:35:49.938319+00:00"
+    }
+  ]
+}

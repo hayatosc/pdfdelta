@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-ipv6-2460-to-8200",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "7c39ead7a4efe22994d23897c1fbfe14b6d5c443506fce19110853eccb7ad18f",
+  "body_eligible": true,
+  "reason": "Complete Abstract; the prior alternate protocol names are replaced with the obsoletes statement. Internal indentation remains literal."
+}

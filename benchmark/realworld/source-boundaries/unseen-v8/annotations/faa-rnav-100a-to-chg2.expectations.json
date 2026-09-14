@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "faa-rnav-100a-to-chg2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "bb1222ada32f95b1c4c9a3b904eeb58c215b616716adb3b5d8a6679f14ecc738",
+  "body_eligible": true,
+  "reason": "Complete Purpose subparagraph a, including the new final explanation of legal effect and public clarity. The old 2007 original is compared with the revised body printed after the Change 2 cover; edition dates on the cover and body remain source evidence."
+}

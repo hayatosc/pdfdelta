@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/unseen-v8-registration-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/unseen-v8-registration-clippy.log",
+        "sha256": "8b1fd2394f7b6f177ede882431154a419bd9f404f00add314c912e91a7fc0ec0"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/unseen-v8-registration-tests.log",
+        "sha256": "5dd3dd157716ed10d726e20b3d4a4a726df9594273dbc81f675968949d3eceb1"
+      }
+    }
+  ],
+  "test_totals": {
+    "passed": 2405,
+    "failed": 0,
+    "ignored": 2
+  },
+  "production_changes": false
+}

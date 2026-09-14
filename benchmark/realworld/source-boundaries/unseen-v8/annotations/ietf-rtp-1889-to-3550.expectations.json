@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-rtp-1889-to-3550",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "2bc733b0a6c81703f5cf2c73124887364810f8c341214030ced7594d95661db9",
+  "body_eligible": false,
+  "reason": "Complete first Introduction paragraph. Only the Section 10 to Section 11 cross-reference and layout spacing change; excluded from prose-recovery eligibility and retained in the denominator."
+}

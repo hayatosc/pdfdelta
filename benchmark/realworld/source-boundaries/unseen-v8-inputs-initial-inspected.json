@@ -1,0 +1,346 @@
+{
+  "version": 8,
+  "selection_started_utc": "2026-09-14T03:25:00+00:00",
+  "selection_recorded_utc": "2026-09-14T03:28:13.541024+00:00",
+  "comparison_performed": false,
+  "rule": "Twelve post-freeze natural revision series. Register source-resolved full finite prose paragraphs before comparison; retain acquisition and source-only failures. No output-driven replacement.",
+  "chronology": "Primary publication metadata was scouted after the intent freeze. No local PDF inspection or pair comparison has run. Edition identity remains to be verified from primary PDF bytes.",
+  "pairs": [
+    {
+      "id": "nist-57-r4-to-r5",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-57 Part 1 key management",
+      "old_revision": "Revision 4",
+      "new_revision": "Revision 5",
+      "language": "en",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r4.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-57-r4-to-r5-old.pdf",
+        "status": "downloaded",
+        "sha256": "4672ba364e3a9e0dc53285adb174f084cdefaec3e782fc10234d5ff0f0ae6801",
+        "bytes": 1470841
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r5.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-57-r4-to-r5-new.pdf",
+        "status": "downloaded",
+        "sha256": "cc32391022c1382ac7c91490f6bcc8838e0f889925270da23ef4e800e2ecb7ad",
+        "bytes": 1688080
+      }
+    },
+    {
+      "id": "nist-160-original-to-r1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-160 Volume 1 systems security engineering",
+      "old_revision": "2018 Volume 1",
+      "new_revision": "Revision 1",
+      "language": "en",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-160v1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-160-original-to-r1-old.pdf",
+        "status": "downloaded",
+        "sha256": "61ade23142acf164e8169e35ee059e5df22f397625872f970c93c1ce1b3a823c",
+        "bytes": 3091028
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-160v1r1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-160-original-to-r1-new.pdf",
+        "status": "downloaded",
+        "sha256": "eced250e47e542698ddfd5e72bd7feae14268e72a1e9ea49af9984c0e01ff7b8",
+        "bytes": 8181396
+      }
+    },
+    {
+      "id": "nist-150-draft-to-final",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-150 cyber threat information sharing",
+      "old_revision": "2016 second draft",
+      "new_revision": "2016 final",
+      "language": "en",
+      "old": {
+        "url": "https://csrc.nist.gov/files/pubs/sp/800/150/ipd/docs/sp800_150_second_draft.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-150-draft-to-final-old.pdf",
+        "status": "downloaded",
+        "sha256": "b18cd09594fdc362afd0af653a947938a837748a771817ad65b27946647299a8",
+        "bytes": 908518
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-150.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/nist-150-draft-to-final-new.pdf",
+        "status": "downloaded",
+        "sha256": "c9ade17b8524d0bae4f77e4aefa79f0b752ca18dcaf01c84214bf2b8a05376f8",
+        "bytes": 509487
+      }
+    },
+    {
+      "id": "edpb-codes-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 1/2019 codes of conduct and monitoring bodies",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "language": "en",
+      "old": {
+        "url": "https://www.edpb.europa.eu/system/files/consultation/edpb-20190219_guidelines_coc_public_consultation_version_en.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/edpb-codes-v1-to-v2-old.pdf",
+        "status": "downloaded",
+        "sha256": "a9202cb42d99c11355749148c499ac57479f2ffb9ee81868dbd2313cf2e484c9",
+        "bytes": 583231
+      },
+      "new": {
+        "url": "https://www.edpb.europa.eu/sites/default/files/files/file1/edpb_guidelines_201901_v2.0_codesofconduct_en.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/edpb-codes-v1-to-v2-new.pdf",
+        "status": "downloaded",
+        "sha256": "76685c35b2662a54ab16037f486bff99a7765bd8d6b3f8b6a5a836622e5ba59d",
+        "bytes": 375926
+      }
+    },
+    {
+      "id": "edpb-forgotten-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 5/2019 right to be forgotten in search engines",
+      "old_revision": "Version 1.1",
+      "new_revision": "Version 2",
+      "language": "en",
+      "old": {
+        "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_201905_rtbfsearchengines_forpublicconsultation.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/edpb-forgotten-v1-to-v2-old.pdf",
+        "status": "downloaded",
+        "sha256": "a2bce9567054328009cf853e50143be27f7b34031919316a9f0f1105dfc6c31e",
+        "bytes": 424262
+      },
+      "new": {
+        "url": "https://www.edpb.europa.eu/system/files/documents/files/file1/edpb_guidelines_201905_rtbfsearchengines_afterpublicconsultation_en.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/edpb-forgotten-v1-to-v2-new.pdf",
+        "status": "downloaded",
+        "sha256": "d5bbcdcd07d12a9591f234bbd5fe29f360b2e514e15b652e0621d63aa0b5bd50",
+        "bytes": 218406
+      }
+    },
+    {
+      "id": "arxiv-cot-v1-to-v6",
+      "family": "arxiv-paper",
+      "independent_producer": "Google",
+      "series": "arXiv 2201.11903 Chain-of-Thought Prompting",
+      "old_revision": "v1",
+      "new_revision": "v6",
+      "language": "en",
+      "old": {
+        "url": "https://arxiv.org/pdf/2201.11903v1",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/arxiv-cot-v1-to-v6-old.pdf",
+        "status": "downloaded",
+        "sha256": "3d40493ec4bcba922882db6e29e394eb9a2449721a5eb94f05e47aee7ad46752",
+        "bytes": 1454242
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/2201.11903v6",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/arxiv-cot-v1-to-v6-new.pdf",
+        "status": "downloaded",
+        "sha256": "7d9f878c23b460e4566aa4ec9201b1abfb3b8faefb2b1356e411cb90fef72a12",
+        "bytes": 891773
+      }
+    },
+    {
+      "id": "arxiv-react-v1-to-v3",
+      "family": "arxiv-paper",
+      "independent_producer": "Princeton/Google",
+      "series": "arXiv 2210.03629 ReAct",
+      "old_revision": "v1",
+      "new_revision": "v3",
+      "language": "en",
+      "old": {
+        "url": "https://arxiv.org/pdf/2210.03629v1",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/arxiv-react-v1-to-v3-old.pdf",
+        "status": "downloaded",
+        "sha256": "6ec7c9ba12a5a7462afaaa759b9d4186e522fcb502ef480afd7fa1821960a576",
+        "bytes": 538424
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/2210.03629v3",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/arxiv-react-v1-to-v3-new.pdf",
+        "status": "downloaded",
+        "sha256": "f285b0971ae4a790e402fb93966bed3adde2cf0a04977d08b2b40d6ab0cace69",
+        "bytes": 633805
+      }
+    },
+    {
+      "id": "faa-taxi-74a-to-74b",
+      "family": "faa-advisory",
+      "independent_producer": "FAA",
+      "series": "AC 120-74 flightcrew taxi procedures",
+      "old_revision": "Revision A",
+      "new_revision": "Revision B",
+      "language": "en",
+      "old": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC120-74A.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/faa-taxi-74a-to-74b-old.pdf",
+        "status": "missing",
+        "sha256": null,
+        "bytes": 0
+      },
+      "new": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC%20120-74B.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/faa-taxi-74a-to-74b-new.pdf",
+        "status": "downloaded",
+        "sha256": "10e5604d7514b74aa3789e494df0db89b9fe1e8f2334a6d1fdefb84a55720461",
+        "bytes": 109848
+      }
+    },
+    {
+      "id": "mhlw-vdt-2002-to-2019",
+      "family": "japanese-guidance",
+      "independent_producer": "MHLW",
+      "series": "VDT and information equipment occupational health guidelines",
+      "old_revision": "2002",
+      "new_revision": "2019",
+      "language": "ja",
+      "old": {
+        "url": "https://www.mhlw.go.jp/file/06-Seisakujouhou-11900000-Koyoukintoujidoukateikyoku/0000068117.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/mhlw-vdt-2002-to-2019-old.pdf",
+        "status": "downloaded",
+        "sha256": "e449b14d1a99ac59db6957936e73e5461bd92bc6712fb97235a0f0a0ef4a16ef",
+        "bytes": 868980
+      },
+      "new": {
+        "url": "https://www.mhlw.go.jp/content/000539604.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/mhlw-vdt-2002-to-2019-new.pdf",
+        "status": "downloaded",
+        "sha256": "45dfbb4cb2c2da06750c547dc59790e31a3f6b6e5f69501b7c65d6e2cc712184",
+        "bytes": 1611802
+      }
+    },
+    {
+      "id": "ietf-rtp-1889-to-3550",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Real-time Transport Protocol",
+      "old_revision": "RFC 1889",
+      "new_revision": "RFC 3550",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc1889.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-rtp-1889-to-3550-old.pdf",
+        "status": "downloaded",
+        "sha256": "5e13f1b8868ca91ce7e62e0895a458c2658c75e830677f20f147c3921f11f98a",
+        "bytes": 110507
+      },
+      "new": {
+        "url": "https://www.rfc-editor.org/rfc/rfc3550.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-rtp-1889-to-3550-new.pdf",
+        "status": "downloaded",
+        "sha256": "dd7c578c13257d1a01d73596fb350b65eb9c3eeb0fa215e9064f80cf12c819aa",
+        "bytes": 504117
+      }
+    },
+    {
+      "id": "ietf-ipv6-2460-to-8200",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Internet Protocol Version 6",
+      "old_revision": "RFC 2460",
+      "new_revision": "RFC 8200",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2460.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-ipv6-2460-to-8200-old.pdf",
+        "status": "downloaded",
+        "sha256": "eec5b4a6d2b2ef095ecf8330212e877ae063e828e8dc451f4062199b17ad1d68",
+        "bytes": 47382
+      },
+      "new": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc8200.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-ipv6-2460-to-8200-new.pdf",
+        "status": "downloaded",
+        "sha256": "59acf5865072899579dedca59f0beb32915336387c89027851b6eb4ccaead78f",
+        "bytes": 58690
+      }
+    },
+    {
+      "id": "ietf-sip-2543-to-3261",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Session Initiation Protocol",
+      "old_revision": "RFC 2543",
+      "new_revision": "RFC 3261",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2543.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-sip-2543-to-3261-old.pdf",
+        "status": "downloaded",
+        "sha256": "d03aad3bdd3daac3bcd460447f60e5cf54f031fd82d20cc4085115630b64f1d4",
+        "bytes": 207976
+      },
+      "new": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc3261.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-sip-2543-to-3261-new.pdf",
+        "status": "downloaded",
+        "sha256": "e067aaacbddc9340b67b101d12c6d90c91fb239e26385eb854961095ded475e6",
+        "bytes": 384323
+      }
+    }
+  ],
+  "metadata_only_nonselections": [
+    {
+      "series": "NIST SP 800-122",
+      "reason": "No revised final edition established."
+    },
+    {
+      "series": "NIST SP 800-153",
+      "reason": "No revised final edition established."
+    },
+    {
+      "series": "NIST SP 800-162",
+      "reason": "Considered metadata only; selected other NIST series with distinct revisions."
+    },
+    {
+      "series": "EDPB Guidelines 08/2020 social targeting",
+      "reason": "Already exposed historical series; excluded."
+    },
+    {
+      "series": "EDPB Guidelines 1/2024 legitimate interests",
+      "reason": "No final revised edition established."
+    },
+    {
+      "series": "EDPB Guidelines 06/2022 amicable settlements",
+      "reason": "Earlier version was an internal document; no primary public revision pair established."
+    },
+    {
+      "series": "EDPB Guidelines 4/2018 accreditation",
+      "reason": "Considered metadata only; selected two other EDPB publications."
+    },
+    {
+      "series": "arXiv 2205.01068 OPT",
+      "reason": "Already exposed V6 series; excluded."
+    },
+    {
+      "series": "arXiv 2106.04560 Scaling Vision Transformers",
+      "reason": "Conservatively excluded as related to exposed ViT series."
+    },
+    {
+      "series": "arXiv 2203.02155 InstructGPT",
+      "reason": "Primary submission history contains only v1."
+    },
+    {
+      "series": "arXiv 2303.08774 GPT-4",
+      "reason": "Considered but not searched; conservatively excluded as related to exposed GPT research."
+    },
+    {
+      "series": "arXiv 2206.07682 Emergent Abilities",
+      "reason": "Considered but not searched; two other research papers selected."
+    },
+    {
+      "series": "arXiv 2305.13048 RWKV",
+      "reason": "Considered but not searched; two other research papers selected."
+    },
+    {
+      "series": "EDPB Guidelines 2/2018 derogations",
+      "reason": "Considered but not searched; two other EDPB publications selected."
+    }
+  ],
+  "url_resolution_status": "Primary URLs selected for acquisition. Complete PDF bytes and edition identity remain unverified; any fallback attempts are recorded separately.",
+  "frozen": true
+}

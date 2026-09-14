@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "ietf-sip-2543-to-3261",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1820,
+          "end": 2224
+        }
+      },
+      "literal_quote": "The Session Initiation Protocol (SIP) is an application-layer control   (signaling) protocol for creating, modifying and terminating sessions   with one or more participants. These sessions include Internet   multimedia conferences, Internet telephone calls and multimedia   distribution. Members in a session can communicate via multicast or   via a mesh of unicast relations, or a combination of these.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1809,
+          "end": 1817
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1737,
+          "end": 2036
+        }
+      },
+      "literal_quote": "This document describes Session Initiation Protocol (SIP), an   application-layer control (signaling) protocol for creating,   modifying, and terminating sessions with one or more participants.   These sessions include Internet telephone calls, multimedia   distribution, and multimedia conferences.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1726,
+          "end": 1734
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "d03aad3bdd3daac3bcd460447f60e5cf54f031fd82d20cc4085115630b64f1d4",
+  "new_sha256": "e067aaacbddc9340b67b101d12c6d90c91fb239e26385eb854961095ded475e6"
+}

@@ -1,0 +1,192 @@
+{
+  "version": 2,
+  "pair": "nist-184-draft-to-final",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1049,
+          "end": 1156
+        }
+      },
+      "literal_quote": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-2",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1160,
+          "end": 1254
+        }
+      },
+      "literal_quote": "that their risk management processes include comprehensive recovery planning. Identifying and ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-3",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1258,
+          "end": 1360
+        }
+      },
+      "literal_quote": "prioritizing organization resources helps to guide effective plans and realistic test scenarios. This ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-4",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1364,
+          "end": 1466
+        }
+      },
+      "literal_quote": "preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-5",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1470,
+          "end": 1571
+        }
+      },
+      "literal_quote": "the organization and its constituents. Additionally, continually improving that recovery planning by ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-6",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1575,
+          "end": 1684
+        }
+      },
+      "literal_quote": "learning lessons from past events, including those of other organizations, helps to ensure the continuity of ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-7",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1688,
+          "end": 1789
+        }
+      },
+      "literal_quote": "important mission functions. This publication provides tactical and strategic guidance regarding the ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-8",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1793,
+          "end": 1891
+        }
+      },
+      "literal_quote": "planning, playbook developing, testing, and improvement of recovery planning. It also provides an ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-9",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1895,
+          "end": 1997
+        }
+      },
+      "literal_quote": "example scenario that demonstrates guidance and informative metrics that may be helpful for improving ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-10",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 2001,
+          "end": 2039
+        }
+      },
+      "literal_quote": "resilience of the information systems.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1036,
+          "end": 1044
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 1093,
+          "end": 2038
+        }
+      },
+      "literal_quote": "In light of an increasing number of cybersecurity events, organizations can improve resilience by ensuring that their risk management processes include comprehensive recovery planning. Identifying and prioritizing organization resources helps to guide effective plans and realistic test scenarios. This preparation enables rapid recovery from incidents when they occur and helps to minimize the impact on the organization and its constituents. Additionally, continually improving recovery planning by learning lessons from past events, including those of other organizations, helps to ensure the continuity of important mission functions. This publication provides tactical and strategic guidance regarding the planning, playbook developing, testing, and improvement of recovery planning. It also provides an example scenario that demonstrates guidance and informative metrics that may be helpful for improving resilience of information systems.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 1084,
+          "end": 1092
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "c4f762777d8c7923de7aa5f4c4dfcfe1de0f58545281a6f38106cd2b8759ec6b",
+  "new_sha256": "c03b6245d3ebbe71a5b52072f756504b76f9fd36e8e8c8a71115364b09f2946f"
+}

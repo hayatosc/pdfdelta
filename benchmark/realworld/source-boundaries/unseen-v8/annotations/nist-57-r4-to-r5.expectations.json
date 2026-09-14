@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-57-r4-to-r5",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "79ae7db0bc27f22fafe6d783cbabba3fe518dbcaebbda77515f5690be0b66cd9",
+  "body_eligible": true,
+  "reason": "Complete Abstract; cryptographic key-management guidance gains definitions, security services and operational topics."
+}

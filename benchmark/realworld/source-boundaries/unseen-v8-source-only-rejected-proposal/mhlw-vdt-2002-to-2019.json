@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "mhlw-vdt-2002-to-2019",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 3501,
+          "end": 3613
+        }
+      },
+      "literal_quote": "ディスプレイ画面上における照度は500ルクス以下、書類上及びキーボード上における照度は300ルクス以上とすること。また、ディスプレイ画面の明るさ、書類及びキーボード面における明るさと周辺の明るさの差はなるべく小さくすること。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 3448,
+          "end": 3454
+        }
+      },
+      "literal_quote": "照明及び採光",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 524,
+          "end": 636
+        }
+      },
+      "literal_quote": "ディスプレイを用いる場合の書類上及びキーボード上における照度は300ルクス以上とし、作業しやすい照度とすること。 また、ディスプレイ画面の明るさ、書類及びキーボード面における明るさと周辺の明るさの差はなるべく小さくすること。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4,
+        "block": 4,
+        "range": {
+          "start": 469,
+          "end": 475
+        }
+      },
+      "literal_quote": "照明及び採光",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "e449b14d1a99ac59db6957936e73e5461bd92bc6712fb97235a0f0a0ef4a16ef",
+  "new_sha256": "45dfbb4cb2c2da06750c547dc59790e31a3f6b6e5f69501b7c65d6e2cc712184"
+}

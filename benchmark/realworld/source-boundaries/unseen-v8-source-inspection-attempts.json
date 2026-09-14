@@ -1,0 +1,451 @@
+{
+  "version": 1,
+  "binary_sha256": "6cd61c035da03a3304043a443d1d28579fa3c345532450322115280c99405d2e",
+  "inputs_sha256": "d8406d4e271bcd391e3e9e957e9a4c44d748476ba589cc75c7679e59f413fc40",
+  "command": [
+    "inspect",
+    "--glyphs"
+  ],
+  "timeout_seconds": 180,
+  "output_limit_bytes": 268435456,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "id": "nist-57-r4-to-r5",
+      "side": "old",
+      "input_sha256": "4672ba364e3a9e0dc53285adb174f084cdefaec3e782fc10234d5ff0f0ae6801",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 154948078,
+      "output_sha256": "f47cacc4e91f35c30c1cc9c39fa73b0e4ac27adc80d758d5d379f0b7d65dcc1e",
+      "evidence_counts": {
+        "glyphs": 444332,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 161
+      },
+      "stderr": "",
+      "wall_seconds": 1.57,
+      "peak_rss_kib": 137124
+    },
+    {
+      "id": "nist-57-r4-to-r5",
+      "side": "new",
+      "input_sha256": "cc32391022c1382ac7c91490f6bcc8838e0f889925270da23ef4e800e2ecb7ad",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 171232704,
+      "output_sha256": "7959ddea1ab9f05606a486b0449c437cef6ecaadf6f51d63c7f0ccb1b55c1130",
+      "evidence_counts": {
+        "glyphs": 493960,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 15960,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 171
+      },
+      "stderr": "",
+      "wall_seconds": 1.71,
+      "peak_rss_kib": 152568
+    },
+    {
+      "id": "nist-160-original-to-r1",
+      "side": "old",
+      "input_sha256": "61ade23142acf164e8169e35ee059e5df22f397625872f970c93c1ce1b3a823c",
+      "status": "inspection_failed",
+      "exit_code": 153,
+      "output_bytes": 268435456,
+      "output_sha256": "aedd21fdded8340cdaaea29bb5bf360c661c2e01ebec1332d5baefa237d72566",
+      "evidence_counts": null,
+      "stderr": "timeout: the monitored command dumped core\n",
+      "wall_seconds": 4.62,
+      "peak_rss_kib": 278224
+    },
+    {
+      "id": "nist-160-original-to-r1",
+      "side": "new",
+      "input_sha256": "eced250e47e542698ddfd5e72bd7feae14268e72a1e9ea49af9984c0e01ff7b8",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 181644971,
+      "output_sha256": "eb0e4705a3fef41e49ca6a97ed3ed12328e43452a873ada3107b1f8393628ddd",
+      "evidence_counts": {
+        "glyphs": 516526,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 195
+      },
+      "stderr": "",
+      "wall_seconds": 1.82,
+      "peak_rss_kib": 177084
+    },
+    {
+      "id": "nist-150-draft-to-final",
+      "side": "old",
+      "input_sha256": "b18cd09594fdc362afd0af653a947938a837748a771817ad65b27946647299a8",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 41203872,
+      "output_sha256": "d99261401490926854c1237e5d765241983996512b910f6d79c9d0e7d93ab627",
+      "evidence_counts": {
+        "glyphs": 122018,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 1,
+        "pages_with_glyphs": 40
+      },
+      "stderr": "",
+      "wall_seconds": 0.45,
+      "peak_rss_kib": 44924
+    },
+    {
+      "id": "nist-150-draft-to-final",
+      "side": "new",
+      "input_sha256": "c9ade17b8524d0bae4f77e4aefa79f0b752ca18dcaf01c84214bf2b8a05376f8",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 45709102,
+      "output_sha256": "2f064875ce39a62948ddd25f6c9b50c0d35fbabbee3a2fdf87f27fba1d0588a7",
+      "evidence_counts": {
+        "glyphs": 126899,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 3747,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 43
+      },
+      "stderr": "",
+      "wall_seconds": 0.44,
+      "peak_rss_kib": 46864
+    },
+    {
+      "id": "edpb-codes-v1-to-v2",
+      "side": "old",
+      "input_sha256": "a9202cb42d99c11355749148c499ac57479f2ffb9ee81868dbd2313cf2e484c9",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 25349982,
+      "output_sha256": "bb9a320fe328580adae3dde4660fc337fc36efef1dbe14fd636f9aa52e4c7cab",
+      "evidence_counts": {
+        "glyphs": 74244,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 232,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 29
+      },
+      "stderr": "",
+      "wall_seconds": 0.43,
+      "peak_rss_kib": 79680
+    },
+    {
+      "id": "edpb-codes-v1-to-v2",
+      "side": "new",
+      "input_sha256": "76685c35b2662a54ab16037f486bff99a7765bd8d6b3f8b6a5a836622e5ba59d",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 25881992,
+      "output_sha256": "f4d477a635c8c0eee5c025d886acce73031c030038fb1db8ba46e4e8410c53e2",
+      "evidence_counts": {
+        "glyphs": 74907,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 30
+      },
+      "stderr": "",
+      "wall_seconds": 0.44,
+      "peak_rss_kib": 79604
+    },
+    {
+      "id": "edpb-forgotten-v1-to-v2",
+      "side": "old",
+      "input_sha256": "a2bce9567054328009cf853e50143be27f7b34031919316a9f0f1105dfc6c31e",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 15794811,
+      "output_sha256": "3d454ff90ee16136f7777264bdd2269dd9726b24a14903df194981252099c177",
+      "evidence_counts": {
+        "glyphs": 46819,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 128,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 16
+      },
+      "stderr": "",
+      "wall_seconds": 0.45,
+      "peak_rss_kib": 103076
+    },
+    {
+      "id": "edpb-forgotten-v1-to-v2",
+      "side": "new",
+      "input_sha256": "d5bbcdcd07d12a9591f234bbd5fe29f360b2e514e15b652e0621d63aa0b5bd50",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 15992226,
+      "output_sha256": "f58a6d1189996459bd67b512b732858f247181a7c95897323d83ba30b7ff8b3a",
+      "evidence_counts": {
+        "glyphs": 46691,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 16
+      },
+      "stderr": "",
+      "wall_seconds": 0.44,
+      "peak_rss_kib": 102904
+    },
+    {
+      "id": "arxiv-cot-v1-to-v6",
+      "side": "old",
+      "input_sha256": "3d40493ec4bcba922882db6e29e394eb9a2449721a5eb94f05e47aee7ad46752",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 30583084,
+      "output_sha256": "594d3871f97facaed36280f93af031b0c969639417ee96443aebe012fb05e8cb",
+      "evidence_counts": {
+        "glyphs": 88654,
+        "unmapped_glyphs": 150,
+        "nondefault_directions": 202,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 24
+      },
+      "stderr": "",
+      "wall_seconds": 0.31,
+      "peak_rss_kib": 39568
+    },
+    {
+      "id": "arxiv-cot-v1-to-v6",
+      "side": "new",
+      "input_sha256": "7d9f878c23b460e4566aa4ec9201b1abfb3b8faefb2b1356e411cb90fef72a12",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 39722957,
+      "output_sha256": "ac78aed62410c7ff3777fbf686a7bf346308a4265d290482d2c73aafb34dc5d7",
+      "evidence_counts": {
+        "glyphs": 113866,
+        "unmapped_glyphs": 385,
+        "nondefault_directions": 180,
+        "extraction_issues": 1,
+        "pages_with_glyphs": 43
+      },
+      "stderr": "",
+      "wall_seconds": 0.42,
+      "peak_rss_kib": 44140
+    },
+    {
+      "id": "arxiv-react-v1-to-v3",
+      "side": "old",
+      "input_sha256": "6ec7c9ba12a5a7462afaaa759b9d4186e522fcb502ef480afd7fa1821960a576",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 31069308,
+      "output_sha256": "21566deceda0cad7a84faccb2be5d136cf9272928ed57b4c9a37d4c0be892875",
+      "evidence_counts": {
+        "glyphs": 86706,
+        "unmapped_glyphs": 5589,
+        "nondefault_directions": 70,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 31
+      },
+      "stderr": "",
+      "wall_seconds": 0.29,
+      "peak_rss_kib": 33172
+    },
+    {
+      "id": "arxiv-react-v1-to-v3",
+      "side": "new",
+      "input_sha256": "f285b0971ae4a790e402fb93966bed3adde2cf0a04977d08b2b40d6ab0cace69",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 33604475,
+      "output_sha256": "128cc0321ebdaee879e82acaa6c2293b488e60443d6a24344981be6e66abad98",
+      "evidence_counts": {
+        "glyphs": 93340,
+        "unmapped_glyphs": 7260,
+        "nondefault_directions": 71,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 33
+      },
+      "stderr": "",
+      "wall_seconds": 0.32,
+      "peak_rss_kib": 35184
+    },
+    {
+      "id": "faa-taxi-74a-to-74b",
+      "side": "old",
+      "input_sha256": null,
+      "status": "missing_input"
+    },
+    {
+      "id": "faa-taxi-74a-to-74b",
+      "side": "new",
+      "input_sha256": "10e5604d7514b74aa3789e494df0db89b9fe1e8f2334a6d1fdefb84a55720461",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 15817384,
+      "output_sha256": "255b25f9a8204a227d57df6b3afe1092e4660373f3e4cb8932bfea1ce5332c4a",
+      "evidence_counts": {
+        "glyphs": 43994,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 16
+      },
+      "stderr": "",
+      "wall_seconds": 0.15,
+      "peak_rss_kib": 21504
+    },
+    {
+      "id": "mhlw-vdt-2002-to-2019",
+      "side": "old",
+      "input_sha256": "e449b14d1a99ac59db6957936e73e5461bd92bc6712fb97235a0f0a0ef4a16ef",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 9510635,
+      "output_sha256": "dc1451c77db6da08deb2d27c8c1935e58ea589b340baecabc994764d2c8f57ac",
+      "evidence_counts": {
+        "glyphs": 26364,
+        "unmapped_glyphs": 10492,
+        "nondefault_directions": 4,
+        "extraction_issues": 1,
+        "pages_with_glyphs": 8
+      },
+      "stderr": "",
+      "wall_seconds": 0.1,
+      "peak_rss_kib": 18776
+    },
+    {
+      "id": "mhlw-vdt-2002-to-2019",
+      "side": "new",
+      "input_sha256": "45dfbb4cb2c2da06750c547dc59790e31a3f6b6e5f69501b7c65d6e2cc712184",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 9106898,
+      "output_sha256": "985c2024dac05ca0f40bcac99e82e0342b08ab1034b8150c4171bebd18a11697",
+      "evidence_counts": {
+        "glyphs": 28853,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 33
+      },
+      "stderr": "",
+      "wall_seconds": 0.13,
+      "peak_rss_kib": 27436
+    },
+    {
+      "id": "ietf-rtp-1889-to-3550",
+      "side": "old",
+      "input_sha256": "5e13f1b8868ca91ce7e62e0895a458c2658c75e830677f20f147c3921f11f98a",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 52311076,
+      "output_sha256": "a20f2235bb1bbbc1f6dfbc2e2fc23fbaf93b1053bbd8634cc44666feb78d14b5",
+      "evidence_counts": {
+        "glyphs": 184266,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 75
+      },
+      "stderr": "",
+      "wall_seconds": 0.52,
+      "peak_rss_kib": 51200
+    },
+    {
+      "id": "ietf-rtp-1889-to-3550",
+      "side": "new",
+      "input_sha256": "dd7c578c13257d1a01d73596fb350b65eb9c3eeb0fa215e9064f80cf12c819aa",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 11141,
+      "output_sha256": "8167206baf334ef3a25a08a4f5986a31acb3457966326776b798d26316bf8e97",
+      "evidence_counts": {
+        "glyphs": 0,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 89,
+        "pages_with_glyphs": 0
+      },
+      "stderr": "",
+      "wall_seconds": 0.11,
+      "peak_rss_kib": 43124
+    },
+    {
+      "id": "ietf-ipv6-2460-to-8200",
+      "side": "old",
+      "input_sha256": "eec5b4a6d2b2ef095ecf8330212e877ae063e828e8dc451f4062199b17ad1d68",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 23623017,
+      "output_sha256": "453a3d04cabdf1fd2fa056dab29f555d51498d6ede7b8a9340a053dba7d44a8d",
+      "evidence_counts": {
+        "glyphs": 83664,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 39
+      },
+      "stderr": "",
+      "wall_seconds": 0.24,
+      "peak_rss_kib": 27776
+    },
+    {
+      "id": "ietf-ipv6-2460-to-8200",
+      "side": "new",
+      "input_sha256": "59acf5865072899579dedca59f0beb32915336387c89027851b6eb4ccaead78f",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 25674839,
+      "output_sha256": "a721d45ec7a20eb45f90b395052731f9d0ff02128747e3702e94d4b41d1b436e",
+      "evidence_counts": {
+        "glyphs": 90765,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 42
+      },
+      "stderr": "",
+      "wall_seconds": 0.26,
+      "peak_rss_kib": 29696
+    },
+    {
+      "id": "ietf-sip-2543-to-3261",
+      "side": "old",
+      "input_sha256": "d03aad3bdd3daac3bcd460447f60e5cf54f031fd82d20cc4085115630b64f1d4",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 94101581,
+      "output_sha256": "e313c9e7fbc97ce27947fde8b2671a0861758dff96d2f865b457228dbaab1e42",
+      "evidence_counts": {
+        "glyphs": 330147,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 153
+      },
+      "stderr": "",
+      "wall_seconds": 0.94,
+      "peak_rss_kib": 85456
+    },
+    {
+      "id": "ietf-sip-2543-to-3261",
+      "side": "new",
+      "input_sha256": "e067aaacbddc9340b67b101d12c6d90c91fb239e26385eb854961095ded475e6",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 180815689,
+      "output_sha256": "28d6cee1d5f3dff7b7cb69d8ac76255dc86f48eab9916a0b2b243834680e0dbc",
+      "evidence_counts": {
+        "glyphs": 632640,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 269
+      },
+      "stderr": "",
+      "wall_seconds": 1.81,
+      "peak_rss_kib": 156028
+    }
+  ]
+}

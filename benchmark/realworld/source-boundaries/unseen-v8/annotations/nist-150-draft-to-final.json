@@ -1,0 +1,192 @@
+{
+  "version": 2,
+  "pair": "nist-150-draft-to-final",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1005,
+          "end": 1110
+        }
+      },
+      "literal_quote": "Cyber threat information is any information that can help an organization identify, assess, monitor, and ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-2",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1114,
+          "end": 1221
+        }
+      },
+      "literal_quote": "respond to cyber threats. Cyber threat information includes indicators of compromise; tactics, techniques, ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-3",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1225,
+          "end": 1329
+        }
+      },
+      "literal_quote": "and procedures used by threat actors; suggested actions to detect, contain, or prevent attacks; and the ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-4",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1333,
+          "end": 1436
+        }
+      },
+      "literal_quote": "findings from the analyses of incidents. Organizations that share cyber threat information can improve ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-5",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1440,
+          "end": 1546
+        }
+      },
+      "literal_quote": "their own security postures as well as those of other organizations. This publication provides guidelines ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-6",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1550,
+          "end": 1656
+        }
+      },
+      "literal_quote": "for establishing and participating in cyber threat information sharing relationships. This guidance helps ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-7",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1660,
+          "end": 1760
+        }
+      },
+      "literal_quote": "organizations establish information sharing goals, identify cyber threat information sources, scope ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-8",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1764,
+          "end": 1866
+        }
+      },
+      "literal_quote": "information sharing activities, develop rules that control the publication and distribution of threat ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-9",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1870,
+          "end": 1973
+        }
+      },
+      "literal_quote": "information, engage with existing sharing communities, and make effective use of threat information in ",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-10",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1977,
+          "end": 2026
+        }
+      },
+      "literal_quote": "support of their overall cybersecurity practices.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 986,
+          "end": 994
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 1098,
+          "end": 2097
+        }
+      },
+      "literal_quote": "Cyber threat information is any information that can help an organization identify, assess, monitor, and respond to cyber threats. Cyber threat information includes indicators of compromise; tactics, techniques, and procedures used by threat actors; suggested actions to detect, contain, or prevent attacks; and the findings from the analyses of incidents. Organizations that share cyber threat information can improve their own security postures as well as those of other organizations.  This publication provides guidelines for establishing and participating in cyber threat information sharing relationships. This guidance helps organizations establish information sharing goals, identify cyber threat information sources, scope information sharing activities, develop rules that control the publication and distribution of threat information, engage with existing sharing communities, and make effective use of threat information in support of the organization’s overall cybersecurity practices.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 1088,
+          "end": 1096
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "b18cd09594fdc362afd0af653a947938a837748a771817ad65b27946647299a8",
+  "new_sha256": "c9ade17b8524d0bae4f77e4aefa79f0b752ca18dcaf01c84214bf2b8a05376f8"
+}
