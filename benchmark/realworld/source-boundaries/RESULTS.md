@@ -1401,3 +1401,22 @@ All 189 fixed control event populations match the previous executable, with zero
 false strict atoms on the annotated unchanged controls. Format, Clippy, 2471
 workspace tests (two ignored) and all 48 generated cases pass. The full 36-pair
 replay is still running; no panel-wide gain or gate completion is claimed yet.
+
+### Complete the short-circuit panel replay
+
+`../remaining/short-circuit-panel-result.json` binds all 36 fresh captures to the
+same registered inputs, executable and limits. Every native acquisition summary
+and all 36 coverage records match the preceding executable; complete comparison
+remains 0/36 and no fixed-body B range-hit count changes.
+
+BERT gains one bibliography range. NIST SSDF loses one 882-source range containing
+draft line numbers; it intersects neither registered body core. A separate BERT
+317-source range keeps its comparison object and source population while its
+boundary certificate changes. Full event fingerprints therefore record two
+additions and two removals, distinct from the one gained/lost source population.
+These observations do not establish net fixed-target recovery or a gate gain.
+
+All 72 text inventories remain incomplete. The fresh reports contain 215
+unsupported per-CID vertical-metric issues in Japanese documents. The next
+acquisition investigation is the explicit W2 metric table in composite fonts;
+the SSDF search sensitivity remains recorded rather than hidden.
