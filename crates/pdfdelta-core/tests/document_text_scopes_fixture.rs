@@ -5316,3 +5316,30 @@ fn whole_cut_fallback_rejects_an_accepted_counterpart_from_outside() {
         "independent closed intervals must still be compared"
     );
 }
+
+#[test]
+fn raised_inline_source_preserves_changed_interval_ownership() {
+    let old = fixture_rows(&["First boundary.", "Income1 was 10.", "Last boundary."]);
+    let new = fixture_rows(&["First boundary.", "Income1 was 20.", "Last boundary."]);
+    for raised in [false, true] {
+        let mut old = old.clone();
+        let mut new = new.clone();
+        if raised {
+            for fixture in [&mut old, &mut new] {
+                let SourceRef::Native { glyph: id } = fixture.1.nodes[2].sources[6] else {
+                    unreachable!()
+                };
+                let mut glyphs = fixture.0.native.items().to_vec();
+                let glyph = glyphs.iter_mut().find(|glyph| glyph.id == id).unwrap();
+                glyph.baseline.y += 3.0;
+                glyph.bbox.min.y += 3.0;
+                glyph.bbox.max.y = glyph.bbox.min.y + 7.0;
+                glyph.font_size = 7.0;
+                fixture.0.native = Document::new(glyphs);
+            }
+        }
+        let compared = compare(&old, &new);
+        let result = &compared.scopes[0].result;
+        assert_eq!(result.native_text_intervals.len(), 1, "raised={raised}");
+    }
+}
