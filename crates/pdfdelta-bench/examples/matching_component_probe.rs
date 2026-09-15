@@ -6,8 +6,8 @@ use std::{collections::BTreeSet, env, fs::File, io::Read, sync::Arc};
 use pdfdelta_core::{
     document::{
         BackendIdentity, BackendKind, Channel, CorrespondenceProposal, CorrespondenceScope,
-        DocumentComparisonLimits, DocumentGraph, EdgeKind, EvidenceStore, MatchingChannels, NodeId,
-        PageEvidence, refine_table_views, solve_correspondence_scope,
+        DocumentComparisonLimits, DocumentGraph, EdgeKind, EvidenceStore, MatchingChannels,
+        NodeContent, NodeId, PageEvidence, refine_table_views, solve_correspondence_scope,
     },
     model::PageId,
     pdf::{LopdfParser, ParseLimits, PdfParser},
@@ -109,6 +109,16 @@ fn constraints(graph: &DocumentGraph, ids: BTreeSet<NodeId>) -> Result<Value> {
 
 fn main() -> Result<()> {
     let args: Vec<_> = env::args().skip(1).collect();
+    if let [mode, old, new, old_page, new_page] = args.as_slice()
+        && mode == "--pages"
+    {
+        return pages(
+            old,
+            new,
+            PageId(old_page.parse()?),
+            PageId(new_page.parse()?),
+        );
+    }
     let [old_path, new_path, proposals_path] = args.as_slice() else {
         return Err("usage: matching_component_probe OLD.pdf NEW.pdf PROPOSALS.json".into());
     };
@@ -153,6 +163,52 @@ fn main() -> Result<()> {
             "table_refinements": tables, "matching": matching,
             "old": constraints(&old_graph, old_ids)?, "new": constraints(&new_graph, new_ids)?,
             "certifies_recovery": false,
+        }))?
+    );
+    Ok(())
+}
+
+fn pages(old: &str, new: &str, old_page: PageId, new_page: PageId) -> Result<()> {
+    let limits = DocumentComparisonLimits::default();
+    let old = acquire(old, limits)?;
+    let new = acquire(new, limits)?;
+    let pipeline = PipelineOptions::default();
+    let mut a = DocumentGraph::from_evidence(&old, pipeline, limits.evidence, limits.graph)?;
+    let mut b = DocumentGraph::from_evidence(&new, pipeline, limits.evidence, limits.graph)?;
+    let tables = refine_table_views(&mut a, &mut b, &old, &new, pipeline, limits)?;
+    let select = |graph: &DocumentGraph, evidence: &EvidenceStore, page: PageId| -> Result<Value> {
+        if !evidence.pages.iter().any(|p| p.page == page) {
+            return Err("diagnostic page is outside the document".into());
+        }
+        let ids: BTreeSet<_> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.pages.contains(&page) && matches!(n.content, NodeContent::Text { .. }))
+            .map(|n| n.id)
+            .collect();
+        let glyphs: Vec<_> = evidence
+            .native
+            .items()
+            .iter()
+            .filter(|g| g.page == page)
+            .collect();
+        if glyphs.len() > 50_000 {
+            return Err("diagnostic page glyph limit".into());
+        }
+        Ok(json!({
+            "revision": evidence.revision,
+            "native_glyph_count": evidence.native.items().len(),
+            "page": page, "glyphs": glyphs,
+            "paint": evidence.native.non_text_paint_bounds().map(|p| p.iter().filter(|p| p.page == page).collect::<Vec<_>>()),
+            "constraints": constraints(graph, ids.clone())?,
+            "order_edges": graph.edges.iter().filter(|e| e.kind == EdgeKind::Precedes && (ids.contains(&e.from) || ids.contains(&e.to))).collect::<Vec<_>>(),
+        }))
+    };
+    println!(
+        "{}",
+        serde_json::to_string(&json!({
+            "old": select(&a, &old, old_page)?, "new": select(&b, &new, new_page)?,
+            "table_refinements": tables, "certifies_recovery": false,
         }))?
     );
     Ok(())
