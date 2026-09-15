@@ -81,3 +81,16 @@ the unchanged token budget and a page-break false B rejected by exact external
 continuation evidence. `locality-panel-pilot.json` retains the 36-pair follow-up:
 one target range hit, zero complete documents, and no fixed strict-control masks.
 These remain single-pass diagnostics, not achieved G1/G2/G3 gates.
+
+## Registered baseline restoration checkpoint
+
+`registered-baseline-restoration-result.json` records two isolated, offline
+release builds of the registered historical source with Rust 1.98.0 at its
+canonical source path. Both builds succeeded, but neither the CLI-only nor
+workspace build matched the registered executable hash. They are diagnostic
+artifacts and cannot replace the historical baseline. The host worktree was
+not switched; build outputs were isolated under `/tmp`. The original build
+conditions remain unresolved, so missing historical captures are not claimed
+as restored. All 72 fixed-panel PDF inputs were rechecked against their original
+hashes. The current workspace passed formatting, Clippy and all 2,487 tests
+(two ignored). Production behavior and the completion denominator are unchanged.
