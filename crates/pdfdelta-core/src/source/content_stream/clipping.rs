@@ -12,6 +12,7 @@ pub(super) enum ClipRegion {
     Rectangle(Rect),
     Convex(Arc<ConvexClip>),
     Empty,
+    Unsupported(Arc<str>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +48,15 @@ impl Quad {
 }
 
 impl ClipRegion {
+    /// Keep graphics-state uncertainty until a glyph needs its visibility.
+    /// An already empty intersection remains provably empty.
+    pub(super) fn intersect_unsupported(&self, reason: String) -> Self {
+        match self {
+            Self::Empty | Self::Unsupported(_) => self.clone(),
+            _ => Self::Unsupported(reason.into()),
+        }
+    }
+
     /// Bounds both retained-constraint copying and four-corner classification.
     /// The caller charges this against a document-wide extraction work ceiling.
     pub(super) fn work(&self) -> usize {
@@ -63,6 +73,7 @@ impl ClipRegion {
         match self {
             Self::Unbounded => Self::Rectangle(rectangle),
             Self::Empty => Self::Empty,
+            Self::Unsupported(_) => self.clone(),
             Self::Rectangle(current) => {
                 let bounds = intersection(*current, rectangle);
                 if empty(bounds) {
@@ -79,6 +90,7 @@ impl ClipRegion {
         let bounds = bounding_rect(quad.0);
         let (bounds, mut quads) = match self {
             Self::Empty => return Self::Empty,
+            Self::Unsupported(_) => return self.clone(),
             Self::Unbounded => (bounds, Vec::new()),
             Self::Rectangle(rectangle) => {
                 let bounds = intersection(bounds, *rectangle);
@@ -102,7 +114,7 @@ impl ClipRegion {
     pub(super) fn segment_is_visible(&self, segment: PathSegment) -> bool {
         match self {
             Self::Unbounded => true,
-            Self::Empty => false,
+            Self::Empty | Self::Unsupported(_) => false,
             Self::Rectangle(rect) => inside(segment.from, *rect) && inside(segment.to, *rect),
             Self::Convex(clip) => [segment.from, segment.to].into_iter().all(|point| {
                 clip.quads
@@ -121,6 +133,7 @@ impl ClipRegion {
             Self::Empty => Ok(GlyphPathClipStatus::Outside),
             Self::Rectangle(clip) => Ok(rectangle_status(glyph, *clip)),
             Self::Convex(clip) => clip.glyph_status(glyph),
+            Self::Unsupported(reason) => Err(Error::Unsupported(reason.to_string())),
         }
     }
 }

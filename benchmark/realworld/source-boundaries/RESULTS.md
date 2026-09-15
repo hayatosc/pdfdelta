@@ -1501,3 +1501,52 @@ including a literal extraction/TJ geometry oracle. Format, Clippy, 2482 workspac
 tests (two ignored), all 48 generated cases and 189 unchanged control event
 fingerprints pass; unchanged controls have zero false strict atoms. Full-panel
 replay remains pending and no recovery gate is claimed.
+
+### Complete the UniJIS replay
+
+`../remaining/unijis-utf16-panel-result.json` binds all 36 captures to the same
+registered bytes, executable and limits. The other 35 pairs retain their native
+inventories, coverage and event fingerprints. Care-skills retains the previously
+reported acquisition gain, comparison loss and extra table-of-contents B. Its
+shifted source IDs produce two added and one removed event fingerprint, rather
+than two new physical ranges. Complete comparison remains 0/36; no fixed-target
+gain or recovery gate is established.
+
+### Defer unsupported graphics clipping until glyph visibility is needed
+
+`../remaining/deferred-clip-result.json` records a missing dependency boundary:
+unsupported clipping geometry previously discarded a page even when the clip
+was used only for graphics and then restored. The interpreter now carries that
+uncertainty in its graphics state. Glyphs that actually require classification
+still fail closed; uncertain vector lines are not certified, and opaque paint
+records remain. Saved-state restoration and Form return restore the prior clip.
+No curve approximation or visibility guess is introduced. Cache format is 12.
+
+Selected-page traces of the old care-skills PDF expose the concrete pattern.
+Page index 20 installs a curved clip at operators 719/720, invokes an XObject,
+restores the clip at 726, then resumes text at 754. Page index 0 similarly shades
+inside a saved clip and restores it without later text-showing operators. The
+probe now permits one selected page of a longer PDF while retaining its whole-
+document 200-page cap, byte cap and operator/resource limits.
+
+Four fixed pilots gain 21720 discovered and 1014 compared sources. Care-skills
+gains 5197/6275 native glyphs and 378 compared sources on each side; NIST SHA gains
+2044 old glyphs and 129 compared sources on each side. Revised FAA thunderstorms
+gains 2527 glyphs; revised kana guidance gains 5677. Their compared counts do not
+change. The old kana input still has zero native glyphs and does not become a
+complete comparison. Both care-skills inputs retain a real glyph-clip failure
+on page index 89, and all four pilot comparisons remain incomplete.
+
+Every previous care-skills glyph signature remains, preserving duplicate
+multiplicity, raw codes, text, geometry, rendering state and object/operator
+provenance while excluding allocation IDs and render-order counters. NIST SHA's
+37 B operations retain their physical source ranges and both boundaries.
+Care-skills loses the prior 90-source table-of-contents B; this known search
+sensitivity is retained, and no new B operation or ID-free body gain is claimed.
+
+The graphics-only clipping reproduction fails before the change. Positive
+restoration/Form controls and negative active/nested/intersected clip controls
+pass. Format, Clippy, 2485 workspace tests (two ignored), 48 generated cases and
+189 unchanged control event fingerprints pass, with zero false strict atoms on
+unchanged controls. The remaining fixed-panel replay is still required. Native
+acquisition gains are not proof of common-text inventory or comparison completion.

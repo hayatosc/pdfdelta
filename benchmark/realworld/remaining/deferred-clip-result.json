@@ -1,0 +1,490 @@
+{
+  "status": "unsupported_graphics_clips_deferred_until_glyph_visibility_with_pilot_acquisition_and_comparison_gain",
+  "previous_turn_classification": "progress: bounded UniJIS decoding and source-reviewed pilot committed as 8b03035",
+  "fixed_panel_denominator": 36,
+  "pilot_pairs": 4,
+  "production_changed": true,
+  "limits_raised": false,
+  "contract": "Keep unsupported clipping geometry in the graphics state. Continue opaque graphics without certifying clipped vector lines; fail closed when a glyph actually needs that clip classification. Q and Form return restore the prior clip. Preserve known empty intersections and existing parser/extraction limits.",
+  "reproduction": {
+    "path": "benchmark/realworld/remaining/deferred-clip-reproduction.json",
+    "sha256": "33ca2ad43c561670ea98b0cd70da01bfcea0bdffb94ab1bbcc518c8b876afa22"
+  },
+  "cache_format": 12,
+  "backend_profile": "content-stream-v8-deferred-clip-worker-v1",
+  "prior_full_panel": {
+    "path": "benchmark/realworld/remaining/unijis-utf16-panel-result.json",
+    "sha256": "49f9c60142932eda79fa1837369285844d4cee7a1ea407467235f7db21141e07"
+  },
+  "pilot": [
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/unijis-care/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "032dd7812c30a8478fc9157cc72d37f0f86f5ce20d9cb8ecc73833f0af9fe403"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "e1faffa8b16ea5f281a3c00f4d084215906141c1eb1b1cbc6413bb48470fb2c0"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-mhlw-care-skills-original-to-revised/runs.json",
+        "sha256": "87df3bc10593f74a7cac9ef2602874a58b133ea29679a6db97aae426331b43dc"
+      },
+      "coverage_before_after": [
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 77443,
+            "new_discovered_sources": 98660,
+            "old_compared_sources": 8640,
+            "new_compared_sources": 8640,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 68803,
+            "new_uncompared_sources": 90020,
+            "complete": false
+          }
+        ],
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 82640,
+            "new_discovered_sources": 104935,
+            "old_compared_sources": 9018,
+            "new_compared_sources": 9018,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 73622,
+            "new_uncompared_sources": 95917,
+            "complete": false
+          }
+        ]
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {
+          "B": 2
+        },
+        {
+          "B": 1
+        }
+      ],
+      "new_B_operations": [],
+      "lost_B_operations": [
+        {
+          "kind": "text_changed",
+          "new": "ことば ･････････ 219問題（会話・声かけ） ･････････ 220",
+          "old": "ことば ･････････ 217問題（会話・声かけ） ･････････ 218"
+        }
+      ],
+      "text_acquisition_issue_counts_before_after": {
+        "old": [
+          16,
+          1
+        ],
+        "new": [
+          16,
+          1
+        ]
+      },
+      "wall_seconds": 55.45,
+      "peak_rss_kib": 610280
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-unijis/bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.json",
+        "sha256": "b1a2da12da4f8666b04ebca9ef78e4c2dd29b0ea9fde5c01f872eda9d96059da"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.json",
+        "sha256": "419b67b59b9790533e5d1983d975d3b1f16a8bb5d7b1ef1b8cdbbf2bae0af2da"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-bunka-kana-1946-to-1986/runs.json",
+        "sha256": "417872fe0983c7459937e6b7d1d001255fca0ea4663d34aba09995a622012995"
+      },
+      "coverage_before_after": [
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 0,
+            "new_discovered_sources": 0,
+            "old_compared_sources": 0,
+            "new_compared_sources": 0,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 0,
+            "new_uncompared_sources": 0,
+            "complete": false
+          }
+        ],
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 0,
+            "new_discovered_sources": 5677,
+            "old_compared_sources": 0,
+            "new_compared_sources": 0,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 0,
+            "new_uncompared_sources": 5677,
+            "complete": false
+          }
+        ]
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {},
+        {}
+      ],
+      "new_B_operations": [],
+      "lost_B_operations": [],
+      "text_acquisition_issue_counts_before_after": {
+        "old": [
+          0,
+          0
+        ],
+        "new": [
+          11,
+          0
+        ]
+      },
+      "wall_seconds": 1.46,
+      "peak_rss_kib": 51584
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-unijis/nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.json",
+        "sha256": "1376ce8f0ea80a3edab24cb623025d9b0275f352ee7cf8a7bdf017501266ed7c"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.json",
+        "sha256": "3cd708b0e834757db1b6b1a2ba83fba11be99627ffbeda670163a9c951636486"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-nist-sha-1803-to-1804/runs.json",
+        "sha256": "199a948e130f97d6735ae7f99873c2b610650dcc0a080337644ae2f5f8e4f8ae"
+      },
+      "coverage_before_after": [
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 41495,
+            "new_discovered_sources": 47831,
+            "old_compared_sources": 8146,
+            "new_compared_sources": 8145,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 33349,
+            "new_uncompared_sources": 39686,
+            "complete": false
+          }
+        ],
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 43539,
+            "new_discovered_sources": 47831,
+            "old_compared_sources": 8275,
+            "new_compared_sources": 8274,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 35264,
+            "new_uncompared_sources": 39557,
+            "complete": false
+          }
+        ]
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {
+          "B": 37,
+          "C": 1
+        },
+        {
+          "B": 37,
+          "C": 1
+        }
+      ],
+      "new_B_operations": [],
+      "lost_B_operations": [],
+      "text_acquisition_issue_counts_before_after": {
+        "old": [
+          1,
+          0
+        ],
+        "new": [
+          0,
+          0
+        ]
+      },
+      "wall_seconds": 3.93,
+      "peak_rss_kib": 180360
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-unijis/faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "3cf7af03544c90b52ffeeaf810a3bd8be31e306a1e75c9615ac2099b5e17138f"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "c6c2cc89b54febb4d0cb700ad154a3aab8540d18f77ca80dc51d33860d5ac9f3"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-faa-thunderstorms-b-to-c/runs.json",
+        "sha256": "9a15da5d7adbbef37ea057cb1c224622af1d471b385932cfee2eb8c7e2d69a1f"
+      },
+      "coverage_before_after": [
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 15715,
+            "new_discovered_sources": 25205,
+            "old_compared_sources": 6,
+            "new_compared_sources": 6,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 15709,
+            "new_uncompared_sources": 25199,
+            "complete": false
+          }
+        ],
+        [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 15715,
+            "new_discovered_sources": 27732,
+            "old_compared_sources": 6,
+            "new_compared_sources": 6,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 15709,
+            "new_uncompared_sources": 27726,
+            "complete": false
+          }
+        ]
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {
+          "C": 1
+        },
+        {
+          "C": 1
+        }
+      ],
+      "new_B_operations": [],
+      "lost_B_operations": [],
+      "text_acquisition_issue_counts_before_after": {
+        "old": [
+          0,
+          0
+        ],
+        "new": [
+          1,
+          0
+        ]
+      },
+      "wall_seconds": 1.65,
+      "peak_rss_kib": 75660
+    }
+  ],
+  "additional_discovered_sources": 21720,
+  "additional_compared_sources": 1014,
+  "source_preservation": [
+    {
+      "side": "old",
+      "before": 77443,
+      "after": 82640,
+      "lost": 0,
+      "added": 5197
+    },
+    {
+      "side": "new",
+      "before": 98660,
+      "after": 104935,
+      "lost": 0,
+      "added": 6275
+    }
+  ],
+  "source_preservation_note": "Care-skills signatures retain text, raw codes, page, geometry, rendering/clip status and object/operator provenance with duplicate multiplicity, excluding allocation IDs, font IDs and render-order counters.",
+  "physical_B_verification": {
+    "pair": "nist-sha-1803-to-1804",
+    "B_before_after": [
+      37,
+      37
+    ],
+    "added_physical_B_ranges": 0,
+    "lost_physical_B_ranges": 0,
+    "comparison": "Operation and multiplicity of physical glyph signatures in each source range and each boundary; excludes allocation IDs, font IDs and render-order counters. This does not assert identical correspondence certificates.",
+    "inspections": [
+      {
+        "binary_sha256": "1dde55f0bf28e9b3bbeb1037c35e240b25920073b63c2499e88b276c8711c65b",
+        "side": "old",
+        "glyphs": 41495,
+        "inspection_sha256": "407242fcf373636f85fcca439c2993ed2024fb845ea7ed5069c1444d77a7bd65"
+      },
+      {
+        "binary_sha256": "1dde55f0bf28e9b3bbeb1037c35e240b25920073b63c2499e88b276c8711c65b",
+        "side": "new",
+        "glyphs": 47831,
+        "inspection_sha256": "7fc88a3f0c4a2079b00e74b4f4030e7f5f1ac8fed595b011978f42abcd76848a"
+      },
+      {
+        "binary_sha256": "0da452f8e989d77ec88b0a4028367433cf6d29e419722dc704b33bc78aa886be",
+        "side": "old",
+        "glyphs": 43539,
+        "inspection_sha256": "4f53726b96e22b70a22ea17c0f302f4ae5bc920302b0688848bb699fd59c080b"
+      },
+      {
+        "binary_sha256": "0da452f8e989d77ec88b0a4028367433cf6d29e419722dc704b33bc78aa886be",
+        "side": "new",
+        "glyphs": 47831,
+        "inspection_sha256": "7fc88a3f0c4a2079b00e74b4f4030e7f5f1ac8fed595b011978f42abcd76848a"
+      }
+    ]
+  },
+  "lost_B_review": "The care-skills 90-source table-of-contents range introduced by the prior acquisition change is no longer emitted. Its page-number replacement was reviewed in unijis-utf16-result.json. It is outside the registered body target. This search sensitivity remains open.",
+  "observed_control_flow": {
+    "input_pair": "mhlw-care-skills-original-to-revised",
+    "side": "old",
+    "page_0": "Operators 519/520 install a curved clip; 521..527 shade within an inner saved state; 528 restores the outer state. No later text-showing operator occurs on this page.",
+    "page_20": "Operators 719/720 install a curved clip; 721..724 invoke an XObject inside a saved state; 726 restores the outer clip. Later text starts at operator 754.",
+    "note": "Indices come from the bounded selected-page diagnostic, not a new parser or a correspondence certificate."
+  },
+  "controls": {
+    "attempts": 189,
+    "equal_event_identities": 189,
+    "negative_false_strict_atoms": 0
+  },
+  "checks": {
+    "format": "passed",
+    "clippy": "passed",
+    "workspace_passed": 2485,
+    "workspace_failed": 0,
+    "workspace_ignored": 2,
+    "generated_passed": 48
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-pdfdelta",
+      "sha256": "0da452f8e989d77ec88b0a4028367433cf6d29e419722dc704b33bc78aa886be"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-before.log",
+      "sha256": "f39dd57a405cf8c963b8979779d187613dee937cc1911fed94a8bdb4d715ca5d"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-focused-final.log",
+      "sha256": "516ec1a026ea875e4e8a7fcd9050635640017c3a54dddc41369e3d07cf764f21"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-clippy.log",
+      "sha256": "a1f8804322f5f4ff54c76edb60e53301410376f964a2968788178dc3336be9c9"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-tests.log",
+      "sha256": "6b0e0e1214f1aa0cadc55b4bc9701bd5b55a579b837bc5293ecba8c071f47bbb"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-generated.log",
+      "sha256": "87982c6e9d9c7287d57748375d127dc44943ad6f3936046c2577c55d7bef643c"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-release.log",
+      "sha256": "11192da69e94a020bf833a2f69a763674422e362127331630706f920ccc03be8"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/clip-care-page0.json",
+      "sha256": "79a7701687097c532ab198cba27477cd15a88260f2eb7f000e00f1df65acc74a"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/clip-care-page20.json",
+      "sha256": "2555d9410ddc0c712097ed9c0386da628724a17a56b973683249a783615c6616"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-care-old-glyphs.log",
+      "sha256": "ac2ac7695490f706af2fe2923bdb03c3d0a7dc81e0acf4fe3e02de71a5026263"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-care-new-glyphs.log",
+      "sha256": "a4bc352f25ab675d0d3db7d15804d31fbffd0370e1096038f0c484a1c63c7b3e"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-native-preservation.json",
+      "sha256": "f07c95831b61a5738f139d929555bb7918a21c2fd13cb23a126ffa7e0aa28065"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-sha-source-equivalence.json",
+      "sha256": "aee2a5d4a363ba6b776cfdc03861801ffda97134fa263e60f5c642efc9d61482"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/check-deferred-clip-sha-sources.py",
+      "sha256": "4be0f50569b9272f83f6c5fc65d0ee11ef547ebfd474aa8fae4abe3c5dfee278"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/layout-deferred-clip/runs.json",
+      "sha256": "64a9d51e13df9a0b9004d94fae87b5514000de77c8a228444ee6953481446fdc"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-control-events.json",
+      "sha256": "c01cc43e913ec7bd1cd44f0f70bf46ae6752fbba13d9513f48eb01007d2b32b3"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/deferred-clip-control-scores/summary.json",
+      "sha256": "a9fe8a031948a91a7c4f2f00456b4af6791effac42e457f39702726893cb9ad1"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/capture-deferred-clip.py",
+      "sha256": "ec4c81da879fa8add25490287cb3b834e17f43aaf8892db5a48e80a62bb2ff74"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/retain-deferred-clip.py",
+      "sha256": "7473d264e4806d265cb138325aeb6d2f9b1544b2fa92a067be2edfa158807e6a"
+    }
+  ],
+  "limitations": [
+    "All four pilot comparisons remain incomplete. No G1/G2/G3 gain is claimed.",
+    "The old kana PDF has no acquired native glyphs even though its graphics-only clip no longer fails; it does not become a complete comparison.",
+    "Both care-skills documents still fail glyph clipping on page index 89; no visibility is guessed there.",
+    "Full 36-pair replay remains pending."
+  ],
+  "next_action": "Replay the remaining fixed-panel pairs, then use the smallest source-clean incomplete pair to isolate the common-text inventory/comparison blocker rather than equating native acquisition with completion."
+}

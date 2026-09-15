@@ -1021,23 +1021,24 @@ impl Extraction<'_> {
 
         let clip_update = if state.current_path.clip_pending {
             if state.current_path.has_unsupported_segments {
-                return Err(Error::Unsupported(format!(
+                Some(state.graphics.clip_region.intersect_unsupported(format!(
                     "curved clipping path at content operator index {}",
                     operation.index
-                )));
-            }
-            self.charge_convex_clip_work(state.graphics.clip_region.work())?;
-            if let Some(rectangle) = state.current_path.clipping_rectangle() {
-                Some(state.graphics.clip_region.intersect_rectangle(rectangle))
+                )))
             } else {
-                self.charge_convex_clip_work(16)?;
-                let quad = state.current_path.clipping_quad().ok_or_else(|| {
-                    Error::Unsupported(format!(
-                        "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}",
-                        operation.index
-                    ))
-                })?;
-                Some(state.graphics.clip_region.intersect_quad(quad))
+                self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+                if let Some(rectangle) = state.current_path.clipping_rectangle() {
+                    Some(state.graphics.clip_region.intersect_rectangle(rectangle))
+                } else {
+                    self.charge_convex_clip_work(16)?;
+                    Some(match state.current_path.clipping_quad() {
+                        Some(quad) => state.graphics.clip_region.intersect_quad(quad),
+                        None => state.graphics.clip_region.intersect_unsupported(format!(
+                            "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}",
+                            operation.index
+                        )),
+                    })
+                }
             }
         } else {
             None

@@ -814,20 +814,135 @@ fn opaque_form_paints_retain_the_outward_form_bound_without_leaking_it() -> Resu
 }
 
 #[test]
-fn rejects_non_rectangular_and_multiple_line_built_clips() -> Result<()> {
+fn restores_text_after_an_unsupported_graphics_only_clip() -> Result<()> {
+    for path in [
+        "40 40 m 40 120 140 120 140 40 c h",
+        "40 40 m 140 40 l 90 120 l h",
+        "40 40 100 80 re 50 50 10 10 re",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+            "BT /F1 10 Tf 20 180 Td (before) Tj ET q {path} W n 50 50 10 10 re f Q BT /F1 10 Tf 20 160 Td (after) Tj ET"
+        ).into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(
+            outcome.is_complete(),
+            "path: {path}; issues: {:?}",
+            outcome.issues()
+        );
+        assert_eq!(mapped_text(outcome.document().items()), "beforeafter");
+        assert!(
+            outcome
+                .document()
+                .items()
+                .iter()
+                .all(|glyph| glyph.path_clip_status == GlyphPathClipStatus::Unclipped)
+        );
+        assert_eq!(
+            outcome
+                .document()
+                .non_text_paint_bounds()
+                .expect("opaque paint retained")
+                .len(),
+            1
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn unsupported_clip_uncertainty_survives_nested_saves_and_intersections() -> Result<()> {
+    for suffix in [
+        "",
+        "q Q",
+        "0 0 200 200 re W n",
+        "0 100 m 100 0 l 200 100 l 100 200 l h W n",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+            "40 40 m 40 120 140 120 140 40 c h W n {suffix} BT /F1 10 Tf 60 80 Td (uncertain) Tj ET"
+        ).into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(!outcome.is_complete(), "suffix: {suffix}");
+        assert!(outcome.document().items().is_empty());
+        assert!(
+            outcome
+                .issues()
+                .iter()
+                .any(|issue| issue.description().contains("curved clipping path"))
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn graphics_only_form_clips_do_not_hide_outer_text_or_admit_uncertain_lines() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(dictionary! {
+        "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 200.into(), 200.into()],
+    }, b"40 40 m 40 120 140 120 140 40 c h W n 60 60 m 100 60 l S".to_vec()));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/X Do 60 20 m 100 20 l S BT /F1 10 Tf 20 160 Td (after) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    assert_eq!(mapped_text(outcome.document().items()), "after");
+    assert_eq!(outcome.document().vector_lines().len(), 1);
+    assert_close(outcome.document().vector_lines()[0].from.y, 20.0);
+    assert_eq!(
+        outcome
+            .document()
+            .non_text_paint_bounds()
+            .expect("both paints retained")
+            .len(),
+        2
+    );
+    Ok(())
+}
+
+#[test]
+fn rejects_text_with_non_rectangular_and_multiple_line_built_clips() -> Result<()> {
     for path in [
         "40 40 m 140 40 l 90 120 l h",
         "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l h",
     ] {
         let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
         let content = pdf.add_object(Stream::new(
             dictionary! {},
-            format!("{path} W n").into_bytes(),
+            format!("{path} W n BT /F1 10 Tf 60 80 Td (uncertain) Tj ET").into_bytes(),
         ));
         install_page(
             &mut pdf,
             content.into(),
-            Object::Dictionary(dictionary! {}),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
             None,
             None,
         );
