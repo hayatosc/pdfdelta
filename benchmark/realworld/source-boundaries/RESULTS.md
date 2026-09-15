@@ -1337,3 +1337,27 @@ and matched their original hashes. Historical executables were rebuilt from
 tracked revisions. The missing full-panel and control evidence is not treated
 as a completed verification, and the denominator remains 36. Format, Clippy,
 2471 workspace tests (two ignored) and all 48 generated cases pass.
+
+### Restore fixed inputs and replay the current panel
+
+After the cache disappearance, all 72 registered inputs were restored with their
+original SHA-256 hashes. Two EDPB HTTP 429 failures were retained and resolved by
+later retries. The fixed denominator remains 36; no PDF or historical registry
+was replaced with different bytes.
+
+`../remaining/panel-cache-recovery-result.json` retains fresh common-text captures
+for all 36 pairs at `c244b5c`, under the existing 180-second capture timeout and
+limit scale 1. All captures succeeded, but document-wide completion remains
+0/36. This does not reconstruct a missing byte-identical historical executable
+or establish the remaining recovery gates.
+
+The 63 fixed control pairs were regenerated with their registered hashes and
+replayed on all three routes for rebuilt `3d4022f` and `c244b5c`. All 189 event
+identity populations agree. Literal unchanged controls have zero false strict
+source atoms on both revisions. Authored native/text/all completion stays at
+32/60, 10/60 and 0/60; text and all-channel exact target-range B detections stay
+at 14/48. Real metamorphic comparisons remain incomplete.
+
+The BERT bibliography B count loss from 23 to 22 was reproduced and remains an
+open diagnosis. Newly admitted real-PDF B operations still require source review.
+Format, Clippy and 2471 workspace tests pass, with two tests ignored.
