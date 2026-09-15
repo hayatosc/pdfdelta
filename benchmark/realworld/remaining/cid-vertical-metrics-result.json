@@ -1,0 +1,337 @@
+{
+  "status": "implemented_bounded_per_cid_vertical_metrics_with_real_source_gain",
+  "previous_turn_classification": "progress: full panel replay and vertical-metric blocker selection committed as e4a321d",
+  "fixed_panel_denominator": 36,
+  "pilot_pairs": 4,
+  "production_changed": true,
+  "contract": "Parse explicit list and inclusive-range W2 triples through neutral PDF objects; use DW2 and half horizontal width for absent CIDs. Require finite metrics and downward advances, reject overlapping or truncated definitions, and share the unchanged CID metric-entry cap across W and W2.",
+  "reference": "https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.6.pdf",
+  "cache_format": 10,
+  "backend_profile": "content-stream-v6-cid-vertical-metrics-worker-v1",
+  "limits_raised": false,
+  "pilot": [
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-short-circuit/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "2159e24540805c7dade2714c150ca8b0331e95f9343b8c385c3177789e600e68"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/w2-mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "c214340d9a4c626087c3b947b70c0f7e922aee1df2d979ad4fb627b01aa92d65"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/w2-mext-primary-japanese-2008-to-2017/runs.json",
+        "sha256": "d12e7b73e7a9339106bf546a6a5ec2c91f55061d574f87ca47cc79723c59b2c5"
+      },
+      "sides": [
+        {
+          "side": "old",
+          "discovered_sources_before_after": [
+            49016,
+            49016
+          ],
+          "compared_sources_before_after": [
+            49,
+            49
+          ],
+          "W2_unsupported_before_after": [
+            0,
+            0
+          ]
+        },
+        {
+          "side": "new",
+          "discovered_sources_before_after": [
+            200257,
+            211116
+          ],
+          "compared_sources_before_after": [
+            49,
+            49
+          ],
+          "W2_unsupported_before_after": [
+            13,
+            0
+          ]
+        }
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {},
+        {}
+      ]
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-short-circuit/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "fcbdd5dfdc9ce7541d40298c930be4d7850a3d3c39e8347feada13c30ef51e6d"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/w2-mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "74ca8b4faae05ffd4c0046df5417ddd359c28f8ea7ff19584fab554dd50a09cd"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/w2-mext-lower-secondary-japanese-2008-to-2017/runs.json",
+        "sha256": "ac09bd42bb914c4ef53323fb8b9e43474e6222525e7a417ab41946994d919015"
+      },
+      "sides": [
+        {
+          "side": "old",
+          "discovered_sources_before_after": [
+            33923,
+            33923
+          ],
+          "compared_sources_before_after": [
+            27,
+            27
+          ],
+          "W2_unsupported_before_after": [
+            0,
+            0
+          ]
+        },
+        {
+          "side": "new",
+          "discovered_sources_before_after": [
+            158718,
+            168006
+          ],
+          "compared_sources_before_after": [
+            27,
+            27
+          ],
+          "W2_unsupported_before_after": [
+            13,
+            0
+          ]
+        }
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {},
+        {}
+      ]
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-short-circuit/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "3d251c58f7cdaeed67a0097720fa929f7ecc93b9ef11974ddef2003dba7f2d4e"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/w2-mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "82dfc87538898a93ab544ab477ed12b365210faa820d536cbc89615787eaa864"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/w2-mext-upper-secondary-japanese-2009-to-2018/runs.json",
+        "sha256": "c9b07b66bff1fb96bb2fbf2acd9881818cd6a6ea3ab4238b1d63108887062c08"
+      },
+      "sides": [
+        {
+          "side": "old",
+          "discovered_sources_before_after": [
+            9528,
+            9528
+          ],
+          "compared_sources_before_after": [
+            12,
+            12
+          ],
+          "W2_unsupported_before_after": [
+            0,
+            0
+          ]
+        },
+        {
+          "side": "new",
+          "discovered_sources_before_after": [
+            260656,
+            263018
+          ],
+          "compared_sources_before_after": [
+            12,
+            12
+          ],
+          "W2_unsupported_before_after": [
+            5,
+            0
+          ]
+        }
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {},
+        {}
+      ]
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-short-circuit/mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "16114923f3746ed245c527eec11015d5f5b6b1e245b44fbcba63a4ac267ba488"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/w2-mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "5c41ffc4d3f13ce349f1759650ee5f9797fc8217135435d283f0ce6e1cb49125"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/w2-mhlw-care-skills-original-to-revised/runs.json",
+        "sha256": "725d2ff3f8d0250ad638b4f39a6143637472219ebc2da75466710e7a4de855d2"
+      },
+      "sides": [
+        {
+          "side": "old",
+          "discovered_sources_before_after": [
+            55292,
+            73347
+          ],
+          "compared_sources_before_after": [
+            7183,
+            8706
+          ],
+          "W2_unsupported_before_after": [
+            97,
+            0
+          ]
+        },
+        {
+          "side": "new",
+          "discovered_sources_before_after": [
+            78187,
+            98660
+          ],
+          "compared_sources_before_after": [
+            7183,
+            8706
+          ],
+          "W2_unsupported_before_after": [
+            87,
+            0
+          ]
+        }
+      ],
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "event_counts_before_after": [
+        {
+          "B": 1
+        },
+        {
+          "B": 1
+        }
+      ]
+    }
+  ],
+  "additional_discovered_sources": 61037,
+  "additional_compared_sources": 3046,
+  "W2_unsupported_before_after": [
+    215,
+    0
+  ],
+  "controls": {
+    "event_identities_equal": 189,
+    "attempts": 189,
+    "negative_false_strict_atoms": 0,
+    "artifacts": [
+      {
+        "path": "benchmark/realworld/cache/recovery/layout-short-circuit/runs.json",
+        "sha256": "3d4bc571dfd45aa6d5423a3ee6afc2757be0c932018b6f91176fef356815525a"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/layout-w2/runs.json",
+        "sha256": "6afd33ee4d093e40a3540a0186852b6f6080f808088210e1a9d832a61069fac9"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-control-events.json",
+        "sha256": "c01cc43e913ec7bd1cd44f0f70bf46ae6752fbba13d9513f48eb01007d2b32b3"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-control-scores/scores.json",
+        "sha256": "6152f713bbb5e15f8d622ec9161faa10bb6b17bb9736cd4c73e972ff52a8fac4"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-control-scores/summary.json",
+        "sha256": "a9fe8a031948a91a7c4f2f00456b4af6791effac42e457f39702726893cb9ad1"
+      }
+    ]
+  },
+  "checks": {
+    "format": "passed",
+    "clippy": "passed",
+    "workspace_passed": 2476,
+    "workspace_failed": 0,
+    "workspace_ignored": 2,
+    "generated_passed": 48,
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-before.log",
+        "sha256": "5719f0302ce95a5f7a68ad691c9bec0902db3983fe2ebcda37a5e184102c137e"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-font-tests.log",
+        "sha256": "3a1a7bc05a0b40f5561c4f7ea26d84cddbae8aef1cbffc68e1e43661e29f75f5"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-geometry.log",
+        "sha256": "b0fd5bea31e9aa63d4235260eefc77b45e21d97204059303ea70a3af5eaacbcb"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-clippy-final.log",
+        "sha256": "259ff99e18b64cdee209a9d24fd457c27b60fd251e45b2c02ec54105d092e257"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-tests-final.log",
+        "sha256": "e0785086e50a48ffdc90d179a0dff14ad865aad3025a53b6df33aa6be25d4ce1"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-generated.log",
+        "sha256": "7d2288453181e8bd699550b09a120716b4bd8dbae767f32cd38654b51f9d3b65"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/w2-release-final.log",
+        "sha256": "d4ba4eaa49d99f30e8680ea24310dd03210a4bcaf9467ee41661918d29e4a2e6"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/recovery/w2-pdfdelta",
+      "sha256": "a93b2c1ba069842717f90c5a4933b7a35729543542ab7e1f17e8bd4e92e71f1c"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/w2-implementation.patch",
+      "sha256": "4f6ced161ab1f38e4faab6ada8a806919195d9ce128e4a99889ef7c3efc53a43"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/w2-vertical.rs",
+      "sha256": "0367a6f47b43c2c178efdea73ecd0ef18425665acd8a94dffe831d245849e4ef"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/capture-w2.py",
+      "sha256": "ab1c9ed04adedebeab4d2a7dad14807ffbe1c250330e66bc6fd5fffeb91d4ff4"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/retain-w2.py",
+      "sha256": "86c3cbbf45320deb8c81684cc8a6071ef8b0ff56c439274161bd51433461d92a"
+    }
+  ],
+  "limitations": [
+    "All four pilot comparisons remain incomplete. No G1/G2/G3 gate gain is claimed.",
+    "General vertical reading order and other unsupported encodings remain unresolved.",
+    "The full 36-pair replay for this executable remains to be run."
+  ],
+  "next_action": "Replay the fixed full panel and inspect remaining Japanese font-encoding and clipping blockers without raising acquisition limits."
+}

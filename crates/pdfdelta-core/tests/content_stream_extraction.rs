@@ -3351,6 +3351,80 @@ fn extracts_identity_v_glyphs_with_vertical_geometry_and_tj_adjustments() -> Res
 }
 
 #[test]
+fn extracts_per_cid_vertical_origins_and_advances_with_tj_adjustments() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          3 beginbfchar <0001> <0041> <0002> <0042> <0003> <0043> endbfchar"
+            .to_vec(),
+    ));
+    let font = identity_v_font(&mut pdf, cmap);
+    let descendant = pdf.objects[&font]
+        .as_dict()
+        .expect("fixture font")
+        .get(b"DescendantFonts")
+        .expect("fixture descendants")
+        .as_array()
+        .expect("fixture array")[0]
+        .as_reference()
+        .expect("fixture descendant");
+    pdf.objects
+        .get_mut(&descendant)
+        .expect("fixture descendant")
+        .as_dict_mut()
+        .expect("fixture dictionary")
+        .set(
+            "W2",
+            Object::Array(vec![
+                Object::Integer(1),
+                Object::Array(vec![
+                    Object::Integer(-900),
+                    Object::Integer(400),
+                    Object::Integer(850),
+                ]),
+                Object::Integer(2),
+                Object::Integer(2),
+                Object::Integer(-1200),
+                Object::Integer(600),
+                Object::Integer(900),
+            ]),
+        );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 100 Tm [<00010002> -250 <0003>] TJ ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+
+    assert_eq!(mapped_text(glyphs), "ABC");
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[0].baseline.y, 100.0);
+    assert_close(glyphs[1].baseline.y, 91.0);
+    assert_close(glyphs[2].baseline.y, 81.5);
+    assert_close(glyphs[0].direction.x, 0.0);
+    assert_close(glyphs[0].direction.y, -1.0);
+    assert_close(glyphs[0].bbox.min.x, 16.0);
+    assert_close(glyphs[0].bbox.max.x, 26.0);
+    assert_close(glyphs[0].bbox.min.y, 89.71);
+    assert_close(glyphs[0].bbox.max.y, 103.29);
+    assert_close(glyphs[1].bbox.min.x, 14.0);
+    assert_close(glyphs[1].bbox.min.y, 80.21);
+    assert_eq!(glyphs[2].raw_code, [0, 3]);
+    Ok(())
+}
+
+#[test]
 fn preserves_partial_identity_h_tounicode_gaps_with_descendant_font_identity() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap = pdf.add_object(Stream::new(

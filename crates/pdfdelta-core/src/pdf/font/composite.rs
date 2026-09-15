@@ -15,8 +15,11 @@ use super::{
     decoder::{DecodedGlyph, FontDecoderLimits, VerticalGlyphMetrics, WritingMode},
 };
 
-#[derive(Clone, Copy, Debug)]
-struct DefaultVerticalMetrics {
+mod vertical;
+
+#[derive(Clone, Debug)]
+struct VerticalMetrics {
+    overrides: BTreeMap<u16, VerticalGlyphMetrics>,
     displacement_y_1000_em: f64,
     origin_y_1000_em: f64,
 }
@@ -30,7 +33,7 @@ pub(crate) struct CompositeFontDecoder {
     descent: f64,
     source_width: usize,
     writing_mode: WritingMode,
-    vertical: Option<DefaultVerticalMetrics>,
+    vertical: Option<VerticalMetrics>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -62,7 +65,7 @@ impl CompositeFontDecoder {
         let vertical = load_vertical_metrics(
             pdf,
             &descendant,
-            limits.max_indirections,
+            limits,
             writing_mode,
             default_width,
             &widths,
@@ -98,7 +101,7 @@ impl CompositeFontDecoder {
             })?;
 
         Ok(LoadedCompositeFont {
-            cid_width_entries: widths.len(),
+            cid_width_entries: widths.len() + vertical.as_ref().map_or(0, |v| v.overrides.len()),
             decoder: Self {
                 to_unicode,
                 widths,
@@ -175,10 +178,16 @@ impl CompositeFontDecoder {
                 mapping,
                 glyph_id,
                 width_1000_em,
-                vertical: self.vertical.map(|vertical| VerticalGlyphMetrics {
-                    displacement_y_1000_em: vertical.displacement_y_1000_em,
-                    origin_x_1000_em: width_1000_em / 2.0,
-                    origin_y_1000_em: vertical.origin_y_1000_em,
+                vertical: self.vertical.as_ref().map(|vertical| {
+                    vertical
+                        .overrides
+                        .get(&glyph_id)
+                        .copied()
+                        .unwrap_or(VerticalGlyphMetrics {
+                            displacement_y_1000_em: vertical.displacement_y_1000_em,
+                            origin_x_1000_em: width_1000_em / 2.0,
+                            origin_y_1000_em: vertical.origin_y_1000_em,
+                        })
                 }),
             });
         }
@@ -410,19 +419,15 @@ fn load_widths(
 fn load_vertical_metrics(
     pdf: &dyn ParsedPdf,
     descendant: &PdfDict,
-    max_indirections: usize,
+    limits: FontDecoderLimits,
     writing_mode: WritingMode,
     default_width: f64,
     widths: &BTreeMap<u16, f64>,
-) -> Result<Option<DefaultVerticalMetrics>> {
+) -> Result<Option<VerticalMetrics>> {
     if matches!(writing_mode, WritingMode::Horizontal) {
         return Ok(None);
     }
-    if descendant.contains_key(b"W2".as_slice()) {
-        return Err(Error::Unsupported(
-            "Identity-V fonts with per-CID W2 metrics are not supported".into(),
-        ));
-    }
+    let max_indirections = limits.max_indirections;
     if default_width <= 0.0 || widths.values().any(|width| *width <= 0.0) {
         return unresolved("Identity-V font has a non-positive horizontal width");
     }
@@ -457,7 +462,8 @@ fn load_vertical_metrics(
             "Identity-V fonts with non-downward default displacement are not supported".into(),
         ));
     }
-    Ok(Some(DefaultVerticalMetrics {
+    Ok(Some(VerticalMetrics {
+        overrides: vertical::load(pdf, descendant, limits, widths.len())?,
         displacement_y_1000_em,
         origin_y_1000_em,
     }))
@@ -809,23 +815,218 @@ mod tests {
     }
 
     #[test]
-    fn rejects_identity_v_per_cid_vertical_metrics() {
+    fn decodes_identity_v_per_cid_vertical_metrics() -> Result<()> {
         let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
         let PdfObject::Dictionary(dictionary) = &mut descendant else {
-            unreachable!();
+            unreachable!()
         };
-        dictionary.insert(b"W2".to_vec(), PdfObject::Array(Vec::new()));
+        let numbers = |values: &[i64]| {
+            PdfObject::Array(values.iter().copied().map(PdfObject::Integer).collect())
+        };
+        dictionary.insert(
+            b"W2".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                numbers(&[-900, 400, 850, -1100, 450, 900]),
+                PdfObject::Integer(4),
+                PdfObject::Integer(5),
+                PdfObject::Integer(-1200),
+                PdfObject::Integer(600),
+                PdfObject::Integer(950),
+            ]),
+        );
         let pdf = MockPdf::with_descendant(descendant);
         let mut font = font_dictionary();
         font.insert(
             b"Encoding".to_vec(),
             PdfObject::Name(b"Identity-V".to_vec()),
         );
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(loaded.cid_width_entries, 4);
+        let glyphs = loaded
+            .decoder
+            .decode(&[0, 1, 0, 2, 0, 3, 0, 4, 0, 5], 5, usize::MAX)?;
+        for (glyph, (dy, x, y)) in glyphs.iter().zip([
+            (-900.0, 400.0, 850.0),
+            (-1100.0, 450.0, 900.0),
+            (-1000.0, 450.0, 880.0),
+            (-1200.0, 600.0, 950.0),
+            (-1200.0, 600.0, 950.0),
+        ]) {
+            assert_eq!(
+                glyph.vertical,
+                Some(VerticalGlyphMetrics {
+                    displacement_y_1000_em: dy,
+                    origin_x_1000_em: x,
+                    origin_y_1000_em: y,
+                })
+            );
+        }
+        Ok(())
+    }
 
-        assert!(matches!(
-            CompositeFontDecoder::load(&pdf, &font, LIMITS),
-            Err(Error::Unsupported(message)) if message.contains("per-CID W2")
-        ));
+    fn vertical_fixture(metrics: PdfObject) -> (MockPdf, PdfDict) {
+        let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
+        let PdfObject::Dictionary(dictionary) = &mut descendant else {
+            unreachable!()
+        };
+        dictionary.insert(b"W2".to_vec(), metrics);
+        let mut font = font_dictionary();
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-V".to_vec()),
+        );
+        (MockPdf::with_descendant(descendant), font)
+    }
+
+    #[test]
+    fn rejects_malformed_vertical_metric_tables() {
+        let ints = |values: &[i64]| {
+            PdfObject::Array(values.iter().copied().map(PdfObject::Integer).collect())
+        };
+        for value in [
+            PdfObject::Integer(1),
+            ints(&[1]),
+            ints(&[1, 2, -1000, 500]),
+            ints(&[2, 1, -1000, 500, 880]),
+            ints(&[-1, 2, -1000, 500, 880]),
+            ints(&[1, 65536, -1000, 500, 880]),
+            ints(&[1, 2, -1000, 500, 880, 2, 3, -1000, 500, 880]),
+            PdfObject::Array(vec![PdfObject::Integer(1), ints(&[-1000, 500])]),
+            PdfObject::Array(vec![PdfObject::Integer(1), ints(&[])]),
+            PdfObject::Array(vec![
+                PdfObject::Integer(65535),
+                ints(&[-1000, 500, 880, -1000, 500, 880]),
+            ]),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Array(vec![
+                    PdfObject::Real(f64::NAN),
+                    PdfObject::Integer(500),
+                    PdfObject::Integer(880),
+                ]),
+            ]),
+        ] {
+            let (pdf, font) = vertical_fixture(value);
+            assert!(matches!(
+                CompositeFontDecoder::load(&pdf, &font, LIMITS),
+                Err(Error::Unresolved(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn vertical_metric_ranges_share_the_horizontal_entry_limit() -> Result<()> {
+        let (mut pdf, font) = vertical_fixture(PdfObject::Array(vec![
+            PdfObject::Integer(1),
+            PdfObject::Integer(2),
+            PdfObject::Integer(-1000),
+            PdfObject::Integer(500),
+            PdfObject::Integer(880),
+        ]));
+        let PdfObject::Dictionary(descendant) = pdf
+            .objects
+            .get_mut(&object_ref(2))
+            .expect("fixture descendant")
+        else {
+            unreachable!()
+        };
+        descendant.insert(
+            b"W".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Integer(2),
+                PdfObject::Integer(1000),
+            ]),
+        );
+        for limit in [3, 4] {
+            let result = CompositeFontDecoder::load(
+                &pdf,
+                &font,
+                FontDecoderLimits {
+                    max_cid_width_entries: limit,
+                    ..LIMITS
+                },
+            );
+            if limit == 3 {
+                assert!(matches!(
+                    result,
+                    Err(Error::LimitExceeded {
+                        resource: "CID width entries",
+                        limit: 3
+                    })
+                ));
+            } else {
+                assert_eq!(result?.cid_width_entries, 4);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn vertical_metrics_resolve_indirect_entries_and_preserve_downward_policy() -> Result<()> {
+        let (mut pdf, font) = vertical_fixture(PdfObject::Reference(object_ref(3)));
+        pdf.objects.insert(
+            object_ref(3),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Reference(object_ref(4)),
+            ]),
+        );
+        pdf.objects.insert(
+            object_ref(4),
+            PdfObject::Array(vec![
+                PdfObject::Reference(object_ref(5)),
+                PdfObject::Integer(-20),
+                PdfObject::Integer(850),
+            ]),
+        );
+        for displacement in [-900, 0, 900] {
+            pdf.objects
+                .insert(object_ref(5), PdfObject::Integer(displacement));
+            let result = CompositeFontDecoder::load(&pdf, &font, LIMITS);
+            if displacement < 0 {
+                let glyph = result?.decoder.decode(&[0, 1], 1, usize::MAX)?[0].clone();
+                assert_eq!(
+                    glyph.vertical,
+                    Some(VerticalGlyphMetrics {
+                        displacement_y_1000_em: -900.0,
+                        origin_x_1000_em: -20.0,
+                        origin_y_1000_em: 850.0
+                    })
+                );
+            } else {
+                assert!(matches!(result, Err(Error::Unsupported(_))));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn empty_vertical_table_uses_defaults_and_horizontal_fonts_ignore_it() -> Result<()> {
+        let (pdf, mut font) = vertical_fixture(PdfObject::Array(Vec::new()));
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(loaded.cid_width_entries, 0);
+        assert_eq!(
+            loaded.decoder.decode(&[0, 1], 1, usize::MAX)?[0]
+                .vertical
+                .expect("vertical fixture")
+                .origin_x_1000_em,
+            450.0
+        );
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-H".to_vec()),
+        );
+        let (pdf, _) = vertical_fixture(PdfObject::Integer(1));
+        assert!(
+            CompositeFontDecoder::load(&pdf, &font, LIMITS)?
+                .decoder
+                .decode(&[0, 1], 1, usize::MAX)?[0]
+                .vertical
+                .is_none()
+        );
+        Ok(())
     }
 
     #[test]

@@ -1420,3 +1420,27 @@ All 72 text inventories remain incomplete. The fresh reports contain 215
 unsupported per-CID vertical-metric issues in Japanese documents. The next
 acquisition investigation is the explicit W2 metric table in composite fonts;
 the SSDF search sensitivity remains recorded rather than hidden.
+
+### Retain explicit per-CID vertical metrics
+
+`../remaining/cid-vertical-metrics-result.json` records bounded W2 support through
+the neutral PDF object facade. Both per-CID triples and inclusive ranges are
+validated before use. Unspecified CIDs retain DW2 defaults and half the horizontal
+width as their horizontal origin. Explicit entries share the existing width-entry
+cap with W; overlaps, truncation, invalid CIDs and non-finite metrics are rejected.
+The existing downward-only advance policy remains. Cache format is now 10 and
+the native profile identifies per-CID vertical-metric support.
+
+The four registered Japanese pilot pairs remove all 215 observed W2 rejection
+issues across five affected documents. Discovered text sources increase by 61037:
+10859, 9288 and 2362 in the three revised education documents, and 18055/20473 in
+the old/new care-skills documents. The care-skills comparison also covers 1523
+additional sources on each side. Other pilot coverage is unchanged, B counts
+remain unchanged, and all four document comparisons remain incomplete.
+
+A failing-before decoder fixture, malformed/range/indirection/budget controls,
+and literal glyph-origin, advance and TJ geometry oracles cover the new behavior.
+All 189 fixed control event identities agree with the preceding executable, with
+zero false strict atoms on annotated unchanged controls. Format, Clippy, 2476
+workspace tests (two ignored) and 48 generated cases pass. The full fixed-panel
+replay remains outstanding; no recovery gate is claimed from this pilot.
