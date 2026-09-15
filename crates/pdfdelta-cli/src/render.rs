@@ -362,7 +362,7 @@ pub fn worker(
     stdout.flush().map_err(|_| 2)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub fn restrict_process(cpu_seconds: u64) -> Result<(), u8> {
     use rustix::process::{Resource, Rlimit, setrlimit};
     for (resource, limit) in [
@@ -382,14 +382,37 @@ pub fn restrict_process(cpu_seconds: u64) -> Result<(), u8> {
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 pub fn restrict_process(_cpu_seconds: u64) -> Result<(), u8> {
     Err(4)
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worker_address_space_limit_rejects_excess_reservation() {
+        const CHILD: &str = "PDFDELTA_LIMIT_TEST_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            restrict_process(3).expect("install worker resource limits");
+            let mut bytes = Vec::<u8>::new();
+            assert!(bytes.try_reserve_exact(3 * 1024 * 1024 * 1024).is_err());
+            println!("address-space-ceiling-verified");
+            return;
+        }
+        let mut command = Command::new(std::env::current_exe().expect("test executable"));
+        command
+            .args([
+                "--exact",
+                "render::tests::worker_address_space_limit_rejects_excess_reservation",
+                "--nocapture",
+            ])
+            .env(CHILD, "1");
+        let output = run_bounded(&mut command, &[], 16 * 1024, Duration::from_secs(5))
+            .expect("bounded child rejects an allocation above the process ceiling");
+        assert!(String::from_utf8_lossy(&output).contains("address-space-ceiling-verified"));
+    }
 
     #[test]
     fn worker_deadline_releases_blocked_input() {

@@ -29,6 +29,8 @@ pub struct ExtractionLimits {
     pub max_operand_nodes: usize,
     pub max_fonts: usize,
     pub max_cmap_entries: usize,
+    /// Retained CID metric entries across all fonts. Shared immutable horizontal
+    /// tables are charged once; font-local vertical overrides remain charged.
     pub max_cid_width_entries: usize,
     pub max_string_bytes: usize,
     pub max_vector_lines: usize,

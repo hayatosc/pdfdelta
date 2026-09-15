@@ -196,19 +196,16 @@ pub(super) fn path_paint_bounds(
     if path.paint_bounds.unknown || path.drawn_subpaths == 0 {
         return None;
     }
-    // Preserve the caller's enclosing Form clip when available. A control hull
-    // bounds a fill, but does not bound stroke joins, caps or hairlines.
-    if path.has_unsupported_segments && (stroke || state.graphics.form_paint_bounds.is_some()) {
+    // Preserve the enclosing Form clip instead of expanding its curve hull.
+    if path.has_unsupported_segments && state.graphics.form_paint_bounds.is_some() {
         return None;
     }
     let bounds = path.paint_bounds.rectangle?;
     if !stroke {
         return Some(bounds);
     }
-    // One segment has no joins. A full transformed width encloses every cap
-    // style, including square caps under anisotropic transforms. Hairlines and
-    // multi-segment joins require a different proof and remain unbounded.
-    if path.segments.len() != 1 || state.graphics.line_width <= 0.0 {
+    // Hairlines and automatic stroke adjustment depend on device resolution.
+    if state.graphics.line_width <= 0.0 || state.graphics.stroke_adjustment {
         return None;
     }
     let [a, b, c, d, _, _] = MatrixBounds::from(frame.transform)
@@ -216,7 +213,18 @@ pub(super) fn path_paint_bounds(
         .0;
     let x = Interval::point(a.absolute_upper()) + Interval::point(c.absolute_upper());
     let y = Interval::point(b.absolute_upper()) + Interval::point(d.absolute_upper());
-    let radius = Interval::point(state.graphics.line_width) * Interval::point(x.high.max(y.high));
+    // The control hull encloses the centerline. A full width covers every cap;
+    // width times the miter limit also covers every permitted join. Transform
+    // this displacement with an outward matrix norm, independently of the CTMs
+    // under which individual path points were constructed.
+    let join = if path.segments.len() == 1 && !path.has_unsupported_segments {
+        1.0
+    } else {
+        state.graphics.miter_limit
+    };
+    let radius = Interval::point(state.graphics.line_width)
+        * Interval::point(join)
+        * Interval::point(x.high.max(y.high));
     if !radius.finite() {
         return None;
     }

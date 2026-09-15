@@ -136,6 +136,20 @@ pub fn compare_local_views(
     new_store: &EvidenceStore,
     limits: LocalComparisonLimits,
 ) -> Result<LocalViewComparison> {
+    let mut remaining_work = limits.proof_work;
+    compare_local_views_with_work(old, new, old_store, new_store, limits, &mut remaining_work)
+}
+
+/// Uses the caller's shared proof budget without reserving an estimated grid.
+/// The caller supplies at most `limits.proof_work`; failed proof work stays spent.
+pub(super) fn compare_local_views_with_work(
+    old: &GraphNode,
+    new: &GraphNode,
+    old_store: &EvidenceStore,
+    new_store: &EvidenceStore,
+    limits: LocalComparisonLimits,
+    remaining_work: &mut usize,
+) -> Result<LocalViewComparison> {
     let mut result = LocalViewComparison {
         old: vec![old.id],
         new: vec![new.id],
@@ -151,10 +165,9 @@ pub fn compare_local_views(
         unresolved: Vec::new(),
         compared: false,
     };
-    let mut remaining_work = limits.proof_work;
     match (&old.content, &new.content) {
         (NodeContent::Text { view: a }, NodeContent::Text { view: b }) => {
-            compare_text_content(&mut result, a, b, limits, &mut remaining_work)?;
+            compare_text_content(&mut result, a, b, limits, remaining_work)?;
         }
         (NodeContent::Value { value: a }, NodeContent::Value { value: b }) => {
             if matches!(a, FieldValue::Unresolved { .. })
@@ -175,7 +188,7 @@ pub fn compare_local_views(
                     let a = field_text(a, &old.sources, limits)?;
                     let b = field_text(b, &new.sources, limits)?;
                     result.text_mask =
-                        compare_text(&a, &b, limits, &mut remaining_work, &mut result.unresolved)?;
+                        compare_text(&a, &b, limits, remaining_work, &mut result.unresolved)?;
                 }
             }
         }
@@ -259,6 +272,19 @@ fn compare_text_groups(
     limits: LocalComparisonLimits,
     layout_space_alternatives: bool,
 ) -> Result<LocalViewComparison> {
+    let mut remaining = limits.proof_work;
+    compare_text_groups_with_work(old, new, limits, layout_space_alternatives, &mut remaining)
+}
+
+/// Uses the caller's remaining proof work without replenishing it between ranges.
+/// The caller supplies at most the configured proof budget and validates ownership.
+pub(super) fn compare_text_groups_with_work(
+    old: &[&GraphNode],
+    new: &[&GraphNode],
+    limits: LocalComparisonLimits,
+    layout_space_alternatives: bool,
+    remaining_work: &mut usize,
+) -> Result<LocalViewComparison> {
     if !layout_space_alternatives && (old.is_empty() || new.is_empty()) {
         return Err(super::evidence::invalid("empty local text group"));
     }
@@ -323,11 +349,10 @@ fn compare_text_groups(
     // Optional families reserve a count witness before exploring masks. Exact
     // ranges retain their full mask budget and use only unspent grid work for
     // a fallback after the exact kernel declines an unaffordable grid.
-    let mut remaining_work = limits.proof_work;
     let mut multiplicity_change = (layout_space_alternatives && optional_normalization)
-        .then(|| source_multiplicity_change(&a, &b, &mut remaining_work))
+        .then(|| source_multiplicity_change(&a, &b, remaining_work))
         .flatten();
-    match compare_text_content(&mut result, &a, &b, limits, &mut remaining_work) {
+    match compare_text_content(&mut result, &a, &b, limits, remaining_work) {
         Err(error @ (crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)))
             if layout_space_alternatives =>
         {
@@ -336,7 +361,7 @@ fn compare_text_groups(
         outcome => outcome?,
     }
     if !result.compared && layout_space_alternatives && !optional_normalization {
-        multiplicity_change = source_multiplicity_change(&a, &b, &mut remaining_work);
+        multiplicity_change = source_multiplicity_change(&a, &b, remaining_work);
     }
     if !result.compared
         && let Some(proof) = multiplicity_change
@@ -643,6 +668,64 @@ fn compare_pixels(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_comparisons_share_spent_work_and_do_not_refill_it() {
+        let source = SourceRef::Native {
+            glyph: crate::model::GlyphId(1),
+        };
+        let node = GraphNode {
+            id: NodeId(1),
+            kind: super::super::NodeKind::Paragraph,
+            pages: vec![],
+            sources: vec![source],
+            identity: None,
+            basis: super::super::ViewBasis::NativeLayout,
+            content: NodeContent::Text {
+                view: TextView {
+                    tokens: vec![ComparableToken::Scalar('x')],
+                    origins: vec![vec![source]],
+                    source_backed: vec![true],
+                    normalization: TextNormalization::Exact,
+                },
+            },
+        };
+        let store = EvidenceStore {
+            revision: "test".into(),
+            backends: vec![],
+            pages: vec![],
+            native: crate::model::Document::new(vec![]),
+            rendered: vec![],
+            structured: vec![],
+            inventories: vec![],
+            key_inventories: vec![],
+            native_structures: vec![],
+            issues: vec![],
+        };
+        let limits = LocalComparisonLimits::default();
+        let mut remaining = 20;
+        for expected in [true, true, false] {
+            let result =
+                compare_local_views_with_work(&node, &node, &store, &store, limits, &mut remaining)
+                    .expect("valid source projection");
+            assert_eq!(result.compared, expected);
+            assert!(result.operation.is_none());
+        }
+        assert_eq!(remaining, 0);
+        assert!(
+            compare_local_views(&node, &node, &store, &store, limits)
+                .expect("independent public call has its own budget")
+                .compared
+        );
+        let mut remaining = 20;
+        for expected in [true, true, false] {
+            let result =
+                compare_text_groups_with_work(&[&node], &[&node], limits, true, &mut remaining)
+                    .expect("native group projection");
+            assert_eq!(result.compared, expected);
+        }
+        assert_eq!(remaining, 0);
+    }
 
     #[test]
     fn multiplicity_witness_implies_change_in_every_exact_normalization_pair() {

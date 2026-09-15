@@ -25,6 +25,7 @@ mod recognition;
 mod relations;
 mod ruled_tables;
 mod scoped_keys;
+mod source_partition;
 mod structure_candidates;
 mod structures;
 mod tables;
@@ -47,13 +48,14 @@ pub use normalization::NormalizationCertificate;
 pub use operations::*;
 pub use relations::RelationComparison;
 pub use scoped_keys::*;
+pub use source_partition::TextSourcePartition;
 pub use structures::*;
 pub use text_candidates::{TextCandidateLimits, TextCandidateSearch};
 pub use text_scopes::{
     CutCorrespondence, CutEvidence, NativeRegion, NativeRegionChain, NativeRegionChains,
-    NativeTransition, SourceCut, SourceCutBoundaryPadding, SourceCutEdgeRefinement,
-    SourceCutPageEdge, SourceCutPopulation, SourceCutRange, SourceCutRowEndpoint,
-    SourceCutRowOrder, SourceCutSearch, SourceFragment, SpaceBoundary, SpaceOrigin,
-    TextScopePresence, TextScopeReview, TextScopeSpacing,
+    NativeTextDomainEquality, NativeTextIntervalComparison, NativeTransition, SourceCut,
+    SourceCutBoundaryPadding, SourceCutEdgeRefinement, SourceCutPageEdge, SourceCutPopulation,
+    SourceCutRange, SourceCutRowEndpoint, SourceCutRowOrder, SourceCutSearch, SourceFragment,
+    SpaceBoundary, SpaceOrigin, TextScopePresence, TextScopeReview, TextScopeSpacing,
 };
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};

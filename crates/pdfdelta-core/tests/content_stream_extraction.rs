@@ -896,7 +896,60 @@ fn opaque_form_paints_retain_the_outward_form_bound_without_leaking_it() -> Resu
 }
 
 #[test]
-fn curved_fills_retain_outward_control_hulls_but_strokes_remain_unknown() -> Result<()> {
+fn joined_stroke_bounds_follow_miter_state_and_reject_device_adjustment() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let path = "0 0 m 20 0 l 20 20 l S";
+    let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+        "2 w {path} q 3 M {path} Q {path} /G gs {path} 3 M /G gs {path} q /Adjust gs {path} Q {path}"
+    ).into_bytes()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "ExtGState" => dictionary! {
+                "G" => dictionary! { "ML" => 40 },
+                "Adjust" => dictionary! { "SA" => true },
+            }
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    let paints = outcome
+        .document()
+        .non_text_paint_bounds()
+        .expect("paint inventory");
+    assert_eq!(paints.len(), 7);
+    for (paint, radius) in paints.iter().zip([
+        Some(20.0),
+        Some(6.0),
+        Some(20.0),
+        Some(80.0),
+        Some(80.0),
+        None,
+        Some(80.0),
+    ]) {
+        if let Some(radius) = radius {
+            let bounds = paint.bounds.expect("bounded joined stroke");
+            for (actual, expected) in [
+                (bounds.min.x, -radius),
+                (bounds.min.y, -radius),
+                (bounds.max.x, 20.0 + radius),
+                (bounds.max.y, 20.0 + radius),
+            ] {
+                assert!((actual - expected).abs() < 1e-8);
+            }
+            assert!(bounds.min.x <= -radius && bounds.max.x >= 20.0 + radius);
+        } else {
+            assert!(paint.bounds.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn curved_paints_retain_outward_control_hulls_and_stroke_enclosures() -> Result<()> {
     for (path, expected) in [
         ("0 0 m 20 40 60 -20 80 10 c", [0.0, -20.0, 80.0, 40.0]),
         ("0 0 m 60 -20 80 10 v", [0.0, -20.0, 80.0, 10.0]),
@@ -932,7 +985,9 @@ fn curved_fills_retain_outward_control_hulls_but_strokes_remain_unknown() -> Res
                 .expect("paint retained");
             assert_eq!(paints.len(), 1);
             if matches!(operator, "S" | "B") {
-                assert!(paints[0].bounds.is_none(), "curved stroke {path}");
+                let bounds = paints[0].bounds.expect("bounded positive-width curve");
+                assert!(bounds.min.x <= expected[0] && bounds.min.y <= expected[1]);
+                assert!(bounds.max.x >= expected[2] && bounds.max.y >= expected[3]);
                 continue;
             }
             let bounds = paints[0].bounds.expect("curve fill control hull");
@@ -3884,6 +3939,68 @@ fn accepts_more_than_256_cid_width_entries() -> Result<()> {
         },
     )?;
     assert_eq!(mapped_text(document.items()), "A");
+    Ok(())
+}
+
+#[test]
+fn charges_shared_cid_widths_once_without_merging_font_mappings_or_provenance() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = |text: &str| {
+        Stream::new(dictionary! {}, format!(
+        "1 begincodespacerange <0000> <FFFF> endcodespacerange 1 beginbfchar <0001> <{text}> endbfchar"
+    ).into_bytes())
+    };
+    let first_map = pdf.add_object(cmap("0041"));
+    let second_map = pdf.add_object(cmap("0042"));
+    let first = identity_h_font(
+        &mut pdf,
+        first_map,
+        vec![Object::Integer(1), Object::Integer(2), Object::Integer(500)],
+    );
+    let mut second = pdf
+        .get_object(first)
+        .expect("fixture font")
+        .as_dict()
+        .expect("font dictionary")
+        .clone();
+    second.set("ToUnicode", second_map);
+    let second = pdf.add_object(second);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <0001> Tj /F2 10 Tf <0001> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => first, "F2" => second },
+        }),
+        None,
+        None,
+    );
+    let document = extract(
+        pdf,
+        ExtractionLimits {
+            max_cid_width_entries: 2,
+            ..ExtractionLimits::default()
+        },
+    )?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+    assert_eq!(glyphs[0].text, DecodedText::Mapped("A".into()));
+    assert_eq!(glyphs[1].text, DecodedText::Mapped("B".into()));
+    assert_ne!(glyphs[0].font_id, glyphs[1].font_id);
+    assert_eq!(glyphs[0].raw_code, glyphs[1].raw_code);
+    assert_eq!(glyphs[0].baseline.x, 20.0);
+    assert_eq!(glyphs[1].baseline.x, 25.0);
+    assert_eq!(
+        glyphs[0].provenance.content_stream,
+        glyphs[1].provenance.content_stream
+    );
+    assert_ne!(
+        glyphs[0].provenance.operator_index,
+        glyphs[1].provenance.operator_index
+    );
     Ok(())
 }
 

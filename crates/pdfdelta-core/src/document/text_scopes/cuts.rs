@@ -246,7 +246,7 @@ fn rows<'a>(
                         .saturating_add(node.sources.len())
                         .saturating_add(view.tokens.len()),
                 )?;
-                if slice(node, range.start, range.end).is_none() {
+                if slice(node, range.start, range.end, remaining).is_none() {
                     continue;
                 }
                 result.push(Row {
@@ -272,10 +272,20 @@ fn unique(
     row: &Row<'_>,
     remaining: &mut usize,
 ) -> Option<bool> {
+    unique_pattern(tokens, optional, mandatory, &row.tokens, remaining)
+}
+
+pub(super) fn unique_pattern(
+    tokens: &[ComparableToken],
+    optional: &[bool],
+    mandatory: bool,
+    needle: &[ComparableToken],
+    remaining: &mut usize,
+) -> Option<bool> {
     if mandatory {
-        return unique_mandatory(tokens, &row.tokens, remaining);
+        return unique_mandatory(tokens, needle, remaining);
     }
-    if row.tokens.is_empty() || optional.len() != tokens.len() {
+    if needle.is_empty() || optional.len() != tokens.len() {
         return None;
     }
     // Each state retains at most two physical starts. Distinct skip/keep paths
@@ -283,7 +293,7 @@ fn unique(
     // enough to defeat uniqueness. A completed match never consumes padding.
     // Indexed frontiers avoid tree lookups; only active cells are visited and
     // cleared, so long patterns do not require a full scan for every token.
-    let width = row.tokens.len().checked_add(1)?;
+    let width = needle.len().checked_add(1)?;
     spend(remaining, width.saturating_mul(8))?;
     let mut states = vec![[None; 2]; width];
     let mut next = vec![[None; 2]; width];
@@ -293,7 +303,7 @@ fn unique(
     for (position, token) in tokens.iter().enumerate() {
         spend(remaining, 1 + active.len().saturating_mul(16))?;
         let mut add = |matched: usize, start| {
-            if next[matched] == [None; 2] && matched < row.tokens.len() {
+            if next[matched] == [None; 2] && matched < needle.len() {
                 next_active.push(matched);
             }
             insert_start(&mut next[matched], start);
@@ -303,20 +313,20 @@ fn unique(
                 if optional[position] {
                     add(matched, start);
                 }
-                if *token == row.tokens[matched] {
+                if *token == needle[matched] {
                     add(matched + 1, start);
                 }
             }
         }
-        if *token == row.tokens[0] {
+        if *token == needle[0] {
             spend(remaining, 4)?;
             add(1, position);
         }
-        count += next[row.tokens.len()].iter().flatten().count();
+        count += next[needle.len()].iter().flatten().count();
         if count > 1 {
             return Some(false);
         }
-        next[row.tokens.len()] = [None; 2];
+        next[needle.len()] = [None; 2];
         for matched in active.drain(..) {
             states[matched] = [None; 2];
         }
@@ -403,56 +413,19 @@ fn fragment(row: &Row<'_>, maps: &OriginalCuts) -> Option<SourceFragment> {
     })
 }
 
-fn slice_sources(node: &GraphNode, start: usize, end: usize) -> Option<BTreeSet<SourceRef>> {
-    let NodeContent::Text { view } = &node.content else {
-        return None;
-    };
-    let selected: BTreeSet<_> = view.origins[start..end]
-        .iter()
-        .zip(&view.source_backed[start..end])
-        .filter(|(_, backed)| **backed)
-        .flat_map(|(origins, _)| origins.iter().copied())
-        .collect();
-    // A glyph may produce multiple scalars. Its complete projection must stay
-    // on one side of the cut, and synthetic neighbors must not add ownership.
-    if view
-        .origins
-        .iter()
-        .zip(&view.source_backed)
-        .enumerate()
-        .filter(|(index, (_, backed))| **backed && (*index < start || *index >= end))
-        .flat_map(|(_, (origins, _))| origins)
-        .any(|source| selected.contains(source))
-    {
-        return None;
-    }
-    Some(selected)
+fn slice_sources(
+    node: &GraphNode,
+    start: usize,
+    end: usize,
+    remaining: &mut usize,
+) -> Option<BTreeSet<SourceRef>> {
+    let partition = super::super::TextSourcePartition::new(node, start..end, remaining).ok()?;
+    Some(partition.selected_sources().collect())
 }
 
-fn slice(node: &GraphNode, start: usize, end: usize) -> Option<GraphNode> {
-    let NodeContent::Text { view } = &node.content else {
-        return None;
-    };
-    let optional = view.optional_tokens()?;
-    let selected = slice_sources(node, start, end)?;
-    let mut sliced = TextView {
-        tokens: view.tokens[start..end].to_vec(),
-        origins: view.origins[start..end].to_vec(),
-        source_backed: view.source_backed[start..end].to_vec(),
-        normalization: TextNormalization::Exact,
-    };
-    let optional: Vec<_> = optional[start..end]
-        .iter()
-        .enumerate()
-        .filter_map(|(index, optional)| optional.then_some(index))
-        .collect();
-    if !optional.is_empty() {
-        sliced.bind_optional_positions(optional);
-    }
-    let mut result = node.clone();
-    result.sources.retain(|source| selected.contains(source));
-    result.content = NodeContent::Text { view: sliced };
-    Some(result)
+fn slice(node: &GraphNode, start: usize, end: usize, remaining: &mut usize) -> Option<GraphNode> {
+    let partition = super::super::TextSourcePartition::new(node, start..end, remaining).ok()?;
+    partition.selected_node().ok()
 }
 
 fn interior<'nodes>(
@@ -494,8 +467,7 @@ fn interior<'nodes>(
             }
             // Empty boundary endpoints contribute no cloned tokens or sources.
             // Charge each retained slice before validating and allocating it.
-            spend(remaining, node.sources.len().saturating_mul(8))?;
-            result.push(std::borrow::Cow::Owned(slice(node, start, end)?));
+            result.push(std::borrow::Cow::Owned(slice(node, start, end, remaining)?));
         }
     }
     Some(result)
@@ -2083,7 +2055,7 @@ mod tests {
         assert!(std::ptr::eq(whole[0].as_ref(), &original));
         assert_eq!(
             whole[0].as_ref(),
-            &slice(&original, 0, 4).expect("complete exact member has a valid slice")
+            &slice(&original, 0, 4, &mut 100).expect("complete exact member has a valid slice")
         );
         assert!(interior(&runs, (0, 0, 0), (0, 0, 4), &mut 0).is_none());
         assert!(interior(&runs, (0, 0, 0), (0, 0, 2), &mut 3).is_none());
@@ -2096,10 +2068,10 @@ mod tests {
     #[test]
     fn cuts_preserve_shared_glyphs_and_nonowning_separator_context() {
         let original = node();
-        assert!(slice(&original, 0, 1).is_none());
-        assert!(slice(&original, 1, 4).is_none());
-        let left = slice(&original, 0, 2).expect("complete ligature projection");
-        let right = slice(&original, 2, 4).expect("separator references are context");
+        assert!(slice(&original, 0, 1, &mut 100).is_none());
+        assert!(slice(&original, 1, 4, &mut 100).is_none());
+        let left = slice(&original, 0, 2, &mut 100).expect("complete ligature projection");
+        let right = slice(&original, 2, 4, &mut 100).expect("separator references are context");
         assert_eq!(left.id, original.id);
         assert_eq!(right.id, original.id);
         assert_eq!(left.sources, [source(1)]);

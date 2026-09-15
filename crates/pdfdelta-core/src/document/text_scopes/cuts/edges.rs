@@ -35,14 +35,7 @@ fn fragments(
         if start == end {
             continue;
         }
-        spend(
-            remaining,
-            view.tokens
-                .len()
-                .saturating_add(node.sources.len())
-                .saturating_mul(2),
-        )?;
-        let selected = slice_sources(node, start, end)?;
+        let selected = slice_sources(node, start, end, remaining)?;
         fragments.push(SourceFragment {
             node: node.id,
             tokens: [

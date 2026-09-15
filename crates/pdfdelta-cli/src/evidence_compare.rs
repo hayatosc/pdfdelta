@@ -36,8 +36,21 @@ pub(super) struct EvidenceSummary<'a> {
     structured_elements: usize,
     form_fields: Vec<&'a pdfdelta_core::document::StructuredEvidence>,
     rendered_sources: Vec<RenderedSource<'a>>,
+    inventories: Vec<InventorySummary>,
+    /// Observed paint is a potential text-discovery obligation, not a claim
+    /// that every marked page contains additional characters.
+    non_text_paint_pages: Vec<pdfdelta_core::model::PageId>,
     backends: &'a [BackendIdentity],
     issues: &'a [EvidenceIssue],
+}
+
+#[derive(Serialize)]
+struct InventorySummary {
+    page: Option<pdfdelta_core::model::PageId>,
+    channel: Channel,
+    backend: usize,
+    discovered_sources: usize,
+    complete: bool,
 }
 
 #[derive(Serialize)]
@@ -80,6 +93,18 @@ impl<'a> EvidenceSummary<'a> {
                     height: region.raster.height,
                 })
                 .collect(),
+            inventories: store
+                .inventories
+                .iter()
+                .map(|inventory| InventorySummary {
+                    page: inventory.page,
+                    channel: inventory.channel,
+                    backend: inventory.backend,
+                    discovered_sources: inventory.sources.len(),
+                    complete: inventory.complete,
+                })
+                .collect(),
+            non_text_paint_pages: store.native.last_non_text_paint().keys().copied().collect(),
             backends: &store.backends,
             issues: &store.issues,
         }

@@ -24,6 +24,11 @@ pub use cuts::{
     SourceCutRowOrder, SourceCutSearch, SourceFragment,
 };
 
+mod domains;
+pub use domains::NativeTextDomainEquality;
+mod intervals;
+pub use intervals::NativeTextIntervalComparison;
+
 /// Content of corresponding intervals under the stated comparison convention.
 /// Inferred paragraph groups have no certified interval boundaries. Otherwise,
 /// the enclosing scope retains the parent correspondence. Boundary indexes
@@ -243,18 +248,22 @@ pub(super) fn append(
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
 ) -> Result<()> {
+    domains::append(old, new, native, result, parent, limits)?;
     let mut remaining = limits.matching.max_ownership_visits;
+    let mut equal = Vec::new();
     append_pass(
         (old, new),
         native,
         result,
         parent,
         limits,
-        Discovery::Page,
+        (Discovery::Page, &mut equal),
         &mut remaining,
     )?;
     if remaining == 0 || !limits.matching.channels.text {
-        return Ok(());
+        // Optional cut discovery cannot cancel the independently bounded proof
+        // of a range already found. Its incomplete search status is retained.
+        return intervals::append(old, new, native, result, parent, limits, &equal);
     }
     // Additional row discovery cannot spend the budget reserved for established
     // comparisons. Both passes share one cap and retain the earlier reviews.
@@ -266,7 +275,7 @@ pub(super) fn append(
         result,
         parent,
         limits,
-        Discovery::Rows,
+        (Discovery::Rows, &mut equal),
         &mut remaining,
     )?;
     merge_cut_search(result, prior, before - remaining);
@@ -289,12 +298,12 @@ pub(super) fn append(
             result,
             parent,
             limits,
-            Discovery::NativeStructure,
+            (Discovery::NativeStructure, &mut equal),
             &mut remaining,
         )?;
         merge_cut_search(result, prior, before - remaining);
     }
-    Ok(())
+    intervals::append(old, new, native, result, parent, limits, &equal)
 }
 
 #[derive(Clone, Copy)]
@@ -377,7 +386,7 @@ fn append_pass(
     result: &mut ScopeViewComparison,
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
-    discovery: Discovery,
+    (discovery, equal): (Discovery, &mut Vec<intervals::EqualCandidate>),
     remaining: &mut usize,
 ) -> Result<()> {
     let rows = matches!(discovery, Discovery::Rows);
@@ -1102,6 +1111,36 @@ fn append_pass(
                         continue;
                     }
                     result.text_scope_reviews.push(review);
+                }
+                Ok(comparison)
+                    if native
+                        && parent == InterpretationStatus::ConditionalOnCorrespondence
+                        && comparison.compared
+                        && comparison.operation.is_none()
+                        && comparison.unresolved.is_empty()
+                        && comparison
+                            .text_mask
+                            .as_ref()
+                            .is_some_and(|mask| mask.claims.changed_source_upper == 0) =>
+                {
+                    // Retain only a locator. The ownership pass reconstructs and
+                    // revalidates native sources; no equal B event is published.
+                    if spend(
+                        remaining,
+                        comparison
+                            .old
+                            .len()
+                            .saturating_add(comparison.new.len())
+                            .saturating_add(1),
+                    )
+                    .is_some()
+                    {
+                        equal.push(intervals::EqualCandidate {
+                            boundaries: [*first, *last],
+                            old: comparison.old,
+                            new: comparison.new,
+                        });
+                    }
                 }
                 Ok(_) | Err(crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)) => {}
                 Err(error) => return Err(error),

@@ -781,7 +781,7 @@ fn paint_boundary_preserves_glyph_order_in_pages_and_nested_forms() {
 }
 
 #[test]
-fn acquired_paint_bounds_enclose_images_fills_and_caps_without_guessing_joins() {
+fn acquired_paint_bounds_enclose_images_fills_caps_and_bounded_joins() {
     for nested in [false, true] {
         for (content, expected) in [
             ("20 0 0 30 10 15 cm /I Do", Some((10.0, 15.0, 30.0, 45.0))),
@@ -791,7 +791,7 @@ fn acquired_paint_bounds_enclose_images_fills_and_caps_without_guessing_joins() 
                 Some((27.0, 18.0, 63.0, 22.0)),
             ),
             ("0 w 10 10 m 20 20 l S", None),
-            ("10 10 20 20 re S", None),
+            ("10 10 20 20 re S", Some((0.0, 0.0, 40.0, 40.0))),
             (
                 "10 10 m 20 10 20 20 10 20 c f",
                 Some(if nested {

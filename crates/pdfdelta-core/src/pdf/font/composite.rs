@@ -1,8 +1,11 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use crate::{
     Error, Result,
-    pdf::{ParsedPdf, PdfDict, PdfObject},
+    pdf::{ObjectRef, ParsedPdf, PdfDict, PdfObject},
 };
 
 use super::{
@@ -32,7 +35,7 @@ pub(crate) struct CompositeFontDecoder {
     to_unicode: Option<ToUnicodeCMap>,
     predefined_unicode: Option<ToUnicodeCMap>,
     collection_max_cid: Option<u16>,
-    widths: BTreeMap<u16, f64>,
+    widths: Arc<BTreeMap<u16, f64>>,
     default_width: f64,
     ascent: f64,
     descent: f64,
@@ -56,15 +59,29 @@ pub(super) struct LoadedCompositeFont {
     pub(super) cid_width_entries: usize,
 }
 
+/// Width tables belong to one immutable parsed PDF, through `FontDecoderCache`.
+/// Only successful font loads publish shared tables; all other metrics stay local.
+pub(super) type WidthTables = HashMap<ObjectRef, Arc<BTreeMap<u16, f64>>>;
+
 impl CompositeFontDecoder {
+    #[cfg(test)]
     pub(super) fn load(
         pdf: &dyn ParsedPdf,
         dictionary: &PdfDict,
         limits: FontDecoderLimits,
     ) -> Result<LoadedCompositeFont> {
+        Self::load_shared(pdf, dictionary, limits, &mut WidthTables::new())
+    }
+
+    pub(super) fn load_shared(
+        pdf: &dyn ParsedPdf,
+        dictionary: &PdfDict,
+        limits: FontDecoderLimits,
+        tables: &mut WidthTables,
+    ) -> Result<LoadedCompositeFont> {
         let encoding = load_encoding(pdf, dictionary, limits)?;
         let writing_mode = encoding.writing_mode;
-        let descendant = load_descendant(pdf, dictionary, limits.max_indirections)?;
+        let (descendant, reference) = load_descendant(pdf, dictionary, limits.max_indirections)?;
         let collection_max_cid = if matches!(encoding.encoding, Encoding::UniJisUtf16(_)) {
             Some(predefined::collection_max_cid(
                 pdf,
@@ -75,7 +92,14 @@ impl CompositeFontDecoder {
             None
         };
         let default_width = load_default_width(pdf, &descendant, limits.max_indirections)?;
-        let widths = load_widths(pdf, &descendant, limits)?;
+        let shared = reference.and_then(|reference| tables.get(&reference));
+        let (widths, new_width_entries) = if let Some(widths) = shared {
+            (Arc::clone(widths), 0)
+        } else {
+            let widths = load_widths(pdf, &descendant, limits)?;
+            let entries = widths.len();
+            (Arc::new(widths), entries)
+        };
         let vertical = load_vertical_metrics(
             pdf,
             &descendant,
@@ -83,6 +107,7 @@ impl CompositeFontDecoder {
             writing_mode,
             default_width,
             &widths,
+            new_width_entries,
         )?;
         let (ascent, descent) = load_metrics(pdf, &descendant, limits.max_indirections)?;
         let identity_domain = identity_domain(pdf, &descendant, limits.max_indirections)?;
@@ -152,8 +177,14 @@ impl CompositeFontDecoder {
                 limit: limits.max_decoded_font_bytes,
             })?;
 
+        if let Some(reference) = reference {
+            tables
+                .entry(reference)
+                .or_insert_with(|| Arc::clone(&widths));
+        }
         Ok(LoadedCompositeFont {
-            cid_width_entries: widths.len() + vertical.as_ref().map_or(0, |v| v.overrides.len()),
+            cid_width_entries: new_width_entries
+                + vertical.as_ref().map_or(0, |v| v.overrides.len()),
             decoder: Self {
                 to_unicode,
                 predefined_unicode,
@@ -351,7 +382,7 @@ fn load_descendant(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
     max_indirections: usize,
-) -> Result<PdfDict> {
+) -> Result<(PdfDict, Option<ObjectRef>)> {
     let descendants = dictionary
         .get(b"DescendantFonts".as_slice())
         .ok_or_else(|| Error::Unresolved("Type0 font has no DescendantFonts".into()))?;
@@ -367,6 +398,10 @@ fn load_descendant(
     let descendant = descendants
         .pop()
         .ok_or_else(|| Error::Unresolved("Type0 font has no descendant font".into()))?;
+    let reference = match &descendant {
+        PdfObject::Reference(reference) => Some(pdf.terminal_reference(*reference)?),
+        _ => None,
+    };
     let descendant = resolve_object(pdf, descendant, max_indirections)?;
     let PdfObject::Dictionary(descendant) = descendant else {
         return unresolved("Type0 descendant font is not a dictionary");
@@ -382,7 +417,7 @@ fn load_descendant(
         }
         _ => return unresolved("Type0 descendant font has no valid Subtype"),
     }
-    Ok(descendant)
+    Ok((descendant, reference))
 }
 
 fn identity_domain(
@@ -506,6 +541,7 @@ fn load_vertical_metrics(
     writing_mode: WritingMode,
     default_width: f64,
     widths: &BTreeMap<u16, f64>,
+    new_width_entries: usize,
 ) -> Result<Option<VerticalMetrics>> {
     if matches!(writing_mode, WritingMode::Horizontal) {
         return Ok(None);
@@ -546,7 +582,7 @@ fn load_vertical_metrics(
         ));
     }
     Ok(Some(VerticalMetrics {
-        overrides: vertical::load(pdf, descendant, limits, widths.len())?,
+        overrides: vertical::load(pdf, descendant, limits, new_width_entries)?,
         displacement_y_1000_em,
         origin_y_1000_em,
     }))
@@ -879,6 +915,154 @@ mod tests {
             loaded.decoder.decode(&[0xd8, 0x84, 0xdf, 0x50], 1, 100),
             Err(Error::Unresolved(_))
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn shares_only_native_width_tables_and_retains_per_font_character_mappings() -> Result<()> {
+        use super::super::decoder::{FontDecoder, FontDecoderCache};
+        let mut pdf = MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(vec![
+            PdfObject::Integer(1),
+            PdfObject::Array(vec![PdfObject::Integer(500)]),
+        ])));
+        pdf.objects
+            .insert(object_ref(3), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(
+            object_ref(3),
+            String::from_utf8_lossy(TO_UNICODE)
+                .replace("<0041>", "<0051>")
+                .into_bytes(),
+        );
+        let mut second = font_dictionary();
+        second.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(3)));
+        let mut cache = FontDecoderCache::new(&pdf);
+        let first = cache.load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?;
+        let second = cache.load(
+            &PdfObject::Dictionary(second),
+            FontDecoderLimits {
+                max_cid_width_entries: 0,
+                ..LIMITS
+            },
+        )?;
+        assert_eq!(first.cid_width_entries, 1);
+        assert_eq!(second.cid_width_entries, 0);
+        let FontDecoder::Composite(a) = &first.decoder else {
+            unreachable!()
+        };
+        let FontDecoder::Composite(b) = &second.decoder else {
+            unreachable!()
+        };
+        assert!(Arc::ptr_eq(&a.widths, &b.widths));
+        let a = first.decoder.decode(&[0, 1], 1, 100)?;
+        let b = second.decoder.decode(&[0, 1], 1, 100)?;
+        assert_eq!(a[0].mapping, mapped("A"));
+        assert_eq!(b[0].mapping, mapped("Q"));
+        assert_eq!(a[0].width_1000_em, 500.0);
+        assert_eq!(b[0].width_1000_em, 500.0);
+        Ok(())
+    }
+
+    #[test]
+    fn shared_widths_never_publish_failed_loads_or_cross_pdf_boundaries() -> Result<()> {
+        use super::super::decoder::FontDecoderCache;
+        let pdf = |width| {
+            MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Array(vec![PdfObject::Integer(width)]),
+            ])))
+        };
+        let a = pdf(500);
+        let b = pdf(700);
+        let mut cache = FontDecoderCache::new(&a);
+        let mut bad = font_dictionary();
+        bad.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(999)));
+        assert!(cache.load(&PdfObject::Dictionary(bad), LIMITS).is_err());
+        assert!(matches!(
+            cache.load(
+                &PdfObject::Dictionary(font_dictionary()),
+                FontDecoderLimits {
+                    max_cid_width_entries: 0,
+                    ..LIMITS
+                }
+            ),
+            Err(Error::LimitExceeded {
+                resource: "CID width entries",
+                ..
+            })
+        ));
+        let first = cache.load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?;
+        let second =
+            FontDecoderCache::new(&b).load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?;
+        assert_eq!(first.cid_width_entries, 1);
+        assert_eq!(second.cid_width_entries, 1);
+        assert_eq!(
+            second.decoder.decode(&[0, 1], 1, 100)?[0].width_1000_em,
+            700.0
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn shared_horizontal_widths_do_not_hide_new_vertical_metric_costs() -> Result<()> {
+        use super::super::decoder::FontDecoderCache;
+        let mut descendant = descendant_with_widths(PdfObject::Array(vec![
+            PdfObject::Integer(1),
+            PdfObject::Array(vec![PdfObject::Integer(500)]),
+        ]));
+        let PdfObject::Dictionary(dict) = &mut descendant else {
+            unreachable!()
+        };
+        dict.insert(
+            b"W2".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Array(vec![
+                    PdfObject::Integer(-1000),
+                    PdfObject::Integer(250),
+                    PdfObject::Integer(800),
+                ]),
+            ]),
+        );
+        let pdf = MockPdf::with_descendant(descendant);
+        let mut cache = FontDecoderCache::new(&pdf);
+        assert_eq!(
+            cache
+                .load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?
+                .cid_width_entries,
+            1
+        );
+        let mut vertical = font_dictionary();
+        vertical.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-V".to_vec()),
+        );
+        let font = PdfObject::Dictionary(vertical);
+        assert!(matches!(
+            cache.load(
+                &font,
+                FontDecoderLimits {
+                    max_cid_width_entries: 0,
+                    ..LIMITS
+                }
+            ),
+            Err(Error::LimitExceeded {
+                resource: "CID width entries",
+                ..
+            })
+        ));
+        let result = cache.load(
+            &font,
+            FontDecoderLimits {
+                max_cid_width_entries: 1,
+                ..LIMITS
+            },
+        )?;
+        assert_eq!(result.cid_width_entries, 1);
+        assert!(
+            result.decoder.decode(&[0, 1], 1, 100)?[0]
+                .vertical
+                .is_some()
+        );
         Ok(())
     }
 

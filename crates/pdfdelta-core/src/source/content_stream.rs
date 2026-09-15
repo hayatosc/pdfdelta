@@ -18,8 +18,8 @@ use crate::{
         },
         font::cmap::CMapLimits,
         font::{
-            DecodedGlyph as FontGlyph, FontDecoder, FontDecoderLimits, FontIdentitySource,
-            UnicodeMapping, WritingMode, load_font_identity,
+            DecodedGlyph as FontGlyph, FontDecoder, FontDecoderCache, FontDecoderLimits,
+            FontIdentitySource, UnicodeMapping, WritingMode, load_font_identity,
         },
     },
 };
@@ -183,7 +183,7 @@ struct Extraction<'a> {
     convex_clip_work: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
     bound_fonts: HashMap<BoundFontKey, Arc<BoundFont>>,
-    ext_gstate_fonts: HashMap<ExtGStateKey, Option<(Arc<BoundFont>, f64)>>,
+    ext_gstate_selections: HashMap<ExtGStateKey, ExtGStateSelection>,
     page_resource_cache: HashMap<usize, (Arc<PdfObject>, Resources)>,
     resource_cache: HashMap<ObjectRef, Resources>,
     resource_map_cache: HashMap<ObjectRef, Arc<ScopedResourceMap>>,
@@ -197,6 +197,7 @@ struct Extraction<'a> {
     operand_budget: OperandBudget,
     cmap_entries: usize,
     cid_width_entries: usize,
+    font_decoder_cache: FontDecoderCache<'a>,
     next_font_id: u32,
     next_scope_id: u64,
     render_order: u32,
@@ -419,7 +420,7 @@ impl<'a> Extraction<'a> {
             convex_clip_work: 0,
             font_cache: HashMap::new(),
             bound_fonts: HashMap::new(),
-            ext_gstate_fonts: HashMap::new(),
+            ext_gstate_selections: HashMap::new(),
             page_resource_cache: HashMap::new(),
             resource_cache: HashMap::new(),
             resource_map_cache: HashMap::new(),
@@ -433,6 +434,7 @@ impl<'a> Extraction<'a> {
             operand_budget,
             cmap_entries: 0,
             cid_width_entries: 0,
+            font_decoder_cache: FontDecoderCache::new(pdf),
             next_font_id: 0,
             next_scope_id: 0,
             render_order: 0,
@@ -661,6 +663,24 @@ impl<'a> Extraction<'a> {
                     ));
                 }
                 state.graphics.line_width = width;
+            }
+            b"M" => {
+                let limit = one_number(operation)?;
+                if limit < 1.0 {
+                    return Err(operation_error(
+                        operation,
+                        "miter limit must be at least one",
+                    ));
+                }
+                state.graphics.miter_limit = limit;
+            }
+            b"J" | b"j" => {
+                if ![0.0, 1.0, 2.0].contains(&one_number(operation)?) {
+                    return Err(operation_error(
+                        operation,
+                        "invalid stroke cap or join style",
+                    ));
+                }
             }
             b"m" => {
                 let [x, y] = number_operands(operation)?;
@@ -1420,31 +1440,32 @@ impl Extraction<'_> {
                 .limits
                 .max_cid_width_entries
                 .saturating_sub(self.cid_width_entries);
-            let loaded = FontDecoder::load(
-                self.pdf,
-                selection.object.as_ref(),
-                FontDecoderLimits {
-                    max_indirections: self.limits.max_nesting_depth,
-                    max_simple_width_entries: 256,
-                    max_cid_width_entries: remaining_cid_width_entries,
-                    max_decoded_font_bytes: remaining_bytes,
-                    cmap: CMapLimits {
-                        max_entries: remaining_entries,
-                        max_code_bytes: 4,
-                        max_output_scalars: self.limits.max_string_bytes,
+            let loaded = self
+                .font_decoder_cache
+                .load(
+                    selection.object.as_ref(),
+                    FontDecoderLimits {
+                        max_indirections: self.limits.max_nesting_depth,
+                        max_simple_width_entries: 256,
+                        max_cid_width_entries: remaining_cid_width_entries,
+                        max_decoded_font_bytes: remaining_bytes,
+                        cmap: CMapLimits {
+                            max_entries: remaining_entries,
+                            max_code_bytes: 4,
+                            max_output_scalars: self.limits.max_string_bytes,
+                        },
                     },
-                },
-            )
-            .map_err(|error| match error {
-                Error::LimitExceeded {
-                    resource: "CID width entries",
-                    ..
-                } => Error::LimitExceeded {
-                    resource: "CID width entries",
-                    limit: self.limits.max_cid_width_entries,
-                },
-                error => error,
-            })?;
+                )
+                .map_err(|error| match error {
+                    Error::LimitExceeded {
+                        resource: "CID width entries",
+                        ..
+                    } => Error::LimitExceeded {
+                        resource: "CID width entries",
+                        limit: self.limits.max_cid_width_entries,
+                    },
+                    error => error,
+                })?;
             self.account_decoded_bytes(loaded.decoded_font_bytes)?;
             self.account_cid_width_entries(loaded.cid_width_entries)?;
             self.cmap_entries = self
@@ -1633,16 +1654,59 @@ impl Extraction<'_> {
                 name: name.to_vec(),
             },
         };
-        if let Some(selection) = self.ext_gstate_fonts.get(&key) {
-            if let Some((font, size)) = selection {
-                state.graphics.font = Some(Arc::clone(font));
-                state.graphics.font_size = *size;
-            }
+        if let Some(selection) = self.ext_gstate_selections.get(&key) {
+            selection.apply(state);
             return Ok(());
         }
         let dictionary = self.dictionary_value(resource.as_ref(), "ExtGState resource")?;
+        let line_width = dictionary
+            .get(b"LW".as_slice())
+            .map(|value| self.number_value(value, "ExtGState line width"))
+            .transpose()?;
+        if line_width.is_some_and(|width| width < 0.0) {
+            return Err(operation_error(
+                operation,
+                "ExtGState line width must be non-negative",
+            ));
+        }
+        let miter_limit = dictionary
+            .get(b"ML".as_slice())
+            .map(|value| self.number_value(value, "ExtGState miter limit"))
+            .transpose()?;
+        if miter_limit.is_some_and(|limit| limit < 1.0) {
+            return Err(operation_error(
+                operation,
+                "ExtGState miter limit must be at least one",
+            ));
+        }
+        for key in [b"LC", b"LJ"] {
+            if let Some(value) = dictionary.get(key.as_slice())
+                && ![0.0, 1.0, 2.0].contains(&self.number_value(value, "ExtGState stroke style")?)
+            {
+                return Err(operation_error(operation, "invalid ExtGState stroke style"));
+            }
+        }
+        let stroke_adjustment = dictionary
+            .get(b"SA".as_slice())
+            .map(
+                |value| match self.resolve_value(value, "ExtGState stroke adjustment")? {
+                    PdfObject::Boolean(value) => Ok(value),
+                    _ => Err(operation_error(
+                        operation,
+                        "ExtGState stroke adjustment must be boolean",
+                    )),
+                },
+            )
+            .transpose()?;
         let Some(font) = dictionary.get(b"Font".as_slice()) else {
-            self.ext_gstate_fonts.insert(key, None);
+            let selection = ExtGStateSelection {
+                font: None,
+                line_width,
+                miter_limit,
+                stroke_adjustment,
+            };
+            selection.apply(state);
+            self.ext_gstate_selections.insert(key, selection);
             return Ok(());
         };
         let font = self.resolve_value(font, "ExtGState Font")?;
@@ -1663,10 +1727,14 @@ impl Extraction<'_> {
             ));
         }
         let font = self.bind_font(BoundFontKey::ExtGState(key.clone()), Arc::new(font.clone()))?;
-        self.ext_gstate_fonts
-            .insert(key, Some((Arc::clone(&font), size)));
-        state.graphics.font = Some(font);
-        state.graphics.font_size = size;
+        let selection = ExtGStateSelection {
+            font: Some((font, size)),
+            line_width,
+            miter_limit,
+            stroke_adjustment,
+        };
+        selection.apply(state);
+        self.ext_gstate_selections.insert(key, selection);
         Ok(())
     }
 
@@ -2502,11 +2570,38 @@ impl Extraction<'_> {
     }
 }
 
+struct ExtGStateSelection {
+    font: Option<(Arc<BoundFont>, f64)>,
+    line_width: Option<f64>,
+    miter_limit: Option<f64>,
+    stroke_adjustment: Option<bool>,
+}
+
+impl ExtGStateSelection {
+    fn apply(&self, state: &mut InterpreterState) {
+        if let Some((font, size)) = &self.font {
+            state.graphics.font = Some(Arc::clone(font));
+            state.graphics.font_size = *size;
+        }
+        if let Some(width) = self.line_width {
+            state.graphics.line_width = width;
+        }
+        if let Some(limit) = self.miter_limit {
+            state.graphics.miter_limit = limit;
+        }
+        if let Some(adjustment) = self.stroke_adjustment {
+            state.graphics.stroke_adjustment = adjustment;
+        }
+    }
+}
+
 #[derive(Clone)]
 struct GraphicsState {
     ctm: Matrix,
     paint_ctm: MatrixBounds,
     line_width: f64,
+    miter_limit: f64,
+    stroke_adjustment: bool,
     clip_region: ClipRegion,
     // An outward bound of the enclosing Form remains valid for opaque paints.
     form_paint_bounds: Option<Rect>,
@@ -2526,6 +2621,8 @@ impl Default for GraphicsState {
             ctm: Matrix::IDENTITY,
             paint_ctm: MatrixBounds::from(Matrix::IDENTITY),
             line_width: 1.0,
+            miter_limit: 10.0,
+            stroke_adjustment: false,
             clip_region: ClipRegion::Unbounded,
             form_paint_bounds: None,
             character_spacing: 0.0,
@@ -3348,8 +3445,13 @@ mod tests {
         extraction.apply_ext_gstate(&operation, &first_resources, &mut state)?;
         extraction.apply_ext_gstate(&operation, &second_resources, &mut state)?;
 
-        assert_eq!(extraction.ext_gstate_fonts.len(), 1);
-        assert!(extraction.ext_gstate_fonts.values().all(Option::is_none));
+        assert_eq!(extraction.ext_gstate_selections.len(), 1);
+        assert!(
+            extraction
+                .ext_gstate_selections
+                .values()
+                .all(|selection| selection.font.is_none())
+        );
         Ok(())
     }
 
@@ -3449,7 +3551,7 @@ mod tests {
             &mut second_state,
         )?;
 
-        assert_eq!(extraction.ext_gstate_fonts.len(), 2);
+        assert_eq!(extraction.ext_gstate_selections.len(), 2);
         assert_eq!(extraction.bound_fonts.len(), 1);
         assert!(Arc::ptr_eq(
             first_state

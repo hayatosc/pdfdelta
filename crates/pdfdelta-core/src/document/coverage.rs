@@ -142,6 +142,30 @@ fn side_coverage(
         .filter(|node| compared_nodes.contains(&node.id) && channel_nodes.contains(&node.id))
         .flat_map(|node| node.sources.iter().copied())
         .collect();
+    if channel == Channel::Text {
+        compared.extend(
+            comparison
+                .scopes
+                .iter()
+                .filter(|scope| {
+                    scope.interpretation == InterpretationStatus::ConditionalOnCorrespondence
+                })
+                .flat_map(|scope| &scope.result.native_text_domains)
+                .flat_map(|domain| domain.sources(old))
+                .copied(),
+        );
+        compared.extend(
+            comparison
+                .scopes
+                .iter()
+                .filter(|scope| {
+                    scope.interpretation == InterpretationStatus::ConditionalOnCorrespondence
+                })
+                .flat_map(|scope| &scope.result.native_text_intervals)
+                .flat_map(|interval| interval.sources(old))
+                .copied(),
+        );
+    }
     if channel == Channel::Relations {
         compared.extend(
             comparison

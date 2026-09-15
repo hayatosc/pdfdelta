@@ -880,11 +880,336 @@ fn native_layout_edges_across_columns_do_not_displace_local_boundaries() {
 }
 
 #[test]
+fn equal_native_interval_validates_left_to_right_rows_and_retains_gaps() {
+    let mut old = fixture_rows(&["First boundary.", "repeat", "repeat", "Last boundary."]);
+    let sources = old.1.nodes[3].sources.clone();
+    let mut glyphs = old.0.native.items().to_vec();
+    for glyph in &mut glyphs {
+        if sources.contains(&SourceRef::Native { glyph: glyph.id }) {
+            glyph.baseline.x += 80.0;
+            glyph.bbox.min.x += 80.0;
+            glyph.bbox.max.x += 80.0;
+            glyph.baseline.y += 30.0;
+            glyph.bbox.min.y += 30.0;
+            glyph.bbox.max.y += 30.0;
+        }
+    }
+    old.0.native = Document::new(glyphs);
+    let result = compare(&old, &old);
+    let intervals = &result.scopes[0].result.native_text_intervals;
+    assert_eq!(intervals.len(), 1);
+    assert!(intervals[0].comparison().operation.is_none());
+    assert_eq!(intervals[0].comparison().old, [NodeId(2), NodeId(3)]);
+    assert!(!result.search_resolved());
+
+    let mut missing = old.clone();
+    append_unassigned(&mut missing, PageId(0), 70.0);
+    assert!(
+        compare(&old, &missing).scopes[0]
+            .result
+            .native_text_intervals
+            .is_empty()
+    );
+
+    let mut reversed = old.clone();
+    let mut glyphs = reversed.0.native.items().to_vec();
+    for glyph in &mut glyphs {
+        if sources.contains(&SourceRef::Native { glyph: glyph.id }) {
+            glyph.baseline.x -= 160.0;
+            glyph.bbox.min.x -= 160.0;
+            glyph.bbox.max.x -= 160.0;
+        }
+    }
+    reversed.0.native = Document::new(glyphs);
+    assert!(
+        compare(&old, &reversed).scopes[0]
+            .result
+            .native_text_intervals
+            .is_empty()
+    );
+}
+
+#[test]
+fn repeated_equal_interiors_reuse_live_padded_boundary_proofs() {
+    let old = fixture_rows(&[" First boundary.", "repeat", "repeat", "Last boundary. "]);
+    let new = fixture_rows(&["First boundary.", "repeat", "repeat", "Last boundary."]);
+    let result = compare(&old, &new);
+    assert_eq!(result.scopes[0].result.native_text_domains.len(), 2);
+    let intervals = &result.scopes[0].result.native_text_intervals;
+    assert_eq!(intervals.len(), 1);
+    assert!(intervals[0].comparison().operation.is_none());
+    assert_eq!(intervals[0].comparison().old, [NodeId(2), NodeId(3)]);
+    let coverage = pdfdelta_core::document::document_coverage(
+        DocumentView {
+            evidence: &old.0,
+            graph: &old.1,
+        },
+        DocumentView {
+            evidence: &new.0,
+            graph: &new.1,
+        },
+        &result,
+        &[Channel::Text].into(),
+    );
+    assert_eq!(coverage[0].old_uncompared_sources, 2);
+    assert_eq!(coverage[0].new_uncompared_sources, 0);
+    assert!(!coverage[0].complete);
+    let mut missing = new.clone();
+    append_unassigned(&mut missing, PageId(0), 60.0);
+    assert!(
+        compare(&old, &missing).scopes[0]
+            .result
+            .native_text_intervals
+            .is_empty()
+    );
+}
+
+#[test]
+fn equal_repeated_native_interior_can_be_compared_without_selecting_occurrences() {
+    let old = fixture_rows(&["First boundary.", "repeat", "repeat", "Last boundary."]);
+    let new = old.clone();
+    let result = compare(&old, &new);
+    assert!(result.scopes[0].result.text_scope_reviews.is_empty());
+    assert!(
+        result.scopes[0]
+            .result
+            .matching
+            .components
+            .iter()
+            .any(|component| {
+                component.exhaustive
+                    && component.mandatory.is_empty()
+                    && !component.proposals.is_empty()
+            })
+    );
+    assert!(!result.search_resolved());
+    let intervals = &result.scopes[0].result.native_text_intervals;
+    assert_eq!(intervals.len(), 1);
+    let comparison = intervals[0].comparison();
+    assert!(comparison.compared);
+    assert!(comparison.operation.is_none());
+    assert_eq!(
+        comparison
+            .text_mask
+            .as_ref()
+            .expect("validated native fixture evidence")
+            .claims
+            .changed_source_upper,
+        0
+    );
+    let coverage = pdfdelta_core::document::document_coverage(
+        DocumentView {
+            evidence: &old.0,
+            graph: &old.1,
+        },
+        DocumentView {
+            evidence: &new.0,
+            graph: &new.1,
+        },
+        &result,
+        &[Channel::Text].into(),
+    );
+    assert!(coverage[0].complete);
+
+    let mut missing = new.clone();
+    append_unassigned(&mut missing, PageId(0), 60.0);
+    assert!(
+        compare(&old, &missing).scopes[0]
+            .result
+            .native_text_intervals
+            .is_empty()
+    );
+
+    let mut wrong_reading = new.clone();
+    let mut glyphs = wrong_reading.0.native.items().to_vec();
+    let SourceRef::Native { glyph } = wrong_reading.1.nodes[2].sources[0] else {
+        unreachable!()
+    };
+    glyphs
+        .iter_mut()
+        .find(|item| item.id == glyph)
+        .expect("validated native fixture evidence")
+        .text = DecodedText::Mapped("X".into());
+    wrong_reading.0.native = Document::new(glyphs);
+    assert!(
+        compare(&old, &wrong_reading).scopes[0]
+            .result
+            .native_text_intervals
+            .is_empty()
+    );
+}
+
+#[test]
+fn owned_content_change_retains_uncertain_localization_without_owning_synthetic_spaces() {
+    for changed in [false, true] {
+        let old = fixture("a b");
+        let mut new = fixture(if changed { "ac" } else { "ab" });
+        let node = &mut new.1.nodes[2];
+        let NodeContent::Text { view } = &mut node.content else {
+            unreachable!()
+        };
+        view.tokens.insert(1, ComparableToken::Scalar(' '));
+        view.origins.insert(1, node.sources.clone());
+        view.source_backed.insert(1, false);
+        view.normalization = TextNormalization::Unresolved {
+            reason: "Layout spacing requires native source validation".into(),
+        };
+        let result = compare(&old, &new);
+        let intervals = &result.scopes[0].result.native_text_intervals;
+        assert_eq!(intervals.len(), usize::from(changed));
+        let coverage = pdfdelta_core::document::document_coverage(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            &result,
+            &[Channel::Text].into(),
+        );
+        assert_eq!(coverage[0].complete, changed);
+        if changed {
+            let local = intervals[0].comparison();
+            assert!(!local.unresolved.is_empty());
+            let mask = local.text_mask.as_ref().expect("complete exact proof");
+            assert_eq!(mask.claims.changed_source_lower, 2);
+            assert_eq!(mask.claims.changed_source_upper, 3);
+            assert_eq!(mask.old.len(), 1);
+            assert_eq!(mask.new.len(), 1);
+            assert_eq!(mask.old[0].sources, [old.1.nodes[2].sources[2]]);
+            assert_eq!(mask.new[0].sources, [new.1.nodes[2].sources[1]]);
+            assert_eq!(
+                coverage[0].old_discovered_sources,
+                old.0.native.items().len()
+            );
+            assert_eq!(
+                coverage[0].new_discovered_sources,
+                new.0.native.items().len()
+            );
+        }
+    }
+}
+
+#[test]
+fn native_interval_proof_survives_exhausted_optional_cut_discovery() {
+    let old = fixture("ab");
+    let new = fixture("a b");
+    for budget in [500, 800, 1_000, 1_400, 1_700] {
+        let mut limits = DocumentComparisonLimits::default();
+        limits.matching.max_ownership_visits = budget;
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded comparison");
+        let scope = &result.scopes[0].result;
+        assert!(
+            scope
+                .text_scope_reviews
+                .iter()
+                .any(|review| review.source_cuts.is_none())
+        );
+        assert!(
+            !scope
+                .source_cut_search
+                .as_ref()
+                .expect("cut search status")
+                .exhaustive
+        );
+        assert_eq!(
+            scope.native_text_intervals.len(),
+            1,
+            "discovery budget {budget}"
+        );
+    }
+}
+
+#[test]
+fn owned_native_intervals_require_live_source_proofs_and_preserve_exact_masks() {
+    let old = fixture("ab");
+    let new = fixture("a b");
+    let result = compare(&old, &new);
+    let intervals = &result.scopes[0].result.native_text_intervals;
+    assert_eq!(intervals.len(), 1);
+    let local = intervals[0].comparison();
+    assert!(local.compared);
+    assert!(local.unresolved.is_empty());
+    assert_eq!(
+        local.text_mask,
+        result.scopes[0].result.text_scope_reviews[0]
+            .comparison
+            .text_mask
+    );
+    let coverage = |comparison: &DocumentViewComparison| {
+        pdfdelta_core::document::document_coverage(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            comparison,
+            &[Channel::Text].into(),
+        )
+        .remove(0)
+    };
+    let current = coverage(&result);
+    assert_eq!(current.old_uncompared_sources, 0);
+    assert_eq!(current.new_uncompared_sources, 0);
+    let encoded = serde_json::to_vec(&result).expect("encode report");
+    let decoded = serde_json::from_slice(&encoded).expect("decode report");
+    let reloaded = coverage(&decoded);
+    assert_eq!(reloaded.old_uncompared_sources, 2);
+    assert_eq!(reloaded.new_uncompared_sources, 3);
+
+    for missing in [false, true] {
+        let mut incomplete = fixture("ab");
+        if missing {
+            append_unassigned(&mut incomplete, PageId(0), 70.0);
+        } else {
+            let mut glyphs = incomplete.0.native.items().to_vec();
+            let SourceRef::Native { glyph } = incomplete.1.nodes[2].sources[0] else {
+                unreachable!()
+            };
+            glyphs
+                .iter_mut()
+                .find(|item| item.id == glyph)
+                .expect("interior glyph")
+                .text = DecodedText::Mapped("x".into());
+            incomplete.0.native = Document::new(glyphs);
+        }
+        assert!(
+            compare(&incomplete, &new).scopes[0]
+                .result
+                .native_text_intervals
+                .is_empty()
+        );
+    }
+}
+
+#[test]
 fn native_interval_survives_unrelated_pages_storage_order_and_reversal() {
     let mut old = fixture("a");
     let mut new = fixture("aa");
     assert!(!old.1.relations_complete);
     let baseline = compare(&old, &new);
+    assert_eq!(baseline.scopes[0].result.native_text_intervals.len(), 1);
     let reviews = &baseline.scopes[0].result.text_scope_reviews;
     assert_eq!(reviews.len(), 1);
     assert_eq!(reviews[0].convention, "closed-native-baseline-interval-v1");
@@ -1045,7 +1370,8 @@ fn native_interval_retains_literal_space_changes() {
             &comparison,
             &[Channel::Text].into(),
         );
-        assert!(!coverage[0].complete);
+        assert_eq!(scope.native_text_intervals.len(), 1);
+        assert!(coverage[0].complete);
         assert_eq!(
             compare(&new, &old).scopes[0]
                 .result
@@ -2283,6 +2609,214 @@ fn native_context_outside_an_interval_keeps_its_adjacent_boundaries() {
 }
 
 #[test]
+fn internal_source_cut_owns_only_the_proven_interior_of_a_shared_parent() {
+    for padding in [false, true] {
+        let mut old = fixture_rows(&[
+            if padding {
+                " First boundary."
+            } else {
+                "First boundary."
+            },
+            "filler",
+            "INNER START",
+            "Budget 10.",
+            "INNER END",
+            "tail",
+            if padding {
+                "Last boundary. "
+            } else {
+                "Last boundary."
+            },
+        ]);
+        let mut new = fixture_rows(&[
+            "First boundary.",
+            "filler",
+            "INNER START",
+            "Budget 20.",
+            "INNER END",
+            "tail",
+            "Last boundary.",
+        ]);
+        let old_body = old.1.nodes[4].sources.clone();
+        let new_body = new.1.nodes[4].sources.clone();
+        for fixture in [&mut old, &mut new] {
+            for _ in 0..4 {
+                merge_following_node(fixture, 2);
+            }
+            let node = &mut fixture.1.nodes[2];
+            let NodeContent::Text { view } = &mut node.content else {
+                unreachable!()
+            };
+            let boundary = "filler".len();
+            view.tokens.insert(boundary, ComparableToken::Scalar(' '));
+            view.origins.insert(
+                boundary,
+                vec![node.sources[boundary - 1], node.sources[boundary]],
+            );
+            view.source_backed.insert(boundary, false);
+            append_unassigned(fixture, PageId(1), 0.0);
+        }
+        let mut split = new.clone();
+        let parent = split.1.nodes[2].clone();
+        let NodeContent::Text { view } = &parent.content else {
+            unreachable!()
+        };
+        let cut = view
+            .origins
+            .iter()
+            .position(|origins| origins == &[new_body[0]])
+            .expect("body start");
+        let mut work = 10_000;
+        let left = pdfdelta_core::document::TextSourcePartition::new(&parent, 0..cut, &mut work)
+            .expect("left partition")
+            .selected_node()
+            .expect("left view");
+        let mut right = pdfdelta_core::document::TextSourcePartition::new(
+            &parent,
+            cut..view.tokens.len(),
+            &mut work,
+        )
+        .expect("right partition")
+        .selected_node()
+        .expect("right view");
+        right.id = NodeId(100);
+        for edge in &mut split.1.edges {
+            if edge.kind == EdgeKind::Precedes && edge.from == parent.id {
+                edge.from = right.id;
+            }
+        }
+        split.1.edges.push(GraphEdge {
+            from: parent.id,
+            to: right.id,
+            kind: EdgeKind::Precedes,
+            sources: vec![],
+            basis: ViewBasis::NativeLayout,
+        });
+        split.1.edges.push(GraphEdge {
+            from: NodeId(0),
+            to: right.id,
+            kind: EdgeKind::Contains,
+            sources: vec![],
+            basis: ViewBasis::NativeLayout,
+        });
+        split.1.nodes[2] = left;
+        split.1.nodes.push(right);
+        assert_eq!(new.0.native.items(), split.0.native.items());
+        for right in [&new, &split] {
+            let mut limits = DocumentComparisonLimits::default();
+            // The complete parent exceeds this local comparison limit. Its
+            // native census remains available to prove a smaller source cut.
+            limits.local.max_tokens = 32;
+            let result = compare_document_views(
+                DocumentView {
+                    evidence: &old.0,
+                    graph: &old.1,
+                },
+                DocumentView {
+                    evidence: &right.0,
+                    graph: &right.1,
+                },
+                CorrespondenceScope {
+                    old: NodeId(0),
+                    new: NodeId(0),
+                },
+                limits,
+                HierarchyLimits::default(),
+            )
+            .expect("bounded internal domain comparison");
+            let encoded = serde_json::to_value(&result.scopes[0].result.native_text_intervals)
+                .expect("interval report");
+            let intervals = encoded.as_array().expect("intervals");
+            assert!(
+                intervals.iter().any(|interval| {
+                    interval.get("cut_partition").is_some()
+                        && interval["old_sources"]
+                            == serde_json::to_value(&old_body).expect("old sources")
+                        && interval["new_sources"]
+                            == serde_json::to_value(&new_body).expect("new sources")
+                }),
+                "{encoded}"
+            );
+            for interval in intervals {
+                let Some(partition) = interval.get("cut_partition") else {
+                    continue;
+                };
+                for (side, fixture) in [("old", &old), ("new", right)] {
+                    let owned: Vec<SourceRef> =
+                        serde_json::from_value(interval[format!("{side}_sources")].clone())
+                            .expect("owned sources");
+                    for remainder in partition[format!("{side}_remainder")]
+                        .as_array()
+                        .expect("remainders")
+                    {
+                        let parent: NodeId =
+                            serde_json::from_value(remainder["parent"].clone()).expect("parent");
+                        let parent = fixture
+                            .1
+                            .nodes
+                            .iter()
+                            .find(|node| node.id == parent)
+                            .expect("retained parent");
+                        let rest: Vec<SourceRef> =
+                            serde_json::from_value(remainder["sources"].clone())
+                                .expect("remainder");
+                        assert!(rest.iter().all(|source| !owned.contains(source)));
+                        let mut partitioned: Vec<_> = owned
+                            .iter()
+                            .copied()
+                            .filter(|source| parent.sources.contains(source))
+                            .chain(rest)
+                            .collect();
+                        partitioned.sort();
+                        let mut expected = parent.sources.clone();
+                        expected.sort();
+                        assert_eq!(partitioned, expected);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn padded_source_cut_boundaries_keep_their_spaces_outside_owned_content() {
+    let mut old = fixture_with_boundaries("Earlier 10.", " First boundary.", "Last boundary. ");
+    let mut new = fixture("Updated 20.");
+    for fixture in [&mut old, &mut new] {
+        append_unassigned(fixture, PageId(1), 0.0);
+    }
+    let NodeContent::Text { view } = &mut new.1.nodes[2].content else {
+        unreachable!()
+    };
+    view.normalization = TextNormalization::Unresolved {
+        reason: "global layout normalization is not a raw reading".into(),
+    };
+    let result = compare(&old, &new);
+    let encoded =
+        serde_json::to_value(&result.scopes[0].result.native_text_intervals).expect("intervals");
+    let interval = encoded
+        .as_array()
+        .expect("array")
+        .iter()
+        .find(|interval| interval.get("cut_partition").is_some())
+        .expect("owned raw cut");
+    assert_eq!(
+        interval["old_sources"],
+        serde_json::to_value(&old.1.nodes[2].sources).expect("old interior")
+    );
+    assert_eq!(
+        interval["new_sources"],
+        serde_json::to_value(&new.1.nodes[2].sources).expect("new interior")
+    );
+    for edge in ["entry", "exit"] {
+        assert_eq!(
+            interval["cut_partition"]["range"][edge]["evidence"]["kind"],
+            "accepted_boundary"
+        );
+    }
+}
+
+#[test]
 fn accepted_intervals_recheck_raw_sources_when_group_normalization_is_unresolved() {
     let mut old = fixture("Earlier 10.");
     let mut new = fixture("Updated 20.");
@@ -2297,6 +2831,7 @@ fn accepted_intervals_recheck_raw_sources_when_group_normalization_is_unresolved
     };
     for (a, b) in [(&old, &new), (&new, &old)] {
         let result = compare(a, b);
+        assert!(!result.scopes[0].result.native_text_intervals.is_empty());
         assert!(
             result.scopes[0]
                 .result
@@ -3556,6 +4091,7 @@ fn long_exact_native_ranges_retain_a_change_when_mask_work_is_exhausted() {
     assert!(review.comparison.compared);
     assert!(review.comparison.text_mask.is_none());
     assert!(review.comparison.text_change_proof.is_some());
+    assert!(result.scopes[0].result.native_text_intervals.is_empty());
     assert!(
         compare(&old, &old).scopes[0]
             .result
@@ -3588,6 +4124,7 @@ fn large_spacing_family_retains_a_proved_change_without_a_false_exact_mask() {
     assert_eq!(reviews.len(), 1);
     assert!(reviews[0].comparison.compared);
     assert!(reviews[0].comparison.text_mask.is_none());
+    assert!(result.scopes[0].result.native_text_intervals.is_empty());
     assert!(
         reviews[0]
             .comparison
@@ -3926,7 +4463,149 @@ fn paint_closure_rejects_unknown_bounds_boundary_ink_and_incomplete_sources() {
 }
 
 #[test]
-fn padding_boundaries_keep_whole_paragraphs_uncompared_and_close_the_interior() {
+fn native_domain_ownership_requires_local_closure_and_indivisible_sources() {
+    for case in [
+        "plain",
+        "unknown_paint",
+        "incomplete",
+        "overlap",
+        "remote_paint",
+        "omitted",
+        "inferred",
+        "shared_glyph",
+        "changed_native_text",
+        "reordered_native",
+        "partial_native_text",
+    ] {
+        let old = fixture("a");
+        let mut new = fixture_with_boundaries("aa", "First boundary. ", "Last boundary. ");
+        let expected = match case {
+            "plain" => 2,
+            "unknown_paint" => {
+                with_paint(&mut new, None);
+                0
+            }
+            "changed_native_text" | "reordered_native" | "partial_native_text" => {
+                let mut glyphs = new.0.native.items().to_vec();
+                match case {
+                    "changed_native_text" => glyphs[0].text = DecodedText::Mapped("X".into()),
+                    "partial_native_text" => glyphs[0].text = DecodedText::Mapped("Fi".into()),
+                    _ => {
+                        let x = glyphs[0].baseline.x;
+                        glyphs[0].baseline.x = glyphs[1].baseline.x;
+                        glyphs[1].baseline.x = x;
+                    }
+                }
+                new.0.native = Document::new(glyphs);
+                1
+            }
+            "incomplete" => {
+                new.0.inventories[0].complete = false;
+                0
+            }
+            "overlap" | "remote_paint" => {
+                let y = if case == "overlap" { 100.0 } else { 130.0 };
+                with_paint(
+                    &mut new,
+                    Some(Rect {
+                        min: Vec2 { x: 0.0, y },
+                        max: Vec2 {
+                            x: 200.0,
+                            y: y + 10.0,
+                        },
+                    }),
+                );
+                if case == "overlap" { 1 } else { 2 }
+            }
+            "omitted" => {
+                append_unassigned(&mut new, PageId(0), 100.0);
+                1
+            }
+            "inferred" => {
+                for node in new.1.nodes.iter_mut().skip(1) {
+                    node.basis = ViewBasis::ReconstructedStructure;
+                }
+                0
+            }
+            "shared_glyph" => {
+                // The final punctuation and edge space are one decoded glyph.
+                // Trimming the space would split ownership of that glyph.
+                let removed = SourceRef::Native { glyph: GlyphId(15) };
+                let mut glyphs = new.0.native.items().to_vec();
+                glyphs[14].text = DecodedText::Mapped(". ".into());
+                glyphs.retain(|glyph| glyph.id != GlyphId(15));
+                new.0.native = Document::new(glyphs);
+                new.0.inventories[0]
+                    .sources
+                    .retain(|source| *source != removed);
+                let node = &mut new.1.nodes[1];
+                node.sources.retain(|source| *source != removed);
+                let NodeContent::Text { view } = &mut node.content else {
+                    unreachable!()
+                };
+                view.origins[15] = view.origins[14].clone();
+                1
+            }
+            _ => unreachable!(),
+        };
+        let comparison = compare(&old, &new);
+        assert_eq!(
+            comparison.scopes[0].result.native_text_domains.len(),
+            expected,
+            "{case}"
+        );
+        assert!(!comparison.search_resolved(), "{case}");
+    }
+}
+
+#[test]
+fn domain_projection_expands_padding_without_erasing_interior_source_spaces() {
+    for case in ["padding", "nonspace_padding", "interior"] {
+        let old = fixture("a");
+        let first = if case == "interior" {
+            "First  boundary. "
+        } else {
+            "First boundary.  "
+        };
+        let mut new = fixture_with_boundaries("aa", first, "Last boundary. ");
+        let position = if case == "interior" { 5 } else { 15 };
+        let NodeContent::Text { view } = &mut new.1.nodes[1].content else {
+            unreachable!()
+        };
+        let origins = view.origins.remove(position + 1);
+        view.origins[position].extend(origins);
+        view.tokens.remove(position + 1);
+        view.source_backed.remove(position + 1);
+        if case == "nonspace_padding" {
+            let mut glyphs = new.0.native.items().to_vec();
+            glyphs[16].text = DecodedText::Mapped("X".into());
+            new.0.native = Document::new(glyphs);
+        }
+        let result = compare(&old, &new);
+        assert_eq!(
+            result.scopes[0].result.native_text_domains.len(),
+            if case == "padding" { 2 } else { 1 },
+            "{case}"
+        );
+        assert!(!result.search_resolved());
+    }
+}
+
+#[test]
+fn short_native_domains_use_the_comparator_budget_instead_of_grid_estimates() {
+    let old = fixture_with_boundaries("a", "X", "Y");
+    let new = fixture_with_boundaries("aa", "X ", "Y ");
+    let result = compare(&old, &new);
+    assert_eq!(
+        result.scopes[0].result.text_boundary_correspondences.len(),
+        2
+    );
+    assert_eq!(result.scopes[0].result.native_text_domains.len(), 2);
+    assert!(!result.search_resolved());
+}
+
+#[test]
+fn padding_domains_account_for_equal_bodies_without_owning_padding_or_reviews() {
     let old = fixture("a");
     let new = fixture_with_boundaries("aa", "First boundary. ", "Last boundary. ");
     let comparison = compare(&old, &new);
@@ -3962,16 +4641,35 @@ fn padding_boundaries_keep_whole_paragraphs_uncompared_and_close_the_interior() 
         &comparison,
         &[Channel::Text].into(),
     );
-    assert_eq!(coverage[0].old_compared_sources, 0);
-    assert_eq!(coverage[0].new_compared_sources, 0);
+    assert_eq!(result.native_text_domains.len(), 2);
+    let equal_native_characters = "First boundary.Last boundary.".chars().count();
+    assert_eq!(coverage[0].old_compared_sources, equal_native_characters);
+    assert_eq!(coverage[0].new_compared_sources, equal_native_characters);
+    assert_eq!(coverage[0].old_uncompared_sources, 1);
+    assert_eq!(coverage[0].new_uncompared_sources, 4);
+    let reloaded: DocumentViewComparison = serde_json::from_value(
+        serde_json::to_value(&comparison).expect("serialize domain observations"),
+    )
+    .expect("reload observations without proof authority");
+    let reloaded_coverage = pdfdelta_core::document::document_coverage(
+        DocumentView {
+            evidence: &old.0,
+            graph: &old.1,
+        },
+        DocumentView {
+            evidence: &new.0,
+            graph: &new.1,
+        },
+        &reloaded,
+        &[Channel::Text].into(),
+    );
+    assert_eq!(reloaded_coverage[0].old_compared_sources, 0);
+    assert_eq!(reloaded_coverage[0].new_compared_sources, 0);
     assert!(!coverage[0].complete);
     assert!(!comparison.search_resolved());
-    assert!(
-        result
-            .unresolved
-            .iter()
-            .any(|reason| reason.contains("whole paragraph sources remain uncompared"))
-    );
+    assert!(result.unresolved.iter().any(|reason| {
+        reason.contains("paragraph identity and any unaccounted sources remain unresolved")
+    }));
     for sources in &review.new_boundaries {
         assert!(sources.iter().any(|source| {
             let SourceRef::Native { glyph } = source else {

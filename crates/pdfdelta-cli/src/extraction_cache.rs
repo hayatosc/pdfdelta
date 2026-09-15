@@ -15,7 +15,7 @@ use crate::fs::read_limited_typed;
 
 /// Bump when anything that changes extraction results is added to the cache
 /// key or the cached payload shape.
-const CACHE_FORMAT_VERSION: u32 = 13;
+const CACHE_FORMAT_VERSION: u32 = 16;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
 /// are treated as corrupt rather than parsed, and the bound is enforced during

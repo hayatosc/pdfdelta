@@ -47,9 +47,14 @@ pub struct ScopeViewComparison {
     pub accepted_correspondences: Vec<usize>,
     /// Source-checked interior equality may support a non-owning text boundary
     /// without identifying its whole padded paragraph. These proposals never
-    /// enter strict comparisons, relation mapping, or source coverage.
+    /// enter whole-node comparisons or relation mapping. A separately validated
+    /// native domain can account for the interior without owning its padding.
     #[serde(default)]
     pub text_boundary_correspondences: Vec<usize>,
+    #[serde(default)]
+    pub native_text_domains: Vec<super::text_scopes::NativeTextDomainEquality>,
+    #[serde(default)]
+    pub native_text_intervals: Vec<super::text_scopes::NativeTextIntervalComparison>,
     /// Candidate indexes requiring a more specific child scope or group view.
     pub structural_correspondences: Vec<usize>,
     /// Conditional local results never imply that an entire PDF is complete.
@@ -413,6 +418,8 @@ fn compare_validated_scope(
         comparisons: Vec::new(),
         accepted_correspondences: Vec::new(),
         text_boundary_correspondences: Vec::new(),
+        native_text_domains: Vec::new(),
+        native_text_intervals: Vec::new(),
         structural_correspondences: Vec::new(),
         unresolved: Vec::new(),
         extraction_dependencies: Vec::new(),
@@ -521,7 +528,7 @@ fn compare_validated_scope(
             if proposal.basis == ProposalBasis::LiteralContentWithPadding {
                 result.text_boundary_correspondences.push(*index);
                 result.unresolved.push(format!(
-                    "correspondence {index} proves only an unpadded text boundary; whole paragraph sources remain uncompared"
+                    "correspondence {index} proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved"
                 ));
                 continue;
             }
