@@ -1,0 +1,177 @@
+{
+  "status": "diagnosed_cross_page_effect_without_production_change",
+  "previous_goal_turn_classification": "progress: restored 72 inputs, replayed 36 panel pairs and 189 controls, committed as af7b2fb",
+  "cache_deletion_cause": "User confirmed intentional deletion to recover disk capacity and authorized necessary downloads.",
+  "pair": "arxiv-bert-v1-to-v2",
+  "fixed_panel_denominator": 36,
+  "production_changed": false,
+  "observations": [
+    {
+      "side": "old",
+      "graph_and_glyph_evidence_equal": true,
+      "paint_records": 816,
+      "newly_bounded_paints_by_page": {
+        "2": 148,
+        "3": 66,
+        "6": 141
+      },
+      "lost_range_pages": [
+        13
+      ],
+      "paint_records_on_lost_pages": 0
+    },
+    {
+      "side": "new",
+      "graph_and_glyph_evidence_equal": true,
+      "paint_records": 1021,
+      "newly_bounded_paints_by_page": {
+        "2": 91,
+        "4": 66,
+        "12": 148,
+        "14": 141
+      },
+      "lost_range_pages": [
+        10
+      ],
+      "paint_records_on_lost_pages": 0
+    }
+  ],
+  "baseline_B": 23,
+  "current_B": 22,
+  "trial_B": 22,
+  "lost_review": {
+    "pointer": "/comparison/scopes/0/result/text_scope_reviews/12",
+    "source_atoms": 777,
+    "comparison": {
+      "old": [
+        966,
+        967,
+        968,
+        969,
+        970
+      ],
+      "new": [
+        745,
+        746,
+        747,
+        748,
+        749,
+        750,
+        751,
+        752,
+        753
+      ],
+      "interpretation": "conditional_on_correspondence",
+      "operation": {
+        "kind": "text_changed",
+        "old": "Chuang, Christopher D Manning, Andrew Ng, and Christopher Potts. 2013. Recursive deep models for semantic compositionality over a sentiment tree-bank. In Proceedings of the 2013 conference on empirical methods in natural language processing,pages 1631\u20131642.Wilson L Taylor. 1953. cloze procedure: A newtool for measuring readability. Journalism Bulletin,\n30(4):415\u2013433.",
+        "new": "Chuang, Christopher D Manning, Andrew Ng, and Christopher Potts. 2013. Recursive deep models for semantic compositionality over a sentiment tree-bank. In Proceedings of the 2013 conference on empirical methods in natural language processing,pages 1631\u20131642.Fu Sun, Linyang Li, Xipeng Qiu, and Yang Liu.2018. U-net: Machine reading comprehension with unanswerable questions.arXiv preprintarXiv:1810.06638.Wilson L Taylor. 1953. Cloze procedure: A newtool for measuring readability. Journalism Bulletin,\n30(4):415\u2013433."
+      },
+      "text_mask": null,
+      "text_change_proof": {
+        "token": {
+          "Scalar": ","
+        },
+        "old_required": 5,
+        "old_possible": 5,
+        "new_required": 8,
+        "new_possible": 8
+      },
+      "pixel_mask": null,
+      "unresolved": [
+        "normalization hypothesis combinations exceeded its limit of 18446744073709551615",
+        "source token multiplicity proves change; exact normalization masks remain unresolved",
+        "layout-derived space boundaries retain both spacing interpretations"
+      ],
+      "compared": true
+    }
+  },
+  "source_cut_search": {
+    "baseline": {
+      "convention": "matched-interval-native-fragment-cuts-v2",
+      "exhaustive": false,
+      "examined_fragments": 126,
+      "paired_boundaries": 132,
+      "work": 793766,
+      "budget_at_entry": 863786
+    },
+    "current": {
+      "convention": "matched-interval-native-fragment-cuts-v2",
+      "exhaustive": false,
+      "examined_fragments": 126,
+      "paired_boundaries": 124,
+      "work": 794259,
+      "budget_at_entry": 863786
+    }
+  },
+  "trial": {
+    "change": "Deduplicate identical paint bounds in the private per-page lookup while preserving and validating every raw operation.",
+    "result": "No change to the complete comparison object, coverage, B count, or source-cut work. Trial reverted.",
+    "report": {
+      "path": "benchmark/realworld/cache/recovery/bert-paint-dedup/arxiv-bert-v1-to-v2-text.json",
+      "sha256": "3e9d21e8fc77aa3d057087a394da5724ca50ce87b350efc8265f347987d0c2c7"
+    },
+    "capture": {
+      "path": "benchmark/realworld/cache/recovery/bert-paint-dedup/runs.json",
+      "sha256": "28cd34e1d07b58f9651041678115f1294cdf97854421da02151a8a97c39a56ea"
+    },
+    "patch": {
+      "path": "benchmark/realworld/cache/recovery/paint-dedup-trial.patch",
+      "sha256": "5e42a5b3501fbe72e18db23f7c4a008a1c64b6d2c47df9913a48be8c93100320"
+    },
+    "binary": {
+      "path": "benchmark/realworld/cache/recovery/paint-dedup-trial-pdfdelta",
+      "sha256": "4e631902fba39866b1e2243d13a800e9404a258a5b91a31457ad479606a76c77"
+    }
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/recovery/bert-baseline-review.json",
+      "sha256": "078efb1927cf3740f50b7c7a963fad22080ce47cd4141f1cbf66adb18f951348"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/bert-baseline-review/sources.json",
+      "sha256": "a514d2653e72b8d9079889230cee8bc482f7b156adbd548294be3f480a5d64ee"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/bert-baseline-review-run.json",
+      "sha256": "9e049f6be2464c4f0edc2265a8369c2f9565a0bfe6148bdce09482f1bc9b379e"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/bert-current-review.json",
+      "sha256": "ea9d195d875c9cb78eb8ce0a1dca7e4363dea9440023237729681dadb0677842"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/bert-current-review/sources.json",
+      "sha256": "72cb51a90b72bc4d9d2d3fc902c54ad61cfd65082515ef7d31a4d9a96f4c16a9"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/bert-current-review-run.json",
+      "sha256": "73d8b3e98c9c7e99ae676ab8609cacc73050ac1ba0a387d85adcd7330e26b6e8"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/bert-diagnosis.py",
+      "sha256": "862be4f92c3ee5c732e64177c02b2def34c663ac5d676a93f7055ec1ddccdf29"
+    }
+  ],
+  "conclusion": "No local paint or native-text regression explains the lost bibliography range. Changed finite bounds occur only on other pages. Repeated identical-bound scanning is not the cause tested by this trial.",
+  "next_action": "Trace accepted boundary/run populations and per-stage work allocation to identify where newly bounded paint on other pages prevents this unchanged finite interval from being reviewed.",
+  "gate_status": "Unmet; no new G1/G2/G3 recovery or complete-comparison claim.",
+  "checks": {
+    "format": "passed",
+    "clippy": "passed",
+    "workspace_passed": 2471,
+    "workspace_failed": 0,
+    "workspace_ignored": 2,
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/recovery/bert-diagnosis-clippy.log",
+        "sha256": "c66b9f3dc11698935e268c814281dd2fc75e0330fa0af67ac93336fdeb480331"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/bert-diagnosis-tests.log",
+        "sha256": "075908a61160df99a40222c9ef2b30350635d003db02c543afffb70b1d28d8ad"
+      }
+    ]
+  }
+}

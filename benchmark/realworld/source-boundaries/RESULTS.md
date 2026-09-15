@@ -1361,3 +1361,23 @@ at 14/48. Real metamorphic comparisons remain incomplete.
 The BERT bibliography B count loss from 23 to 22 was reproduced and remains an
 open diagnosis. Newly admitted real-PDF B operations still require source review.
 Format, Clippy and 2471 workspace tests pass, with two tests ignored.
+
+The user subsequently confirmed that the cache was intentionally deleted to
+recover disk space and authorized downloading needed inputs again. Earlier
+records correctly describe the cause as unknown at their capture time.
+
+### Isolate the BERT bibliography loss
+
+`../remaining/bert-paint-boundary-diagnosis.json` compares fresh source exports
+from rebuilt `3d4022f` and `c244b5c`. Native glyph evidence and complete graphs
+are identical. The only changed native field is the finite enclosure of
+previously unbounded non-text paint: old pages 2, 3 and 6, and new pages 2, 4,
+12 and 14. The lost 777-atom bibliography range occupies old page 13 and new
+page 10, neither of which has non-text paint. Page IDs here are zero-based.
+
+A bounded lookup trial retained all raw paint operations but indexed each
+identical per-page bound once. It did not change the comparison object, coverage,
+B count (22), or source-cut work. The trial was reverted; no production change
+is retained. The next diagnosis must trace boundary populations and stage work
+across pages, rather than assuming local bibliography extraction loss or
+repeated identical paint scans. Document-wide completion remains unproven.
