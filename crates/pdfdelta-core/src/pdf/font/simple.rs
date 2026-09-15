@@ -2709,6 +2709,33 @@ mod tests {
     }
 
     #[test]
+    fn unused_type3_char_proc_gap_does_not_block_defined_codes() -> Result<()> {
+        let mut font = standard_type3_font();
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        let Some(PdfObject::Dictionary(procedures)) = dictionary.get_mut(b"CharProcs".as_slice())
+        else {
+            unreachable!();
+        };
+        procedures.remove(b"B".as_slice());
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(b"A", 1, usize::MAX)?;
+        assert_eq!(glyphs.len(), 1);
+        assert_eq!(glyphs[0].mapping, mapped_text("A"));
+        assert_eq!(glyphs[0].raw_code, b"A");
+        assert!(matches!(
+            loaded.decoder.decode(b"B", 1, usize::MAX),
+            Err(Error::Unresolved(_))
+        ));
+        assert!(matches!(
+            loaded.decoder.decode(b"AB", 2, usize::MAX),
+            Err(Error::Unresolved(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
     fn rejects_type3_fonts_with_missing_char_procs() {
         let mut missing_char_proc = standard_type3_font();
         let PdfObject::Dictionary(dictionary) = &mut missing_char_proc else {
