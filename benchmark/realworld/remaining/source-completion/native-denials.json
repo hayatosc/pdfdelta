@@ -1,0 +1,37 @@
+{
+  "convention": "native-denials-v1",
+  "diagnostic_only": true,
+  "comparison_and_coverage_unchanged": true,
+  "watched_node_ids": [
+    40,
+    41,
+    785,
+    786,
+    794,
+    871,
+    873,
+    879
+  ],
+  "observations": [
+    {
+      "path": "benchmark/realworld/cache/source-completion/native-denials-v1/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.stderr",
+      "sha256": "07d749d57ef1abe8ed6c0f0bf1b392bba1d953e098112654b06a8ac69ca22e37",
+      "counts": {
+        "NATIVE_DENIAL line=856 path=[NodeId(39), NodeId(40), NodeId(41), NodeId(42)]": 2,
+        "PROJECT_DENIAL node=NodeId(147)": 2
+      }
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/native-denials-v1/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.stderr",
+      "sha256": "704792de9d9d6369a45259018cc5b9ab2d7f420e5e7c8c53d2a62614cde26c94",
+      "counts": {
+        "NATIVE_DENIAL paint path=[NodeId(783), NodeId(785), NodeId(789)]": 1,
+        "NATIVE_DENIAL paint path=[NodeId(784), NodeId(786), NodeId(787)]": 1,
+        "NATIVE_DENIAL paint path=[NodeId(793), NodeId(794), NodeId(795)]": 1,
+        "NATIVE_DENIAL paint path=[NodeId(870), NodeId(871), NodeId(872)]": 1,
+        "NATIVE_DENIAL paint path=[NodeId(872), NodeId(873), NodeId(880)]": 1,
+        "NATIVE_DENIAL paint path=[NodeId(878), NodeId(879), NodeId(882)]": 1
+      }
+    }
+  ]
+}

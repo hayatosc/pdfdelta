@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "path": "benchmark/realworld/cache/source-completion/row-domain-v1/before.log",
+      "sha256": "22194d66f610ca00eb5d7a2a36dc4fc1c5669005cd9b68de2a41c90bdfde840a"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/row-domain-v1/tests.log",
+      "sha256": "73ffefceacdcfd282d168e92503ee7619b26d250e7e140139a299f7edab5c5b6"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/row-domain-v1/clippy.log",
+      "sha256": "2b95361a3d9c74f7fabc41a0029b9cb7ffa5d4008ed7a496b344b9b1d36bda16"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/row-domain-v1/fixtures.log",
+      "sha256": "f3f567ff3e00c4eb8f960b870b60bec8b72dd90d82ca496147bd44ef46d2b18d"
+    }
+  ],
+  "pre_change_control": "failed as expected: no interval",
+  "affected_tests_passed": 90,
+  "generated_passed": 48,
+  "workspace_clippy": "passed",
+  "natural_pairs": 6,
+  "comparison_and_coverage_identical": true,
+  "new_completions": 0,
+  "cleanup": {
+    "path": "target/aarch64-apple-darwin",
+    "removed_bytes": 103856344,
+    "kind": "completed reproducible cross-check build; evidence retained"
+  }
+}

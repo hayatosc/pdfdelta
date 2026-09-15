@@ -1,0 +1,40 @@
+{
+  "status": "additional_range_change_source_count_checked",
+  "goal_complete": false,
+  "report": {
+    "path": "benchmark/realworld/cache/source-completion/partition-v1/mask-review/comparison.json",
+    "sha256": "45d2de4d482beebe39038dcdc054b5f8aaf71d62493396b19f433a6f47b1bb8f"
+  },
+  "sources": {
+    "path": "benchmark/realworld/cache/source-completion/partition-v1/mask-review/sources.json",
+    "sha256": "fbe7b7fbecfaeae7aa067747b3f5c90bed2bbfd34ac3d2940cf9c86659f3f9e3"
+  },
+  "manifest": {
+    "path": "benchmark/realworld/cache/source-completion/partition-v1/mask-review/manifest.json",
+    "sha256": "76f35b9a026c6c655e2168ae11526df35e3a8feb854b74cb9d0cb591c2670113"
+  },
+  "checks": [
+    {
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/25",
+      "category": "B",
+      "source_token_counts": {
+        "old": 2,
+        "new": 1
+      },
+      "proof": {
+        "token": {
+          "Scalar": "0"
+        },
+        "old_required": 2,
+        "old_possible": 2,
+        "new_required": 1,
+        "new_possible": 1
+      },
+      "classification": "additional out-of-target range change; not strict coverage or fixed target recovery"
+    }
+  ],
+  "limitations": [
+    "This checks the added range content witness against retained glyph evidence and the existing range-event validator. It does not certify document-wide correspondence or complete inventory.",
+    "Current fixed target recovery and strict coverage remain unchanged."
+  ]
+}

@@ -1,0 +1,1721 @@
+{
+  "claim": "Diagnostic operator attribution by input hash and retained page/stream/operator address; not an execution dependency or text-inventory proof. Nonzero stream generations, absent or ambiguous operators and excess occurrence counts remain unmatched. Historical attempts can include rolled-back records.",
+  "paint_total": 446318,
+  "counts": {
+    "Do": 5442,
+    "f": 233439,
+    "s": 1571,
+    "S": 94002,
+    "f*": 50997,
+    "B*": 347,
+    "B": 59722,
+    "sh": 610,
+    "unmatched": 186,
+    "BI": 2
+  },
+  "rows": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-old.pdf",
+        "sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-controller-processor-v1-to-v2-1-old.json",
+        "sha256": "a03daa33119683e50f3aac0443aba8b92f0b00a94e2a3445fcf1c43fbcac3d8e"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-controller-processor-v1-to-v2-1-old.log",
+        "sha256": "264892b320584a1835cfcd1241992e3d493e5e1c4523c92fd2e98cdbecde08ed"
+      },
+      "counts": {
+        "Do": 26,
+        "f": 845,
+        "s": 22,
+        "S": 34,
+        "f*": 44
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-new.pdf",
+        "sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-controller-processor-v1-to-v2-1-new.json",
+        "sha256": "3212af450dc1dd9bd69a1f6d7ccf46d3a253da351db28ca221d2e672bf395189"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-controller-processor-v1-to-v2-1-new.log",
+        "sha256": "dfce522d7f8443b36b874f2288c4f9ee7364bd2fddf94c87c2ea5caa6e4dc101"
+      },
+      "counts": {
+        "Do": 26,
+        "f": 1112,
+        "S": 56,
+        "f*": 19
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-old.pdf",
+        "sha256": "96c8d6ea80adf30e492a8cc3a544d5666b67b9cc7c3eb05cbd994064d62ed728"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-restrictions-v1-to-final-old.json",
+        "sha256": "b395b7b9caaf78dea72c91222c619fb17854d9438d7702e204f917edd699c2d5"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-restrictions-v1-to-final-old.log",
+        "sha256": "9a4d71d4583e2ac8a632e6b7ea70eed859ad6ae23eb6b7831de5788cba626dc0"
+      },
+      "counts": {
+        "Do": 3,
+        "f": 10
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-new.pdf",
+        "sha256": "2fbbe356b0686feddf367877df111a4db433ea9a99747331e528aba90f4f3986"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-restrictions-v1-to-final-new.json",
+        "sha256": "1430c9481b3088f42a6d06e294167a9b447834b8b758ab26aa9b5462a87140cd"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-restrictions-v1-to-final-new.log",
+        "sha256": "da89dfd49908a315292d0b0d7e2eb531a7cfa33a1d4111bab958917c1d581f79"
+      },
+      "counts": {
+        "Do": 1,
+        "f": 61
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-old.pdf",
+        "sha256": "3b090f638c33deb118a639f1a6af4ce928977dfe5ab3ada5253c36a55d42d76b"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-design-default-v1-to-v2-old.json",
+        "sha256": "aa2c434d9a4248a9d3165824a2056b7c626557827b368507eabd3ffd0d29178f"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-design-default-v1-to-v2-old.log",
+        "sha256": "7f80ee064d574c6c60050dd4d2e23da469a98d751892b4432be059dcd7a29c84"
+      },
+      "counts": {
+        "Do": 55,
+        "f*": 565
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-new.pdf",
+        "sha256": "179c669a3aac9a2c6cd9b5765d262a2150347eec88e1b73e4e6cf3eb6dfb46ac"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-design-default-v1-to-v2-new.json",
+        "sha256": "ccfdfedb954dd5986cd494801e7e7f73f84e2bd212f4a00e6c1fed2d2c10b57f"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-design-default-v1-to-v2-new.log",
+        "sha256": "e1e042a332662cc2c33fa31cbc777af570a6701ace4b967493d03d2548e13ae5"
+      },
+      "counts": {
+        "Do": 1,
+        "f": 712
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-old.pdf",
+        "sha256": "e231944e40d3741d22d54712eb434d4044edef54ddbd254c18c9742077f37ab7"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-social-targeting-v1-to-v2-old.json",
+        "sha256": "240bae3ade1f9ddb5c7af2ca70f0594bda5a1cdfe72d07215849df587e5a7017"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-social-targeting-v1-to-v2-old.log",
+        "sha256": "b98c5923dff7fbb38089ee45e01e9a031e25a3dc79716d44f7607bcbb59a3cd7"
+      },
+      "counts": {
+        "Do": 137,
+        "f": 541
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-new.pdf",
+        "sha256": "1752ccea30a6fbeff0907c0be261c05e40fa5d6a5d512da483894ebd4060bbed"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-social-targeting-v1-to-v2-new.json",
+        "sha256": "2a60c257b730795bfb04a8360189ad8c39d58238d3e9ae506c1ba4a0510f71bd"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-social-targeting-v1-to-v2-new.log",
+        "sha256": "ef8f638a3180cd42126a8d6955b734b01e3da91939e92e8bf9599989f72d880a"
+      },
+      "counts": {
+        "Do": 146,
+        "f": 593
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-old.pdf",
+        "sha256": "b1c5ead0632dcfb979c59d8c462b094ad2465ddaf62d5c246289d6d9b4419df1"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-incident-handling-r2-to-r3-old.json",
+        "sha256": "9181259097c36406d3784602c75e7c67ec2c6fa87a00fb4f79a7ad43ab9fb8f0"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-incident-handling-r2-to-r3-old.log",
+        "sha256": "ff6213e64c46cc0b904dffc59275a5eacc68546b7ea1078687f3a83bf0d5bd5a"
+      },
+      "counts": {
+        "Do": 8,
+        "f*": 1592,
+        "f": 219,
+        "S": 9
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-new.pdf",
+        "sha256": "e5593d6bb85daecec7e8d9549400c7b3473bcc3f06e469c82218073afa7fba2d"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-incident-handling-r2-to-r3-new.json",
+        "sha256": "c84efa5f995e9cafbb4c3d7ef173864feee45199a3dd98c42b565f5273f14755"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-incident-handling-r2-to-r3-new.log",
+        "sha256": "e78d4d796235b2104374d0816caa6584925a6e1d2f0a6ebf30c6ea14b73004a9"
+      },
+      "counts": {
+        "Do": 12,
+        "f": 3399,
+        "f*": 972
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-old.pdf",
+        "sha256": "24f4e6df241f5a488df909710f45b66c3f0eb6a5d2ea9899655097f6a5d82d6e"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-ssdf-draft-to-final-old.json",
+        "sha256": "c8156e97e7b661582c29a3e3853c524acb876ad287fdc794e45648cb10432ff7"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-ssdf-draft-to-final-old.log",
+        "sha256": "49581441efce44a2626c0cdf3961e085b18ad624990ceca000f3901ae8a97c46"
+      },
+      "counts": {
+        "f*": 1339,
+        "f": 1561,
+        "Do": 7,
+        "S": 158
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-new.pdf",
+        "sha256": "617746e553a9e2da49bfbd4eef0dfc3094758a39b869314e4173ac36605cde22"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-ssdf-draft-to-final-new.json",
+        "sha256": "dddca92a8061aaf62bdc2a2dd0e24fa968adbf169743defc23d7c8d1704c0b15"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-ssdf-draft-to-final-new.log",
+        "sha256": "860a3dd8617dd26ab693e7d5eadeb2a038ade8d8902343d3564efae4a6f377ef"
+      },
+      "counts": {
+        "f*": 1534,
+        "f": 2117,
+        "S": 193,
+        "Do": 6
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-old.pdf",
+        "sha256": "87d67b518e1cef9aff671e1a76860e8013a8ab160bad8763da801782ee7b7000"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-ai-rmf-draft2-to-v1-old.json",
+        "sha256": "7ff334e3a25da8dd098f9ab04c00651d9bebb3160f9aac5fd23cf20b92ae98de"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-ai-rmf-draft2-to-v1-old.log",
+        "sha256": "47c8cca815288e60c277d3f8c4d9bb60ffd573bdd7a06dbb64b4f48d5282675a"
+      },
+      "counts": {
+        "f*": 797,
+        "f": 906,
+        "Do": 7,
+        "B*": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-new.pdf",
+        "sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-ai-rmf-draft2-to-v1-new.json",
+        "sha256": "361cb9215ad3a269122660fe9a9177c5e73ae117a519937488564e3b80ac2280"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-ai-rmf-draft2-to-v1-new.log",
+        "sha256": "facfd2b9cd40a2788e235cb1b78f0750a900ca18dc1a724c82e8ae69d9c5c4f7"
+      },
+      "counts": {
+        "f": 60,
+        "Do": 10,
+        "S": 138
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-old.pdf",
+        "sha256": "ccfce7510a1267933f912d023306c6e7d485f21be63d271108b61aad6139127e"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-authentication-63b-to-63b4-old.json",
+        "sha256": "449d5eb745e3177dec0852fb0137ca013484b109a6480873273fdf4461e7e1a2"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-authentication-63b-to-63b4-old.log",
+        "sha256": "e304323fc6dfccb6c2e1911394f480cc139eb4b4737f6bdddf805f6c3964dc08"
+      },
+      "counts": {
+        "Do": 69,
+        "f*": 490,
+        "f": 2957,
+        "S": 234
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-new.pdf",
+        "sha256": "d9ab89576b5ae2cfb3ba37781110788dea27a85a5079496dbfc1a79834670afd"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-authentication-63b-to-63b4-new.json",
+        "sha256": "065f8dd051a6166c47b82b698c1017e03ba356d41429257c0ca8226f1cec165d"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-authentication-63b-to-63b4-new.log",
+        "sha256": "ed1aa6cea1604fd4eee3e600bf8d8ae55023c19ea6fe9e681070714b1517de61"
+      },
+      "counts": {
+        "f": 1140,
+        "S": 926,
+        "Do": 1
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-old.pdf",
+        "sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-w9-2018-to-2024-old.json",
+        "sha256": "e347e99e9346e12d9f2f41889ca6e4bc565a7e9f36eb92f1717acd8e96c4971b"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-w9-2018-to-2024-old.log",
+        "sha256": "f607fad44910609ece942d7496c5513054d984b6c866dac9fc41971299157208"
+      },
+      "counts": {
+        "S": 153,
+        "f": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-new.pdf",
+        "sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-w9-2018-to-2024-new.json",
+        "sha256": "184d92c00e12be2b98d904c633f32800a9322eab891d0549cc0d2f2a3ec4a5e7"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-w9-2018-to-2024-new.log",
+        "sha256": "81db739fd364ca9e58f2d7a8f89cdf87755258231b6638da5d93ce689fa368a5"
+      },
+      "counts": {
+        "S": 160,
+        "f": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-old.pdf",
+        "sha256": "e60e3af7512073bffbd7ef3c4f3a2fc9593d2aed2e420718d4ccf17659e2c3ed"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-w4-english-2024-to-2025-old.json",
+        "sha256": "4c5f12b3d587054e00325b18010a87ac47cb07f7a71e35aa3e92d900d71ea414"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-w4-english-2024-to-2025-old.log",
+        "sha256": "a67928cd7f9914980c8acfd95c47c43156ee34e3d9ad4dbfe71d99c9f7b5542c"
+      },
+      "counts": {
+        "S": 921,
+        "f": 1,
+        "Do": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-new.pdf",
+        "sha256": "94fa236f26c1a6dbbdeb40b8bd8870793e7a5be0f74ead3c2799d2b0961be68a"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-w4-english-2024-to-2025-new.json",
+        "sha256": "8b58d6155a4025279a5884ca78ad2df8889a9cfc658242015cc6696694827f33"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-w4-english-2024-to-2025-new.log",
+        "sha256": "c6520a6cfcb3ee773184a0551f81e458fa64633735d4d92c94406f001d4365d5"
+      },
+      "counts": {
+        "S": 921,
+        "f": 1,
+        "Do": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf",
+        "sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-schedule-c-2024-to-2025-old.json",
+        "sha256": "8ce2355a2808ef051ec0616fb6e49d277a3c19d2831bac1aa01ec02950154a9a"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-schedule-c-2024-to-2025-old.log",
+        "sha256": "fce5a598db5081a7ecf70f0e658b1ed80107aac48bbd6eb2a7b2585ec939739d"
+      },
+      "counts": {
+        "S": 299,
+        "f": 10
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf",
+        "sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-schedule-c-2024-to-2025-new.json",
+        "sha256": "055c61d61c06f9b913bf06beeb8ed925eb44c2c17591f31bf4a326154fdb0210"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-schedule-c-2024-to-2025-new.log",
+        "sha256": "e57e52f2e56d6db77724fb5cc61979d1ed960fed27c0fe93d6152bb511fa3688"
+      },
+      "counts": {
+        "S": 299,
+        "f": 10
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-old.pdf",
+        "sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-schedule-se-2024-to-2025-old.json",
+        "sha256": "85550899f19e69c29727f80519a19c53a1629818c8d1f860b53a6cc2bcb0b56d"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-schedule-se-2024-to-2025-old.log",
+        "sha256": "1f9ce29d3068ac07cb373bb29fa746d15b5b19150790adac0f9e5a69932a49f8"
+      },
+      "counts": {
+        "S": 133,
+        "f": 7
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-new.pdf",
+        "sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-schedule-se-2024-to-2025-new.json",
+        "sha256": "e41b61a4d455ec16f8787e69ab52631b20805c9e006c771ced9c839449687386"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-schedule-se-2024-to-2025-new.log",
+        "sha256": "d1659978ae68d2c204055e02efa271f7dc173ba4da166c6b8acd041af224cf78"
+      },
+      "counts": {
+        "S": 133,
+        "f": 7
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-old.pdf",
+        "sha256": "58534a3c000cbcc60ed64e999a2d9ed839edc2d9894e4449e9d79e1118b5e5ba"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-bert-v1-to-v2-old.json",
+        "sha256": "2b09cb1c6659ee0fa917244ec688e18f24e88d629a87a9c8f5ae3e4bfc497c84"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-bert-v1-to-v2-old.log",
+        "sha256": "df6c622aaff1225a589529843c338dff738118f81687af4f4eddf7678a921799"
+      },
+      "counts": {
+        "S": 360,
+        "f*": 356,
+        "B*": 66,
+        "Do": 24,
+        "f": 9,
+        "B": 1
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-new.pdf",
+        "sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-bert-v1-to-v2-new.json",
+        "sha256": "843196aed4a5ed79f0b6f05b0651c03aebec585557c027380bdb542df6ab0039"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-bert-v1-to-v2-new.log",
+        "sha256": "0685d7eaffa0b51c1700b5bbdbd5a8d244cd36c25052d06bf9ffc311ab811ddb"
+      },
+      "counts": {
+        "f*": 464,
+        "S": 440,
+        "Do": 38,
+        "B*": 69,
+        "f": 9,
+        "B": 1
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-old.pdf",
+        "sha256": "f756a2d3e23c2770a3e8c4354965e98d37411c18aab91556df0c335675dec396"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-gpt3-v1-to-v4-old.json",
+        "sha256": "03d73abe5a2a755efd52d5c1a1ebf38052821e1d510b278ee556ae6a0f9d06bb"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-gpt3-v1-to-v4-old.log",
+        "sha256": "e759d28f65223d01cd864b5a5414cab94b7d0875eeef4cab40a30cd8bc443c4d"
+      },
+      "counts": {
+        "f": 1,
+        "S": 289,
+        "Do": 83
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-new.pdf",
+        "sha256": "97fd272f1fdfc18677462d0292f5fbf26ca86b4d1b485c2dba03269b643a0e83"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-gpt3-v1-to-v4-new.json",
+        "sha256": "a77a6075ae8029e394f2757916da0473c2160b00e5631c22eabea9ab2270ab74"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-gpt3-v1-to-v4-new.log",
+        "sha256": "0fa4331c6b156df97ac9f48aa8c003b6c20001646bf3dace25dffc31d9b5f070"
+      },
+      "counts": {
+        "f": 1,
+        "S": 289,
+        "Do": 83
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-old.pdf",
+        "sha256": "15b499bba39b7d9586879328a3fe13dd9a8c5ae80b2d187ae3ff15b0133e1c57"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mext-primary-japanese-2008-to-2017-old.json",
+        "sha256": "0f895b5578372d58f5e63f82ef23eb8a8a34ee455a0cd13b7794142bdcc74fe1"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mext-primary-japanese-2008-to-2017-old.log",
+        "sha256": "8852ed68c7b29c26b8fd27637f6ac7323ddfa465484ed569aa686697ac1e1606"
+      },
+      "counts": {
+        "S": 2132
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-new.pdf",
+        "sha256": "4a18f8d0247415c9e27a86e2688b3759cdb0c032a8e07ab51690a13a5fc27c2e"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mext-primary-japanese-2008-to-2017-new.json",
+        "sha256": "118a24b62907db5faba3fb1e9e1b7cb029833a052326f76914cc37093303e7fb"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mext-primary-japanese-2008-to-2017-new.log",
+        "sha256": "9d2c9e4c4bdd105212ec5ce4836bcae13ad888e8644a5657c5910766c8cb8552"
+      },
+      "counts": {
+        "f": 1700,
+        "S": 5209,
+        "sh": 56,
+        "Do": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-old.pdf",
+        "sha256": "793600d98c5de56971d5cd617ae84bc9661fadd92471c626a175741a02e52c99"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mext-lower-secondary-japanese-2008-to-2017-old.json",
+        "sha256": "221667222722ce5f6959e7f39cf648257b88e3cc3ff6779562bb697fd0d38b14"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mext-lower-secondary-japanese-2008-to-2017-old.log",
+        "sha256": "3e74a3f70de9265589cb897eac88aa19335eb10b31d3a3c82327e5c82a8caf77"
+      },
+      "counts": {
+        "f": 2331
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-new.pdf",
+        "sha256": "d56fb8ec65d401abc7bd8b2cfeae445f8b67be0851cd6173045bf0c4f18ec576"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mext-lower-secondary-japanese-2008-to-2017-new.json",
+        "sha256": "d6e0c667d4e4fa5ad6a736edd1ea8f7788a11d29d8715c24cd82de277d0606d6"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mext-lower-secondary-japanese-2008-to-2017-new.log",
+        "sha256": "6e72b621b08cc55611dbef24f06b2103b53b8cfc155da6605a087442323ad532"
+      },
+      "counts": {
+        "f": 3070,
+        "S": 4584,
+        "sh": 64
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-old.pdf",
+        "sha256": "c510378d787991b7da6b253bdd7bb32f00b39746e60dbcfb49cf2249e16830a5"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mext-upper-secondary-japanese-2009-to-2018-old.json",
+        "sha256": "f3b65f929d154b366482d7ba55b8b51b707bc7a03f14454b1770f65874ba4b6d"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mext-upper-secondary-japanese-2009-to-2018-old.log",
+        "sha256": "9e34a4911c75b0a01ebff94ec676899a3c4d811a688a818bdba128d3bc3f3c5a"
+      },
+      "counts": {
+        "S": 2603,
+        "f": 30
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-new.pdf",
+        "sha256": "012b3fe4e8c72f92d8c1879ffb02dbf53f27ab31cd09766ccf5da384470ed224"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mext-upper-secondary-japanese-2009-to-2018-new.json",
+        "sha256": "483ac0457aeacb39d935885423001eaceba3201d95e24b51607264b158ddb9c2"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mext-upper-secondary-japanese-2009-to-2018-new.log",
+        "sha256": "3c5a6885a47076074a5c3026039f6f81d272dfa5ddd5bb50df232655cd533f7c"
+      },
+      "counts": {
+        "f": 469,
+        "S": 4089,
+        "sh": 42
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-old.pdf",
+        "sha256": "feccc8ce02e124970efe6401c702730c6cd033c4e108373a7f6d4edddbab64fe"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mhlw-care-skills-original-to-revised-old.json",
+        "sha256": "2be4a97ccc8948af84c3ffbded19462acc6d482de7026b65e3fb46cda46385e0"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mhlw-care-skills-original-to-revised-old.log",
+        "sha256": "3297a41ffd4cca1324b95003346c01a3775e170f63ac5d68adea1904be3a7f02"
+      },
+      "counts": {
+        "f": 5507,
+        "sh": 64,
+        "Do": 631,
+        "S": 19703,
+        "B": 140,
+        "f*": 6
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-new.pdf",
+        "sha256": "2fa47d80d4167c5173e9f24c93178d90fdcf5e6cc45ca574360364f9820325af"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/mhlw-care-skills-original-to-revised-new.json",
+        "sha256": "d7a4cf60f08475d83871662ecb144de8d8a9a5daf27c4c265052c3c501595827"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/mhlw-care-skills-original-to-revised-new.log",
+        "sha256": "a7e3d9544fbd787d804841a7aecfe3804d4b54cbee2c34c2915e9a00894a84f6"
+      },
+      "counts": {
+        "f": 4440,
+        "sh": 14,
+        "S": 16353,
+        "Do": 528,
+        "B": 142,
+        "f*": 20
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-old.pdf",
+        "sha256": "6eb451ac9dadf2c0605d343398e6b92175c2d96fda5afaceee118583cc2a5e9c"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nasa-buckling-8007-1968-to-2020-old.json",
+        "sha256": "a6a8a269556acaace2e2708a05fd89a13a856086dca039dfdf3b6f27df1219a5"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nasa-buckling-8007-1968-to-2020-old.log",
+        "sha256": "6d9a6f132d73311184a1a7a1bba0b9d65caf51635b28adcb9246c2a4aa07d55e"
+      },
+      "counts": {
+        "Do": 60
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-new.pdf",
+        "sha256": "299dfb8807862f174768356353f39c6bf6993596cb6f5933dd4fd23181e8837b"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nasa-buckling-8007-1968-to-2020-new.json",
+        "sha256": "89a99267f21e60e8243768263d5cd2ccb77cebd72c36e350fd650ce949e28fef"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nasa-buckling-8007-1968-to-2020-new.log",
+        "sha256": "c325839cd09dea21538de8e9351c512fee7f85628aa18faa2a80325d6b616d87"
+      },
+      "counts": {
+        "f*": 490,
+        "B": 112,
+        "Do": 142,
+        "f": 235,
+        "S": 146
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-old.pdf",
+        "sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/ipcc-synthesis-ar5-to-ar6-old.json",
+        "sha256": "ba25d242c49f9389b1ecbea3f2b104c88a7bbf2caec34c6c965aa927350db00a"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/ipcc-synthesis-ar5-to-ar6-old.log",
+        "sha256": "020dbbbda47539132fd1c683018ce9f232c0f6abbf13c53a3c47f09e42dd3115"
+      },
+      "counts": {
+        "f": 47748,
+        "S": 8991,
+        "Do": 51,
+        "f*": 1897,
+        "sh": 38,
+        "B*": 2,
+        "B": 88
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-new.pdf",
+        "sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/ipcc-synthesis-ar5-to-ar6-new.json",
+        "sha256": "7fee727e7711ad51d1c7361d0562b6fcd3af46a869b19dceab4b404df4242942"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/ipcc-synthesis-ar5-to-ar6-new.log",
+        "sha256": "9ac284b3988419a44754ef417d2abee3d6a5f827ca445dc2c693e5f45194ac29"
+      },
+      "counts": {
+        "f": 18457,
+        "Do": 64,
+        "s": 1541,
+        "S": 5521,
+        "f*": 848,
+        "sh": 282,
+        "B": 10,
+        "B*": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-old.pdf",
+        "sha256": "8d241acc31e76042d46640355c7539c0bacacf75effca4b51292fcd7b1bd65dd"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/ecb-annual-2023-to-2024-old.json",
+        "sha256": "fe9bd957450f44328c6dcc2bd97559fdf9881269213dfe1ad99af852efb70b90"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/ecb-annual-2023-to-2024-old.log",
+        "sha256": "069170df65711b66c1febb98643c8f0c0a731cfad1e50634a8c0dd407882209d"
+      },
+      "counts": {
+        "f*": 4018,
+        "f": 397,
+        "Do": 66,
+        "S": 296,
+        "unmatched": 186
+      },
+      "unmatched_count": 186,
+      "prior_acquisition_ok": false
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-new.pdf",
+        "sha256": "9b1fa8402e6a50c318dba51c8158a14a54319dab92b3f25e0dfbc4a0e4ab43cc"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/ecb-annual-2023-to-2024-new.json",
+        "sha256": "f666870ad1ec8076998279014c07f82e80437893cef4448b64dfb96c8a398246"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/ecb-annual-2023-to-2024-new.log",
+        "sha256": "efbbf9db0979bfaf7d37eecb17dbdca180c95ea5ef340228c6c237e3f4e29a01"
+      },
+      "counts": {
+        "f*": 4456,
+        "f": 34,
+        "Do": 77
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-old.pdf",
+        "sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-sha-1803-to-1804-old.json",
+        "sha256": "2421242ae774757b2b7f984bd89e920aafcd08302383b808161868842a6811ea"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-sha-1803-to-1804-old.log",
+        "sha256": "adb9a92d00c615b782fa65f79d52d6e0f0424a8b2ef15d507d6290a880ae7f0d"
+      },
+      "counts": {
+        "B*": 1,
+        "f": 167,
+        "S": 73,
+        "Do": 1
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-new.pdf",
+        "sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-sha-1803-to-1804-new.json",
+        "sha256": "ebbc67857a3911513cd95a469e59428ba2f836fc0beb40e7c6b590aa43623654"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-sha-1803-to-1804-new.log",
+        "sha256": "7c70a8e4065d0b4dac988df8defa85bba89fc57483b460788a2c8b5932529060"
+      },
+      "counts": {
+        "f*": 297,
+        "Do": 1,
+        "S": 73
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-old.pdf",
+        "sha256": "4bd69fcbb4a9e794d38424d187b91d7e958461f5eaaa14cf2a578a2b6aac71be"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-ddpm-v1-to-v2-old.json",
+        "sha256": "ce9b819a6cf85e7bc115b13a19590485bdeb917f107b6840cff22997dad4eaab"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-ddpm-v1-to-v2-old.log",
+        "sha256": "bac6a24ccd14eb6c1e6c17f82c062fff1c8ce932327e9559595b2d7f8fe2381d"
+      },
+      "counts": {
+        "f": 20,
+        "S": 142,
+        "Do": 20,
+        "B": 3040
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-new.pdf",
+        "sha256": "aee5e07a802e8dfd2a386374c94fd61d1d056cb7e1e0fec4f28e8120ff5d8505"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-ddpm-v1-to-v2-new.json",
+        "sha256": "ea68cdd09595eb2fd981df2b44d4c5784310caab07103685cc6d5ff93e303bde"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-ddpm-v1-to-v2-new.log",
+        "sha256": "b219bed1e0604ee3b983e00e8aedc445049c7144319347a20e415a2f41c54e5a"
+      },
+      "counts": {
+        "f": 20,
+        "S": 145,
+        "Do": 20,
+        "B": 3040
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-old.pdf",
+        "sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-llama2-v1-to-v2-old.json",
+        "sha256": "69c607dd2556382a4b0a2d0087d313f699531f9468eb31b1c033f4fd908021f0"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-llama2-v1-to-v2-old.log",
+        "sha256": "9643044d66f017ad5ac1f1616efc077b0f64e2680ca72a015b5eae2458fb2430"
+      },
+      "counts": {
+        "S": 1025,
+        "Do": 25,
+        "f": 3869,
+        "B": 26568
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-new.pdf",
+        "sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-llama2-v1-to-v2-new.json",
+        "sha256": "f965bbead565faef8d8fefc3ffdc2fb0f505bf7e81f7d3374379f3f300219344"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-llama2-v1-to-v2-new.log",
+        "sha256": "337958f66fffa289be10656303cbb7ed756e84e88d0acdeb3079a1cf778e556f"
+      },
+      "counts": {
+        "S": 1025,
+        "Do": 25,
+        "f": 3869,
+        "B": 26568
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-old.pdf",
+        "sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-risk-management-37-r1-to-r2-old.json",
+        "sha256": "006daa35d2f9584049735c02f8eee8a93b7d21e88188eb1d14cf40470c48ce48"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-risk-management-37-r1-to-r2-old.log",
+        "sha256": "c63b0fc5b6af6dcb77f58cabee3d8bfb4366fa15ac3d8c920f83e8dcac874528"
+      },
+      "counts": {
+        "Do": 60,
+        "f*": 1318,
+        "f": 2769,
+        "S": 207,
+        "B*": 34,
+        "sh": 3
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-new.pdf",
+        "sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-risk-management-37-r1-to-r2-new.json",
+        "sha256": "3ac09647fb0cf7ee1d30ed1a4d8f29d832127f3652a91ec2d610db4376821ccc"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-risk-management-37-r1-to-r2-new.log",
+        "sha256": "1eb232004b7ebc68525d34283fd1e7006ff80d0090c4f723eca33f24f0f5c4a9"
+      },
+      "counts": {
+        "f": 4624,
+        "Do": 279,
+        "S": 385,
+        "B*": 42,
+        "f*": 1394,
+        "sh": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-old.pdf",
+        "sha256": "d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-1099-misc-2024-to-2025-old.json",
+        "sha256": "a0653ca03d08349903c95a9ffb1b5e21d4f9765ea8302b9852f53d04d220b0a6"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-1099-misc-2024-to-2025-old.log",
+        "sha256": "c581c6063df44e22b9480151f803af92cbc9cd84a1e0790800e9382f12c75ead"
+      },
+      "counts": {
+        "Do": 1,
+        "S": 420,
+        "f": 9
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-new.pdf",
+        "sha256": "a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-1099-misc-2024-to-2025-new.json",
+        "sha256": "4ea99d0ba299068d16753a6f2964a16b4861f2666416c08046ff996e92d4e5c7"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-1099-misc-2024-to-2025-new.log",
+        "sha256": "b756db5569afe9101e561ba4c8154e7eb9ff9d701f354bd0dd758317ab59f8d7"
+      },
+      "counts": {
+        "Do": 1,
+        "S": 416,
+        "f": 18
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf",
+        "sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-w2-2024-to-2025-old.json",
+        "sha256": "cb538a47e5ce46226da31ac03f0f0db0e109276820a5c2911a822ced5d905004"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-w2-2024-to-2025-old.log",
+        "sha256": "4424338f01c86a53597c2297b71f79814769b17351ce9ad3cf0000901b0dbd29"
+      },
+      "counts": {
+        "Do": 3,
+        "S": 906,
+        "f": 18
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf",
+        "sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/irs-w2-2024-to-2025-new.json",
+        "sha256": "9364a3b1d371bd404d387e2ddf723e605501e3f250e12339745456c6a1013ab5"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/irs-w2-2024-to-2025-new.log",
+        "sha256": "bdc67bb783a0524d25433c98092e7f2897671144714cd1684d7f44de8eb801a0"
+      },
+      "counts": {
+        "Do": 3,
+        "S": 906,
+        "f": 18
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-old.pdf",
+        "sha256": "7de5bdd6997c513e42645d8fd6c6cc69928ff6b6eabafe11a7c1673f79739602"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-mask-rcnn-v1-to-v3-old.json",
+        "sha256": "58d334206ce84caa0d02e27fafcf032ca4b60612093315777282a802f6199ad6"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-mask-rcnn-v1-to-v3-old.log",
+        "sha256": "42b2b06be36db6500cea930d648e2301490f28852f517f89f0478b05395dac4c"
+      },
+      "counts": {
+        "Do": 66,
+        "S": 3380,
+        "f": 1716,
+        "B": 6
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-new.pdf",
+        "sha256": "b595a882b763d55d933543131f32a2c4b6f41d0818d418ef46a2b66f946b67a8"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-mask-rcnn-v1-to-v3-new.json",
+        "sha256": "b48b298b9f45b5ce7f983591ddabdf26021d96f6063955c97338ef97fd6b3f45"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-mask-rcnn-v1-to-v3-new.log",
+        "sha256": "1a8f090aa18c126708a09571bb0e481f4d2cade090087ba99ca591eb7ce16f40"
+      },
+      "counts": {
+        "Do": 72,
+        "S": 3901,
+        "f": 1938,
+        "B": 6
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-old.pdf",
+        "sha256": "eab197762a6c2be1272f4b10f0603b98383c8aa9ecebc4bd23ba3b0424cf9890"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/bunka-official-writing-1952-to-2022-old.json",
+        "sha256": "401e23c7103b201e47df1bf6ede8d7533fefac89a4f6f4257cfae5abd3b1e6b2"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/bunka-official-writing-1952-to-2022-old.log",
+        "sha256": "1f5b9e319e2690ca8c106eb9a28044a5472d60cad56d752eafe803eacc44510d"
+      },
+      "counts": {
+        "f": 67,
+        "f*": 3080
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-new.pdf",
+        "sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/bunka-official-writing-1952-to-2022-new.json",
+        "sha256": "fb028c05e5e147e4606bac0dd7d4326c914acc681511c34e937317a9bdb2600e"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/bunka-official-writing-1952-to-2022-new.log",
+        "sha256": "337d2bd54782d49b753dfc2ad07499ab980abd3e8b3614dc1e7838bb9c1dba7f"
+      },
+      "counts": {
+        "f*": 1383,
+        "S": 53,
+        "Do": 16,
+        "f": 1
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-old.pdf",
+        "sha256": "f4ccfc41b97f113e4d26abf8e46fd7c59796eee477d1990cf990eedc2f730b8e"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/faa-thunderstorms-b-to-c-old.json",
+        "sha256": "b1b7ddc520e56197b28327a28a59b37be4b1729fe9b6801f21f1caba96a205d7"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/faa-thunderstorms-b-to-c-old.log",
+        "sha256": "8f545eca75291d0494ed5191beecf6082003f1456b09204bfd654e06e4c251f0"
+      },
+      "counts": {
+        "Do": 871
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-new.pdf",
+        "sha256": "c46c75a25a87f078d1ae425c77c4e9937489382817c9724f1e8c6c76ccd134cc"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/faa-thunderstorms-b-to-c-new.json",
+        "sha256": "0d151ac352c8394d3a9d3f5d1abe8719cb3f597b82d676d141158d27e132c7b0"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/faa-thunderstorms-b-to-c-new.log",
+        "sha256": "94543d81e7be71f9b9904a89c8ce764dc4430bb0e09549465d12e8b5137f39e7"
+      },
+      "counts": {
+        "S": 1015,
+        "f": 76,
+        "Do": 5
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-old.pdf",
+        "sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/faa-maintenance-records-c-to-d-old.json",
+        "sha256": "9e2fd7db9bcfab2e957aa47b70111409285a3d807c941bfa7ac94b585fd4881a"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/faa-maintenance-records-c-to-d-old.log",
+        "sha256": "4cd77f8ecf1ac22c1fa8c839af26be6335235aaf34c4c31985cb68dd096f0536"
+      },
+      "counts": {
+        "Do": 364,
+        "BI": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-new.pdf",
+        "sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/faa-maintenance-records-c-to-d-new.json",
+        "sha256": "0370956f073f85c62c22c2a9179fd5d6de3d1569314b91659178f4fd086ccfa9"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/faa-maintenance-records-c-to-d-new.log",
+        "sha256": "661fde4b08ae4f952539460c7ad6443b8c8fb1d30183ba88e0cf40a5f9e86e3e"
+      },
+      "counts": {
+        "f*": 9,
+        "S": 1029,
+        "f": 634,
+        "Do": 1
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-old.pdf",
+        "sha256": "9d72de197c6c8e76f32602fc447406d6a43f37b5b019933dd4d873463061a6ef"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-faster-rcnn-v1-to-v3-old.json",
+        "sha256": "ab7ab6cccf9f1ee0c61d34f94059e9ba4e3e446ea3ddc1005c820cd58a3c1a72"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-faster-rcnn-v1-to-v3-old.log",
+        "sha256": "0494b5bd260bdac275af5c7da7e643514cc75fbdc5f84d9d86543120eeceb63f"
+      },
+      "counts": {
+        "f": 263,
+        "S": 334,
+        "Do": 38
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-new.pdf",
+        "sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/arxiv-faster-rcnn-v1-to-v3-new.json",
+        "sha256": "7ec4d365e4c5e3c204b395ee95835e40f8e7dfe93b347c3e56fec6a63d1718b6"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/arxiv-faster-rcnn-v1-to-v3-new.log",
+        "sha256": "0e9c23b2cabd3950f87984e0d01188b939ef5667338b9d907f357e03da60ebd2"
+      },
+      "counts": {
+        "S": 348,
+        "f": 141,
+        "Do": 18,
+        "s": 8,
+        "f*": 22
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-old.pdf",
+        "sha256": "3cb630da029ed53867ee7ff3e1f50aa3bb8419716b7b3864dcf2e778cd912999"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/bunka-kana-1946-to-1986-old.json",
+        "sha256": "9e8209402315c8a232c0ed778e789a101329f8f2633d8dc04f73b33480d6eb5b"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/bunka-kana-1946-to-1986-old.log",
+        "sha256": "12a26c85f21f8baeb710fef032692cc669c7c474a54c6879a4dec6d1691c741e"
+      },
+      "counts": {
+        "Do": 13
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-new.pdf",
+        "sha256": "da79514967608d2c384fb72bb121e5c57951b2c1fb9a634f66e0eb2f8a98b601"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/bunka-kana-1946-to-1986-new.json",
+        "sha256": "405fc1e1eda51c1e3c78b5d6b48387c28ef4cfe50ceb560f531f42de60af0c84"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/bunka-kana-1946-to-1986-new.log",
+        "sha256": "2f17ac001ab493b282e51175bba473d39f73d194566bf3c3267bd044b40f2276"
+      },
+      "counts": {
+        "S": 1201
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-old.pdf",
+        "sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-controls-53-r4-to-r5-old.json",
+        "sha256": "b3f496d1d3a74ef62faaa10118c40e145bdc6d076a36fba48b3f6ddacf09ab9e"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-controls-53-r4-to-r5-old.log",
+        "sha256": "76ef03414a4203e6a31ee93c7fb1efcc01d1339d0cb6b3ad78237e02fc36d501"
+      },
+      "counts": {
+        "Do": 45,
+        "f*": 13431,
+        "f": 65200,
+        "S": 208,
+        "B*": 23,
+        "sh": 2
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-new.pdf",
+        "sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-controls-53-r4-to-r5-new.json",
+        "sha256": "59eef405c1e4b03c86d58525d32df6818e2c453316f70023b55fba7730c328bd"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-controls-53-r4-to-r5-new.log",
+        "sha256": "b79a065ce016d8e2654cdb42994114cfa696b2965ebe3470880abd8573e51420"
+      },
+      "counts": {
+        "f*": 6933,
+        "f": 37718,
+        "S": 658,
+        "Do": 498,
+        "B*": 17
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-old.pdf",
+        "sha256": "04456e1a4555e4ea3649a4f798af696a7eb91e80d2415a0b1e67a7f9e4b396ef"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-risk-assessment-30-to-r1-old.json",
+        "sha256": "fcc2e513d06257262a6b9fbb15db59b33459a687c3e9035e46c4e6cf9e98bf0a"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-risk-assessment-30-to-r1-old.log",
+        "sha256": "f64c2873fa3a0b858f4a62ddfa2e51fd3a1671f0078d3083ca759b934d7cbfa9"
+      },
+      "counts": {
+        "Do": 129,
+        "f": 125
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-new.pdf",
+        "sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-risk-assessment-30-to-r1-new.json",
+        "sha256": "09816743c77cf6ba8ab1b62f9923133ff3a4363d9cd58740aed55c365ad658f9"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-risk-assessment-30-to-r1-new.log",
+        "sha256": "83100b9dbbe5ec951b6a72b78071ea307075c18d06f87d8c6616058e719e2411"
+      },
+      "counts": {
+        "S": 196,
+        "f": 5118,
+        "Do": 1,
+        "B*": 40,
+        "f*": 3159,
+        "sh": 14
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-old.pdf",
+        "sha256": "1838f48f555d8fd8d54a6212024d138224307acfb4f86eea88fdf03c96d02a19"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-contingency-34-to-r1-old.json",
+        "sha256": "c605d0c72ff1837991dfd1a0544590e40d9306f6d041f09194cc6387a2f0788f"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-contingency-34-to-r1-old.log",
+        "sha256": "2294dc8923d754afe8b8e701a5dedd518e54917a4d3f1e8f4e2c62f0fbb194d0"
+      },
+      "counts": {
+        "Do": 233,
+        "f": 125
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-new.pdf",
+        "sha256": "476f04d4c60b0770c1ac8b2720551972074ce78e936a3e7a535048416111d0df"
+      },
+      "projection": {
+        "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/nist-contingency-34-to-r1-new.json",
+        "sha256": "3fb1bf11ec57e2becddf36f7cdb5823440a4b953ee92908e0f447712ebc846f3"
+      },
+      "operator_log": {
+        "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/nist-contingency-34-to-r1-new.log",
+        "sha256": "6e6c133634ddddf737621b402ebdd4af96d29ae04f610867a701732838cc8aa0"
+      },
+      "counts": {
+        "Do": 265,
+        "B*": 49,
+        "f*": 64,
+        "S": 184,
+        "f": 4205,
+        "sh": 29
+      },
+      "unmatched_count": 0,
+      "prior_acquisition_ok": true
+    }
+  ],
+  "source_registrations": [
+    "benchmark/realworld/remaining/source-completion/clip-probe-results.json",
+    "benchmark/realworld/remaining/source-completion/paint-extent-results.json"
+  ],
+  "zero_width_or_height_bounds": 0,
+  "path_paint_records": 440078,
+  "unmatched_records": 186,
+  "path_only_pairs": [
+    "irs-w9-2018-to-2024",
+    "irs-schedule-c-2024-to-2025",
+    "irs-schedule-se-2024-to-2025"
+  ],
+  "new_acquisition_or_comparison_runs": 0,
+  "completion_gain": 0
+}

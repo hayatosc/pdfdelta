@@ -1,0 +1,72 @@
+{
+  "status": "inference_compatibility_only",
+  "engine": "rten 0.26.0",
+  "runtime_platform": "x86_64-unknown-linux-gnu",
+  "threads": 1,
+  "artifacts": {
+    "en.png": {
+      "bytes": 4980,
+      "sha256": "1821e1f53adf13ea7ffddd841423c6649dd318c796b022c3709d3d5909fe3431"
+    },
+    "ja.dict": {
+      "bytes": 17332,
+      "sha256": "1dcfcb41eec90576a945b3084f22ade11ced506e24f14879245b071698f308e8"
+    },
+    "det-result.log": {
+      "bytes": 971,
+      "sha256": "8b703df57abf2be47f9eb388f188ef5e238e8ce5f227dae6cf6b033bf3ae9d05"
+    },
+    "en-result.log": {
+      "bytes": 1038,
+      "sha256": "cc8bece8bc2a691b6982e50018fad49793fa4f86a408dab2048b82a8f5ec2918"
+    },
+    "ja.png": {
+      "bytes": 4931,
+      "sha256": "7a16cf4e36d2b20b49f5d53e73a7f9c7f2984b2343335cdceae1df9c44a1ca5d"
+    },
+    "ja-result.log": {
+      "bytes": 1039,
+      "sha256": "38793e887aaa6eb52c27f9a683bd22569afcda6f45e16e694b8712c5b9eae005"
+    },
+    "ja.onnx": {
+      "bytes": 10085330,
+      "sha256": "37ab0d0c32a21c09d28682235da9dd6ce0af76699121203d2c5995cab5f12935"
+    },
+    "det.onnx": {
+      "bytes": 4745517,
+      "sha256": "30a86f5731181461d08021402766601e4302a9b9b9666be8aff402696339cdff"
+    },
+    "en.onnx": {
+      "bytes": 7666529,
+      "sha256": "870d81b658bb0ba59ae4a2aecf21f879e4921002be29d208cdcdb977af6e0959"
+    },
+    "en.dict": {
+      "bytes": 190,
+      "sha256": "5662df9d2d03f0e8ca0d3b0649d6acbab904b6a14b3d3521463c71c37c668ce3"
+    }
+  },
+  "recognized": {
+    "ja": "日本語の比較 10",
+    "en": "Document comparison 10"
+  },
+  "natural_complete_pairs_added": 0,
+  "limitations": [
+    "Preselected single-line crops; no page acquisition completeness proof.",
+    "Detector smoke test observes probability output, not validated localization.",
+    "No recognition score certifies correctness or complete inventory.",
+    "Windows and macOS runtime execution remains unverified.",
+    "Models downloaded into ignored cache only; no production model distribution selected."
+  ],
+  "checks": {
+    "linux_clippy": "passed",
+    "x86_64-pc-windows-gnu_cargo_check": "passed",
+    "aarch64-apple-darwin_cargo_check": "passed",
+    "windows_runtime": "not_run",
+    "macos_runtime": "not_run"
+  },
+  "source_sha256": {
+    "Cargo.toml": "d6e16a929e69f03826fb53a8529d56fa30a679970ee29b716af5faddc87e2d6d",
+    "Cargo.lock": "5f99d636f911fc1eb97a6ec2e05abdd2d1836521c4bb8a66813c39f51fda3304",
+    "src/main.rs": "aecc74e6b6af1d3a3dec9bb8dee090517e98bf70199f65c75244212d4fc24954"
+  }
+}

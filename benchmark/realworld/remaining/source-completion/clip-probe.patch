@@ -1,0 +1,53 @@
+--- a/crates/pdfdelta-core/src/source/content_stream.rs
++++ b/crates/pdfdelta-core/src/source/content_stream.rs
+@@ -567,6 +567,7 @@
+                     stream,
+                     operation,
+                     image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
++                    &state.graphics.clip_region,
+                 );
+             }
+             b"sh" => {
+@@ -576,6 +577,7 @@
+                     stream,
+                     operation,
+                     state.graphics.form_paint_bounds,
++                    &state.graphics.clip_region,
+                 );
+             }
+             b"BMC" | b"BDC" => {
+@@ -948,7 +950,7 @@
+                         // Partial effects of a failed invocation are replaced by
+                         // one opaque operation, retaining its caller provenance.
+                         self.non_text_paint_bounds.truncate(paint_start);
+-                        self.record_non_text_paint(page, stream, operation, bounds);
++                        self.record_non_text_paint(page, stream, operation, bounds, &state.graphics.clip_region);
+                         self.issues.push(ExtractionIssue::from_error(
+                             ExtractionScope::PageGlyphGap {
+                                 page,
+@@ -1005,7 +1007,9 @@
+         stream: ObjectRef,
+         operation: &Operation,
+         bounds: Option<Rect>,
++        clip: &ClipRegion,
+     ) {
++        eprintln!("CLIP_PROBE {} {} {} {} {}", page.0, stream.object_number, operation.index, String::from_utf8_lossy(&operation.operator), matches!(clip, ClipRegion::Empty));
+         // Every record is charged by the existing global operator budget.
+         self.non_text_paint_bounds.push(NonTextPaint {
+             page,
+@@ -1041,6 +1045,7 @@
+                 operation,
+                 path_paint_bounds(page_geometry, state, stroke)
+                     .or(state.graphics.form_paint_bounds),
++                &state.graphics.clip_region,
+             );
+         }
+ 
+@@ -1714,6 +1719,7 @@
+                 stream,
+                 operation,
+                 image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
++                    &state.graphics.clip_region,
+             );
+         }
+         let CachedXObjectKind::Form {
