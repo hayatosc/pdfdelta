@@ -1444,3 +1444,27 @@ All 189 fixed control event identities agree with the preceding executable, with
 zero false strict atoms on annotated unchanged controls. Format, Clippy, 2476
 workspace tests (two ignored) and 48 generated cases pass. The full fixed-panel
 replay remains outstanding; no recovery gate is claimed from this pilot.
+
+### Complete the vertical-metric replay and identify the next font blocker
+
+`../remaining/cid-vertical-metrics-panel-result.json` combines the four pilots
+with 32 additional captures, verifying all 72 input hashes, the same executable,
+report hashes and unchanged limits. All 32 unaffected pairs retain their native
+inventories and coverage; all 36 retain their event fingerprints. The four pilot
+coverage gains stand, but complete comparison remains 0/36. Historical fixed-target
+source IDs are not reused on changed acquisitions without provenance rebinding.
+No G1 or G3 gain is established. Format, Clippy and 2476 workspace tests pass
+(two ignored).
+
+`../remaining/named-cmap-prerequisites-result.json` records a bounded resource
+probe of the old care-skills PDF. Its 76 Type 0 font records include one
+UniJIS-UTF16-H font: object 2848, MSPGothic, with an Adobe-Japan1 supplement 5
+CIDFontType2 descendant. It has no ToUnicode entry or embedded font program.
+The probe traverses explicit page and nested Form resources; it does not infer
+actual font use from resource presence. No page in this input lacked an explicit
+resource dictionary.
+
+The next decoder investigation must establish the authoritative predefined
+character-code-to-CID map, source segmentation and Unicode provenance. Treating
+UTF-16 code units as CIDs would select incorrect metrics. This diagnosis changes
+no production decoding behavior and claims no additional recovered text.
