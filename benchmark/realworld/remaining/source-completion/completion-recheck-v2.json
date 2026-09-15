@@ -1,0 +1,2754 @@
+{
+  "status": "finished",
+  "goal_complete": false,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+    "sha256": "cee350449a9dfbd4bcf160d2b6f12a4b140c39b406e85000933b05acefbd9ec5"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/source.tar.gz",
+    "sha256": "887252cce50a10b6cb7f63afbd879416cb3e7741862b2b51016d6c74f447e140"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/build.log",
+    "sha256": "2d958f31c747e2ba0298b9d5f12bd5d7cbbe260358b4c94ebe09bf96f8cd25b8"
+  },
+  "rows": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-controller-processor-v1-to-v2-1-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-controller-processor-v1-to-v2-1",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "f85022137ed47e30204acc1ee0a3f9c636e413359cabd1ede6c4f0efc1d9d401"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "b63275818fdf156a65f95c11f07170eac88d22b6da25954daf1384a757b0145e"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-controller-processor-v1-to-v2-1-1/runs.json",
+        "sha256": "253529082e18575366a5ebcc184de40cf802bcf5e030f31b59ba16413ceb9a1e"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 2240,
+          "new_compared_sources": 2266,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 133548,
+          "new_uncompared_sources": 174726,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 2240,
+          "new_compared_sources": 2266,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 133548,
+          "new_uncompared_sources": 174726,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 135788,
+        "new": 176992
+      },
+      "native_glyphs_after": {
+        "old": 135788,
+        "new": 176992
+      },
+      "comparison_identical": true,
+      "native_intervals": 0
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-restrictions-v1-to-final-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-restrictions-v1-to-final",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "81238a839f663882c0255a41173c7ab82f338f6e40ae58817375c4877d30788d"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f7a75e2f2b8e0e062fa270c1d8e16e14d79581553fcea31ec155bdcf2799463e"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-restrictions-v1-to-final-1/runs.json",
+        "sha256": "b4b07b973d0d7bf80aec4ab8d10dfd4483f178c95c11afeaac9e272473f72e23"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 52431,
+          "new_discovered_sources": 57738,
+          "old_compared_sources": 1003,
+          "new_compared_sources": 1005,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 51428,
+          "new_uncompared_sources": 56733,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 52431,
+          "new_discovered_sources": 57738,
+          "old_compared_sources": 1003,
+          "new_compared_sources": 1005,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 51428,
+          "new_uncompared_sources": 56733,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 52431,
+        "new": 57738
+      },
+      "native_glyphs_after": {
+        "old": 52431,
+        "new": 57738
+      },
+      "comparison_identical": true,
+      "native_intervals": 1
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-design-default-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-design-default-v1-to-v2",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-design-default-v1-to-v2/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "9819e3a57ae30dae69d15704d9a87f8b6ebec4d54cf086ed21718fbec54305b9"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-design-default-v1-to-v2-1/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "2758932e22a4d948043721676821f59bc529f62a1e89bd27826b7c85685460a7"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-design-default-v1-to-v2-1/runs.json",
+        "sha256": "cdc855e3283b334ea4ca2f276f32505b4bba4af2306aa9ce07d6bf001a048c69"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 81687,
+          "new_discovered_sources": 91083,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 81687,
+          "new_uncompared_sources": 91083,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 81687,
+          "new_discovered_sources": 91083,
+          "old_compared_sources": 164,
+          "new_compared_sources": 164,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 81523,
+          "new_uncompared_sources": 90919,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 81687,
+        "new": 91083
+      },
+      "native_glyphs_after": {
+        "old": 81687,
+        "new": 91083
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-social-targeting-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-social-targeting-v1-to-v2",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-social-targeting-v1-to-v2/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "03a55d26d580617d6efe45c52fe68325ec0f3053d034f7f7204d65d41793deec"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-social-targeting-v1-to-v2-1/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "1f5653d114902814b88cd50e6b25100ed85ddaca18259121dc9b228c92929075"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-social-targeting-v1-to-v2-1/runs.json",
+        "sha256": "acf25b188867bb16ac9f523d425703ef18a49936135324c6999b15403c11a6a0"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 137655,
+          "new_discovered_sources": 144179,
+          "old_compared_sources": 9690,
+          "new_compared_sources": 9707,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 127965,
+          "new_uncompared_sources": 134472,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 137655,
+          "new_discovered_sources": 144179,
+          "old_compared_sources": 9690,
+          "new_compared_sources": 9707,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 127965,
+          "new_uncompared_sources": 134472,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 137655,
+        "new": 144179
+      },
+      "native_glyphs_after": {
+        "old": 137655,
+        "new": 144179
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-incident-handling-r2-to-r3-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-incident-handling-r2-to-r3",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-incident-handling-r2-to-r3/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "67bb064ce53a326ee8627aacdb7fc157fc5395118f2d2ac1404e1be4212af012"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-incident-handling-r2-to-r3-1/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "59e43fee978f988f967513a95c05fbe9ee3453226017430b505701aabb424ba5"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-incident-handling-r2-to-r3-1/runs.json",
+        "sha256": "9f734713d9ddfdbc56aa6eae61e30e48769487e7b339bae2dab5da11da3652b4"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 228231,
+          "new_discovered_sources": 104993,
+          "old_compared_sources": 717,
+          "new_compared_sources": 710,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 227514,
+          "new_uncompared_sources": 104283,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 228231,
+          "new_discovered_sources": 104993,
+          "old_compared_sources": 717,
+          "new_compared_sources": 710,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 227514,
+          "new_uncompared_sources": 104283,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 228231,
+        "new": 104993
+      },
+      "native_glyphs_after": {
+        "old": 228231,
+        "new": 104993
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ssdf-draft-to-final-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-ssdf-draft-to-final",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ssdf-draft-to-final/nist-ssdf-draft-to-final-text.json",
+        "sha256": "b35cbfcdbb1d735284ccf42f68da683c0cf5412579edb59bcf544d35ad258a4c"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "6d00c288c79802e64a335afb3c317a46fa9ddc7ecc6e9df9995d76e89893c725"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ssdf-draft-to-final-1/runs.json",
+        "sha256": "81ef0ce18920684d9b40a5f17688335bdbdc5647b3c5953f680bc6e5c254646b"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 92494,
+          "new_discovered_sources": 105512,
+          "old_compared_sources": 21928,
+          "new_compared_sources": 21915,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 70566,
+          "new_uncompared_sources": 83597,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 92494,
+          "new_discovered_sources": 105512,
+          "old_compared_sources": 24222,
+          "new_compared_sources": 24299,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 68272,
+          "new_uncompared_sources": 81213,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 92494,
+        "new": 105512
+      },
+      "native_glyphs_after": {
+        "old": 92494,
+        "new": 105512
+      },
+      "comparison_identical": false,
+      "native_intervals": 7
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ai-rmf-draft2-to-v1-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-ai-rmf-draft2-to-v1",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ai-rmf-draft2-to-v1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "90066d53275a0d96bc943dae92805f00905352e235f749f22bf559170e22ebe6"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ai-rmf-draft2-to-v1-1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "d729cb8bdfbde33235056bcddef0ba3341bb9300fb86e84ddef145244b03ec3b"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ai-rmf-draft2-to-v1-1/runs.json",
+        "sha256": "88ccad15c31322676b271ee40e1918474d21937732ec20095b6a8eda96337a67"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 86136,
+          "new_discovered_sources": 90392,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 86136,
+          "new_uncompared_sources": 90392,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 86136,
+          "new_discovered_sources": 90392,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 86136,
+          "new_uncompared_sources": 90392,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 86136,
+        "new": 90392
+      },
+      "native_glyphs_after": {
+        "old": 86136,
+        "new": 90392
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-authentication-63b-to-63b4-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-authentication-63b-to-63b4",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-authentication-63b-to-63b4/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "50ff060e1dccaf7cb06dc94db4d242bee8fe169a270b0b1c76d86005aef3ecfc"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "81dfd3bf7182cbe96db5944affa6f7c676a81cfc2656e50fc312fce258584730"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-authentication-63b-to-63b4-1/runs.json",
+        "sha256": "fe023a709942f18e3311ff8575d4e8cf3036ca7e80f464ccb5f609230aa2932f"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 198793,
+          "new_discovered_sources": 280783,
+          "old_compared_sources": 536,
+          "new_compared_sources": 534,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 198257,
+          "new_uncompared_sources": 280249,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 198793,
+          "new_discovered_sources": 280783,
+          "old_compared_sources": 2514,
+          "new_compared_sources": 2510,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 196279,
+          "new_uncompared_sources": 278273,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 198793,
+        "new": 280783
+      },
+      "native_glyphs_after": {
+        "old": 198793,
+        "new": 280783
+      },
+      "comparison_identical": false,
+      "native_intervals": 1
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w9-2018-to-2024-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-w9-2018-to-2024",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w9-2018-to-2024/irs-w9-2018-to-2024-text.json",
+        "sha256": "01ddab5ba4c49cb6a3c91306e792f4d034e1547911baf9c7c25c54594ce74910"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w9-2018-to-2024-1/irs-w9-2018-to-2024-text.json",
+        "sha256": "0c48d9604e5e85658f7d804c3d64b135c732beb2aa84dc9a6afe1529c680f5cf"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w9-2018-to-2024-1/runs.json",
+        "sha256": "134bcca4496633f2b673a9ccb807b9408bc42a2d619754a4cf6f99db326cebc1"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 34858,
+          "new_discovered_sources": 37452,
+          "old_compared_sources": 8569,
+          "new_compared_sources": 8573,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26289,
+          "new_uncompared_sources": 28879,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 34858,
+          "new_discovered_sources": 37452,
+          "old_compared_sources": 14976,
+          "new_compared_sources": 14951,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 19882,
+          "new_uncompared_sources": 22501,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 34858,
+        "new": 37452
+      },
+      "native_glyphs_after": {
+        "old": 34858,
+        "new": 37452
+      },
+      "comparison_identical": false,
+      "native_intervals": 17
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w4-english-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-w4-english-2024-to-2025",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w4-english-2024-to-2025/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "30068c180ed6325aba73cd6a8e445648f53c0497168b83b3f75ae1b8025f35a0"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w4-english-2024-to-2025-1/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "0ef60412ef35033a7e017624538237ee04b5a6d21dc05aaa44e6afcb8bfa6fe0"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w4-english-2024-to-2025-1/runs.json",
+        "sha256": "4281dad1c567016946c47a772304d86aa94908dd5449b18a09aa949717e0f467"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 19817,
+          "new_discovered_sources": 20974,
+          "old_compared_sources": 8389,
+          "new_compared_sources": 8389,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 11428,
+          "new_uncompared_sources": 12585,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 19817,
+          "new_discovered_sources": 20974,
+          "old_compared_sources": 8564,
+          "new_compared_sources": 8568,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 11253,
+          "new_uncompared_sources": 12406,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 19817,
+        "new": 20974
+      },
+      "native_glyphs_after": {
+        "old": 19817,
+        "new": 20974
+      },
+      "comparison_identical": false,
+      "native_intervals": 1
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-c-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-c-2024-to-2025",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "9f86017f0e1d5d5bab9b139cc606a55ac4364bee5bec6c6bbca043457d8a12a9"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "2390083cb664f1e93652b198138c4a0dc33b295caee3fa492296291067e4a82c"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-c-2024-to-2025-1/runs.json",
+        "sha256": "87bf30b2627a4dbf6dc921419c3bac86c2961a9dfb4c8066cfb99793ff2c6ebb"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5015,
+          "new_compared_sources": 5015,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1295,
+          "new_uncompared_sources": 1301,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5015,
+          "new_compared_sources": 5015,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1295,
+          "new_uncompared_sources": 1301,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 6310,
+        "new": 6316
+      },
+      "native_glyphs_after": {
+        "old": 6310,
+        "new": 6316
+      },
+      "comparison_identical": true,
+      "native_intervals": 1
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "fa16b76ae5a68d5b243c1cc657ea63b11522b4bcc3328fb78bac786ac9eff1ee"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "fb7bdb2563c00c614d098c27620593a426ffe18f1d09ffbada25280348eed7d4"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1/runs.json",
+        "sha256": "2b1893004d53fc856750c0011c07b631acf3a64f1e5b387805f7db40d09d99b3"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 5158,
+        "new": 5175
+      },
+      "native_glyphs_after": {
+        "old": 5158,
+        "new": 5175
+      },
+      "comparison_identical": true,
+      "native_intervals": 0
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-bert-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-bert-v1-to-v2",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "1508868355d1f3c5effab9123d1e6029c87ac748420ec866d60ae809880de212"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "ca5e08d523de7e84d2c4f31533569b1db88c9e2a8058fbec33e8564c6f7599a2"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-bert-v1-to-v2-1/runs.json",
+        "sha256": "5f16e46fe349666109b0700eb8cbdfc1eb95e01944599f8627aad06327200a17"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 46126,
+          "new_discovered_sources": 54003,
+          "old_compared_sources": 7064,
+          "new_compared_sources": 7064,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 39062,
+          "new_uncompared_sources": 46939,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 46126,
+          "new_discovered_sources": 54003,
+          "old_compared_sources": 7064,
+          "new_compared_sources": 7064,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 39062,
+          "new_uncompared_sources": 46939,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 46126,
+        "new": 54003
+      },
+      "native_glyphs_after": {
+        "old": 46126,
+        "new": 54003
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-gpt3-v1-to-v4-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-gpt3-v1-to-v4",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-gpt3-v1-to-v4/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "77d257b16ec09eb9532e6c8e19eb8aa49298542822548f646e772ef45474255f"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-gpt3-v1-to-v4-1/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "6ba7d05c235b2b74d0830b978bc3e63aa5ddf3bb9f14423a52b87a2e0430642b"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-gpt3-v1-to-v4-1/runs.json",
+        "sha256": "4a91e936faec2a56b600adbc78947644673f47264dfb3d7ea390566ec05ff44c"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 183113,
+          "new_discovered_sources": 188326,
+          "old_compared_sources": 119031,
+          "new_compared_sources": 119031,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 64082,
+          "new_uncompared_sources": 69295,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 183113,
+          "new_discovered_sources": 188326,
+          "old_compared_sources": 119031,
+          "new_compared_sources": 119031,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 64082,
+          "new_uncompared_sources": 69295,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 183113,
+        "new": 188326
+      },
+      "native_glyphs_after": {
+        "old": 183113,
+        "new": 188326
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-primary-japanese-2008-to-2017-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-primary-japanese-2008-to-2017",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "f986dedb74670bcf0705d180cad70047b34dc490a17ff1aa375c8e58ebc565f8"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-primary-japanese-2008-to-2017-1/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "58bf1856ff9f1be66d7c6c749bdea9bc9d5c24409b183cadcc66e9b481588107"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-primary-japanese-2008-to-2017-1/runs.json",
+        "sha256": "ec32f8e589eb8f73a5e77f1ffb117baa95d84ccff7d922f8cfdd0d1cbc580d8f"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102328,
+          "new_discovered_sources": 249104,
+          "old_compared_sources": 201,
+          "new_compared_sources": 201,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102127,
+          "new_uncompared_sources": 248903,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102328,
+          "new_discovered_sources": 249104,
+          "old_compared_sources": 201,
+          "new_compared_sources": 201,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102127,
+          "new_uncompared_sources": 248903,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 102328,
+        "new": 249104
+      },
+      "native_glyphs_after": {
+        "old": 102328,
+        "new": 249104
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-lower-secondary-japanese-2008-to-2017-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-lower-secondary-japanese-2008-to-2017",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "2763338cf61d2ef3d3cfc4cb4d4964e09bb5332afdf2c14b895b82293bccb2e6"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-lower-secondary-japanese-2008-to-2017-1/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "08f7166c5633929ed65f7fe35990ee6c6f49cc4aba68a3c28bae3c04e286b623"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-lower-secondary-japanese-2008-to-2017-1/runs.json",
+        "sha256": "48595010660c43ac77c3c050e450508333c3fe4cc08f16c4a1b86500c2a2e29c"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 80303,
+          "new_discovered_sources": 199442,
+          "old_compared_sources": 153,
+          "new_compared_sources": 154,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 80150,
+          "new_uncompared_sources": 199288,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 80303,
+          "new_discovered_sources": 199442,
+          "old_compared_sources": 153,
+          "new_compared_sources": 154,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 80150,
+          "new_uncompared_sources": 199288,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 80303,
+        "new": 199442
+      },
+      "native_glyphs_after": {
+        "old": 80303,
+        "new": 199442
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-upper-secondary-japanese-2009-to-2018-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-upper-secondary-japanese-2009-to-2018",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "eec3fa8d4d5e5746e97a58624e9a340c53956a1b1105be82fafea6d1c38befb1"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-upper-secondary-japanese-2009-to-2018-1/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "3ce9ebe20328807df39fd0bb8d8d39f6a4c4e27c941e073bf89e0e42d55fcee2"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-upper-secondary-japanese-2009-to-2018-1/runs.json",
+        "sha256": "b5163ea4e562b25a4ab669d83f44b845b5b5eb056dbc47201c91a9a3b6264388"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 111053,
+          "new_discovered_sources": 297348,
+          "old_compared_sources": 115,
+          "new_compared_sources": 116,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 110938,
+          "new_uncompared_sources": 297232,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 111053,
+          "new_discovered_sources": 297348,
+          "old_compared_sources": 115,
+          "new_compared_sources": 116,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 110938,
+          "new_uncompared_sources": 297232,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 111053,
+        "new": 297348
+      },
+      "native_glyphs_after": {
+        "old": 111053,
+        "new": 297348
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/mhlw-care-skills-original-to-revised-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mhlw-care-skills-original-to-revised",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "bd2c69581a7f8185a6c1f60ecbd38dbf705fb254b62621cf70df502d8fb9e941"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mhlw-care-skills-original-to-revised-1/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "b477199dd32aad79b70b92f2e2baf8e2aaf77f755be44ce68eb652498a5ec713"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mhlw-care-skills-original-to-revised-1/runs.json",
+        "sha256": "baf8c4f05918421ef4f04efb87fe94e7ff9c367b45f205a68a7b08507c066276"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 82640,
+          "new_discovered_sources": 104935,
+          "old_compared_sources": 9018,
+          "new_compared_sources": 9018,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 73622,
+          "new_uncompared_sources": 95917,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 82640,
+          "new_discovered_sources": 104935,
+          "old_compared_sources": 9018,
+          "new_compared_sources": 9018,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 73622,
+          "new_uncompared_sources": 95917,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 82640,
+        "new": 104935
+      },
+      "native_glyphs_after": {
+        "old": 82640,
+        "new": 104935
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nasa-buckling-8007-1968-to-2020-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nasa-buckling-8007-1968-to-2020",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nasa-buckling-8007-1968-to-2020/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "f0c1c1e3410cc15ff7aa154321d5cdcc3735d013a5380a10edd09f98da3afc4f"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nasa-buckling-8007-1968-to-2020-1/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "1fa3642561332d1882b0226ad60d7ce38e736a63343881d37bc43fa2a9a981ac"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nasa-buckling-8007-1968-to-2020-1/runs.json",
+        "sha256": "1df44eb6de7ce14b1b508f19a085340e4ca960e949ed6831fe883d13754b0a13"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 62811,
+          "new_discovered_sources": 280452,
+          "old_compared_sources": 18,
+          "new_compared_sources": 18,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 62793,
+          "new_uncompared_sources": 280434,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 62811,
+          "new_discovered_sources": 280452,
+          "old_compared_sources": 18,
+          "new_compared_sources": 18,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 62793,
+          "new_uncompared_sources": 280434,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 62811,
+        "new": 280452
+      },
+      "native_glyphs_after": {
+        "old": 62811,
+        "new": 280452
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/ipcc-synthesis-ar5-to-ar6-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "ipcc-synthesis-ar5-to-ar6",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ipcc-synthesis-ar5-to-ar6/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "7ed25dc016637ac339f3303a79b53d427ec656e2dbc133399eef57fa23a28df5"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ipcc-synthesis-ar5-to-ar6-1/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "f65533b3dfd8ffcb6afc8b9c75e1097fc1f0d5017495228797f5aee687bf430b"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ipcc-synthesis-ar5-to-ar6-1/runs.json",
+        "sha256": "f991f1d16cb361956035d1a586996b6eade9bba21920d094a8c2337d503900cd"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 611699,
+          "new_discovered_sources": 637662,
+          "old_compared_sources": 4400,
+          "new_compared_sources": 4395,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 607299,
+          "new_uncompared_sources": 633267,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 611699,
+          "new_discovered_sources": 637662,
+          "old_compared_sources": 5032,
+          "new_compared_sources": 5026,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 606667,
+          "new_uncompared_sources": 632636,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 611699,
+        "new": 637662
+      },
+      "native_glyphs_after": {
+        "old": 611699,
+        "new": 637662
+      },
+      "comparison_identical": false,
+      "native_intervals": 2
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/ecb-annual-2023-to-2024-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "ecb-annual-2023-to-2024",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+        "sha256": "686542f07f1a65573f477fdf8aa8828474fbc35e2dfdb95d6f8b3e4a891c81f9"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+        "sha256": "e5bc7539c5c343c5a1cb66d1dbce624e23f25a6ca49d01c36214a428b6ef933f"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ecb-annual-2023-to-2024-1/runs.json",
+        "sha256": "8fbd2fb1a8e42b577cca83abf24f78642bc18dbeedd279cc341d3bda6bfe7e7a"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 462245,
+          "new_discovered_sources": 473275,
+          "old_compared_sources": 45958,
+          "new_compared_sources": 45943,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 416287,
+          "new_uncompared_sources": 427332,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 462245,
+          "new_discovered_sources": 473275,
+          "old_compared_sources": 45958,
+          "new_compared_sources": 45943,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 416287,
+          "new_uncompared_sources": 427332,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 462245,
+        "new": 473275
+      },
+      "native_glyphs_after": {
+        "old": 462245,
+        "new": 473275
+      },
+      "comparison_identical": true,
+      "native_intervals": 8
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-sha-1803-to-1804-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-sha-1803-to-1804",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.json",
+        "sha256": "444ddc37f1485f0f57f907c10090f47e6ff8c1c6434adb604aa4227eea18bd28"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "e63d019485c373b1d017a8960a9b2e25f65c630fd3797de75c8981c06b5f8422"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-sha-1803-to-1804-1/runs.json",
+        "sha256": "a425cc4747cadfc61056ebce6f66ac99c720c0edd6ae5e0c0d169df1204904e0"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 43539,
+          "new_discovered_sources": 47831,
+          "old_compared_sources": 8275,
+          "new_compared_sources": 8274,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 35264,
+          "new_uncompared_sources": 39557,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 43539,
+          "new_discovered_sources": 47831,
+          "old_compared_sources": 9156,
+          "new_compared_sources": 9322,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 34383,
+          "new_uncompared_sources": 38509,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 43539,
+        "new": 47831
+      },
+      "native_glyphs_after": {
+        "old": 43539,
+        "new": 47831
+      },
+      "comparison_identical": false,
+      "native_intervals": 14
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-ddpm-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-ddpm-v1-to-v2",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-ddpm-v1-to-v2/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "ed5be62d76ed5ada7626e58bdc45c8aa75527c7c9137f59c913d7ffe24c79098"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-ddpm-v1-to-v2-1/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "0a4be4a8a1add4d03699bbef0b99ffcd7719a287ff2b957cc6e5890cdefe2ce9"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-ddpm-v1-to-v2-1/runs.json",
+        "sha256": "b3b3cae8c65fc80523ac2b5c713d3b4d4039f7392feb274a1ad6bc16ddb8d744"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 41561,
+          "new_discovered_sources": 45486,
+          "old_compared_sources": 15206,
+          "new_compared_sources": 15206,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26355,
+          "new_uncompared_sources": 30280,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 41561,
+          "new_discovered_sources": 45486,
+          "old_compared_sources": 15206,
+          "new_compared_sources": 15206,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26355,
+          "new_uncompared_sources": 30280,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 41561,
+        "new": 45486
+      },
+      "native_glyphs_after": {
+        "old": 41561,
+        "new": 45486
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-llama2-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-llama2-v1-to-v2",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-llama2-v1-to-v2/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "14bcfc2f50fc3179625b8ea3268c3e23222111f83d8fb9c5a140a624b645f8f7"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-llama2-v1-to-v2-1/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "6f41a789d3807bb7d2122c81e6d929dded0a260709d959da22aef036f39a81c8"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-llama2-v1-to-v2-1/runs.json",
+        "sha256": "324685bdc25c7703596b85584e75093225ea57b5430015734b990084eb171084"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 220758,
+          "new_discovered_sources": 221261,
+          "old_compared_sources": 102218,
+          "new_compared_sources": 102218,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 118540,
+          "new_uncompared_sources": 119043,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 220758,
+          "new_discovered_sources": 221261,
+          "old_compared_sources": 102337,
+          "new_compared_sources": 102337,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 118421,
+          "new_uncompared_sources": 118924,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 220758,
+        "new": 221261
+      },
+      "native_glyphs_after": {
+        "old": 220758,
+        "new": 221261
+      },
+      "comparison_identical": false,
+      "native_intervals": 11
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-management-37-r1-to-r2-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-risk-management-37-r1-to-r2",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-management-37-r1-to-r2/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "5fe026e99a8030b2844afd45cbc5224f2593eda5237d84820b045f13e7a97c70"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-management-37-r1-to-r2-1/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "213e12940e526e5883b1e2797cde239371de99198ade9dda3f56b4c0232a4db9"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-management-37-r1-to-r2-1/runs.json",
+        "sha256": "0e2fb7f4d9fae900da5aa11e9a52909b6c7fce3d029055ed9d80d580a6f9c452"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 382481,
+          "new_discovered_sources": 646585,
+          "old_compared_sources": 4463,
+          "new_compared_sources": 4466,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 378018,
+          "new_uncompared_sources": 642119,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 382481,
+          "new_discovered_sources": 646585,
+          "old_compared_sources": 5377,
+          "new_compared_sources": 5378,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 377104,
+          "new_uncompared_sources": 641207,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 382481,
+        "new": 646585
+      },
+      "native_glyphs_after": {
+        "old": 382481,
+        "new": 646585
+      },
+      "comparison_identical": false,
+      "native_intervals": 1
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-1099-misc-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "irs-1099-misc-2024-to-2025",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-1099-misc-2024-to-2025/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "9c2a62d028ec74bf87304dbaeb699823a85622216562c08b8aa6739a7f24327e"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-1099-misc-2024-to-2025-1/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "0fca77507fc9964fddb1b35e73f6431bdab996c26ec0abf898112c31cd39f52c"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-1099-misc-2024-to-2025-1/runs.json",
+        "sha256": "fce0d10db596fb6d453bf2f6e34fef6f504dd7a63737356b9da5110a0f53c1f1"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 11030,
+          "new_discovered_sources": 10779,
+          "old_compared_sources": 1048,
+          "new_compared_sources": 1048,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 9982,
+          "new_uncompared_sources": 9731,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 11030,
+          "new_discovered_sources": 10779,
+          "old_compared_sources": 1048,
+          "new_compared_sources": 1048,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 9982,
+          "new_uncompared_sources": 9731,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 11030,
+        "new": 10779
+      },
+      "native_glyphs_after": {
+        "old": 11030,
+        "new": 10779
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w2-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "irs-w2-2024-to-2025",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w2-2024-to-2025/irs-w2-2024-to-2025-text.json",
+        "sha256": "7e232f6dc9c63ec10d76fb7fa2e51bb57e0edfa853689280194639e1d01431c0"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w2-2024-to-2025-1/irs-w2-2024-to-2025-text.json",
+        "sha256": "adfdf17371b59d9f7b65b7d4bed61c44d11a073b678a443a794b2a5d3ed32820"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w2-2024-to-2025-1/runs.json",
+        "sha256": "495b25372e57a5ea921043ed7c1b250337b19cdbb5192a8a5902e7ad94ebb2c9"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 20660,
+          "new_discovered_sources": 20753,
+          "old_compared_sources": 3256,
+          "new_compared_sources": 3256,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 17404,
+          "new_uncompared_sources": 17497,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 20660,
+          "new_discovered_sources": 20753,
+          "old_compared_sources": 4613,
+          "new_compared_sources": 4613,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 16047,
+          "new_uncompared_sources": 16140,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 20660,
+        "new": 20753
+      },
+      "native_glyphs_after": {
+        "old": 20660,
+        "new": 20753
+      },
+      "comparison_identical": false,
+      "native_intervals": 3
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-mask-rcnn-v1-to-v3-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "arxiv-mask-rcnn-v1-to-v3",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-mask-rcnn-v1-to-v3/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "6331decae79dbfd3db1f6a74ebe9e8ce3659ae34317fe3f27bd8ebaccdd1f22d"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-mask-rcnn-v1-to-v3-1/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "848f687c38385fee5b1aec8d13dd12561e16573e7e2fdfdd18445acfafafd2bc"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-mask-rcnn-v1-to-v3-1/runs.json",
+        "sha256": "ad47e1339e3478802fb98ff4f07db78b0b9aff5a17402f17a13191736c2fd48a"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 39946,
+          "new_discovered_sources": 52222,
+          "old_compared_sources": 15023,
+          "new_compared_sources": 15023,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 24923,
+          "new_uncompared_sources": 37199,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 39946,
+          "new_discovered_sources": 52222,
+          "old_compared_sources": 15023,
+          "new_compared_sources": 15023,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 24923,
+          "new_uncompared_sources": 37199,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 39946,
+        "new": 52222
+      },
+      "native_glyphs_after": {
+        "old": 39946,
+        "new": 52222
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-official-writing-1952-to-2022-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "bunka-official-writing-1952-to-2022",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-official-writing-1952-to-2022/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "55cf08676aca68af9a77b4a188dcee31547c6e2c1ad32aa67eae18508e23c49c"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-official-writing-1952-to-2022-1/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "292d8a04da947b19067724e4c0d5a968e849955eecb48452c255eded25b07793"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-official-writing-1952-to-2022-1/runs.json",
+        "sha256": "be78a14b88521b03b0d9a36c515eb517282dbcfef11fb10fdd8deef7dc29a63f"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5584,
+          "new_discovered_sources": 68870,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 5584,
+          "new_uncompared_sources": 68870,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5584,
+          "new_discovered_sources": 68870,
+          "old_compared_sources": 2,
+          "new_compared_sources": 2,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 5582,
+          "new_uncompared_sources": 68868,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 5584,
+        "new": 68870
+      },
+      "native_glyphs_after": {
+        "old": 5584,
+        "new": 68870
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-thunderstorms-b-to-c-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "faa-thunderstorms-b-to-c",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "17a58fd7580a52080acefdca811cc649069f1b5835d3a12020ebc33891348d56"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-thunderstorms-b-to-c-1/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "4f0eb8c9a841984fe24fccb8b7ee50d1a7fea6d159719c28ad1fa8c2e26e8f52"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-thunderstorms-b-to-c-1/runs.json",
+        "sha256": "d6253b7d86452737dd59f4c138fb34ca6851243324153887b25c0bc30fdb661d"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 15715,
+          "new_discovered_sources": 27732,
+          "old_compared_sources": 6,
+          "new_compared_sources": 6,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 15709,
+          "new_uncompared_sources": 27726,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 15715,
+          "new_discovered_sources": 27732,
+          "old_compared_sources": 6,
+          "new_compared_sources": 6,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 15709,
+          "new_uncompared_sources": 27726,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 15715,
+        "new": 27732
+      },
+      "native_glyphs_after": {
+        "old": 15715,
+        "new": 27732
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-maintenance-records-c-to-d-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "faa-maintenance-records-c-to-d",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-maintenance-records-c-to-d/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "47b3cc5c8caddd8602097281a9d73f6f681214fb7f784eaef41290b63011d23a"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-maintenance-records-c-to-d-1/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "973dd2ee9d9141588c096cb90295c3f1c4b142f344d5530f2747abeb84b591e5"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-maintenance-records-c-to-d-1/runs.json",
+        "sha256": "a99b3ce828c976e5f9d6a44e40a8170f82458cdd99cb5ac1428207777407f3a8"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 28756,
+          "new_discovered_sources": 63192,
+          "old_compared_sources": 92,
+          "new_compared_sources": 92,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 28664,
+          "new_uncompared_sources": 63100,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 28756,
+          "new_discovered_sources": 63192,
+          "old_compared_sources": 92,
+          "new_compared_sources": 92,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 28664,
+          "new_uncompared_sources": 63100,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 28756,
+        "new": 63192
+      },
+      "native_glyphs_after": {
+        "old": 28756,
+        "new": 63192
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-faster-rcnn-v1-to-v3-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "arxiv-faster-rcnn-v1-to-v3",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-faster-rcnn-v1-to-v3/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "3193327266734bae0b4d0bf05be12d521070af5c7a14e4be7209c54d08712eb9"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-faster-rcnn-v1-to-v3-1/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "c04293a08c72862d891734a21368c6b4f7a660adc3c163eb04ed458ca78f9dc3"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-faster-rcnn-v1-to-v3-1/runs.json",
+        "sha256": "5640652e4bd71db7e31bcf9aca05a32b5e1133c51c3c932d6d0d2710ab98a8f9"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 31824,
+          "new_discovered_sources": 50289,
+          "old_compared_sources": 965,
+          "new_compared_sources": 965,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 30859,
+          "new_uncompared_sources": 49324,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 31824,
+          "new_discovered_sources": 50289,
+          "old_compared_sources": 965,
+          "new_compared_sources": 965,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 30859,
+          "new_uncompared_sources": 49324,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 31824,
+        "new": 50289
+      },
+      "native_glyphs_after": {
+        "old": 31824,
+        "new": 50289
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-kana-1946-to-1986-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "bunka-kana-1946-to-1986",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.json",
+        "sha256": "edc13241f158a251c103f9d9fe5c2ff36efcd53d4e841b678178a15f7ddd49ba"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-kana-1946-to-1986-1/bunka-kana-1946-to-1986-text.json",
+        "sha256": "d77c5849f92296ca670dcc930548c962b5ee0c548eea44d2b40e8aa88edbd0c9"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-kana-1946-to-1986-1/runs.json",
+        "sha256": "ef40c5068977be2ee4e65ad293c9eaa4e11ea938d1180bcede9d838978a99ddc"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 5677,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 5677,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 5677,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 5677,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 0,
+        "new": 5677
+      },
+      "native_glyphs_after": {
+        "old": 0,
+        "new": 5677
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-controls-53-r4-to-r5-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-controls-53-r4-to-r5",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-controls-53-r4-to-r5/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "89381c35d3ffc965682c4c6af3fbf6b9ac2970da7dfd95910e16066894a212b9"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-controls-53-r4-to-r5-1/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "ddffd8f47f4e1d06d733e86423295fad88f9189d83786a06086bef7c7aafbbce"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-controls-53-r4-to-r5-1/runs.json",
+        "sha256": "75a520a1e4160177fcb031e376ff01eb62f3ed477bde6e254bc740d1ae8b0875"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 1580232,
+          "new_discovered_sources": 1629511,
+          "old_compared_sources": 26509,
+          "new_compared_sources": 26456,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1553723,
+          "new_uncompared_sources": 1603055,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 1580232,
+          "new_discovered_sources": 1629511,
+          "old_compared_sources": 27662,
+          "new_compared_sources": 27479,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1552570,
+          "new_uncompared_sources": 1602032,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 1580232,
+        "new": 1629511
+      },
+      "native_glyphs_after": {
+        "old": 1580232,
+        "new": 1629511
+      },
+      "comparison_identical": false,
+      "native_intervals": 4
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-assessment-30-to-r1-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-risk-assessment-30-to-r1",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-assessment-30-to-r1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "fc94afbd84a3aceabfd7d98deb2e89a3226adf1d2e5418d8a428599b1eb447c5"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-assessment-30-to-r1-1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "2430183908f86e20328f241bdf75a291e49c08491f4e78b453825e4a79346cf2"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-assessment-30-to-r1-1/runs.json",
+        "sha256": "27fd9f6d6bbda98e07b972e68806ce6e2d0e7fef584db3d4d968122a8d201829"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102460,
+          "new_discovered_sources": 326639,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102460,
+          "new_uncompared_sources": 326639,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102460,
+          "new_discovered_sources": 326639,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102460,
+          "new_uncompared_sources": 326639,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 102460,
+        "new": 326639
+      },
+      "native_glyphs_after": {
+        "old": 102460,
+        "new": 326639
+      },
+      "comparison_identical": false,
+      "native_intervals": 0
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-contingency-34-to-r1-1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-contingency-34-to-r1",
+        "--implementation",
+        "d0e0fff646b1d613b1a2a621ffb06d788c65b570",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/nist-contingency-34-to-r1-1/nist-contingency-34-to-r1-text.json",
+        "sha256": "56afaff7d4b3d89e89382480936845e02ee436295e56f51ff8318c7ec866ba24"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-contingency-34-to-r1-1/nist-contingency-34-to-r1-text.json",
+        "sha256": "5d5e7e594a8d2e215f530de66650ba7db0076807f64b7f740bb28d63beba2cf0"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-contingency-34-to-r1-1/runs.json",
+        "sha256": "ca656b4973dfd3873774f4712ab9e1c7473bf2404624d1e0f681a1f0d5668222"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 216916,
+          "new_discovered_sources": 391537,
+          "old_compared_sources": 26,
+          "new_compared_sources": 27,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 216890,
+          "new_uncompared_sources": 391510,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 216916,
+          "new_discovered_sources": 391537,
+          "old_compared_sources": 26,
+          "new_compared_sources": 27,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 216890,
+          "new_uncompared_sources": 391510,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 216916,
+        "new": 391537
+      },
+      "native_glyphs_after": {
+        "old": 216916,
+        "new": 391537
+      },
+      "comparison_identical": true,
+      "native_intervals": 0
+    }
+  ]
+}
