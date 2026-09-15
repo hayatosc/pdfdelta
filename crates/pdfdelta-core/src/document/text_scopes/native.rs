@@ -288,6 +288,7 @@ pub(super) fn runs<'a>(
 pub(super) struct Sources<'a> {
     glyphs: &'a BTreeMap<GlyphId, &'a Glyph>,
     pages: &'a BTreeMap<PageId, Vec<&'a [Glyph]>>,
+    baselines: &'a BTreeMap<PageId, Vec<&'a Glyph>>,
     paint_pages: &'a BTreeMap<PageId, Vec<&'a NonTextPaint>>,
     text_scopes: &'a BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
     native_order: Option<Vec<segments::Membership<'a>>>,
@@ -683,6 +684,7 @@ impl<'a> Sources<'a> {
         Self {
             glyphs: &index.glyphs,
             pages: &index.pages,
+            baselines: &index.baselines,
             paint_pages: &index.paint_pages,
             text_scopes: &index.text_scopes,
             native_order: None,
@@ -910,13 +912,33 @@ impl<'a> Sources<'a> {
             )?
         };
 
-        for glyph in self
-            .pages
-            .get(page)
-            .into_iter()
-            .flatten()
-            .flat_map(|run| *run)
-        {
+        let band = if paint_order {
+            &[][..]
+        } else {
+            spend(
+                remaining,
+                self.baselines.len().saturating_add(1).ilog2() as usize + 1,
+            )?;
+            let glyphs = self.baselines.get(page)?;
+            spend(
+                remaining,
+                2 * (glyphs.len().saturating_add(1).ilog2() as usize + 1),
+            )?;
+            let start = glyphs.partition_point(|glyph| glyph.baseline.y < min_y);
+            let end = glyphs.partition_point(|glyph| glyph.baseline.y <= max_y);
+            &glyphs[start..end]
+        };
+        // Exact inclusive bands can use the validated index. The paint-order
+        // convention admits roundoff near boundary rows and retains its full
+        // page scan. Both paths keep every potentially intervening source.
+        for glyph in band.iter().copied().chain(
+            self.pages
+                .get(page)
+                .filter(|_| paint_order)
+                .into_iter()
+                .flatten()
+                .flat_map(|run| *run),
+        ) {
             spend(remaining, 1)?;
             let outside_row = if paint_order {
                 let before = paint_rows::same_baseline(glyph.baseline.y, max_y)

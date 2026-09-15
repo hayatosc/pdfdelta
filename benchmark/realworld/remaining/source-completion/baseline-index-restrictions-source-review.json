@@ -1,0 +1,1064 @@
+{
+  "status": "native_equality_and_source_conservation_verified",
+  "scope": "Check reported native-domain projections against a frozen source bundle.\n\nThis checks raw native equality and source conservation, not domain admission,\nvisibility, exhaustive acquisition or the full comparison completion predicate.\n",
+  "source_bundle": {
+    "path": "benchmark/realworld/cache/source-completion/native-domains-v1/restrictions-review/sources.json",
+    "sha256": "918267d6a17658494bf8eee641ea9d903e981f2172780b0a510e1b27ed6864ab"
+  },
+  "report": {
+    "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+    "sha256": "81238a839f663882c0255a41173c7ab82f338f6e40ae58817375c4877d30788d"
+  },
+  "domains": [
+    {
+      "proposal": 0,
+      "sides": {
+        "old": {
+          "node": 436,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "18"
+        },
+        "new": {
+          "node": 386,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "18"
+        }
+      }
+    },
+    {
+      "proposal": 1,
+      "sides": {
+        "old": {
+          "node": 403,
+          "tokens": [
+            0,
+            44
+          ],
+          "owned_sources": 44,
+          "complement_sources": 0,
+          "text": "restriction of processing (Article 19 GDPR),"
+        },
+        "new": {
+          "node": 392,
+          "tokens": [
+            0,
+            44
+          ],
+          "owned_sources": 44,
+          "complement_sources": 2,
+          "text": "restriction of processing (Article 19 GDPR),"
+        }
+      }
+    },
+    {
+      "proposal": 10,
+      "sides": {
+        "old": {
+          "node": 364,
+          "tokens": [
+            0,
+            95
+          ],
+          "owned_sources": 95,
+          "complement_sources": 0,
+          "text": "provisions of the GDPR, where appropriate, in a specified manner and within a specified period;"
+        },
+        "new": {
+          "node": 355,
+          "tokens": [
+            0,
+            95
+          ],
+          "owned_sources": 95,
+          "complement_sources": 2,
+          "text": "provisions of the GDPR, where appropriate, in a specified manner and within a specified period;"
+        }
+      }
+    },
+    {
+      "proposal": 22,
+      "sides": {
+        "old": {
+          "node": 388,
+          "tokens": [
+            0,
+            56
+          ],
+          "owned_sources": 56,
+          "complement_sources": 0,
+          "text": "have the powers to enforce its compliance with the GDPR."
+        },
+        "new": {
+          "node": 381,
+          "tokens": [
+            0,
+            56
+          ],
+          "owned_sources": 56,
+          "complement_sources": 1,
+          "text": "have the powers to enforce its compliance with the GDPR."
+        }
+      }
+    },
+    {
+      "proposal": 29,
+      "sides": {
+        "old": {
+          "node": 341,
+          "tokens": [
+            0,
+            7
+          ],
+          "owned_sources": 7,
+          "complement_sources": 0,
+          "text": "powers:"
+        },
+        "new": {
+          "node": 335,
+          "tokens": [
+            0,
+            7
+          ],
+          "owned_sources": 7,
+          "complement_sources": 1,
+          "text": "powers:"
+        }
+      }
+    },
+    {
+      "proposal": 31,
+      "sides": {
+        "old": {
+          "node": 345,
+          "tokens": [
+            0,
+            63
+          ],
+          "owned_sources": 63,
+          "complement_sources": 0,
+          "text": "carry out investigations in the form of data protection audits;"
+        },
+        "new": {
+          "node": 339,
+          "tokens": [
+            0,
+            63
+          ],
+          "owned_sources": 63,
+          "complement_sources": 2,
+          "text": "carry out investigations in the form of data protection audits;"
+        }
+      }
+    },
+    {
+      "proposal": 35,
+      "sides": {
+        "old": {
+          "node": 354,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "15"
+        },
+        "new": {
+          "node": 298,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "15"
+        }
+      }
+    },
+    {
+      "proposal": 44,
+      "sides": {
+        "old": {
+          "node": 289,
+          "tokens": [
+            0,
+            15
+          ],
+          "owned_sources": 15,
+          "complement_sources": 0,
+          "text": "the restriction"
+        },
+        "new": {
+          "node": 287,
+          "tokens": [
+            0,
+            15
+          ],
+          "owned_sources": 15,
+          "complement_sources": 1,
+          "text": "the restriction"
+        }
+      }
+    },
+    {
+      "proposal": 47,
+      "sides": {
+        "old": {
+          "node": 300,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "13"
+        },
+        "new": {
+          "node": 257,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "13"
+        }
+      }
+    },
+    {
+      "proposal": 55,
+      "sides": {
+        "old": {
+          "node": 279,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "19"
+        },
+        "new": {
+          "node": 408,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "19"
+        }
+      }
+    },
+    {
+      "proposal": 56,
+      "sides": {
+        "old": {
+          "node": 282,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "12"
+        },
+        "new": {
+          "node": 235,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "12"
+        }
+      }
+    },
+    {
+      "proposal": 63,
+      "sides": {
+        "old": {
+          "node": 253,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "11"
+        },
+        "new": {
+          "node": 219,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "11"
+        }
+      }
+    },
+    {
+      "proposal": 70,
+      "sides": {
+        "old": {
+          "node": 186,
+          "tokens": [
+            0,
+            21
+          ],
+          "owned_sources": 21,
+          "complement_sources": 0,
+          "text": "regulated professions"
+        },
+        "new": {
+          "node": 187,
+          "tokens": [
+            0,
+            21
+          ],
+          "owned_sources": 21,
+          "complement_sources": 1,
+          "text": "regulated professions"
+        }
+      }
+    },
+    {
+      "proposal": 71,
+      "sides": {
+        "old": {
+          "node": 188,
+          "tokens": [
+            0,
+            12
+          ],
+          "owned_sources": 12,
+          "complement_sources": 0,
+          "text": "and lawyers."
+        },
+        "new": {
+          "node": 189,
+          "tokens": [
+            0,
+            12
+          ],
+          "owned_sources": 12,
+          "complement_sources": 2,
+          "text": "and lawyers."
+        }
+      }
+    },
+    {
+      "proposal": 76,
+      "sides": {
+        "old": {
+          "node": 196,
+          "tokens": [
+            0,
+            30
+          ],
+          "owned_sources": 30,
+          "complement_sources": 0,
+          "text": "and freedoms of other persons."
+        },
+        "new": {
+          "node": 201,
+          "tokens": [
+            0,
+            30
+          ],
+          "owned_sources": 30,
+          "complement_sources": 1,
+          "text": "and freedoms of other persons."
+        }
+      }
+    },
+    {
+      "proposal": 79,
+      "sides": {
+        "old": {
+          "node": 208,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 0,
+          "text": "9"
+        },
+        "new": {
+          "node": 178,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 1,
+          "text": "9"
+        }
+      }
+    },
+    {
+      "proposal": 84,
+      "sides": {
+        "old": {
+          "node": 158,
+          "tokens": [
+            0,
+            20
+          ],
+          "owned_sources": 20,
+          "complement_sources": 0,
+          "text": "legislative measure."
+        },
+        "new": {
+          "node": 160,
+          "tokens": [
+            0,
+            20
+          ],
+          "owned_sources": 20,
+          "complement_sources": 1,
+          "text": "legislative measure."
+        }
+      }
+    },
+    {
+      "proposal": 87,
+      "sides": {
+        "old": {
+          "node": 161,
+          "tokens": [
+            0,
+            90
+          ],
+          "owned_sources": 90,
+          "complement_sources": 0,
+          "text": "States as an objective to be safeguarded, as stated in Article 23(1)(a), (b) and (c) GDPR."
+        },
+        "new": {
+          "node": 163,
+          "tokens": [
+            0,
+            90
+          ],
+          "owned_sources": 90,
+          "complement_sources": 2,
+          "text": "States as an objective to be safeguarded, as stated in Article 23(1)(a), (b) and (c) GDPR."
+        }
+      }
+    },
+    {
+      "proposal": 89,
+      "sides": {
+        "old": {
+          "node": 163,
+          "tokens": [
+            0,
+            18
+          ],
+          "owned_sources": 18,
+          "complement_sources": 0,
+          "text": "manmade disasters."
+        },
+        "new": {
+          "node": 165,
+          "tokens": [
+            0,
+            18
+          ],
+          "owned_sources": 18,
+          "complement_sources": 2,
+          "text": "manmade disasters."
+        }
+      }
+    },
+    {
+      "proposal": 98,
+      "sides": {
+        "old": {
+          "node": 177,
+          "tokens": [
+            0,
+            80
+          ],
+          "owned_sources": 80,
+          "complement_sources": 0,
+          "text": "obligations, in order to protect judicial independence and judicial proceedings."
+        },
+        "new": {
+          "node": 184,
+          "tokens": [
+            0,
+            80
+          ],
+          "owned_sources": 80,
+          "complement_sources": 2,
+          "text": "obligations, in order to protect judicial independence and judicial proceedings."
+        }
+      }
+    },
+    {
+      "proposal": 109,
+      "sides": {
+        "old": {
+          "node": 153,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 0,
+          "text": "7"
+        },
+        "new": {
+          "node": 136,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 1,
+          "text": "7"
+        }
+      }
+    },
+    {
+      "proposal": 120,
+      "sides": {
+        "old": {
+          "node": 93,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "5."
+        },
+        "new": {
+          "node": 102,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "5."
+        }
+      }
+    },
+    {
+      "proposal": 121,
+      "sides": {
+        "old": {
+          "node": 95,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "6."
+        },
+        "new": {
+          "node": 103,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "6."
+        }
+      }
+    },
+    {
+      "proposal": 123,
+      "sides": {
+        "old": {
+          "node": 98,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "7."
+        },
+        "new": {
+          "node": 104,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "7."
+        }
+      }
+    },
+    {
+      "proposal": 125,
+      "sides": {
+        "old": {
+          "node": 100,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "8."
+        },
+        "new": {
+          "node": 105,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "8."
+        }
+      }
+    },
+    {
+      "proposal": 126,
+      "sides": {
+        "old": {
+          "node": 102,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "9."
+        },
+        "new": {
+          "node": 106,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "9."
+        }
+      }
+    },
+    {
+      "proposal": 134,
+      "sides": {
+        "old": {
+          "node": 118,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 0,
+          "text": "5"
+        },
+        "new": {
+          "node": 100,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 1,
+          "text": "5"
+        }
+      }
+    },
+    {
+      "proposal": 136,
+      "sides": {
+        "old": {
+          "node": 79,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "1."
+        },
+        "new": {
+          "node": 87,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "1."
+        }
+      }
+    },
+    {
+      "proposal": 137,
+      "sides": {
+        "old": {
+          "node": 80,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "2."
+        },
+        "new": {
+          "node": 88,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "2."
+        }
+      }
+    },
+    {
+      "proposal": 138,
+      "sides": {
+        "old": {
+          "node": 81,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "3."
+        },
+        "new": {
+          "node": 89,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "3."
+        }
+      }
+    },
+    {
+      "proposal": 139,
+      "sides": {
+        "old": {
+          "node": 82,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 0,
+          "text": "4."
+        },
+        "new": {
+          "node": 101,
+          "tokens": [
+            0,
+            2
+          ],
+          "owned_sources": 2,
+          "complement_sources": 1,
+          "text": "4."
+        }
+      }
+    },
+    {
+      "proposal": 140,
+      "sides": {
+        "old": {
+          "node": 83,
+          "tokens": [
+            0,
+            36
+          ],
+          "owned_sources": 36,
+          "complement_sources": 0,
+          "text": "HAS ADOPTED THE FOLLOWING GUIDELINES"
+        },
+        "new": {
+          "node": 92,
+          "tokens": [
+            0,
+            36
+          ],
+          "owned_sources": 36,
+          "complement_sources": 1,
+          "text": "HAS ADOPTED THE FOLLOWING GUIDELINES"
+        }
+      }
+    },
+    {
+      "proposal": 145,
+      "sides": {
+        "old": {
+          "node": 24,
+          "tokens": [
+            0,
+            17
+          ],
+          "owned_sources": 17,
+          "complement_sources": 0,
+          "text": "Table of contents"
+        },
+        "new": {
+          "node": 56,
+          "tokens": [
+            0,
+            17
+          ],
+          "owned_sources": 17,
+          "complement_sources": 1,
+          "text": "Table of contents"
+        }
+      }
+    },
+    {
+      "proposal": 146,
+      "sides": {
+        "old": {
+          "node": 33,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 0,
+          "text": "3.3.2"
+        },
+        "new": {
+          "node": 60,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 1,
+          "text": "3.3.2"
+        }
+      }
+    },
+    {
+      "proposal": 147,
+      "sides": {
+        "old": {
+          "node": 34,
+          "tokens": [
+            0,
+            80
+          ],
+          "owned_sources": 80,
+          "complement_sources": 0,
+          "text": "Prevention, investigation, detection and prosecution of criminal offences or the"
+        },
+        "new": {
+          "node": 61,
+          "tokens": [
+            0,
+            80
+          ],
+          "owned_sources": 80,
+          "complement_sources": 1,
+          "text": "Prevention, investigation, detection and prosecution of criminal offences or the"
+        }
+      }
+    },
+    {
+      "proposal": 148,
+      "sides": {
+        "old": {
+          "node": 37,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 0,
+          "text": "3.3.4"
+        },
+        "new": {
+          "node": 64,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 1,
+          "text": "3.3.4"
+        }
+      }
+    },
+    {
+      "proposal": 149,
+      "sides": {
+        "old": {
+          "node": 39,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 0,
+          "text": "3.3.5"
+        },
+        "new": {
+          "node": 66,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 1,
+          "text": "3.3.5"
+        }
+      }
+    },
+    {
+      "proposal": 150,
+      "sides": {
+        "old": {
+          "node": 40,
+          "tokens": [
+            0,
+            78
+          ],
+          "owned_sources": 78,
+          "complement_sources": 0,
+          "text": "Prevention, investigation, detection and prosecution of breaches of ethics for"
+        },
+        "new": {
+          "node": 67,
+          "tokens": [
+            0,
+            78
+          ],
+          "owned_sources": 78,
+          "complement_sources": 1,
+          "text": "Prevention, investigation, detection and prosecution of breaches of ethics for"
+        }
+      }
+    },
+    {
+      "proposal": 151,
+      "sides": {
+        "old": {
+          "node": 42,
+          "tokens": [
+            0,
+            83
+          ],
+          "owned_sources": 83,
+          "complement_sources": 0,
+          "text": "Monitoring, inspection or regulatory function connected to the exercise of official"
+        },
+        "new": {
+          "node": 69,
+          "tokens": [
+            0,
+            83
+          ],
+          "owned_sources": 83,
+          "complement_sources": 1,
+          "text": "Monitoring, inspection or regulatory function connected to the exercise of official"
+        }
+      }
+    },
+    {
+      "proposal": 152,
+      "sides": {
+        "old": {
+          "node": 45,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 0,
+          "text": "3.3.8"
+        },
+        "new": {
+          "node": 72,
+          "tokens": [
+            0,
+            5
+          ],
+          "owned_sources": 5,
+          "complement_sources": 1,
+          "text": "3.3.8"
+        }
+      }
+    },
+    {
+      "proposal": 153,
+      "sides": {
+        "old": {
+          "node": 67,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 0,
+          "text": "2"
+        },
+        "new": {
+          "node": 54,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 1,
+          "text": "2"
+        }
+      }
+    },
+    {
+      "proposal": 156,
+      "sides": {
+        "old": {
+          "node": 23,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 0,
+          "text": "1"
+        },
+        "new": {
+          "node": 32,
+          "tokens": [
+            0,
+            1
+          ],
+          "owned_sources": 1,
+          "complement_sources": 1,
+          "text": "1"
+        }
+      }
+    }
+  ]
+}

@@ -471,6 +471,7 @@ pub(super) struct ValidatedTextInventory<'a> {
 pub(super) struct NativeIndex<'a> {
     pub glyphs: BTreeMap<GlyphId, &'a Glyph>,
     pub pages: BTreeMap<PageId, Vec<&'a [Glyph]>>,
+    pub baselines: BTreeMap<PageId, Vec<&'a Glyph>>,
     pub paint_pages: BTreeMap<PageId, Vec<&'a NonTextPaint>>,
     pub text_scopes: BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
 }
@@ -1183,6 +1184,22 @@ impl EvidenceStore {
             }
         }
         super::structures::validate_content(self)?;
+        // One additional reference per already bounded, validated glyph. The
+        // original page spans keep render order; this index only narrows exact
+        // baseline queries and never drops unmapped or unassigned glyphs.
+        for glyph in self.native.items() {
+            sources
+                .native
+                .baselines
+                .entry(glyph.page)
+                .or_default()
+                .push(glyph);
+        }
+        for glyphs in sources.native.baselines.values_mut() {
+            glyphs.sort_unstable_by(|a, b| {
+                a.baseline.y.total_cmp(&b.baseline.y).then(a.id.cmp(&b.id))
+            });
+        }
         Ok(sources.native)
     }
 

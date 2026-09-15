@@ -880,6 +880,63 @@ fn native_layout_edges_across_columns_do_not_displace_local_boundaries() {
 }
 
 #[test]
+fn native_interval_keeps_same_page_outside_glyphs_out_of_band_work() {
+    let mut fixture = fixture_rows(&["First boundary.", "repeat", "repeat", "Last boundary."]);
+    let mut glyphs = fixture.0.native.items().to_vec();
+    let template = glyphs[0].clone();
+    for index in 0..10_000 {
+        let mut glyph = template.clone();
+        glyph.id = GlyphId(1000 + index);
+        glyph.baseline.y = 1000.0;
+        glyph.bbox.min.y = 1000.0;
+        glyph.bbox.max.y = 1010.0;
+        fixture.0.inventories[0]
+            .sources
+            .push(SourceRef::Native { glyph: glyph.id });
+        glyphs.push(glyph);
+    }
+    fixture.0.native = Document::new(glyphs);
+    let compare = |old: &Fixture, new: &Fixture| {
+        let mut limits = DocumentComparisonLimits::default();
+        limits.local.proof_work = 20_000;
+        compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded native band comparison")
+    };
+    let result = compare(&fixture, &fixture);
+    assert_eq!(result.scopes[0].result.native_text_intervals.len(), 1);
+    for y in [10.0, 70.0, 100.0] {
+        let mut omitted = fixture.clone();
+        let mut glyphs = omitted.0.native.items().to_vec();
+        let glyph = glyphs.last_mut().expect("outside glyph");
+        glyph.baseline.y = y;
+        glyph.bbox.min.y = y;
+        glyph.bbox.max.y = y + 10.0;
+        omitted.0.native = Document::new(glyphs);
+        assert!(
+            compare(&fixture, &omitted).scopes[0]
+                .result
+                .native_text_intervals
+                .is_empty()
+        );
+    }
+}
+
+#[test]
 fn equal_native_interval_validates_left_to_right_rows_and_retains_gaps() {
     let mut old = fixture_rows(&["First boundary.", "repeat", "repeat", "Last boundary."]);
     let sources = old.1.nodes[3].sources.clone();
@@ -1636,7 +1693,7 @@ fn group_order_preflight_preserves_work_for_a_later_source_change() {
             review.old_sources == old.1.nodes[5].sources
                 && review.new_sources == new.1.nodes[4].sources
         });
-        assert_eq!(recovered, budget >= 4_000, "budget {budget}");
+        assert!(recovered, "budget {budget}");
         assert!(reviews.iter().all(|review| {
             !review
                 .old_sources
@@ -5002,7 +5059,7 @@ fn obstructed_early_interval_preserves_work_for_a_later_closed_change() {
             review.old_sources == old.1.nodes[4].sources
                 && review.new_sources == new.1.nodes[4].sources
         });
-        assert_eq!(recovered, budget == 4_000, "budget {budget}");
+        assert!(recovered, "budget {budget}");
         assert!(reviews.iter().all(|review| {
             !review
                 .old_sources
