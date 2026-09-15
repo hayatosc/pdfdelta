@@ -1676,6 +1676,15 @@ fn should_join(
     // the general ceiling without new errors.
     let previous_width = previous.inline_interval.1 - previous.inline_interval.0;
     let current_width = current.inline_interval.1 - current.inline_interval.0;
+    // A source ideographic space can encode indentation without moving the
+    // glyph-union left edge. After a ragged tail, retain that paragraph break
+    // as a reversible layout boundary; keep the whitespace glyph itself.
+    if previous_width <= current_width * RAGGED_CONTINUATION_MAX_WIDTH_RATIO
+        && matches!(current.signature.first(),
+            Some(SignatureToken::Text(DecodedText::Mapped(text))) if text.starts_with('\u{3000}'))
+    {
+        return Ok(false);
+    }
     let right_edge_ratio = (previous.inline_interval.1 - current.inline_interval.1).abs() / height;
     let first_line_continuation = previous.inline_start > current.inline_start
         && indent_ratio > options.max_indent_height_ratio
