@@ -1232,3 +1232,19 @@ example was removed. Native text inventory, widget appearance and XFA obligation
 remain unchanged. Further completion work should select a frozen panel candidate
 using a source-obligation census rather than assume the IRS page-paint problem is
 its only missing premise.
+
+### Census source obligations across the fixed panel
+
+A bounded neutral-facade metadata probe completes for all 72 fixed documents.
+Input hashes are checked before capture and metadata hashes before aggregation;
+failed or missing captures cannot imply absence. Two pairs have no AcroForm or
+annotations, while 29 have no observed XFA or widget annotations on either side.
+Links, graphics and resource semantics remain independent obligations.
+
+[panel-obligations-result.json](../remaining/panel-obligations-result.json)
+retains the census and selects DDPM and Mask R-CNN for the next shared-premise
+diagnosis. Both lack observed XFA/widgets and retain comparatively substantial
+compared source populations, but neither is a complete comparison. The selection
+is a development investigation on the unchanged 36-pair panel, not a new blind
+set or a completeness claim. The temporary example was removed; production code
+and coverage are unchanged.

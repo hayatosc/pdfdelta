@@ -1,0 +1,200 @@
+{
+  "status": "fixed_panel_metadata_census_complete_comparison_gates_unmet",
+  "previous_turn_classification": "progress: stable implementation and accumulated evidence committed as 3d4022f after all quality gates passed",
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "documents_inspected": 72,
+  "successful_documents": 72,
+  "pairs_without_forms_or_annotations": 2,
+  "pairs_without_observed_xfa_or_widgets": 29,
+  "selection": [
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "coverage": {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 41561,
+        "new_discovered_sources": 45486,
+        "old_compared_sources": 15206,
+        "new_compared_sources": 15206,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 26355,
+        "new_uncompared_sources": 30280,
+        "complete": false
+      },
+      "documents": [
+        {
+          "pair": "arxiv-ddpm-v1-to-v2",
+          "side": "old",
+          "exit_code": 0,
+          "metadata": {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/arxiv-ddpm-v1-to-v2-old.json",
+            "sha256": "addb053a1ced6fdbe7b70cd626eb8869cd796f077d5d57d3591d755928babdb7"
+          },
+          "pages": 24,
+          "acroform_present": false,
+          "xfa_present": false,
+          "annotations": 188,
+          "annotation_types": {
+            "Name([76, 105, 110, 107])": 188
+          },
+          "widget_annotations": 0,
+          "appearance_dictionaries": 0,
+          "page_group_entries": 0,
+          "selected_resource_categories": [
+            "ColorSpace",
+            "ExtGState",
+            "Pattern",
+            "XObject"
+          ]
+        },
+        {
+          "pair": "arxiv-ddpm-v1-to-v2",
+          "side": "new",
+          "exit_code": 0,
+          "metadata": {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/arxiv-ddpm-v1-to-v2-new.json",
+            "sha256": "aa2f0aa11797b8215a134a2e9317d728094ccd9fd8e1b4047bc97163e580c165"
+          },
+          "pages": 25,
+          "acroform_present": false,
+          "xfa_present": false,
+          "annotations": 198,
+          "annotation_types": {
+            "Name([76, 105, 110, 107])": 198
+          },
+          "widget_annotations": 0,
+          "appearance_dictionaries": 0,
+          "page_group_entries": 0,
+          "selected_resource_categories": [
+            "ColorSpace",
+            "ExtGState",
+            "Pattern",
+            "XObject"
+          ]
+        }
+      ],
+      "metadata_complete": true,
+      "without_forms_or_annotations": false,
+      "without_xfa_or_widgets": true
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "coverage": {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 39906,
+        "new_discovered_sources": 52182,
+        "old_compared_sources": 14801,
+        "new_compared_sources": 14801,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 25105,
+        "new_uncompared_sources": 37381,
+        "complete": false
+      },
+      "documents": [
+        {
+          "pair": "arxiv-mask-rcnn-v1-to-v3",
+          "side": "old",
+          "exit_code": 0,
+          "metadata": {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/arxiv-mask-rcnn-v1-to-v3-old.json",
+            "sha256": "57a85fb1bedaa8c2786d0c4a502e96a76dd2b5e483ea388810f3031140ba9f42"
+          },
+          "pages": 9,
+          "acroform_present": false,
+          "xfa_present": false,
+          "annotations": 240,
+          "annotation_types": {
+            "Name([76, 105, 110, 107])": 240
+          },
+          "widget_annotations": 0,
+          "appearance_dictionaries": 0,
+          "page_group_entries": 6,
+          "selected_resource_categories": [
+            "XObject"
+          ]
+        },
+        {
+          "pair": "arxiv-mask-rcnn-v1-to-v3",
+          "side": "new",
+          "exit_code": 0,
+          "metadata": {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/arxiv-mask-rcnn-v1-to-v3-new.json",
+            "sha256": "9319655749bc0befa3423156f3720ee622486c7de10d2810e76b77115cced6f8"
+          },
+          "pages": 12,
+          "acroform_present": false,
+          "xfa_present": false,
+          "annotations": 287,
+          "annotation_types": {
+            "Name([76, 105, 110, 107])": 287
+          },
+          "widget_annotations": 0,
+          "appearance_dictionaries": 0,
+          "page_group_entries": 7,
+          "selected_resource_categories": [
+            "XObject"
+          ]
+        }
+      ],
+      "metadata_complete": true,
+      "without_forms_or_annotations": false,
+      "without_xfa_or_widgets": true
+    }
+  ],
+  "finding": "The IRS form obligations are not universal. Twenty-nine fixed pairs have no observed XFA or widget annotations on either side, although links, graphics and other source obligations remain. DDPM and Mask R-CNN retain comparatively substantial compared source populations and share a producer family, making a common source-premise diagnosis worth testing.",
+  "checks": {
+    "neutral_facade_metadata_probe": "built and all 72 captures completed within their 35-second diagnostic timeout",
+    "fixed_input_hashes": "verified before every capture",
+    "metadata_hashes": "verified before aggregation",
+    "failure_handling": "only exit-zero parsed captures qualify; a missing or failed capture cannot imply absence",
+    "temporary_example": "removed"
+  },
+  "limitations": [
+    "This is a metadata census, not an acquisition-completeness or visibility certificate.",
+    "AcroForm dictionaries may be present without XFA or widgets; complete field inheritance is not established by these selected entries.",
+    "Other annotation actions, links, external resources, font mappings, images, clipping and paint remain separate obligations.",
+    "No fresh blind set is claimed, and the original 36-pair denominator remains fixed."
+  ],
+  "next_action": "Capture current native evidence for DDPM and Mask R-CNN and classify unmapped glyphs, paint and unmatched source groups, retaining annotation uncertainty. Test one common missing premise without changing resource limits or completion semantics.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/probe.rs",
+      "sha256": "60b0e93b4c5c415258fd13e7389e2c0cf9ef4ea8bd71bc749b60103dbd24dac8"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/build.py",
+      "sha256": "5f807b36c2359477f7b09e0f8de274d789a021ca8d7d3d3b561a279c12d9afc4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/build.log",
+      "sha256": "82a841368489d40a98216158e056d21ffb8b2b653a53910db67b365e9ef588f4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/run.py",
+      "sha256": "52894bd6a1b01836a3592d42767271ffdfd8d5d1d5cfa15dc9e83bd8ea7478c7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/runs.json",
+      "sha256": "6d9c9e02475d147ffdae46bd6c868bf5ad0d054fe61ba8e9986cdd589bd5a3cb"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/check.py",
+      "sha256": "09378df4e4318fa85115128fc9157278b8cb1eaee0984c282e355102bcadcd08"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/check.log",
+      "sha256": "865053721f17ffc69ac0afbd57de98ac2a05696d7335511198caa5bc71607885"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/panel-obligations/result.json",
+      "sha256": "7684b98c3625296fb4340ed09d41a11def07baf52b88198b7fed3a47774d4d9b"
+    }
+  ]
+}
