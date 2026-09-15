@@ -792,7 +792,14 @@ fn acquired_paint_bounds_enclose_images_fills_and_caps_without_guessing_joins() 
             ),
             ("0 w 10 10 m 20 20 l S", None),
             ("10 10 20 20 re S", None),
-            ("10 10 m 20 10 20 20 10 20 c f", None),
+            (
+                "10 10 m 20 10 20 20 10 20 c f",
+                Some(if nested {
+                    (0.0, 0.0, 100.0, 100.0)
+                } else {
+                    (10.0, 10.0, 20.0, 20.0)
+                }),
+            ),
             ("/Shade sh", None),
         ] {
             // Unknown primitive extent stays unknown on a page; a Form supplies

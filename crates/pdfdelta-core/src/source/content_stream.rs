@@ -694,7 +694,20 @@ impl<'a> Extraction<'a> {
                 })?;
             }
             b"c" => {
-                let [_, _, _, _, x, y] = number_operands(operation)?;
+                let [x1, y1, x2, y2, x, y] = number_operands(operation)?;
+                // A cubic lies in its control-point hull. The current point is
+                // already retained in page coordinates, even across CTM changes.
+                for [x, y] in [[x1, y1], [x2, y2], [x, y]] {
+                    state
+                        .current_path
+                        .paint_bounds
+                        .include(paint_bounds::point_bounds(
+                            page_geometry,
+                            state.graphics.paint_ctm,
+                            x,
+                            y,
+                        ));
+                }
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 state
                     .current_path
@@ -702,7 +715,19 @@ impl<'a> Extraction<'a> {
                     .map_err(|_| operation_error(operation, "path curve has no current point"))?;
             }
             b"v" | b"y" => {
-                let [_, _, x, y] = number_operands(operation)?;
+                let [cx, cy, x, y] = number_operands(operation)?;
+                // The omitted control is the retained start (v) or end (y).
+                for [x, y] in [[cx, cy], [x, y]] {
+                    state
+                        .current_path
+                        .paint_bounds
+                        .include(paint_bounds::point_bounds(
+                            page_geometry,
+                            state.graphics.paint_ctm,
+                            x,
+                            y,
+                        ));
+                }
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 state
                     .current_path

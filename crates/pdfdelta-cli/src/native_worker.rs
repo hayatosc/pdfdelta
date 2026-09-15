@@ -96,7 +96,7 @@ fn backend() -> BackendIdentity {
         kind: BackendKind::NativeParser,
         name: "pdfdelta-native".into(),
         version: env!("CARGO_PKG_VERSION").into(),
-        profile: "content-stream-v8-deferred-clip-worker-v1".into(),
+        profile: "content-stream-v9-curved-fill-worker-v1".into(),
         model: None,
     }
 }

@@ -193,7 +193,12 @@ pub(super) fn path_paint_bounds(
     stroke: bool,
 ) -> Option<Rect> {
     let path = &state.current_path;
-    if path.paint_bounds.unknown || path.has_unsupported_segments || path.segments.is_empty() {
+    if path.paint_bounds.unknown || path.drawn_subpaths == 0 {
+        return None;
+    }
+    // Preserve the caller's enclosing Form clip when available. A control hull
+    // bounds a fill, but does not bound stroke joins, caps or hairlines.
+    if path.has_unsupported_segments && (stroke || state.graphics.form_paint_bounds.is_some()) {
         return None;
     }
     let bounds = path.paint_bounds.rectangle?;

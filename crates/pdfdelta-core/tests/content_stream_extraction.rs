@@ -809,7 +809,67 @@ fn opaque_form_paints_retain_the_outward_form_bound_without_leaking_it() -> Resu
         });
     }
     assert_eq!(paints[0].content_stream.object_number, form.0);
-    assert!(paints[1].bounds.is_none());
+    let outside = paints[1].bounds.expect("independent curve control hull");
+    assert!(outside.min.x <= -100.0 && outside.min.y <= -100.0);
+    assert!(outside.max.x >= 200.0 && outside.max.y >= 200.0);
+    Ok(())
+}
+
+#[test]
+fn curved_fills_retain_outward_control_hulls_but_strokes_remain_unknown() -> Result<()> {
+    for (path, expected) in [
+        ("0 0 m 20 40 60 -20 80 10 c", [0.0, -20.0, 80.0, 40.0]),
+        ("0 0 m 60 -20 80 10 v", [0.0, -20.0, 80.0, 10.0]),
+        ("0 0 m 20 40 80 10 y", [0.0, 0.0, 80.0, 40.0]),
+        (
+            "2 0 1 3 10 20 cm 0 0 m 20 40 60 -20 80 10 c",
+            [10.0, -40.0, 180.0, 140.0],
+        ),
+        (
+            "0 0 m 20 40 60 -20 80 10 c 90 30 l",
+            [0.0, -20.0, 90.0, 40.0],
+        ),
+    ] {
+        for operator in ["f", "f*", "S", "B"] {
+            let mut pdf = LopdfDocument::with_version("1.7");
+            let content = pdf.add_object(Stream::new(
+                dictionary! {},
+                format!("{path} {operator}").into_bytes(),
+            ));
+            install_page(
+                &mut pdf,
+                content.into(),
+                Object::Dictionary(dictionary! {}),
+                None,
+                None,
+            );
+            let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+            assert!(outcome.is_complete());
+            assert!(outcome.document().vector_lines().is_empty());
+            let paints = outcome
+                .document()
+                .non_text_paint_bounds()
+                .expect("paint retained");
+            assert_eq!(paints.len(), 1);
+            if matches!(operator, "S" | "B") {
+                assert!(paints[0].bounds.is_none(), "curved stroke {path}");
+                continue;
+            }
+            let bounds = paints[0].bounds.expect("curve fill control hull");
+            let actual = [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y];
+            for (index, (&actual, &expected)) in actual.iter().zip(&expected).enumerate() {
+                assert!(
+                    (actual - expected).abs() < 1e-9,
+                    "{path}: {actual} != {expected}"
+                );
+                assert!(if index < 2 {
+                    actual <= expected
+                } else {
+                    actual >= expected
+                });
+            }
+        }
+    }
     Ok(())
 }
 

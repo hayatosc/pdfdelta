@@ -1,0 +1,278 @@
+{
+  "status": "curved_fill_bounds_implemented_fixed_target_pilot_coverage_unchanged",
+  "previous_turn_classification": "progress: fixed quote rebinding committed as 3423288",
+  "production_changed": true,
+  "limits_raised": false,
+  "certifies_gate_gain": false,
+  "fixed_panel_denominator": 36,
+  "cache_format": 13,
+  "backend_profile": "content-stream-v9-curved-fill-worker-v1",
+  "reproduction": {
+    "path": "benchmark/realworld/remaining/mext-curved-fill-reproduction.json",
+    "sha256": "e8f03e7c2c08f9fbb4532697d1a4c88e831bb571e7342c0576bf42ec91e3f127"
+  },
+  "contract": "Accumulate outward-rounded page-coordinate bounds for every explicit cubic control point and endpoint. The retained start point also bounds shorthand curves. The hull encloses filled paths; curved strokes and clipping remain unsupported. Preserve the existing Form clipping bound where available. No paint record is removed and inventory completeness is unchanged.",
+  "pilot": [
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-deferred-clip/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "1d00cc4fed33479a445e436b5d72bb1c0bbef08babab566c783ffcab6d3d3b7a"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "78c861b42b9cf4e9e6a76090ec44e84575192a9ef57e1225e7e3d5cf5861fc5e"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mext-lower-secondary-japanese-2008-to-2017/runs.json",
+        "sha256": "33c9b5dcb1e8f9d9ef11dfed9ec2e9abc82538583764f98267390d519bdc8d0a"
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 80303,
+          "new_discovered_sources": 199442,
+          "old_compared_sources": 153,
+          "new_compared_sources": 154,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 80150,
+          "new_uncompared_sources": 199288,
+          "complete": false
+        }
+      ],
+      "coverage_unchanged": true,
+      "event_fingerprints_unchanged": true,
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "wall_seconds": 15.19,
+      "peak_rss_kib": 647672
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-deferred-clip/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "b1f2e64881857cc73988a565cc5d53593e68fc5cea7055be8e54aedf6fbcfce8"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "163bdae45eb0ef642800e9121c2d3d6a1dfe7e4f39aa9e4c26fb50afafd04641"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mext-primary-japanese-2008-to-2017/runs.json",
+        "sha256": "aed25023012f294e71e1a87c7de018f59c6ba417dd834dd6ace997b6eec84c80"
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102328,
+          "new_discovered_sources": 249104,
+          "old_compared_sources": 187,
+          "new_compared_sources": 187,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102141,
+          "new_uncompared_sources": 248917,
+          "complete": false
+        }
+      ],
+      "coverage_unchanged": true,
+      "event_fingerprints_unchanged": true,
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "wall_seconds": 24.91,
+      "peak_rss_kib": 1143856
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/panel-deferred-clip/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "ef17803473286ec9b5053b5703766eb62adb74c682d8cae26ad4ebe8c9dbbb2d"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "b7f773fdb0091f394a77614d94d5086e7fafe5a2d4c2f3a2f83e85d2e11d9e23"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mext-upper-secondary-japanese-2009-to-2018/runs.json",
+        "sha256": "b43e60b602ff1b0e96acdee1cc9f86a6e9c59d0c8cdcf8acd2ad899d1260cad7"
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 111053,
+          "new_discovered_sources": 297348,
+          "old_compared_sources": 115,
+          "new_compared_sources": 116,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 110938,
+          "new_uncompared_sources": 297232,
+          "complete": false
+        }
+      ],
+      "coverage_unchanged": true,
+      "event_fingerprints_unchanged": true,
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "wall_seconds": 17.47,
+      "peak_rss_kib": 668988
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/deferred-clip-mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "e1faffa8b16ea5f281a3c00f4d084215906141c1eb1b1cbc6413bb48470fb2c0"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "7ce1d91b11fcc12e30098b4afedc9e2dd55cbb36f610d8004fbfa561190f7dc8"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-mhlw-care-skills-original-to-revised/runs.json",
+        "sha256": "78c184583a24e784c793fdfc7f46113f2faeaccdd34dc8c0d44cc6b5cd56ff19"
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 82640,
+          "new_discovered_sources": 104935,
+          "old_compared_sources": 9018,
+          "new_compared_sources": 9018,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 73622,
+          "new_uncompared_sources": 95917,
+          "complete": false
+        }
+      ],
+      "coverage_unchanged": true,
+      "event_fingerprints_unchanged": true,
+      "complete_before_after": [
+        false,
+        false
+      ],
+      "wall_seconds": 47.77,
+      "peak_rss_kib": 673444
+    }
+  ],
+  "target_page": {
+    "page": 10,
+    "native_glyphs_and_graph_constraints_unchanged": true,
+    "new_fill_bound": {
+      "max": {
+        "x": 603.7782000000008,
+        "y": 671.8110000000008
+      },
+      "min": {
+        "x": 524.408199999999,
+        "y": 615.1179999999991
+      }
+    },
+    "fill_disjoint_from_fixed_target_nodes": true,
+    "glyph_counts_before_after": [
+      [
+        102328,
+        102328
+      ],
+      [
+        249104,
+        249104
+      ]
+    ]
+  },
+  "controls": {
+    "attempts": 189,
+    "equal_event_fingerprints": 189,
+    "negative_false_strict_atoms": 0
+  },
+  "checks": {
+    "fmt": "passed",
+    "clippy": "passed",
+    "workspace_tests": {
+      "passed": 2486,
+      "failed": 0,
+      "ignored": 2
+    },
+    "generated_passed": 48,
+    "new_regression_failed_before_implementation": true
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-pdfdelta",
+      "sha256": "42922a33523e2b137723d6b050e7427207fa44e9d4e63d670cbad404383dcde0"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-before.log",
+      "sha256": "c8be3677fe602ae625159dbcb90c0371ca3bbabefef8ac05dd9e14ba4ebab91d"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-extraction.log",
+      "sha256": "8609ee43552982f82fcea6b5e06111d3978aa4bbd8364fceaf774a1668b17b9e"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-clippy.log",
+      "sha256": "ac6fa7d5d36203226a53f1ae414ae6e6213ae357265681578044418b1481f405"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-tests-final.log",
+      "sha256": "58910d44f425edab5c0c2614438b828c1069490a747e771f81efb5ec6669c719"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-release.log",
+      "sha256": "bddef5732959642350d422436a146ea39c041c0bafda63bfac80ff2074e445a2"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-generated.log",
+      "sha256": "1ca830e371870f8d5642ccd21d9f11904b852208d6d53c9ff8f9607d730bdb68"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-control-events.json",
+      "sha256": "c01cc43e913ec7bd1cd44f0f70bf46ae6752fbba13d9513f48eb01007d2b32b3"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/curved-fill-control-scores/summary.json",
+      "sha256": "a9fe8a031948a91a7c4f2f00456b4af6791effac42e457f39702726893cb9ad1"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/layout-curved-fill/runs.json",
+      "sha256": "97064cb11f0474f6ed7fb9155e6278a53386fc461083163623c984b19f846568"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/mext-target-page-bounded.json",
+      "sha256": "586b1a4c526f3c16447a6bfb73be3ebeddf502de1e69ab68ae20ce1696a384a7"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/capture-curved-fill.py",
+      "sha256": "cc563c2d64b5aa247ea35bb0d39ba82352eff0057ed0c44af5055adff316d4bb"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/capture-curved-fill-panel.py",
+      "sha256": "53acbc53c177988fc36a27eb83a5dd27ba2bf698fba8c2ce12d8c20385cc137f"
+    }
+  ],
+  "limitations": [
+    "All four pilot comparisons remain incomplete with unchanged compared sources and event fingerprints.",
+    "The new bound removes a demonstrated paint obstruction but does not establish the fixed target correspondence boundaries.",
+    "The other 32 fixed panel pairs are being replayed separately; full-panel effects remain unverified."
+  ],
+  "next_action": "Finish the remaining fixed panel replay and diagnose the missing matched boundaries around the source-clean MEXT body region."
+}
