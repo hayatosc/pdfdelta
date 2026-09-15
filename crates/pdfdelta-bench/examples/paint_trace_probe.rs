@@ -180,6 +180,13 @@ fn trace(bytes: &[u8], include_program: bool) -> ProbeResult<Value> {
         "without_text_or_markers_bytes": without_markers.len(),
     });
     if include_program {
+        result["operation_trace"] = json!(
+            content
+                .operations
+                .iter()
+                .map(|operation| operation.operator.as_str())
+                .collect::<Vec<_>>()
+        );
         result["without_text_or_markers_program"] = json!(String::from_utf8(without_markers)?);
     }
     Ok(result)
@@ -203,7 +210,9 @@ fn main() -> ProbeResult<()> {
     let input_digest = digest(&bytes);
     let pdf = LopdfParser.parse(Arc::from(bytes), limits)?;
     let pages = pdf.pages()?;
-    if pages.len() > 200 || selected_page.is_some_and(|page| page >= pages.len()) {
+    if (selected_page.is_none() && pages.len() > 200)
+        || selected_page.is_some_and(|page| page >= pages.len())
+    {
         return Err("diagnostic page limit".into());
     }
     let mut result = Vec::new();
