@@ -1468,3 +1468,36 @@ The next decoder investigation must establish the authoritative predefined
 character-code-to-CID map, source segmentation and Unicode provenance. Treating
 UTF-16 code units as CIDs would select incorrect metrics. This diagnosis changes
 no production decoding behavior and claims no additional recovered text.
+
+### Decode the observed UniJIS-UTF16-H font without guessing CIDs
+
+`../remaining/unijis-utf16-result.json` records the named-CMap implementation and
+one fixed-pair pilot. Two pinned Adobe resources map raw UTF-16BE codes to CIDs
+for metrics, then CIDs to Unicode when explicit ToUnicode is absent. Explicit
+ToUnicode retains priority and its gaps remain unmapped. The decoder validates
+the Adobe-Japan1 collection and supplement, preserves surrogate source codes and
+canonical Unicode sequences, and leaves notdef glyphs unmapped. Both resources
+count against existing byte/entry limits. Cache format is 11 and the native
+profile identifies this support.
+
+The old care-skills PDF loses all 256 unsupported-encoding issues and gains 4096
+glyphs. Source inspection identifies these as the rotated `genuine products`
+watermark repeated on 256 pages, not body prose. All 73347 previous glyph records
+remain with the same text, raw codes, geometry and object/operator provenance;
+only allocation identifiers and render-order counters are excluded from this
+multiplicity-preserving check. The new PDF's native count is unchanged.
+
+Common-text compared sources fall from 8706 to 8640 on each side. Both runs retain
+incomplete candidate enumeration and competing optima; the cause of this loss is
+not yet isolated. B outputs increase from one to two. Source review confirms the
+additional 90-source output changes table-of-contents page numbers 217/218 to
+219/220 between unchanged section headings on page index 7. This is outside the
+ID-free body target and carries no strict mask. Each PDF still has 16 clipping
+acquisition issues and document-wide completion remains false.
+
+The decoder reproduction fails before implementation. CID-width, surrogate,
+canonical-sequence, notdef, explicit-map, collection and budget controls pass,
+including a literal extraction/TJ geometry oracle. Format, Clippy, 2482 workspace
+tests (two ignored), all 48 generated cases and 189 unchanged control event
+fingerprints pass; unchanged controls have zero false strict atoms. Full-panel
+replay remains pending and no recovery gate is claimed.

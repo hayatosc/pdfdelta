@@ -45,7 +45,6 @@ struct CodeSpace {
     high: Vec<u8>,
 }
 
-#[cfg(test)]
 pub(crate) fn parse_to_unicode(input: &[u8], limits: CMapLimits) -> Result<ToUnicodeCMap> {
     parse_to_unicode_with_width(input, limits, None)
 }
@@ -303,6 +302,13 @@ fn parse_to_unicode_with_width(
 }
 
 impl ToUnicodeCMap {
+    pub(crate) fn uses_only_widths(&self, widths: &[usize]) -> bool {
+        self.codespaces
+            .iter()
+            .enumerate()
+            .all(|(index, spaces)| spaces.is_empty() || widths.contains(&(index + 1)))
+    }
+
     pub(crate) fn entry_count(&self) -> usize {
         self.total_entries
     }

@@ -3351,6 +3351,51 @@ fn extracts_identity_v_glyphs_with_vertical_geometry_and_tj_adjustments() -> Res
 }
 
 #[test]
+fn extracts_unijis_cid_widths_and_surrogate_provenance() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let descendant = pdf.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "CIDFontType2", "BaseFont" => "FixtureJapan1",
+        "CIDSystemInfo" => dictionary! {
+            "Registry" => Object::string_literal("Adobe"),
+            "Ordering" => Object::string_literal("Japan1"), "Supplement" => 5,
+        },
+        "DW" => 1000,
+        "W" => vec![Object::Integer(34), Object::Array(vec![Object::Integer(500)]),
+                    Object::Integer(3531), Object::Array(vec![Object::Integer(900)])],
+        "FontDescriptor" => dictionary! { "Ascent" => 800, "Descent" => -200 },
+    });
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "Type0", "BaseFont" => "FixtureJapan1",
+        "Encoding" => "UniJIS-UTF16-H", "DescendantFonts" => vec![Object::Reference(descendant)],
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 100 Tm [<00415BCC> -250 <D884DF50>] TJ ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(mapped_text(glyphs), "A富\u{31350}");
+    assert_eq!(glyphs.len(), 3);
+    assert_eq!(glyphs[0].raw_code, [0, 0x41]);
+    assert_eq!(glyphs[1].raw_code, [0x5b, 0xcc]);
+    assert_eq!(glyphs[2].raw_code, [0xd8, 0x84, 0xdf, 0x50]);
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[1].baseline.x, 25.0);
+    assert_close(glyphs[2].baseline.x, 36.5);
+    assert_close(glyphs[2].baseline.y, 100.0);
+    assert_close(glyphs[0].bbox.max.x, 25.0);
+    assert_close(glyphs[1].bbox.max.x, 34.0);
+    Ok(())
+}
+
+#[test]
 fn extracts_per_cid_vertical_origins_and_advances_with_tj_adjustments() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap = pdf.add_object(Stream::new(

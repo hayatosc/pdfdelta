@@ -875,6 +875,7 @@ dependencies = [
 name = "pdfdelta-core"
 version = "0.1.0"
 dependencies = [
+ "hayro-cmap",
  "lopdf",
  "proptest",
  "rayon",
