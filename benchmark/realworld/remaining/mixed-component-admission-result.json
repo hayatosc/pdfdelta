@@ -1,0 +1,660 @@
+{
+  "status": "separated_opaque_inventory_guard_from_subset_admission_cap",
+  "production_changed": false,
+  "previous_turn_classification": "progress: deferred clipping committed as a4e3792 and full panel replay started",
+  "findings": [
+    "Native text acquisition without issues does not certify whole-text inventory when opaque paint remains. The guard is explicit in document/native.rs and must not be cleared by a solver improvement.",
+    "The Schedule SE 143-proposal component is rejected before search, rather than consuming its state budget: all 143 proposals are inferred text similarity. Solving only this component does not itself recover source-backed text.",
+    "The fresh BERT 72-proposal component also stops before search. It contains 68 singleton candidates and four two-to-one candidates, with literal-content or padding premises. This is a more relevant bounded solver investigation than the inferred-only IRS component."
+  ],
+  "current_component_cap": 24,
+  "observations": [
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "report": {
+        "path": "benchmark/realworld/cache/recovery/panel-deferred-clip/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "f7b7eb51d8db93188011b4b9b72800ede2acd72124deae9efc89ecd10a535a38"
+      },
+      "native_text_issues": {
+        "old": 0,
+        "new": 0
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "component": {
+        "proposals": [
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109,
+          110,
+          111,
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119,
+          120,
+          121,
+          122,
+          123,
+          124,
+          125,
+          126,
+          127,
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167,
+          168,
+          169,
+          170,
+          171,
+          172,
+          173,
+          174,
+          175,
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185,
+          186,
+          187,
+          188,
+          189,
+          190,
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200,
+          201,
+          202,
+          203,
+          204,
+          205,
+          206,
+          207,
+          208,
+          209,
+          210,
+          211,
+          212,
+          213,
+          214,
+          215,
+          216,
+          217,
+          218,
+          219,
+          220,
+          221,
+          222,
+          223,
+          224,
+          225,
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232
+        ],
+        "mandatory": [],
+        "explored_states": 0,
+        "assignment_work": 0,
+        "algorithm": "subset_search",
+        "exhaustive": false
+      },
+      "basis_counts": {
+        "text_similarity": 143
+      },
+      "singleton_proposals": 121,
+      "group_proposals": [
+        {
+          "old": [
+            7
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            48
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 68628
+        },
+        {
+          "old": [
+            50
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            52
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 42106
+        },
+        {
+          "old": [
+            75
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 14286
+        },
+        {
+          "old": [
+            76
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 14389
+        },
+        {
+          "old": [
+            80
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 242648
+        },
+        {
+          "old": [
+            83
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            84
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 918182
+        },
+        {
+          "old": [
+            87
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 172495
+        },
+        {
+          "old": [
+            99
+          ],
+          "new": [
+            83,
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 14286
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            7
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            48
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 68966
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            50
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            52
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 42329
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            75
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 12988
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            76
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 14493
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            80
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 236163
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            83
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            84
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 922375
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            87
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 163552
+        },
+        {
+          "old": [
+            83,
+            84
+          ],
+          "new": [
+            99
+          ],
+          "basis": "text_similarity",
+          "supplier": "retained-order-trigram-group-v1",
+          "weight": 14389
+        }
+      ],
+      "outside_reported_inferred_set": 0
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "report": {
+        "path": "benchmark/realworld/cache/recovery/panel-deferred-clip/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "bfc947c1c423da6cafc9776f8285d9efbdaa4e7635e66d9b078b9e2a6bbc9bcd"
+      },
+      "native_text_issues": {
+        "old": 0,
+        "new": 0
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 46126,
+          "new_discovered_sources": 54003,
+          "old_compared_sources": 7064,
+          "new_compared_sources": 7064,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 39062,
+          "new_uncompared_sources": 46939,
+          "complete": false
+        }
+      ],
+      "component": {
+        "proposals": [
+          779,
+          780,
+          781,
+          782,
+          783,
+          784,
+          785,
+          786,
+          830,
+          831,
+          832,
+          833,
+          834,
+          835,
+          836,
+          837,
+          846,
+          847,
+          848,
+          849,
+          850,
+          851,
+          852,
+          853,
+          891,
+          892,
+          893,
+          894,
+          895,
+          896,
+          897,
+          898,
+          899,
+          900,
+          1257,
+          1258,
+          1259,
+          1260,
+          1261,
+          1262,
+          1263,
+          1264,
+          1308,
+          1309,
+          1310,
+          1311,
+          1312,
+          1313,
+          1314,
+          1315,
+          1324,
+          1325,
+          1326,
+          1327,
+          1328,
+          1329,
+          1330,
+          1331,
+          1369,
+          1370,
+          1371,
+          1372,
+          1373,
+          1374,
+          1375,
+          1376,
+          1377,
+          1378,
+          2521,
+          2522,
+          2523,
+          2524
+        ],
+        "mandatory": [],
+        "explored_states": 0,
+        "assignment_work": 0,
+        "algorithm": "subset_search",
+        "exhaustive": false
+      },
+      "basis_counts": {
+        "literal_content": 48,
+        "literal_content_with_padding": 24
+      },
+      "singleton_proposals": 68,
+      "group_proposals": [
+        {
+          "old": [
+            488,
+            489
+          ],
+          "new": [
+            91
+          ],
+          "basis": "literal_content",
+          "supplier": "retained-order-exact-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            539,
+            540
+          ],
+          "new": [
+            91
+          ],
+          "basis": "literal_content",
+          "supplier": "retained-order-exact-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            488,
+            489
+          ],
+          "new": [
+            99
+          ],
+          "basis": "literal_content",
+          "supplier": "retained-order-exact-group-v1",
+          "weight": 1
+        },
+        {
+          "old": [
+            539,
+            540
+          ],
+          "new": [
+            99
+          ],
+          "basis": "literal_content",
+          "supplier": "retained-order-exact-group-v1",
+          "weight": 1
+        }
+      ],
+      "outside_reported_inferred_set": 72
+    }
+  ],
+  "prior_investigation": {
+    "path": "benchmark/realworld/remaining/irs-all-paint-result.json",
+    "sha256": "afc74ac43df454d3385ae4d1a4152362490e4546d777ed91536e98448ceebf91"
+  },
+  "source_references": [
+    {
+      "path": "crates/pdfdelta-core/src/document/native.rs",
+      "sha256": "35f1851ee063cb8122b356fe1567c768bb8975b0bfe64c6bee4d9dcdea69a938"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/evidence.rs",
+      "sha256": "6e2a1430405c9ecc1f4e99c7bc98eab8e2f51b1b3a904b3392283aa59e77efe9"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/matching.rs",
+      "sha256": "12498a59fc7131898034bb77a7c5ce99b099388aebfb285ccd8a832b1ff87f19"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/matching/index.rs",
+      "sha256": "a260da09f8ee2beb76f2149b4b8bb39bba90d5026b66384353ec01af457108ff"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/matching/assignment.rs",
+      "sha256": "524747a74daf0844331e10c59568415dab030e06118b34efb2e94913fd1407b5"
+    }
+  ],
+  "next_action": "Reconstruct the BERT component ownership and partition constraints from the current graph. Test whether enumerating the four grouped choices leaves valid exact bipartite residuals, preserving all conflicts, lexicographic objectives, existing work limits and mandatory-edge proofs. Do not assume singleton arity establishes independent endpoints.",
+  "limitations": [
+    "Candidate arity and basis are not proof of independent source ownership or assignment eligibility. No new fast path is implemented yet.",
+    "An exhaustive ambiguous optimum may still have no mandatory correspondences; no recovery gain is predicted as a fact.",
+    "Whole-paint equality was already rejected on the two IRS pairs; this turn does not repeat or reverse that conclusion.",
+    "G1/G2/G3 remain unproven."
+  ]
+}

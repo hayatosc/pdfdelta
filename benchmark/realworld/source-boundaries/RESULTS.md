@@ -1550,3 +1550,36 @@ pass. Format, Clippy, 2485 workspace tests (two ignored), 48 generated cases and
 189 unchanged control event fingerprints pass, with zero false strict atoms on
 unchanged controls. The remaining fixed-panel replay is still required. Native
 acquisition gains are not proof of common-text inventory or comparison completion.
+
+### Complete the deferred-clip panel replay and separate the next blockers
+
+`../remaining/deferred-clip-panel-result.json` binds all 36 captures to unchanged
+input hashes, limits and the deferred-clip executable. Fourteen pairs change
+coverage, gaining 492308 discovered and a net 1826 compared sources. IPCC loses
+48 compared sources, which remains recorded rather than hidden by the net gain.
+All pairs with unchanged native summaries retain their event fingerprints.
+Complete comparison remains 0/36. Format, Clippy and 2485 workspace tests pass
+(two ignored).
+
+Raw event fingerprints show 56 additions and 65 removals. These include source-ID
+changes and eight removed inferred outputs; they are not counts of new physical
+source ranges. No additional A/B operation value appears. The care-skills
+table-of-contents B disappears as recorded in the pilot. Equal operation values
+alone do not certify equal source membership or correspondence premises, and
+fixed source IDs are not reused on changed acquisitions without rebinding.
+
+`../remaining/mixed-component-admission-result.json` distinguishes two independent
+obligations. Opaque paint prevents native glyphs alone from proving whole-text
+inventory, even on source-clean IRS documents. Earlier evidence already rejected
+whole-paint equality on Schedule C and SE; no inventory guard is weakened.
+
+Schedule SE also has a 143-proposal inferred-similarity component that stops with
+zero explored states because of the 24-proposal admission cap. Resolving that
+inferred-only component would not itself establish source-backed recovery.
+The fresh BERT report provides a more relevant bounded investigation: a stopped
+72-proposal component has 68 singleton candidates and four two-to-one candidates,
+all with literal-content or padding bases. The next step is to reconstruct its
+actual ownership and partition constraints before testing an exact grouped-choice
+search with assignment residuals. Singleton arity is not evidence of independent
+source endpoints, and an exhaustive solve may still prove ambiguity rather than
+new mandatory correspondences. No solver change or recovery gate is claimed yet.
