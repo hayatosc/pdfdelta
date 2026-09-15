@@ -143,34 +143,7 @@ fn page(det: &str, rec: &str, dict: &str, path: &str) -> Result<(), Box<dyn std:
         }
     }
     let mut boxes = Vec::new();
-    for index in 0..remaining.len() {
-        if !remaining[index] {
-            continue;
-        }
-        remaining[index] = false;
-        let mut stack = vec![index];
-        let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0, 0);
-        while let Some(i) = stack.pop() {
-            let (x, y) = (i % w, i / w);
-            x0 = x0.min(x);
-            y0 = y0.min(y);
-            x1 = x1.max(x + 1);
-            y1 = y1.max(y + 1);
-            for (nx, ny) in [
-                (x.wrapping_sub(1), y),
-                (x + 1, y),
-                (x, y.wrapping_sub(1)),
-                (x, y + 1),
-            ] {
-                if nx < w && ny < h && remaining[ny * w + nx] {
-                    remaining[ny * w + nx] = false;
-                    stack.push(ny * w + nx);
-                }
-            }
-        }
-        if boxes.len() >= 1024 {
-            return Err("detected region budget".into());
-        }
+    for [x0, y0, x1, y1] in component_boxes(remaining, w, h, 1024)? {
         let pad = y1 - y0;
         let scale_x = |x: usize| (x as f64 * f64::from(image.width()) / w as f64) as u32;
         let scale_y = |y: usize| (y as f64 * f64::from(image.height()) / h as f64) as u32;
@@ -232,7 +205,82 @@ fn page(det: &str, rec: &str, dict: &str, path: &str) -> Result<(), Box<dyn std:
         "load_seconds":loaded.as_secs_f64(), "decode_detect_seconds":(detected-loaded).as_secs_f64(),
         "recognize_seconds":(started.elapsed()-detected).as_secs_f64(),
         "total_seconds":started.elapsed().as_secs_f64(), "lines":lines,
-        "inventory_complete":false,"prototype_localization":true})
+        "inventory_complete":false,"prototype_localization":true,"localization_profile":"eight-connected-axis-box-v2"})
     );
     Ok(())
+}
+
+// Diagonal foreground pixels belong to one region. Uncertain detector output
+// remains a candidate regardless of connectivity or downstream recognition.
+fn component_boxes(
+    mut remaining: Vec<bool>,
+    w: usize,
+    h: usize,
+    limit: usize,
+) -> Result<Vec<[usize; 4]>, Box<dyn std::error::Error>> {
+    if w == 0 || h == 0 || w.checked_mul(h) != Some(remaining.len()) || remaining.len() > 960 * 960
+    {
+        return Err("invalid bounded detector bitmap".into());
+    }
+    let mut boxes = Vec::new();
+    for index in 0..remaining.len() {
+        if !remaining[index] {
+            continue;
+        }
+        remaining[index] = false;
+        let mut stack = vec![index];
+        let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0, 0);
+        while let Some(i) = stack.pop() {
+            let (x, y) = (i % w, i / w);
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x + 1);
+            y1 = y1.max(y + 1);
+            for (nx, ny) in [
+                (x.wrapping_sub(1), y),
+                (x + 1, y),
+                (x, y.wrapping_sub(1)),
+                (x, y + 1),
+                (x.wrapping_sub(1), y.wrapping_sub(1)),
+                (x + 1, y.wrapping_sub(1)),
+                (x.wrapping_sub(1), y + 1),
+                (x + 1, y + 1),
+            ] {
+                if nx < w && ny < h && remaining[ny * w + nx] {
+                    remaining[ny * w + nx] = false;
+                    stack.push(ny * w + nx);
+                }
+            }
+        }
+        if boxes.len() >= limit {
+            return Err("detected region budget".into());
+        }
+        boxes.push([x0, y0, x1, y1]);
+    }
+    Ok(boxes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::component_boxes;
+
+    #[test]
+    fn diagonal_connections_share_a_region_without_merging_separated_pixels() {
+        assert_eq!(
+            component_boxes(vec![true, false, false, true], 2, 2, 1).unwrap(),
+            vec![[0, 0, 2, 2]]
+        );
+        assert_eq!(
+            component_boxes(vec![true, false, true], 3, 1, 2).unwrap(),
+            vec![[0, 0, 1, 1], [2, 0, 3, 1]]
+        );
+        assert!(component_boxes(vec![true, false, true], 3, 1, 1).is_err());
+    }
+
+    #[test]
+    fn invalid_dimensions_and_empty_foreground_remain_distinct() {
+        assert!(component_boxes(vec![false], 0, 1, 1).is_err());
+        assert!(component_boxes(vec![false], 2, 1, 1).is_err());
+        assert!(component_boxes(vec![false; 4], 2, 2, 1).unwrap().is_empty());
+    }
 }
