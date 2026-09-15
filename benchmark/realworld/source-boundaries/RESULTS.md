@@ -1314,3 +1314,26 @@ glyph/clip intersection, and neither document comparison becomes complete.
 Format, Clippy, 2469 workspace tests (two ignored), and all 48 generated cases
 pass. A full 36-pair capture is running separately; its scoring and controls
 remain pending. No new G1 pair, blind recovery or completion gate is claimed.
+
+### Avoid rebuilding dense glyph positions for extraction dependencies
+
+The full-panel follow-up exposed an IPCC regression: additional extraction gaps
+on both sides triggered eager position maps for 589988 and 608597 glyphs. Their
+combined indexing exceeded the unchanged one-million-work limit before local
+comparisons ran. Position lookup now accepts a direct array slot only when the
+actual glyph ID matches; sparse or reordered IDs use the charged fallback map.
+Boundary-crossing and incomplete-search semantics remain unchanged.
+
+[direct-gap-positions-result.json](../remaining/direct-gap-positions-result.json)
+retains a failing-before budget regression, reordered-ID cases and fresh IPCC
+captures. Compared sources recover from 0/0 to 4424/4419, twenty per side above
+the rebuilt pre-convex reference of 4404/4399. All 245 work-limited dependency
+checks disappear, native acquisition reports stay identical, and one conditional
+view returns. Document-wide comparison remains incomplete.
+
+During the panel follow-up, ignored caches and build outputs disappeared; their
+cause is not established. Both IPCC inputs were reacquired from registered URLs
+and matched their original hashes. Historical executables were rebuilt from
+tracked revisions. The missing full-panel and control evidence is not treated
+as a completed verification, and the denominator remains 36. Format, Clippy,
+2471 workspace tests (two ignored) and all 48 generated cases pass.
