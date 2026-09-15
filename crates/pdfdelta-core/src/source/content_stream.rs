@@ -1693,6 +1693,25 @@ impl Extraction<'_> {
                 .graphics
                 .paint_ctm
                 .then(MatrixBounds::from(*form_matrix));
+            let [x0, y0, x1, y1] =
+                bbox.ok_or_else(|| Error::Unresolved("Form XObject has no clipping BBox".into()))?;
+            let (min_x, max_x) = (x0.min(x1), x0.max(x1));
+            let (min_y, max_y) = (y0.min(y1), y0.max(y1));
+            let (_, rectangle) = transformed_rectangle_path(
+                page_geometry,
+                form_state.graphics.ctm,
+                min_x,
+                min_y,
+                max_x - min_x,
+                max_y - min_y,
+            )?;
+            let rectangle = rectangle.ok_or_else(|| {
+                Error::Unsupported("non-axis-aligned Form XObject clipping BBox".into())
+            })?;
+            // The Form's implicit clip is established before its operators and
+            // remains local to this invocation, including nested graphics saves.
+            form_state.graphics.clip_region =
+                intersect_clip_region(form_state.graphics.clip_region, rectangle);
             form_state.graphics_stack.clear();
             form_state.current_path.reset();
             form_state.compatibility_depth = 0;

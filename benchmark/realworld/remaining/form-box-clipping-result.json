@@ -1,0 +1,312 @@
+{
+  "status": "implemented_form_clip_prerequisite_verified",
+  "previous_turn_classification": "progress: four convex clipping witnesses committed as e126248",
+  "production_changed": true,
+  "fixed_panel_denominator": 36,
+  "new_recovery_claimed": false,
+  "scope": "Intersect each supported Form bounding box with the caller graphics clip after the complete page/caller/Form transform. Normalize opposite corner order, retain glyphs and their clip relationship, and keep missing or unsupported clipping as an extraction gap.",
+  "binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/pdfdelta",
+    "sha256": "4d3255cb8763c6fb7d45870c6a0fe0caa93ff4aa8a51b11983bee7e8d4f7816a"
+  },
+  "regression": "Before the fix, literal inside/partial/outside glyphs all had Unclipped status. Three regression tests cover transformed reversed boxes, caller and nested clipping, empty intersections, local saves/restoration, raw glyph provenance and unsupported boxes.",
+  "cache_version": 8,
+  "backend_profile": "content-stream-v4-form-clipping-worker-v1",
+  "pilot": {
+    "rows": [
+      {
+        "pair": "arxiv-ddpm-v1-to-v2",
+        "complete_before_after": [
+          false,
+          false
+        ],
+        "coverage_before": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 41561,
+            "new_discovered_sources": 45486,
+            "old_compared_sources": 15206,
+            "new_compared_sources": 15206,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 26355,
+            "new_uncompared_sources": 30280,
+            "complete": false
+          }
+        ],
+        "coverage_after": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 41561,
+            "new_discovered_sources": 45486,
+            "old_compared_sources": 15206,
+            "new_compared_sources": 15206,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 26355,
+            "new_uncompared_sources": 30280,
+            "complete": false
+          }
+        ],
+        "payload_equality": {
+          "typed_changes": true,
+          "inferred_changes": true,
+          "scope_content_changes": true,
+          "inferred_scope_changes": true,
+          "table_refinements": true,
+          "comparison": true
+        },
+        "sides": [
+          {
+            "side": "old",
+            "native_glyphs_before_after": [
+              41561,
+              41561
+            ],
+            "glyph_sequence_preserved": true,
+            "paint_records_before_after": [
+              3222,
+              3222
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 0,
+            "clip_status_changes": [],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 45": 1
+            },
+            "text_issues_after": {
+              "non-rectangular clipping path at content operator index 45": 1
+            },
+            "vector_lines_before_after": [
+              417,
+              417
+            ]
+          },
+          {
+            "side": "new",
+            "native_glyphs_before_after": [
+              45486,
+              45486
+            ],
+            "glyph_sequence_preserved": true,
+            "paint_records_before_after": [
+              3225,
+              3225
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 0,
+            "clip_status_changes": [],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 45": 1
+            },
+            "text_issues_after": {
+              "non-rectangular clipping path at content operator index 45": 1
+            },
+            "vector_lines_before_after": [
+              414,
+              414
+            ]
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/arxiv-ddpm-v1-to-v2/report.json",
+            "sha256": "bc9baed20859f779500a412d710e636d21b0721d7bf024da4bdab11a51fc11e6"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/arxiv-ddpm-v1-to-v2/review/sources.json",
+            "sha256": "231445ad12285bab4b8c752a79b4a45034b92409a0e67de0b71ae233b484e4bd"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/arxiv-ddpm-v1-to-v2/run.json",
+            "sha256": "d938515e5993e3927f602898eb4208178a0ed7e139f759ec5335f56ffae6b6dd"
+          }
+        ]
+      },
+      {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "complete_before_after": [
+          false,
+          false
+        ],
+        "coverage_before": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 39906,
+            "new_discovered_sources": 52182,
+            "old_compared_sources": 14801,
+            "new_compared_sources": 14801,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 25105,
+            "new_uncompared_sources": 37381,
+            "complete": false
+          }
+        ],
+        "coverage_after": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 39906,
+            "new_discovered_sources": 52182,
+            "old_compared_sources": 14801,
+            "new_compared_sources": 14801,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 25105,
+            "new_uncompared_sources": 37381,
+            "complete": false
+          }
+        ],
+        "payload_equality": {
+          "typed_changes": true,
+          "inferred_changes": true,
+          "scope_content_changes": true,
+          "inferred_scope_changes": true,
+          "table_refinements": true,
+          "comparison": true
+        },
+        "sides": [
+          {
+            "side": "old",
+            "native_glyphs_before_after": [
+              39906,
+              39906
+            ],
+            "glyph_sequence_preserved": true,
+            "paint_records_before_after": [
+              5068,
+              5068
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 0,
+            "clip_status_changes": [
+              {
+                "from": "Unclipped",
+                "to": "Inside",
+                "count": 5535
+              }
+            ],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 12": 1
+            },
+            "text_issues_after": {
+              "non-rectangular clipping path at content operator index 12": 1
+            },
+            "vector_lines_before_after": [
+              37562,
+              37562
+            ]
+          },
+          {
+            "side": "new",
+            "native_glyphs_before_after": [
+              52182,
+              52182
+            ],
+            "glyph_sequence_preserved": true,
+            "paint_records_before_after": [
+              5817,
+              5817
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 0,
+            "clip_status_changes": [
+              {
+                "from": "Unclipped",
+                "to": "Inside",
+                "count": 7306
+              }
+            ],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 12": 1
+            },
+            "text_issues_after": {
+              "non-rectangular clipping path at content operator index 12": 1
+            },
+            "vector_lines_before_after": [
+              100393,
+              100384
+            ]
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/arxiv-mask-rcnn-v1-to-v3/report.json",
+            "sha256": "976e2b7649d7d19f5578a29c561f36b4bd72b857b35659c56920d5a963ec7d29"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/arxiv-mask-rcnn-v1-to-v3/review/sources.json",
+            "sha256": "e5680814618ff17ed26384c84284a7b09fdcc5ec62d238dc7b6b54dde006705e"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/arxiv-mask-rcnn-v1-to-v3/run.json",
+            "sha256": "7954a634c734b402f50aab243c16a1e739558a833a0ad9a1e562ced2355ff369"
+          }
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "format": "passed",
+    "clippy_workspace_all_targets_deny_warnings": "passed",
+    "workspace_passed": 2461,
+    "workspace_ignored": 2,
+    "generated_passed": 48,
+    "core_five_acceptance_cases": "passed through both renderers"
+  },
+  "rectangle_contract_source": "https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.6.pdf",
+  "limitations": [
+    "Only two real revision pairs were recaptured; this is not a fresh full-panel or blind evaluation.",
+    "No target recovery, compared-source gain or document-wide completion gain is claimed.",
+    "Non-axis-aligned Form boxes and explicit convex paths remain unsupported.",
+    "Nine Mask R-CNN new-side vector segments cease to qualify as fully inside the Form clip; raw glyph sequence and non-text paint record counts remain preserved. Render-order ordinals are not claimed byte-identical.",
+    "The previous conservative failure-bound helper still treats reversed boxes as unbounded evidence; this patch does not broaden that source-closure proof."
+  ],
+  "next_action": "Implement bounded convex clipping while preserving the now-established caller/Form clipping contract, conservative numerical classification and unchanged resource limits; measure subsequent Form operations on the same two pairs before broadening evaluation.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/run.py",
+      "sha256": "98baef6ea9ed41c2e73b006aafa2e28e3dca82b1a9c8e3f460493ed4a20bc195"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/check.py",
+      "sha256": "6395de8a5e3feab95160759b8b767df5bbcae65ce183ba33e592379898ed3b72"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/check.json",
+      "sha256": "ed251d5e31c63add64f2f2dc761a459e651ce7256962cd2fffcb4083e6d70de4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/check.log",
+      "sha256": "0439fc507cbdfc27cef84570cf27ab3c6ffeb739c2f9e8f36bcae43a2e0604fb"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/implementation.patch",
+      "sha256": "ef81bf1266195f7371efd2bdd270a3e8ce0d1fc5fb9b56f8d462007f3fb85eef"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/regression-before.log",
+      "sha256": "fbcea15fe0bf4e37e50da548320877c0ac2ac41e27d28846ba2c14225821c76a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/build.log",
+      "sha256": "d791ca7b870afea21a46fa9df0426ed082271b194ac59538d50b21d384cdacbe"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/workspace.log",
+      "sha256": "870c38ef51f75aa34f766f23172a32b3ba40ccef0e80c281fffa41f0f0121dc4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/form-box-clipping-normalized/generated.log",
+      "sha256": "7a19d0d3d13f3dee9afcf343ac5a7f6a0110ad2d3f3c80fdbab7e234f2c26218"
+    }
+  ]
+}

@@ -1587,6 +1587,166 @@ fn repeated_form_marked_content_retains_each_invocation() -> Result<()> {
 }
 
 #[test]
+fn form_box_intersects_caller_clip_and_preserves_raw_glyphs() -> Result<()> {
+    for (clip, expected) in [
+        (
+            "",
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::PartiallyOutside,
+                GlyphPathClipStatus::Outside,
+            ],
+        ),
+        (
+            "0 0 30 100 re W n",
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Outside,
+                GlyphPathClipStatus::Outside,
+            ],
+        ),
+        ("0 0 0 100 re W n", [GlyphPathClipStatus::Outside; 3]),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let form = pdf.add_object(Stream::new(dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![40.into(), 40.into(), 0.into(), 0.into()],
+            "Matrix" => vec![2.into(), 0.into(), 0.into(), 2.into(), 0.into(), 0.into()],
+        }, b"q BT /F1 10 Tf 1 0 0 1 10 20 Tm (I) Tj 1 0 0 1 38 20 Tm (P) Tj 1 0 0 1 50 20 Tm (O) Tj ET Q".to_vec()));
+        let contents = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("q 1 0 0 1 10 20 cm {clip} /X Do Q BT /F1 10 Tf 1 0 0 1 150 20 Tm (C) Tj ET")
+                .into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            contents.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(outcome.is_complete());
+        let glyphs = outcome.document().items();
+        assert_eq!(mapped_text(glyphs), "IPOC");
+        assert_eq!(
+            glyphs[..3]
+                .iter()
+                .map(|g| g.path_clip_status)
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(glyphs[3].path_clip_status, GlyphPathClipStatus::Unclipped);
+        assert_close(glyphs[0].baseline.x, 30.0);
+        assert_close(glyphs[0].baseline.y, 60.0);
+        assert_eq!(glyphs[0].raw_code, b"I");
+        assert_eq!(glyphs[0].provenance.content_stream.object_number, form.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn nested_form_box_cannot_expand_the_enclosing_form_clip() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let inner = pdf.add_object(Stream::new(dictionary! {
+        "Type" => "XObject", "Subtype" => "Form",
+        "BBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+    }, b"q 0 0 200 200 re W n BT /F1 10 Tf 1 0 0 1 10 20 Tm (I) Tj 1 0 0 1 58 20 Tm (P) Tj 1 0 0 1 80 20 Tm (O) Tj ET Q".to_vec()));
+    let outer = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 60.into(), 80.into()],
+        },
+        b"/Inner Do".to_vec(),
+    ));
+    let contents = pdf.add_object(Stream::new(dictionary! {}, b"/Outer Do /Inner Do".to_vec()));
+    install_page(
+        &mut pdf,
+        contents.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "Inner" => inner, "Outer" => outer },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    assert_eq!(mapped_text(outcome.document().items()), "IPOIPO");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|g| g.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::PartiallyOutside,
+            GlyphPathClipStatus::Outside,
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Inside,
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn unsupported_form_boxes_keep_an_extraction_gap() -> Result<()> {
+    for (bbox, matrix) in [
+        (None, [1, 0, 0, 1, 0, 0]),
+        (Some([0, 0, 40, 40]), [1, 1, 0, 1, 0, 0]),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let mut dict = dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "Matrix" => matrix.into_iter().map(Object::Integer).collect::<Vec<_>>(),
+        };
+        if let Some(bbox) = bbox {
+            dict.set(
+                "BBox",
+                bbox.into_iter().map(Object::Integer).collect::<Vec<_>>(),
+            );
+        }
+        let form = pdf.add_object(Stream::new(
+            dict,
+            b"BT /F1 10 Tf 10 20 Td (F) Tj ET".to_vec(),
+        ));
+        let contents = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 10 20 Td (A) Tj ET /X Do BT /F1 10 Tf 20 20 Td (B) Tj ET".to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            contents.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(!outcome.is_complete());
+        assert_eq!(mapped_text(outcome.document().items()), "AB");
+        assert_eq!(outcome.issues().len(), 1);
+        assert!(matches!(
+            outcome.issues()[0].scope(),
+            ExtractionScope::PageGlyphGap {
+                retained_before: 1,
+                ..
+            }
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn applies_form_matrix_and_form_resources() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);

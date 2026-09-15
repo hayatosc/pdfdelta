@@ -1266,3 +1266,24 @@ Form clipping, source geometry and uncertain boundary classifications; replacing
 these polygons with their bounding rectangles is not justified. Later operations
 in the rolled-back Forms remain unexamined, and no recovery or completion gain
 is claimed.
+
+### Preserve the implicit Form clipping boundary
+
+Before accepting additional polygon clips, Form execution now intersects its
+transformed bounding box with the caller's supported graphics clip. Opposite
+corner order is normalized. Glyphs remain present with inside, partial or outside
+clip status; nested clips cannot expand the caller region, and Form state does
+not escape its invocation. Missing or unsupported boxes retain extraction gaps.
+The native backend profile and extraction cache version change with this contract.
+
+[form-box-clipping-result.json](../remaining/form-box-clipping-result.json)
+retains the failing-before regression and same-input DDPM/Mask R-CNN captures.
+Their compared sources and comparison payloads remain unchanged. Text, raw codes,
+geometry and provenance retain their ordered glyph population. Mask R-CNN gains
+explicit inside status for 5535 old and 7306 new glyphs; nine new-side vector
+segments no longer qualify as fully inside, while paint records remain retained.
+
+Format, Clippy and 2461 workspace tests pass (two ignored), along with all 48
+generated cases and both renderings of the five core acceptance cases. This is
+a clipping prerequisite, not a recovery or completion gain. Non-axis-aligned
+paths remain unsupported, and the fixed denominator remains 36.

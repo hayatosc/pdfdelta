@@ -70,10 +70,10 @@ pub enum GlyphCropStatus {
     Outside,
 }
 
-/// Geometric relationship between a glyph and a supported explicit path clip.
+/// Geometric relationship between a glyph and the supported graphics clip.
 ///
-/// `Unclipped` means no explicit path clip was active. The page CropBox is
-/// recorded independently by [`GlyphCropStatus`].
+/// `Unclipped` means neither a path clip nor a Form bounding-box clip was active.
+/// The page CropBox is recorded independently by [`GlyphCropStatus`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum GlyphPathClipStatus {
     Unclipped,
