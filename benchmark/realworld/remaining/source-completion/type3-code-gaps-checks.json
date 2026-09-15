@@ -1,0 +1,41 @@
+{
+  "checks": [
+    {
+      "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/before.log",
+      "sha256": "a5639dcea06bb13171c3177b6980a170d84b10cf347ed3642fe46eca14c19b40"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/before-clippy.log",
+      "sha256": "53dbe875fef3cb3bf44e3d1942f4c6788b969b2d0376f78e6f45ce2a15c47cc9"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/before-workspace.log",
+      "sha256": "b1143d71568fd181b8c96a3f7ac321dcf6e65225f92bf723733c57d738db7fe9"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/tests.log",
+      "sha256": "93d229fe0086292821309a7aefa7d465c5e4e53f13a3602615d3de9cb268b486"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/clippy.log",
+      "sha256": "f2672727091d4df8eee8d8f46751e90c69080829ba2209902bbe70cdac993516"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/workspace.log",
+      "sha256": "4b9df8cc1caded37ea49837a160c6ee4c986342327aea5ab793d1dc3bfd27016"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/fixtures.log",
+      "sha256": "1be28d699588e6925e792b7c0224fda0ebd2b0427541518c587de91e80847cd2"
+    }
+  ],
+  "workspace_passed": 2515,
+  "workspace_failed": 0,
+  "workspace_ignored": 2,
+  "type3_unit_tests_passed": 12,
+  "generated_passed": 48,
+  "clippy": "passed",
+  "format": "passed",
+  "new_completions": 0,
+  "reproduction_commit": "7d24366"
+}
