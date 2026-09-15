@@ -29,6 +29,9 @@ use super::{
     GlyphExtractor,
 };
 
+mod clipping;
+use clipping::{ClipRegion, Quad};
+
 mod paint_bounds;
 use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
 
@@ -177,6 +180,7 @@ struct Extraction<'a> {
     non_text_paint_bounds: Vec<NonTextPaint>,
     issues: Vec<ExtractionIssue>,
     consumed_glyphs: usize,
+    convex_clip_work: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
     bound_fonts: HashMap<BoundFontKey, Arc<BoundFont>>,
     ext_gstate_fonts: HashMap<ExtGStateKey, Option<(Arc<BoundFont>, f64)>>,
@@ -241,14 +245,6 @@ impl PageCoordinateFrame {
             bounds.max.y,
         )
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-enum ClipRegion {
-    #[default]
-    Unbounded,
-    Rectangle(Rect),
-    Empty,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -379,6 +375,25 @@ impl CurrentPath {
         rectangle_from_segments(segments)
     }
 
+    fn clipping_quad(&self) -> Option<Quad> {
+        if self.has_unsupported_segments || self.drawn_subpaths != 1 {
+            return None;
+        }
+        let segments = self.segments.as_slice();
+        if !matches!(segments.len(), 3 | 4)
+            || !segments.windows(2).all(|pair| pair[0].to == pair[1].from)
+            || (segments.len() == 4 && segments[3].to != segments[0].from)
+        {
+            return None;
+        }
+        Quad::new([
+            segments[0].from,
+            segments[0].to,
+            segments[1].to,
+            segments[2].to,
+        ])
+    }
+
     fn mark_current_subpath_drawn(&mut self) {
         if !self.current_subpath_has_segment {
             self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
@@ -401,6 +416,7 @@ impl<'a> Extraction<'a> {
             non_text_paint_bounds: Vec::new(),
             issues: Vec::new(),
             consumed_glyphs: 0,
+            convex_clip_work: 0,
             font_cache: HashMap::new(),
             bound_fonts: HashMap::new(),
             ext_gstate_fonts: HashMap::new(),
@@ -550,12 +566,17 @@ impl<'a> Extraction<'a> {
                     page,
                     stream,
                     operation,
-                    image_paint_bounds(page_geometry, state),
+                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
                 );
             }
             b"sh" => {
                 one_name(operation)?;
-                self.record_non_text_paint(page, stream, operation, None);
+                self.record_non_text_paint(
+                    page,
+                    stream,
+                    operation,
+                    state.graphics.form_paint_bounds,
+                );
             }
             b"BMC" | b"BDC" => {
                 if state.marked_stack.len() >= self.limits.max_nesting_depth
@@ -993,7 +1014,8 @@ impl Extraction<'_> {
                 page,
                 stream,
                 operation,
-                path_paint_bounds(page_geometry, state, stroke),
+                path_paint_bounds(page_geometry, state, stroke)
+                    .or(state.graphics.form_paint_bounds),
             );
         }
 
@@ -1004,13 +1026,19 @@ impl Extraction<'_> {
                     operation.index
                 )));
             }
-            let rectangle = state.current_path.clipping_rectangle().ok_or_else(|| {
-                Error::Unsupported(format!(
-                    "non-rectangular clipping path at content operator index {}",
-                    operation.index
-                ))
-            })?;
-            Some(intersect_clip_region(state.graphics.clip_region, rectangle))
+            self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+            if let Some(rectangle) = state.current_path.clipping_rectangle() {
+                Some(state.graphics.clip_region.intersect_rectangle(rectangle))
+            } else {
+                self.charge_convex_clip_work(16)?;
+                let quad = state.current_path.clipping_quad().ok_or_else(|| {
+                    Error::Unsupported(format!(
+                        "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}",
+                        operation.index
+                    ))
+                })?;
+                Some(state.graphics.clip_region.intersect_quad(quad))
+            }
         } else {
             None
         };
@@ -1022,7 +1050,8 @@ impl Extraction<'_> {
                 state.graphics.line_width,
             )?;
             for segment in state.current_path.segments.iter().copied() {
-                if segment_is_visible(segment, state.graphics.clip_region) {
+                self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+                if state.graphics.clip_region.segment_is_visible(segment) {
                     self.emit_vector_line(segment, width, operation, stream, page)?;
                 }
             }
@@ -1086,6 +1115,18 @@ impl Extraction<'_> {
                 limit: u32::MAX as usize,
             })?;
         Ok(render_order)
+    }
+
+    fn charge_convex_clip_work(&mut self, work: usize) -> Result<()> {
+        self.convex_clip_work = self
+            .convex_clip_work
+            .checked_add(work)
+            .filter(|total| *total <= self.limits.max_operators)
+            .ok_or(Error::LimitExceeded {
+                resource: "convex clipping work",
+                limit: self.limits.max_operators,
+            })?;
+        Ok(())
     }
 
     fn ensure_path_segment_capacity(
@@ -1276,6 +1317,8 @@ impl Extraction<'_> {
                     resource: "glyph identifier address space",
                     limit: usize::MAX,
                 })?;
+        self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+        let path_clip_status = state.graphics.clip_region.glyph_status(bbox)?;
         let render_order = self.allocate_render_order()?;
         let raw_code = glyph.raw_code;
         let is_word_space = raw_code.as_slice() == b" ";
@@ -1295,7 +1338,7 @@ impl Extraction<'_> {
             render_order,
             render_mode: state.graphics.render_mode,
             crop_status: glyph_crop_status(bbox, page_geometry.crop_bounds),
-            path_clip_status: glyph_path_clip_status(bbox, state.graphics.clip_region),
+            path_clip_status,
             provenance: GlyphProvenance {
                 content_stream: stream,
                 operator_index: operation.index,
@@ -1644,7 +1687,7 @@ impl Extraction<'_> {
                 page,
                 stream,
                 operation,
-                image_paint_bounds(page_geometry, state),
+                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
             );
         }
         let CachedXObjectKind::Form {
@@ -1688,6 +1731,7 @@ impl Extraction<'_> {
             form_state.marked_stack.clear();
             form_state.marked_overflow = 0;
             form_state.content_form = Some(reference);
+            form_state.graphics.form_paint_bounds = bounds.or(state.graphics.form_paint_bounds);
             form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
             form_state.graphics.paint_ctm = form_state
                 .graphics
@@ -1697,7 +1741,7 @@ impl Extraction<'_> {
                 bbox.ok_or_else(|| Error::Unresolved("Form XObject has no clipping BBox".into()))?;
             let (min_x, max_x) = (x0.min(x1), x0.max(x1));
             let (min_y, max_y) = (y0.min(y1), y0.max(y1));
-            let (_, rectangle) = transformed_rectangle_path(
+            let (corners, rectangle) = transformed_rectangle_path(
                 page_geometry,
                 form_state.graphics.ctm,
                 min_x,
@@ -1705,13 +1749,21 @@ impl Extraction<'_> {
                 max_x - min_x,
                 max_y - min_y,
             )?;
-            let rectangle = rectangle.ok_or_else(|| {
-                Error::Unsupported("non-axis-aligned Form XObject clipping BBox".into())
-            })?;
+            self.charge_convex_clip_work(form_state.graphics.clip_region.work())?;
             // The Form's implicit clip is established before its operators and
             // remains local to this invocation, including nested graphics saves.
-            form_state.graphics.clip_region =
-                intersect_clip_region(form_state.graphics.clip_region, rectangle);
+            form_state.graphics.clip_region = if let Some(rectangle) = rectangle {
+                form_state
+                    .graphics
+                    .clip_region
+                    .intersect_rectangle(rectangle)
+            } else {
+                self.charge_convex_clip_work(16)?;
+                let quad = Quad::new(corners).ok_or_else(|| {
+                    Error::Unsupported("uncertain convex Form XObject clipping BBox".into())
+                })?;
+                form_state.graphics.clip_region.intersect_quad(quad)
+            };
             form_state.graphics_stack.clear();
             form_state.current_path.reset();
             form_state.compatibility_depth = 0;
@@ -2430,6 +2482,8 @@ struct GraphicsState {
     paint_ctm: MatrixBounds,
     line_width: f64,
     clip_region: ClipRegion,
+    // An outward bound of the enclosing Form remains valid for opaque paints.
+    form_paint_bounds: Option<Rect>,
     character_spacing: f64,
     word_spacing: f64,
     horizontal_scale: f64,
@@ -2447,6 +2501,7 @@ impl Default for GraphicsState {
             paint_ctm: MatrixBounds::from(Matrix::IDENTITY),
             line_width: 1.0,
             clip_region: ClipRegion::Unbounded,
+            form_paint_bounds: None,
             character_spacing: 0.0,
             word_spacing: 0.0,
             horizontal_scale: 1.0,
@@ -2862,51 +2917,6 @@ fn transformed_line_width(page_geometry: PageGeometry, ctm: Matrix, width: f64) 
     }
 }
 
-fn intersect_clip_region(current: ClipRegion, rectangle: Rect) -> ClipRegion {
-    if rectangle.max.x <= rectangle.min.x || rectangle.max.y <= rectangle.min.y {
-        return ClipRegion::Empty;
-    }
-    match current {
-        ClipRegion::Unbounded => ClipRegion::Rectangle(rectangle),
-        ClipRegion::Rectangle(current) => {
-            let intersection = Rect {
-                min: Vec2 {
-                    x: current.min.x.max(rectangle.min.x),
-                    y: current.min.y.max(rectangle.min.y),
-                },
-                max: Vec2 {
-                    x: current.max.x.min(rectangle.max.x),
-                    y: current.max.y.min(rectangle.max.y),
-                },
-            };
-            if intersection.max.x <= intersection.min.x || intersection.max.y <= intersection.min.y
-            {
-                ClipRegion::Empty
-            } else {
-                ClipRegion::Rectangle(intersection)
-            }
-        }
-        ClipRegion::Empty => ClipRegion::Empty,
-    }
-}
-
-fn segment_is_visible(segment: PathSegment, clip_region: ClipRegion) -> bool {
-    match clip_region {
-        ClipRegion::Unbounded => true,
-        ClipRegion::Rectangle(rectangle) => {
-            point_is_inside(segment.from, rectangle) && point_is_inside(segment.to, rectangle)
-        }
-        ClipRegion::Empty => false,
-    }
-}
-
-fn point_is_inside(point: Vec2, rectangle: Rect) -> bool {
-    point.x >= rectangle.min.x
-        && point.x <= rectangle.max.x
-        && point.y >= rectangle.min.y
-        && point.y <= rectangle.max.y
-}
-
 fn transformed_rect(matrix: Matrix, x0: f64, y0: f64, x1: f64, y1: f64) -> Result<Rect> {
     let corners = [
         matrix.transform_point(x0, y0)?,
@@ -2945,31 +2955,6 @@ fn glyph_crop_status(glyph: Rect, crop: Rect) -> GlyphCropStatus {
         GlyphCropStatus::PartiallyOutside
     } else {
         GlyphCropStatus::Inside
-    }
-}
-
-fn glyph_path_clip_status(glyph: Rect, clip_region: ClipRegion) -> GlyphPathClipStatus {
-    let ClipRegion::Rectangle(clip) = clip_region else {
-        return match clip_region {
-            ClipRegion::Unbounded => GlyphPathClipStatus::Unclipped,
-            ClipRegion::Empty => GlyphPathClipStatus::Outside,
-            ClipRegion::Rectangle(_) => unreachable!(),
-        };
-    };
-    if glyph.max.x <= clip.min.x
-        || glyph.min.x >= clip.max.x
-        || glyph.max.y <= clip.min.y
-        || glyph.min.y >= clip.max.y
-    {
-        GlyphPathClipStatus::Outside
-    } else if glyph.min.x < clip.min.x
-        || glyph.max.x > clip.max.x
-        || glyph.min.y < clip.min.y
-        || glyph.max.y > clip.max.y
-    {
-        GlyphPathClipStatus::PartiallyOutside
-    } else {
-        GlyphPathClipStatus::Inside
     }
 }
 

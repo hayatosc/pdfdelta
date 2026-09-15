@@ -795,6 +795,9 @@ fn acquired_paint_bounds_enclose_images_fills_and_caps_without_guessing_joins() 
             ("10 10 m 20 10 20 20 10 20 c f", None),
             ("/Shade sh", None),
         ] {
+            // Unknown primitive extent stays unknown on a page; a Form supplies
+            // its independent clipping bound without resolving the primitive.
+            let expected = expected.or_else(|| nested.then_some((0.0, 0.0, 100.0, 100.0)));
             let pdf = LopdfParser
                 .parse(
                     Arc::from(image_pdf([0; 3], content.as_bytes(), nested)),

@@ -644,6 +644,176 @@ fn recognizes_single_line_built_rectangular_clips() -> Result<()> {
 }
 
 #[test]
+fn convex_quadrilateral_clips_classify_glyphs_without_box_substitution() -> Result<()> {
+    for (path, rule) in [
+        ("40 80 m 100 20 l 160 80 l 100 140 l h", "W"),
+        ("100 140 m 160 80 l 100 20 l 40 80 l", "W*"),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+            "q {path} {rule} n BT /F1 10 Tf 1 0 0 1 95 80 Tm (I) Tj 1 0 0 1 153 80 Tm (P) Tj 1 0 0 1 45 25 Tm (O) Tj ET Q BT /F1 10 Tf 1 0 0 1 45 25 Tm (C) Tj ET"
+        ).into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(outcome.is_complete());
+        let glyphs = outcome.document().items();
+        assert_eq!(mapped_text(glyphs), "IPOC");
+        assert_eq!(
+            glyphs
+                .iter()
+                .map(|g| g.path_clip_status)
+                .collect::<Vec<_>>(),
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::PartiallyOutside,
+                GlyphPathClipStatus::Outside,
+                GlyphPathClipStatus::Unclipped,
+            ]
+        );
+        assert_eq!(glyphs[2].raw_code, b"O");
+        assert_close(glyphs[2].baseline.x, 45.0);
+        assert_eq!(glyphs[2].provenance.content_stream.object_number, content.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn convex_clip_classification_has_a_shared_extraction_work_limit() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"40 80 m 100 20 l 160 80 l 100 140 l h W n BT /F1 10 Tf 1 0 0 1 80 80 Tm (Repeated) Tj ET"
+            .to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+    assert!(matches!(
+        extract(
+            pdf,
+            ExtractionLimits {
+                max_operators: 50,
+                ..ExtractionLimits::default()
+            }
+        ),
+        Err(Error::LimitExceeded {
+            resource: "convex clipping work",
+            limit: 50
+        })
+    ));
+}
+
+#[test]
+fn sheared_form_clip_intersects_caller_and_restores_after_invocation() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 40.into(), 40.into()],
+            "Matrix" => vec![1.into(), 1.into(), 0.into(), 1.into(), 0.into(), 0.into()],
+        },
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (I) Tj 1 0 0 1 30 20 Tm (O) Tj ET".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"q 0 0 20 100 re W n /X Do Q BT /F1 10 Tf 1 0 0 1 50 20 Tm (C) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    assert_eq!(mapped_text(outcome.document().items()), "IOC");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|g| g.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Outside,
+            GlyphPathClipStatus::Unclipped,
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn opaque_form_paints_retain_the_outward_form_bound_without_leaking_it() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![10.into(), 20.into(), 30.into(), 40.into()],
+            "Matrix" => vec![1.into(), 1.into(), 0.into(), 1.into(), 0.into(), 0.into()],
+        },
+        b"-100 -100 m 0 200 200 0 100 100 c f".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"q 1 0 0 1 50 60 cm /X Do Q -100 -100 m 0 200 200 0 100 100 c f".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    let paints = outcome
+        .document()
+        .non_text_paint_bounds()
+        .expect("paint records");
+    assert_eq!(paints.len(), 2);
+    let bounds = paints[0].bounds.expect("Form clips its opaque curve");
+    for (actual, expected, lower) in [
+        (bounds.min.x, 60.0, true),
+        (bounds.min.y, 90.0, true),
+        (bounds.max.x, 80.0, false),
+        (bounds.max.y, 130.0, false),
+    ] {
+        assert!((actual - expected).abs() < 1e-9);
+        assert!(if lower {
+            actual <= expected
+        } else {
+            actual >= expected
+        });
+    }
+    assert_eq!(paints[0].content_stream.object_number, form.0);
+    assert!(paints[1].bounds.is_none());
+    Ok(())
+}
+
+#[test]
 fn rejects_non_rectangular_and_multiple_line_built_clips() -> Result<()> {
     for path in [
         "40 40 m 140 40 l 90 120 l h",
@@ -1700,7 +1870,7 @@ fn nested_form_box_cannot_expand_the_enclosing_form_clip() -> Result<()> {
 fn unsupported_form_boxes_keep_an_extraction_gap() -> Result<()> {
     for (bbox, matrix) in [
         (None, [1, 0, 0, 1, 0, 0]),
-        (Some([0, 0, 40, 40]), [1, 1, 0, 1, 0, 0]),
+        (Some([0, 0, 40, 40]), [1, 1, 1, 1, 0, 0]),
     ] {
         let mut pdf = LopdfDocument::with_version("1.7");
         let font = base_font(&mut pdf);

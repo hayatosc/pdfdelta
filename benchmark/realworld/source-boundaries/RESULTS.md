@@ -1287,3 +1287,30 @@ Format, Clippy and 2461 workspace tests pass (two ignored), along with all 48
 generated cases and both renderings of the five core acceptance cases. This is
 a clipping prerequisite, not a recovery or completion gain. Non-axis-aligned
 paths remain unsupported, and the fixed denominator remains 36.
+
+### Recover source evidence through certified convex clips
+
+Single convex quadrilateral clips now retain their half-planes and intersect
+with inherited path and Form clips. Outward-rounded determinant intervals
+certify inside, outside or partial glyph relationships; uncertain intersections
+remain unresolved. Immutable constraint lists share saved graphics state, and
+a cumulative work ceiling derived from the existing operator limit bounds
+classification and copying. No acquisition or comparison limit increases.
+
+The first pilot exposed eight opaque paints per Mask R-CNN revision after its
+Form began to parse. Their enclosing outward Form bound now remains available,
+so these paints do not falsely poison disjoint page regions. The original
+923/984-glyph abstract comparison is preserved. Each revision gains 40 mapped
+figure glyphs and 222 compared sources without losing prior glyph evidence.
+
+[convex-clipping-result.json](../remaining/convex-clipping-result.json) retains
+the two pilot captures and source review. Mask R-CNN adds 25 conditional views
+and loses six other views under the unchanged bounded search. The respective
+old/new source unions gain 1696/1700 and lose 477/628 sources; these counts are
+not added to strict-mask coverage. New token-multiplicity claims are checked
+against source text and retain null strict masks. DDPM still has an uncertified
+glyph/clip intersection, and neither document comparison becomes complete.
+
+Format, Clippy, 2469 workspace tests (two ignored), and all 48 generated cases
+pass. A full 36-pair capture is running separately; its scoring and controls
+remain pending. No new G1 pair, blind recovery or completion gate is claimed.
