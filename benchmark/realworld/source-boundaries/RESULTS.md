@@ -1381,3 +1381,23 @@ B count (22), or source-cut work. The trial was reverted; no production change
 is retained. The next diagnosis must trace boundary populations and stage work
 across pages, rather than assuming local bibliography extraction loss or
 repeated identical paint scans. Document-wide completion remains unproven.
+
+### Stop a source census after the first rejected side
+
+`../remaining/short-circuit-census-result.json` retains a controlled diagnostic
+that switches only Form paint enclosures. The initial page runs and accepted
+anchors agree, while the bounded variant loses the bibliography review during
+limited source-cut discovery. Both diagnostic outputs reproduce their respective
+retained comparison objects. Diagnostic switches and logging were removed.
+
+The paired census previously evaluated both sides even after the old side could
+not close. The search now stops that candidate immediately, preserving work for
+later intervals. Admitted pairs still require both complete original checks;
+source evidence and resource limits are unchanged. BERT recovers from 22 to 23 B
+outputs, with exactly the same source populations as the pre-convex baseline and
+no loss of current outputs. Document-wide completion remains false.
+
+All 189 fixed control event populations match the previous executable, with zero
+false strict atoms on the annotated unchanged controls. Format, Clippy, 2471
+workspace tests (two ignored) and all 48 generated cases pass. The full 36-pair
+replay is still running; no panel-wide gain or gate completion is claimed yet.

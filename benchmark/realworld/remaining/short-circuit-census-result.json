@@ -1,0 +1,186 @@
+{
+  "status": "implemented_verified_short_circuit_of_rejected_source_census",
+  "previous_turn_classification": "progress: isolated unchanged BERT glyph/graph evidence and rejected ineffective paint deduplication in 75524c5",
+  "production_changed": true,
+  "fixed_panel_denominator": 36,
+  "mechanism": "The source-cut search evaluated both censuses eagerly. If the old interval cannot close, the pair cannot be admitted; stop there and preserve the shared budget for subsequent candidates. Successful pairs retain both original checks.",
+  "limits_changed": false,
+  "evidence_changed": false,
+  "bert": {
+    "B_counts": {
+      "baseline": 23,
+      "before": 22,
+      "after": 23
+    },
+    "after_populations_equal_pre_convex_baseline": true,
+    "retained_before_events": true,
+    "recovered_events": 1,
+    "comparison_complete": false,
+    "reports": {
+      "baseline": {
+        "path": "benchmark/realworld/cache/recovery/bert-baseline-review.json",
+        "sha256": "078efb1927cf3740f50b7c7a963fad22080ce47cd4141f1cbf66adb18f951348"
+      },
+      "before": {
+        "path": "benchmark/realworld/cache/recovery/bert-current-review.json",
+        "sha256": "ea9d195d875c9cb78eb8ce0a1dca7e4363dea9440023237729681dadb0677842"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/recovery/bert-short-circuit/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "a3329c4bc7119c53455ef8fd7e240d694693a134183aa976a980f6b1a7f11679"
+      }
+    },
+    "coverage": [
+      {
+        "channel": "text",
+        "old_inventory_complete": false,
+        "new_inventory_complete": false,
+        "old_discovered_sources": 46126,
+        "new_discovered_sources": 54003,
+        "old_compared_sources": 7064,
+        "new_compared_sources": 7064,
+        "old_presence_sources": 0,
+        "new_presence_sources": 0,
+        "old_uncompared_sources": 39062,
+        "new_uncompared_sources": 46939,
+        "complete": false
+      }
+    ]
+  },
+  "diagnostic": {
+    "description": "A diagnostic-only executable toggled Form paint enclosures while preserving glyph clipping. The bounded and unbounded comparisons exactly reproduce the before and pre-convex baseline comparisons. Initial page-run and anchor populations agree; later budget exhaustion differs.",
+    "stage_logs": {
+      "bounded": [
+        "BERT_PASS kind=0 pass=0 remaining=932677 reviews=0",
+        "BERT_PASS kind=0 pass=1 remaining=863786 reviews=6",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/native/projection.rs:220:9 remaining=0 requested=4",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/cuts.rs:732:16 remaining=0 requested=1",
+        "BERT_PASS kind=0 pass=2 remaining=621653 reviews=10",
+        "BERT_PASS kind=0 pass=3 remaining=597526 reviews=11",
+        "BERT_PASS kind=0 pass=4 remaining=203160 reviews=17",
+        "BERT_PASS kind=0 pass=5 remaining=203160 reviews=17",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/native.rs:627:17 remaining=0 requested=1",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/cuts/pages.rs:87:8 remaining=0 requested=995",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/cuts/pages.rs:87:8 remaining=0 requested=995"
+      ],
+      "unbounded": [
+        "BERT_PASS kind=0 pass=0 remaining=932677 reviews=0",
+        "BERT_PASS kind=0 pass=1 remaining=863786 reviews=6",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/native.rs:920:13 remaining=0 requested=1",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/native/census.rs:42:9 remaining=0 requested=168",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/cuts.rs:732:16 remaining=0 requested=1",
+        "BERT_PASS kind=0 pass=2 remaining=621587 reviews=11",
+        "BERT_PASS kind=0 pass=3 remaining=597106 reviews=12",
+        "BERT_PASS kind=0 pass=4 remaining=150290 reviews=18",
+        "BERT_PASS kind=0 pass=5 remaining=150290 reviews=18",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/native.rs:588:13 remaining=7 requested=43",
+        "BERT_LIMIT at=crates/pdfdelta-core/src/document/text_scopes/native.rs:148:8 remaining=7 requested=3178"
+      ]
+    },
+    "patch": {
+      "path": "benchmark/realworld/cache/recovery/bert-stage-trace.patch",
+      "sha256": "abb9de5fa8b2f8a7efc70edb8d247045e4e7cce96da4612087c7cf2884616968"
+    },
+    "binary": {
+      "path": "benchmark/realworld/cache/recovery/bert-stage-trace-pdfdelta",
+      "sha256": "9cd246a9e18f7d7556fe60c3f2a32a7ca2ba37ac384ee44f0d6ab1d098d2976f"
+    },
+    "runs": [
+      {
+        "path": "benchmark/realworld/cache/recovery/bert-pass-bounded.json",
+        "sha256": "a1d328ba959874ac535c9aa490ff1bacec7fb979ec37a42f9d8cc565b31279f8"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/bert-pass-bounded.log",
+        "sha256": "5489667f42e11502fcad937d21720df5761cee60a99a40774ccf31085411f561"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/bert-pass-unbounded.json",
+        "sha256": "915092bd728b3b3026b97e3520e7a009c0b41593084cd14ffe535926b6488d9b"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/bert-pass-unbounded.log",
+        "sha256": "239ff7b31ffa3e028a3d3b1b2dcb8d04beab1a789a5623137ec11d278cf25569"
+      }
+    ],
+    "driver": {
+      "path": "benchmark/realworld/cache/recovery/bert-pass.py",
+      "sha256": "24c5996600bd92c33637c2c2e0981899bf730cba4d13ddc529ea8455d444958a"
+    },
+    "production_diagnostics_removed": true
+  },
+  "controls": {
+    "attempts_per_revision": 189,
+    "event_identities_equal": 189,
+    "negative_false_strict_atoms": 0,
+    "artifacts": [
+      {
+        "path": "benchmark/realworld/cache/recovery/layout-current/runs.json",
+        "sha256": "460b2de4a07ebef2346d17fcd99ecb32de098757e3d27d4020458372a10c39a3"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/layout-short-circuit/runs.json",
+        "sha256": "3d4bc571dfd45aa6d5423a3ee6afc2757be0c932018b6f91176fef356815525a"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/short-circuit-control-events.json",
+        "sha256": "c01cc43e913ec7bd1cd44f0f70bf46ae6752fbba13d9513f48eb01007d2b32b3"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/short-circuit-control-scores/scores.json",
+        "sha256": "6152f713bbb5e15f8d622ec9161faa10bb6b17bb9736cd4c73e972ff52a8fac4"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/short-circuit-control-scores/summary.json",
+        "sha256": "a9fe8a031948a91a7c4f2f00456b4af6791effac42e457f39702726893cb9ad1"
+      }
+    ]
+  },
+  "checks": {
+    "format": "passed",
+    "clippy": "passed",
+    "workspace_passed": 2471,
+    "workspace_failed": 0,
+    "workspace_ignored": 2,
+    "generated_cases_passed": 48,
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/recovery/short-circuit-clippy.log",
+        "sha256": "dd1235985d2d5d9e0a23abf530562ab265a778ff7874afca2c9141445f8a587b"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/short-circuit-tests.log",
+        "sha256": "645b04a0ae7d806de58ca2228aceec08d344055e35befdd6bdb8709aea727801"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/short-circuit-generated.log",
+        "sha256": "29069e438ae4d7ad895517da63b4756ea6d31aaa2ead41a5185c0e48ed60d997"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/short-circuit-census-build.log",
+        "sha256": "5e70286223d96799028d880bbffbf38a07f138836a92bc716248bd4214030dac"
+      }
+    ]
+  },
+  "binary": {
+    "path": "benchmark/realworld/cache/recovery/short-circuit-pdfdelta",
+    "sha256": "c0c0764ad87daa95c73234331f2de47a000a126622e893a4ef4a15dd0e721036"
+  },
+  "implementation": {
+    "path": "benchmark/realworld/cache/recovery/short-circuit.patch",
+    "sha256": "d3020bcc422f9908666f670dcbb09eec6417a3bfdbb8135bc0ed7457bd2145d9"
+  },
+  "full_panel": {
+    "status": "capture_in_progress",
+    "driver": {
+      "path": "benchmark/realworld/cache/recovery/capture-short-circuit-panel.py",
+      "sha256": "c38997b61672fbcd8da8c69fc4d7bf4aeeab020cc694855de1591e3b3616318f"
+    },
+    "output": "benchmark/realworld/cache/recovery/panel-short-circuit",
+    "claim": "No full-panel improvement or gate achievement claimed before completion and source review."
+  },
+  "reproduction": {
+    "path": "benchmark/realworld/cache/recovery/retain-short-circuit.py",
+    "sha256": "e4646176cd67fb1852f7759b4bc2809519ae2e41307d4c8e02aed25e437990a3"
+  }
+}

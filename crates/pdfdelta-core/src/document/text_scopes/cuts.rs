@@ -913,7 +913,7 @@ pub(super) fn append<'nodes>(
         // Both require the same ordered borrowed source population.
         let census = cached.map_or_else(
             || {
-                (
+                Some((
                     old_sources.census(
                         old,
                         result.matching.scope.old,
@@ -921,7 +921,7 @@ pub(super) fn append<'nodes>(
                         remaining,
                         rows,
                         pass != Pass::RefineExisting,
-                    ),
+                    )?,
                     new_sources.census(
                         new,
                         result.matching.scope.new,
@@ -929,12 +929,12 @@ pub(super) fn append<'nodes>(
                         remaining,
                         rows,
                         pass != Pass::RefineExisting,
-                    ),
-                )
+                    )?,
+                ))
             },
             |proof| {
                 let closure = |bounded| {
-                    Some((
+                    (
                         if bounded {
                             native::Closure::BoundedPaint
                         } else {
@@ -942,18 +942,16 @@ pub(super) fn append<'nodes>(
                         },
                         Vec::new(),
                         None,
-                    ))
+                    )
                 };
-                (
+                Some((
                     closure(proof.bounded_paint[0]),
                     closure(proof.bounded_paint[1]),
-                )
+                ))
             },
         );
-        let (
-            Some((old_closure, old_padding, old_rows)),
-            Some((new_closure, new_padding, new_rows)),
-        ) = census
+        let Some(((old_closure, old_padding, old_rows), (new_closure, new_padding, new_rows))) =
+            census
         else {
             aggregate.exhaustive = false;
             continue;
