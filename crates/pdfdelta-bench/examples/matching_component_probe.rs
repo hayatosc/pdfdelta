@@ -117,6 +117,18 @@ fn main() -> Result<()> {
             new,
             PageId(old_page.parse()?),
             PageId(new_page.parse()?),
+            None,
+        );
+    }
+    if let [mode, old, new, old_page, new_page, gap] = args.as_slice()
+        && mode == "--pages-gap"
+    {
+        return pages(
+            old,
+            new,
+            PageId(old_page.parse()?),
+            PageId(new_page.parse()?),
+            Some(gap.parse()?),
         );
     }
     let [old_path, new_path, proposals_path] = args.as_slice() else {
@@ -168,11 +180,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn pages(old: &str, new: &str, old_page: PageId, new_page: PageId) -> Result<()> {
+fn pages(old: &str, new: &str, old_page: PageId, new_page: PageId, gap: Option<f64>) -> Result<()> {
     let limits = DocumentComparisonLimits::default();
+    let mut pipeline = PipelineOptions::default();
+    if let Some(gap) = gap {
+        if !gap.is_finite() || !(0.0..=2.0).contains(&gap) {
+            return Err("diagnostic gap ratio must be finite and in 0..=2".into());
+        }
+        pipeline.block.max_vertical_gap_height_ratio = gap;
+    }
     let old = acquire(old, limits)?;
     let new = acquire(new, limits)?;
-    let pipeline = PipelineOptions::default();
     let mut a = DocumentGraph::from_evidence(&old, pipeline, limits.evidence, limits.graph)?;
     let mut b = DocumentGraph::from_evidence(&new, pipeline, limits.evidence, limits.graph)?;
     let tables = refine_table_views(&mut a, &mut b, &old, &new, pipeline, limits)?;
@@ -209,6 +227,7 @@ fn pages(old: &str, new: &str, old_page: PageId, new_page: PageId) -> Result<()>
         serde_json::to_string(&json!({
             "old": select(&a, &old, old_page)?, "new": select(&b, &new, new_page)?,
             "table_refinements": tables, "certifies_recovery": false,
+            "max_vertical_gap_height_ratio": pipeline.block.max_vertical_gap_height_ratio,
         }))?
     );
     Ok(())

@@ -1,0 +1,192 @@
+{
+  "status": "wider_gap_trial_does_not_restore_both_fixed_paragraphs",
+  "production_changed": false,
+  "certifies_recovery": false,
+  "pair": "mext-primary-japanese-2008-to-2017",
+  "default_gap_ratio": 0.8,
+  "trial_gap_ratio": 1.2,
+  "native_glyphs_unchanged": true,
+  "rows": [
+    {
+      "side": "old",
+      "core_atoms": 92,
+      "page_node_counts_before_after": [
+        28,
+        12
+      ],
+      "target_nodes_before_after": [
+        [
+          {
+            "node": 348,
+            "core_atoms": 39,
+            "extra_atoms": 0,
+            "text": "内容については，これまでは「話すこと・聞くこと」，「書くこと」，「読むこと」の",
+            "normalization": {
+              "kind": "exact"
+            }
+          },
+          {
+            "node": 349,
+            "core_atoms": 38,
+            "extra_atoms": 0,
+            "text": "３領域及び〔言語事項〕で構成していたが，３領域と〔伝統的な言語文化と国語の特",
+            "normalization": {
+              "kind": "exact"
+            }
+          },
+          {
+            "node": 350,
+            "core_atoms": 15,
+            "extra_atoms": 0,
+            "text": "質に関する事項〕に改めている。",
+            "normalization": {
+              "kind": "exact"
+            }
+          }
+        ],
+        [
+          {
+            "node": 237,
+            "core_atoms": 92,
+            "extra_atoms": 0,
+            "text": "内容については，これまでは「話すこと・聞くこと」，「書くこと」，「読むこと」の３領域及び〔言語事項〕で構成していたが，３領域と〔伝統的な言語文化と国語の特質に関する事項〕に改めている。",
+            "normalization": {
+              "kind": "exact"
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "side": "new",
+      "core_atoms": 120,
+      "page_node_counts_before_after": [
+        33,
+        14
+      ],
+      "target_nodes_before_after": [
+        [
+          {
+            "node": 495,
+            "core_atoms": 36,
+            "extra_atoms": 1,
+            "text": " 三つの柱に沿った資質・能力の整理を踏まえ，従前，「話すこと・聞くこと」，",
+            "normalization": {
+              "kind": "exact"
+            }
+          },
+          {
+            "node": 496,
+            "core_atoms": 36,
+            "extra_atoms": 0,
+            "text": "「書くこと」，「読むこと」の３領域及び〔伝統的な言語文化と国語の特質に関",
+            "normalization": {
+              "kind": "exact"
+            }
+          },
+          {
+            "node": 497,
+            "core_atoms": 35,
+            "extra_atoms": 0,
+            "text": "する事項〕で構成していた内容を，〔知識及び技能〕及び〔思考力，判断力，",
+            "normalization": {
+              "kind": "exact"
+            }
+          },
+          {
+            "node": 498,
+            "core_atoms": 13,
+            "extra_atoms": 0,
+            "text": "表現力等〕に構成し直した。",
+            "normalization": {
+              "kind": "exact"
+            }
+          }
+        ],
+        [
+          {
+            "node": 345,
+            "core_atoms": 36,
+            "extra_atoms": 1,
+            "text": " 三つの柱に沿った資質・能力の整理を踏まえ，従前，「話すこと・聞くこと」，",
+            "normalization": {
+              "kind": "exact"
+            }
+          },
+          {
+            "node": 346,
+            "core_atoms": 36,
+            "extra_atoms": 0,
+            "text": "「書くこと」，「読むこと」の３領域及び〔伝統的な言語文化と国語の特質に関",
+            "normalization": {
+              "kind": "exact"
+            }
+          },
+          {
+            "node": 347,
+            "core_atoms": 48,
+            "extra_atoms": 40,
+            "text": "する事項〕で構成していた内容を，〔知識及び技能〕及び〔思考力，判断力，表現力等〕に構成し直した。 〔知識及び技能〕及び〔思考力，判断力，表現力等〕の構成は，以下のとおりである。",
+            "normalization": {
+              "kind": "exact"
+            }
+          }
+        ]
+      ]
+    }
+  ],
+  "findings": [
+    "The observed same-font body line gaps are about 1.002 old and 0.859 new glyph heights, exceeding the default 0.8 ceiling.",
+    "The larger gap ceiling joins the complete old target into one node, but leaves the new target split across three nodes and joins its tail to the following paragraph. A global ceiling increase is not adopted.",
+    "The unchanged heading phrase is embedded in nodes with different literal-space placement around the preceding label. The current full report has no candidate touching old heading node 347 or new heading node 494.",
+    "A broader layout hypothesis must preserve paragraph boundaries and source-backed matching. Neither the graph trial nor fewer nodes establishes additional compared text."
+  ],
+  "bindings": [
+    {
+      "path": "benchmark/realworld/cache/recovery/mext-target-page-bounded.json",
+      "sha256": "586b1a4c526f3c16447a6bfb73be3ebeddf502de1e69ab68ae20ce1696a384a7"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/mext-target-page-gap12.json",
+      "sha256": "2b783ca889bd833b1255498e0da391dba1425ad04cd8c5d3ac84a8ec99753dc0"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/rebound-targets-overlap/mext-primary-japanese-2008-to-2017.json",
+      "sha256": "06c46294bdab3f3d75c646b77aeff38e02f83b31e41112e92c53109dce159d10"
+    },
+    {
+      "path": "crates/pdfdelta-bench/examples/matching_component_probe.rs",
+      "sha256": "9c4c996ad221e4df21faad8398013c968adc80a3278bbacc29deba86c3057095"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/mext-gap-invalid-inputs.json",
+      "sha256": "a299170990c8daa32fc2f7723aa8f028a2951925a3c554ff36ab88bc979bc2eb"
+    }
+  ],
+  "command": "cargo run -p pdfdelta-bench --example matching_component_probe --offline -- --pages-gap benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-old.pdf benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-new.pdf 10 10 1.2",
+  "checks": {
+    "invalid_gap_ratios_rejected": 4,
+    "fmt": "passed",
+    "clippy": "passed",
+    "workspace_tests": "passed",
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-panel-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-panel-clippy.log",
+        "sha256": "45ef15d3ed5d0ab51da30b55c46ae2ffebe0040f6e70613ac95600376d38f813"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/curved-fill-panel-tests.log",
+        "sha256": "b14f835779067e73031cdb60e5536c97e334cd1dd46f3bc9fd618efb9b41163f"
+      }
+    ],
+    "test_totals": {
+      "passed": 2486,
+      "failed": 0,
+      "ignored": 2
+    }
+  }
+}
