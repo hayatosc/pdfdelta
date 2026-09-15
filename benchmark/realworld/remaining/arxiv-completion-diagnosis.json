@@ -1,0 +1,314 @@
+{
+  "status": "shared_convex_clip_extraction_blocker_observed",
+  "previous_turn_classification": "progress: verified panel metadata census committed as 007a953",
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "captures_reproduce_retained_reports_except_time": true,
+  "captures": [
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "old",
+      "totals": {
+        "native_glyph_count": 41561,
+        "unmapped_glyphs": 3366,
+        "paint_bounds": 3222,
+        "paint_events_without_vector_line": 3080
+      },
+      "text_issues": [
+        {
+          "page": 1,
+          "channel": "text",
+          "sources": [],
+          "boundary": {
+            "kind": "page_glyph_gap",
+            "page": 1,
+            "retained_before": 1416,
+            "before": 1415,
+            "after": 1416,
+            "paint_index": 4
+          },
+          "kind": "unsupported",
+          "reason": "non-rectangular clipping path at content operator index 45"
+        }
+      ],
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-ddpm-v1-to-v2/report.json",
+        "sha256": "a0cceef844f50819e4be56e5c79213a988704af02aa01327f467dae004337921"
+      },
+      "source": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-ddpm-v1-to-v2/review/sources.json",
+        "sha256": "b5f24c8ba16bda5ca0337b133fe9722792018aa13a417e46d574e6490c4c0acc"
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "new",
+      "totals": {
+        "native_glyph_count": 45486,
+        "unmapped_glyphs": 3447,
+        "paint_bounds": 3225,
+        "paint_events_without_vector_line": 3080
+      },
+      "text_issues": [
+        {
+          "page": 1,
+          "channel": "text",
+          "sources": [],
+          "boundary": {
+            "kind": "page_glyph_gap",
+            "page": 1,
+            "retained_before": 1476,
+            "before": 1475,
+            "after": 1476,
+            "paint_index": 4
+          },
+          "kind": "unsupported",
+          "reason": "non-rectangular clipping path at content operator index 45"
+        }
+      ],
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-ddpm-v1-to-v2/report.json",
+        "sha256": "a0cceef844f50819e4be56e5c79213a988704af02aa01327f467dae004337921"
+      },
+      "source": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-ddpm-v1-to-v2/review/sources.json",
+        "sha256": "b5f24c8ba16bda5ca0337b133fe9722792018aa13a417e46d574e6490c4c0acc"
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "old",
+      "totals": {
+        "native_glyph_count": 39906,
+        "unmapped_glyphs": 217,
+        "paint_bounds": 5068,
+        "paint_events_without_vector_line": 3381
+      },
+      "text_issues": [
+        {
+          "page": 0,
+          "channel": "text",
+          "sources": [],
+          "boundary": {
+            "kind": "page_glyph_gap",
+            "page": 0,
+            "retained_before": 1869,
+            "before": 1868,
+            "after": 1869,
+            "paint_index": 0
+          },
+          "kind": "unsupported",
+          "reason": "non-rectangular clipping path at content operator index 12"
+        }
+      ],
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-mask-rcnn-v1-to-v3/report.json",
+        "sha256": "ee854a2f4907d36824ab31d7c697768fa5c7301eab017427ad6c558787c3ace1"
+      },
+      "source": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-mask-rcnn-v1-to-v3/review/sources.json",
+        "sha256": "8b6b5afa1fc30e32b12a58ca47800b0596dc1357b7651abe9e52f9c1b379550e"
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "new",
+      "totals": {
+        "native_glyph_count": 52182,
+        "unmapped_glyphs": 258,
+        "paint_bounds": 5817,
+        "paint_events_without_vector_line": 3625
+      },
+      "text_issues": [
+        {
+          "page": 0,
+          "channel": "text",
+          "sources": [],
+          "boundary": {
+            "kind": "page_glyph_gap",
+            "page": 0,
+            "retained_before": 1881,
+            "before": 1880,
+            "after": 1881,
+            "paint_index": 0
+          },
+          "kind": "unsupported",
+          "reason": "non-rectangular clipping path at content operator index 12"
+        }
+      ],
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-mask-rcnn-v1-to-v3/report.json",
+        "sha256": "ee854a2f4907d36824ab31d7c697768fa5c7301eab017427ad6c558787c3ace1"
+      },
+      "source": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-mask-rcnn-v1-to-v3/review/sources.json",
+        "sha256": "8b6b5afa1fc30e32b12a58ca47800b0596dc1357b7651abe9e52f9c1b379550e"
+      }
+    }
+  ],
+  "first_rejected_clips": [
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "old",
+      "stream_object": 132,
+      "vertices": [
+        [
+          275.341146738,
+          691.731285073
+        ],
+        [
+          269.20752600000003,
+          696.523359787
+        ],
+        [
+          273.269773812,
+          701.72284036
+        ],
+        [
+          279.40339455,
+          696.9307326549999
+        ]
+      ],
+      "turn_cross_products": [
+        -51.358236891267524,
+        -51.358370908885135,
+        -51.358168554603296,
+        -51.358034536985684
+      ],
+      "axis_aligned": false
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "new",
+      "stream_object": 136,
+      "vertices": [
+        [
+          275.341146738,
+          691.731285073
+        ],
+        [
+          269.20752600000003,
+          696.523359787
+        ],
+        [
+          273.269773812,
+          701.72284036
+        ],
+        [
+          279.40339455,
+          696.9307326549999
+        ]
+      ],
+      "turn_cross_products": [
+        -51.358236891267524,
+        -51.358370908885135,
+        -51.358168554603296,
+        -51.358034536985684
+      ],
+      "axis_aligned": false
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "old",
+      "stream_object": 7,
+      "vertices": [
+        [
+          308.95368976000003,
+          320.69886908
+        ],
+        [
+          357.07322212,
+          369.35467992
+        ],
+        [
+          357.07322212,
+          453.41339972000003
+        ],
+        [
+          308.95368976000003,
+          404.75758888
+        ]
+      ],
+      "turn_cross_products": [
+        4044.8662875562727,
+        4044.8662875562727,
+        4044.8662875562727,
+        4044.8662875562727
+      ],
+      "axis_aligned": false
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "new",
+      "stream_object": 8,
+      "vertices": [
+        [
+          308.95368976000003,
+          329.81986908
+        ],
+        [
+          357.07322212,
+          378.47567992
+        ],
+        [
+          357.07322212,
+          462.53439972
+        ],
+        [
+          308.95368976000003,
+          413.87858888
+        ]
+      ],
+      "turn_cross_products": [
+        4044.8662875562727,
+        4044.8662875562727,
+        4044.8662875562727,
+        4044.8662875562727
+      ],
+      "axis_aligned": false
+    }
+  ],
+  "finding": "Each revision of both pairs stops one Form invocation at a single non-axis-aligned convex quadrilateral clip. This is not an axis-aligned rectangle recognition failure. Separate unmapped glyphs and paint obligations also remain.",
+  "limitations": [
+    "The cross products classify the observed path only; they do not certify arbitrary polygon arithmetic or clipping intersections.",
+    "The first rejected clip hides later unsupported operations in the rolled-back Form; eliminating it does not establish complete extraction.",
+    "Form bounding-box clipping and inherited graphics state must be accounted for before admitting new visible text.",
+    "No bounding-box substitution, completion relaxation, new A/B recovery or fresh blind result is claimed."
+  ],
+  "next_action": "Test bounded convex-quadrilateral clipping with source-preserving glyph status, caller/Form clipping intersections, numerical uncertainty and unchanged extraction budgets. First establish a synthetic failure and inspect subsequent real-Form operations; reject a bounding-box-only shortcut.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/run.py",
+      "sha256": "8104793f85c42c860880f6c80a2088947aebd8f327a35d554fd049217197ad13"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/check.py",
+      "sha256": "97c9a7f8ba739ae03e8e8e6202d6028e2762206964450f8e21cbd589c61fdb4e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/check.json",
+      "sha256": "3ab1829bc8fb8368e2584e1f123fd9f535edb701bfc656aad116b0c9bdce1192"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/clip-probe.py",
+      "sha256": "6351ae65f1dca6ddd766a4b35892cb941f4f9d925cf5b64664878804eefe6c1c"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/clip-probe.rs",
+      "sha256": "e8576c62e3c83956b89ddd175ec7586a65c2058c2c3620467c64053b9f4499ca"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/clip-probe.log",
+      "sha256": "182a4b5d1fdbc93ecd4b772c86833905825ddb15d13eee0a58e0df9607d4caeb"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-ddpm-v1-to-v2/run.json",
+      "sha256": "4010d90bc4e1a2ab9e43a17160dc3b4a865b16c4011c71f085261647834ee7f3"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/arxiv-completion/arxiv-mask-rcnn-v1-to-v3/run.json",
+      "sha256": "6fab2f6cc8233043a0ebaece9e2307b60e3639209fa37cd51134ed04544138cd"
+    }
+  ]
+}

@@ -1248,3 +1248,21 @@ compared source populations, but neither is a complete comparison. The selection
 is a development investigation on the unchanged 36-pair panel, not a new blind
 set or a completeness claim. The temporary example was removed; production code
 and coverage are unchanged.
+
+### Locate a shared non-axis-aligned clipping boundary
+
+Fresh DDPM and Mask R-CNN captures reproduce the retained reports except elapsed
+time, with input and executable hashes checked. DDPM retains 3366/3447 unmapped
+glyphs; Mask R-CNN retains 217/258. Each revision also has one unsupported Form
+invocation caused by a non-rectangular clipping path. Paint remains a separate
+inventory obligation.
+
+[arxiv-completion-diagnosis.json](../remaining/arxiv-completion-diagnosis.json)
+binds the native evidence and a temporary trace through the existing extractor.
+All four first rejected paths are single convex quadrilaterals with slanted
+edges, not missed axis-aligned rectangles. The trace was removed after capture.
+The next implementation experiment must preserve polygon intersections, inherited
+Form clipping, source geometry and uncertain boundary classifications; replacing
+these polygons with their bounding rectangles is not justified. Later operations
+in the rolled-back Forms remain unexamined, and no recovery or completion gain
+is claimed.
