@@ -764,6 +764,86 @@ fn sheared_form_clip_intersects_caller_and_restores_after_invocation() -> Result
 }
 
 #[test]
+fn ext_gstate_rejects_invalid_widths_and_retains_hairline_uncertainty() -> Result<()> {
+    for width in [
+        Object::Integer(-1),
+        Object::Name(b"invalid".to_vec()),
+        Object::Integer(0),
+    ] {
+        let hairline = width == Object::Integer(0);
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"/G gs 20 100 m 80 100 l S".to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "ExtGState" => dictionary! { "G" => dictionary! { "LW" => width } },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert_eq!(outcome.is_complete(), hairline);
+        if hairline {
+            let paints = outcome
+                .document()
+                .non_text_paint_bounds()
+                .expect("retained hairline");
+            assert_eq!(paints.len(), 1);
+            assert!(paints[0].bounds.is_none());
+        } else {
+            assert!(outcome.document().vector_lines().is_empty());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn ext_gstate_line_width_survives_cache_hits_and_graphics_state_restore() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let width = pdf.add_object(Object::Integer(30));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"2 w 20 100 m 80 100 l S q /G gs 20 120 m 80 120 l S Q 20 140 m 80 140 l S 7 w /G gs 20 160 m 80 160 l S /Empty gs 20 180 m 80 180 l S".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "ExtGState" => dictionary! {
+                "G" => dictionary! { "LW" => width },
+                "Empty" => dictionary! {},
+            }
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    let document = outcome.document();
+    let widths: Vec<_> = document
+        .vector_lines()
+        .iter()
+        .map(|line| line.width)
+        .collect();
+    assert_eq!(widths, [2.0, 30.0, 2.0, 30.0, 30.0]);
+    let paints = document
+        .non_text_paint_bounds()
+        .expect("complete paint inventory");
+    assert_eq!(paints.len(), 5);
+    for (index, width) in widths.iter().enumerate() {
+        let bounds = paints[index].bounds.expect("bounded straight stroke");
+        let y = 100.0 + index as f64 * 20.0;
+        assert!(bounds.min.y <= y - width / 2.0);
+        assert!(bounds.max.y >= y + width / 2.0);
+    }
+    Ok(())
+}
+
+#[test]
 fn opaque_form_paints_retain_the_outward_form_bound_without_leaking_it() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let form = pdf.add_object(Stream::new(
