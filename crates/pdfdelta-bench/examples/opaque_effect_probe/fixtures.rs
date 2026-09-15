@@ -69,6 +69,20 @@ fn fixture(mutation: &str) -> Vec<u8> {
             dictionary! { "XObject" => dictionary! { "Im1" => form } },
         );
     }
+    if matches!(mutation, "unused_nested_cycle" | "nested_default_space") {
+        let stream = pdf
+            .objects
+            .get_mut(&form)
+            .expect("Form")
+            .as_stream_mut()
+            .expect("stream");
+        let mut resources =
+            dictionary! { "XObject" => dictionary! { "Im1" => image, "Unused" => form } };
+        if mutation == "nested_default_space" {
+            resources.set("ColorSpace", dictionary! { "DefaultGray" => "DeviceRGB" });
+        }
+        stream.dict.set("Resources", resources);
+    }
     let state = pdf.add_object(dictionary! {
         "Type" => "ExtGState", "ca" => if mutation == "opacity" { 0.5_f32 } else { 1.0_f32 },
         "CA" => 1, "BM" => if mutation == "blend" { "Multiply" } else { "Normal" },
@@ -99,10 +113,32 @@ fn fixture(mutation: &str) -> Vec<u8> {
         content.push_str(" ET");
     }
     let content = pdf.add_object(Stream::new(dictionary! {}, content.into_bytes()));
+    let mut resources = dictionary! {
+        "XObject" => dictionary! { "Fm1" => form },
+        "ExtGState" => dictionary! { "Gs" => state },
+    };
+    match mutation {
+        "unused_font" => resources.set(
+            "Font",
+            dictionary! { "Unused" => Object::Reference((999, 0)) },
+        ),
+        "unused_image" => resources.set(
+            "XObject",
+            dictionary! { "Fm1" => form, "Unused" => Object::Reference((999, 0)) },
+        ),
+        "unused_state" => resources.set(
+            "ExtGState",
+            dictionary! { "Gs" => state, "Unused" => Object::Reference((999, 0)) },
+        ),
+        "default_space" => {
+            resources.set("ColorSpace", dictionary! { "DefaultRGB" => "DeviceGray" })
+        }
+        _ => {}
+    }
     let page = pdf.add_object(dictionary! {
         "Type" => "Page", "Parent" => pages,
         "MediaBox" => integers(&[0, 0, if mutation == "footprint" { 65 } else { 64 }, 64]),
-        "Resources" => dictionary! { "XObject" => dictionary! { "Fm1" => form }, "ExtGState" => dictionary! { "Gs" => state } },
+        "Resources" => resources,
         "Contents" => content,
     });
     pdf.objects.insert(
@@ -148,6 +184,12 @@ pub fn experiment() -> Value {
     let mut cases = Vec::new();
     for mutation in [
         "metadata_only",
+        "unused_font",
+        "unused_image",
+        "unused_state",
+        "unused_nested_cycle",
+        "default_space",
+        "nested_default_space",
         "image_bytes",
         "caller_transform",
         "caller_clip",
@@ -169,7 +211,14 @@ pub fn experiment() -> Value {
     ] {
         let new = page(mutation);
         let comparison = profile::compare(&old, &new);
-        let passed = if mutation == "metadata_only" {
+        let passed = if matches!(
+            mutation,
+            "metadata_only"
+                | "unused_font"
+                | "unused_image"
+                | "unused_state"
+                | "unused_nested_cycle"
+        ) {
             matches!(comparison, profile::Comparison::Equivalent { .. })
         } else {
             !matches!(comparison, profile::Comparison::Equivalent { .. })

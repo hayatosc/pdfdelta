@@ -49,6 +49,114 @@ impl Reader<'_> {
         Ok(())
     }
 
+    fn resource_dictionary(&mut self, object: &PdfObject, location: &str) -> Checked<PdfDict> {
+        self.charge(0, location)?;
+        let object = if let PdfObject::Reference(reference) = object {
+            self.sources.push(*reference);
+            let resolved = self
+                .pdf
+                .resolve_with_terminal(*reference)
+                .map_err(|error| issue("resolved_resources", location, error))?;
+            self.sources.push(resolved.reference);
+            resolved.object
+        } else {
+            object.clone()
+        };
+        match object {
+            PdfObject::Dictionary(dictionary) => Ok(dictionary),
+            _ => Err(issue(
+                "resolved_resources",
+                location,
+                "expected resource dictionary",
+            )),
+        }
+    }
+
+    fn execution_resources(
+        &mut self,
+        object: &PdfObject,
+        bytes: &[u8],
+        depth: usize,
+        location: &str,
+    ) -> Checked<Value> {
+        if depth > MAX_DEPTH {
+            return Err(issue(
+                "resource_limit",
+                location,
+                "execution resource depth limit",
+            ));
+        }
+        let dictionary = self.resource_dictionary(object, location)?;
+        // Default colour spaces are implicit dependencies even without a named
+        // colour-space operator. Their interpretation remains outside this profile.
+        if let Some(spaces) = dictionary.get(b"ColorSpace".as_slice()) {
+            let spaces = self.resource_dictionary(spaces, location)?;
+            if [b"DefaultGray".as_slice(), b"DefaultRGB", b"DefaultCMYK"]
+                .iter()
+                .any(|key| spaces.contains_key(*key))
+            {
+                return Err(issue(
+                    "color_space",
+                    location,
+                    "implicit default colour space is outside profile",
+                ));
+            }
+        }
+        let content = lopdf::content::Content::decode_strict(bytes)
+            .map_err(|error| issue("commands", location, error))?;
+        if content.operations.len() > MAX_OPERATIONS {
+            return Err(issue("resource_limit", location, "operator limit"));
+        }
+        let mut used = BTreeMap::<&str, BTreeSet<Vec<u8>>>::new();
+        for operation in content.operations {
+            self.charge(0, location)?;
+            let category = match operation.operator.as_str() {
+                "Do" => "XObject",
+                "gs" => "ExtGState",
+                _ => continue,
+            };
+            let [lopdf::Object::Name(name)] = operation.operands.as_slice() else {
+                return Err(issue(
+                    "operands",
+                    location,
+                    "resource invocation requires one name",
+                ));
+            };
+            self.charge(name.len(), location)?;
+            used.entry(category).or_default().insert(name.clone());
+        }
+        let mut selected = BTreeMap::new();
+        for (category, names) in used {
+            let table = dictionary.get(category.as_bytes()).ok_or_else(|| {
+                issue(
+                    "resolved_resources",
+                    location,
+                    "missing invoked resource category",
+                )
+            })?;
+            let table = self.resource_dictionary(table, location)?;
+            let mut values = BTreeMap::new();
+            for name in names {
+                let value = table.get(&name).ok_or_else(|| {
+                    issue("resolved_resources", location, "missing invoked resource")
+                })?;
+                let key = String::from_utf8(name).map_err(|_| {
+                    issue(
+                        "resource_name",
+                        location,
+                        "non-UTF-8 resource name outside profile",
+                    )
+                })?;
+                values.insert(
+                    key.clone(),
+                    self.expand(value, depth + 1, &format!("{location}/{category}/{key}"))?,
+                );
+            }
+            selected.insert(category.into(), Value::Dictionary(values));
+        }
+        Ok(Value::Dictionary(selected))
+    }
+
     fn expand(&mut self, object: &PdfObject, depth: usize, location: &str) -> Checked<Value> {
         self.charge(0, location)?;
         if depth > MAX_DEPTH {
@@ -105,8 +213,32 @@ impl Reader<'_> {
                         .decoded_stream(resolved.reference)
                         .map_err(|error| issue("resolved_stream", location, error))?;
                     self.charge(decoded.bytes.len(), location)?;
+                    let mut raw = decoded.dictionary;
+                    let nested = if raw.get(b"Subtype".as_slice())
+                        == Some(&PdfObject::Name(b"Form".to_vec()))
+                    {
+                        let resources = raw.remove(b"Resources".as_slice()).ok_or_else(|| {
+                            issue(
+                                "nested_invocation",
+                                location,
+                                "Form must declare its resources explicitly",
+                            )
+                        })?;
+                        Some(self.execution_resources(
+                            &resources,
+                            &decoded.bytes,
+                            depth + 1,
+                            location,
+                        )?)
+                    } else {
+                        None
+                    };
+                    let mut dictionary = self.dictionary(&raw, depth + 1, location)?;
+                    if let Some(resources) = nested {
+                        dictionary.insert("Resources".into(), resources);
+                    }
                     Value::Stream {
-                        dictionary: self.dictionary(&decoded.dictionary, depth + 1, location)?,
+                        dictionary,
                         bytes: decoded.bytes,
                     }
                 } else {
@@ -612,14 +744,6 @@ pub fn capture(pdf: &dyn ParsedPdf, input_sha256: &str) -> Capture {
             let snapshot = pdf
                 .page_snapshot(reference)
                 .map_err(|error| issue("acquisition", "page snapshot", error))?;
-            let resources = reader.expand(
-                snapshot
-                    .resources
-                    .as_deref()
-                    .unwrap_or(&PdfObject::Dictionary(BTreeMap::new())),
-                0,
-                "page resources",
-            )?;
             let mut page_dictionary = snapshot.dictionary;
             let contents = page_dictionary
                 .remove(b"Contents".as_slice())
@@ -661,12 +785,21 @@ pub fn capture(pdf: &dyn ParsedPdf, input_sha256: &str) -> Capture {
                     "user unit must be positive and finite",
                 ));
             }
+            let mut bytes = Vec::new();
+            reader.contents(&contents, 0, &mut bytes)?;
+            let resources = reader.execution_resources(
+                snapshot
+                    .resources
+                    .as_deref()
+                    .unwrap_or(&PdfObject::Dictionary(BTreeMap::new())),
+                &bytes,
+                0,
+                "page resources",
+            )?;
             let mut operations = 0;
             if let Err(error) = self::resources(&resources, "page resources", 0, &mut operations) {
                 page.issues.push(error);
             }
-            let mut bytes = Vec::new();
-            reader.contents(&contents, 0, &mut bytes)?;
             let commands = program(&bytes, &resources, "page contents", &mut operations)?;
             Ok(Closure {
                 profile: PROFILE.into(),

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROFILE: &str = "opaque-primitive-closure-v1";
+pub const PROFILE: &str = "opaque-invoked-resources-v2";
 
 /// Object references have been expanded with checked depth/work limits. Stream
 /// contents are retained exactly; their dictionary and decoded bytes both matter.
@@ -59,7 +59,9 @@ impl Default for Entry {
             graphics_state:
                 "PDF initial graphics state; page transform and clip from page dictionary".into(),
             backdrop_rgb: [1.0; 3],
-            optional_content: "absent from catalog, page, resources and commands".into(),
+            optional_content:
+                "no optional-content execution; catalog and page visibility extensions rejected"
+                    .into(),
             external_overlaps: "complete page program; annotations and external paint unsupported"
                 .into(),
             output_footprint: "page media/crop intersection, with declared rotation and user unit"

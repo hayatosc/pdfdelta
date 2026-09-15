@@ -1,5 +1,11 @@
 # Restricted opaque-effect experiment
 
+> Historical v1 record: the current benchmark example now uses the separate
+> `opaque-invoked-resources-v2` profile. See
+> [invocation-selected resource evaluation](../../remaining/source-completion/invoked-resources-v2.md).
+> The v1 measurements and adoption decision below remain unchanged; reproducing
+> that profile requires its recorded source snapshot, not the current example.
+
 Decision: retain `opaque-primitive-closure-v1` as a benchmark diagnostic. No W-2
 page receives an equivalence certificate. The experiment changes neither text
 inventory nor `comparison_complete`; historical G3 remains unmet. Its result
