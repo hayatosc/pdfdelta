@@ -182,7 +182,7 @@ def gate_summary(development_pairs, blind_pairs, development_producers, blind_pr
     }
 
 
-def checked_boundary_proposal(result, index):
+def checked_boundary_proposal(result, index, *, allow_groups=False):
     accepted = set(result["accepted_correspondences"]) | set(result["text_boundary_correspondences"])
     mandatory = set(result["matching"]["source_only_mandatory"])
     inferred = set(result["matching"]["inferred_proposals"])
@@ -192,8 +192,17 @@ def checked_boundary_proposal(result, index):
             and index in accepted & mandatory and index not in inferred,
             "interval depends on an unaccepted or inferred boundary")
     value = proposals[index]
-    require(all(len(value[side]) == 1 for side in ("old", "new")),
-            "interval boundary is not a single retained node")
+    if any(len(value[side]) != 1 for side in ("old", "new")):
+        require(allow_groups and CONTRACT == "source-boundaries-v1",
+                "this boundary contract requires a single retained node")
+        require(all(value[side] and len(value[side]) == len(set(value[side]))
+                    and all(type(node) is int and node >= 0 for node in value[side])
+                    for side in ("old", "new")), "invalid group boundary members")
+        require(any(comparison["old"] == value["old"] and comparison["new"] == value["new"]
+                    and comparison["compared"] and comparison["operation"] is None
+                    and comparison.get("text_mask") is not None
+                    for comparison in result["comparisons"]),
+                "group boundary lacks an unchanged exact comparison")
     return value
 
 
@@ -409,7 +418,7 @@ def checked_native_regions(review, result):
         members = {side: population[side] for side in chains}
     else:
         require(len(review["boundaries"]) == 2, "region chain lacks matched endpoints")
-        outer = [checked_boundary_proposal(result, index) for index in review["boundaries"]]
+        outer = [checked_boundary_proposal(result, index, allow_groups=True) for index in review["boundaries"]]
         members = {side: outer[0][side] + review["comparison"][side] + outer[1][side]
                    for side in chains}
     for side, chain in chains.items():
@@ -459,7 +468,33 @@ def checked_interval_presence(review, result):
         require(len(review["boundaries"]) == 2 and len(set(review["boundaries"])) == 2,
                 "empty interval lacks distinct boundary correspondences")
         for index in review["boundaries"]:
-            checked_boundary_proposal(result, index)
+            checked_boundary_proposal(result, index, allow_groups=True)
+
+
+def cut_separator_context(review, side, boundary, text):
+    """Recognize a non-owning edge separator joined to its certified cut fragment."""
+    cuts = review.get("source_cuts")
+    body = review[side + "_sources"]
+    if not cuts or not body or boundary["origin"] not in (
+            "reconstructed_gap", "line_separator", "page_separator"):
+        return False
+    for edge, position in (("entry", 0), ("exit", len(text) - 1)):
+        cut = cuts[edge]
+        evidence = cut["evidence"]
+        if boundary["position"] != position or evidence["kind"] != "unique_native_fragment":
+            continue
+        fragment = evidence[side]
+        refs = fragment["sources"]
+        if not refs or fragment["node"] != cut[side]["node"]:
+            continue
+        endpoint = fragment["tokens"][1 if edge == "entry" else 0]
+        if cut[side]["token_boundary"] != endpoint:
+            continue
+        expected = [refs[-1], body[0]] if edge == "entry" else [body[-1], refs[0]]
+        outside = expected[0 if edge == "entry" else 1]
+        if outside not in body and boundary["sources"] == expected:
+            return True
+    return False
 
 
 def checked_spacing_change(review):
@@ -480,7 +515,8 @@ def checked_spacing_change(review):
             require(boundary["origin"] in ("literal_glyph", "reconstructed_gap", "line_separator",
                                            "page_separator", "ambiguous")
                     and boundary["sources"]
-                    and historical.native_sources(boundary["sources"], side) <= sources,
+                    and (historical.native_sources(boundary["sources"], side) <= sources
+                         or cut_separator_context(review, side, boundary, text)),
                     "spacing provenance lies outside the review sources")
     proof = comparison.get("text_change_proof")
     if proof is not None:

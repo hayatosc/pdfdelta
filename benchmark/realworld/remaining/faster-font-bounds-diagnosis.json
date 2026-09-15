@@ -1,0 +1,162 @@
+{
+  "status": "source_font_bounds_diagnosed_not_adopted",
+  "pair": "arxiv-faster-rcnn-v1-to-v3",
+  "margin_font": {
+    "base_font": "Times-Roman",
+    "descriptor": "None",
+    "encoding": "None",
+    "font": "{[66, 97, 115, 101, 70, 111, 110, 116]: Name([84, 105, 109, 101, 115, 45, 82, 111, 109, 97, 110]), [78, 97, 109, 101]: Name([97, 114, 88, 105, 118, 83, 116, 65, 109, 80]), [83, 117, 98, 116, 121, 112, 101]: Name([84, 121, 112, 101, 49]), [84, 121, 112, 101]: Name([70, 111, 110, 116])}",
+    "object": "Reference(ObjectRef { object_number: 1769, generation: 0 })",
+    "programs": [],
+    "resource": "arXivStAmP"
+  },
+  "margin_stream": "q\n0.5 G 0.5 g\nBT\n/arXivStAmP 20 Tf 0 1 -1 0 32 237 Tm\n(arXiv:1506.01497v3  [cs.CV]  6 Jan 2016)Tj\nET\nQ\n",
+  "body_font": {
+    "base_font": "JCVQDE+URWPalladioL-Roma",
+    "descriptor": "Some(Dictionary({[65, 115, 99, 101, 110, 116]: Integer(716), [67, 97, 112, 72, 101, 105, 103, 104, 116]: Integer(680), [67, 104, 97, 114, 83, 101, 116]: String([47, 65, 47, 66, 47, 67, 47, 68, 47, 69, 47, 70, 47, 71, 47, 72, 47, 73, 47, 74, 47, 75, 47, 76, 47, 77, 47, 78, 47, 79, 47, 80, 47, 81, 47, 82, 47, 83, 47, 84, 47, 85, 47, 86, 47, 87, 47, 88, 47, 89, 47, 90, 47, 97, 47, 97, 99, 117, 116, 101, 47, 97, 116, 47, 98, 47, 98, 114, 97, 99, 107, 101, 116, 108, 101, 102, 116, 47, 98, 114, 97, 99, 107, 101, 116, 114, 105, 103, 104, 116, 47, 99, 47, 99, 111, 108, 111, 110, 47, 99, 111, 109, 109, 97, 47, 100, 47, 101, 47, 101, 105, 103, 104, 116, 47, 101, 109, 100, 97, 115, 104, 47, 102, 47, 102, 105, 47, 102, 105, 118, 101, 47, 102, 108, 47, 102, 111, 117, 114, 47, 103, 47, 104, 47, 104, 121, 112, 104, 101, 110, 47, 105, 47, 106, 47, 107, 47, 108, 47, 109, 47, 110, 47, 110, 105, 110, 101, 47, 110, 117, 109, 98, 101, 114, 115, 105, 103, 110, 47, 111, 47, 111, 110, 101, 47, 112, 47, 112, 97, 114, 101, 110, 108, 101, 102, 116, 47, 112, 97, 114, 101, 110, 114, 105, 103, 104, 116, 47, 112, 101, 114, 99, 101, 110, 116, 47, 112, 101, 114, 105, 111, 100, 47, 112, 108, 117, 115, 47, 113, 47, 113, 117, 101, 115, 116, 105, 111, 110, 47, 113, 117, 111, 116, 101, 100, 98, 108, 108, 101, 102, 116, 47, 113, 117, 111, 116, 101, 100, 98, 108, 114, 105, 103, 104, 116, 47, 113, 117, 111, 116, 101, 108, 101, 102, 116, 47, 113, 117, 111, 116, 101, 114, 105, 103, 104, 116, 47, 114, 47, 115, 47, 115, 101, 109, 105, 99, 111, 108, 111, 110, 47, 115, 101, 118, 101, 110, 47, 115, 105, 120, 47, 115, 108, 97, 115, 104, 47, 116, 47, 116, 104, 114, 101, 101, 47, 116, 119, 111, 47, 117, 47, 118, 47, 119, 47, 120, 47, 121, 47, 122, 47, 122, 101, 114, 111]), [68, 101, 115, 99, 101, 110, 116]: Integer(-282), [70, 108, 97, 103, 115]: Integer(4), [70, 111, 110, 116, 66, 66, 111, 120]: Array([Integer(-166), Integer(-283), Integer(1021), Integer(943)]), [70, 111, 110, 116, 70, 105, 108, 101]: Reference(ObjectRef { object_number: 1735, generation: 0 }), [70, 111, 110, 116, 78, 97, 109, 101]: Name([74, 67, 86, 81, 68, 69, 43, 85, 82, 87, 80, 97, 108, 108, 97, 100, 105, 111, 76, 45, 82, 111, 109, 97]), [73, 116, 97, 108, 105, 99, 65, 110, 103, 108, 101]: Integer(0), [83, 116, 101, 109, 86]: Integer(84), [84, 121, 112, 101]: Name([70, 111, 110, 116, 68, 101, 115, 99, 114, 105, 112, 116, 111, 114]), [88, 72, 101, 105, 103, 104, 116]: Integer(469)}))",
+    "encoding": "Some(Dictionary({[68, 105, 102, 102, 101, 114, 101, 110, 99, 101, 115]: Array([Integer(2), Name([102, 105]), Name([102, 108]), Integer(35), Name([110, 117, 109, 98, 101, 114, 115, 105, 103, 110]), Integer(37), Name([112, 101, 114, 99, 101, 110, 116]), Name([97, 109, 112, 101, 114, 115, 97, 110, 100]), Name([113, 117, 111, 116, 101, 114, 105, 103, 104, 116]), Name([112, 97, 114, 101, 110, 108, 101, 102, 116]), Name([112, 97, 114, 101, 110, 114, 105, 103, 104, 116]), Integer(43), Name([112, 108, 117, 115]), Name([99, 111, 109, 109, 97]), Name([104, 121, 112, 104, 101, 110]), Name([112, 101, 114, 105, 111, 100]), Name([115, 108, 97, 115, 104]), Name([122, 101, 114, 111]), Name([111, 110, 101]), Name([116, 119, 111]), Name([116, 104, 114, 101, 101]), Name([102, 111, 117, 114]), Name([102, 105, 118, 101]), Name([115, 105, 120]), Name([115, 101, 118, 101, 110]), Name([101, 105, 103, 104, 116]), Name([110, 105, 110, 101]), Name([99, 111, 108, 111, 110]), Name([115, 101, 109, 105, 99, 111, 108, 111, 110]), Integer(63), Name([113, 117, 101, 115, 116, 105, 111, 110]), Name([97, 116]), Name([65]), Name([66]), Name([67]), Name([68]), Name([69]), Name([70]), Name([71]), Name([72]), Name([73]), Name([74]), Name([75]), Name([76]), Name([77]), Name([78]), Name([79]), Name([80]), Name([81]), Name([82]), Name([83]), Name([84]), Name([85]), Name([86]), Name([87]), Name([88]), Name([89]), Name([90]), Name([98, 114, 97, 99, 107, 101, 116, 108, 101, 102, 116]), Integer(93), Name([98, 114, 97, 99, 107, 101, 116, 114, 105, 103, 104, 116]), Integer(95), Name([117, 110, 100, 101, 114, 115, 99, 111, 114, 101]), Name([113, 117, 111, 116, 101, 108, 101, 102, 116]), Name([97]), Name([98]), Name([99]), Name([100]), Name([101]), Name([102]), Name([103]), Name([104]), Name([105]), Name([106]), Name([107]), Name([108]), Name([109]), Name([110]), Name([111]), Name([112]), Name([113]), Name([114]), Name([115]), Name([116]), Name([117]), Name([118]), Name([119]), Name([120]), Name([121]), Name([122]), Integer(147), Name([113, 117, 111, 116, 101, 100, 98, 108, 108, 101, 102, 116]), Name([113, 117, 111, 116, 101, 100, 98, 108, 114, 105, 103, 104, 116]), Integer(151), Name([101, 109, 100, 97, 115, 104]), Integer(180), Name([97, 99, 117, 116, 101])]), [84, 121, 112, 101]: Name([69, 110, 99, 111, 100, 105, 110, 103])}))",
+    "font": "{[66, 97, 115, 101, 70, 111, 110, 116]: Name([74, 67, 86, 81, 68, 69, 43, 85, 82, 87, 80, 97, 108, 108, 97, 100, 105, 111, 76, 45, 82, 111, 109, 97]), [69, 110, 99, 111, 100, 105, 110, 103]: Reference(ObjectRef { object_number: 1665, generation: 0 }), [70, 105, 114, 115, 116, 67, 104, 97, 114]: Integer(2), [70, 111, 110, 116, 68, 101, 115, 99, 114, 105, 112, 116, 111, 114]: Reference(ObjectRef { object_number: 1736, generation: 0 }), [76, 97, 115, 116, 67, 104, 97, 114]: Integer(180), [83, 117, 98, 116, 121, 112, 101]: Name([84, 121, 112, 101, 49]), [84, 121, 112, 101]: Name([70, 111, 110, 116]), [87, 105, 100, 116, 104, 115]: Reference(ObjectRef { object_number: 1690, generation: 0 })}",
+    "object": "Reference(ObjectRef { object_number: 34, generation: 0 })",
+    "programs": [
+      {
+        "decoded_bytes": 26175,
+        "dictionary": "{[70, 105, 108, 116, 101, 114]: Name([70, 108, 97, 116, 101, 68, 101, 99, 111, 100, 101]), [76, 101, 110, 103, 116, 104]: Integer(25397), [76, 101, 110, 103, 116, 104, 49]: Integer(1616), [76, 101, 110, 103, 116, 104, 50]: Integer(24559), [76, 101, 110, 103, 116, 104, 51]: Integer(0)}",
+        "file": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/font-1735.bin",
+        "key": "FontFile",
+        "object": {
+          "generation": 0,
+          "object_number": 1735
+        }
+      }
+    ],
+    "resource": "F92"
+  },
+  "embedded_outline_probe": {
+    "library": "read-fonts 0.39.2, already compiled dependency",
+    "font_stream_object": 1735,
+    "font_program": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/font-1735.bin",
+      "sha256": "19beaaf0e6290e6e726788ebfb7add51761ddd5268f385d2fe2db1f34a15111e"
+    },
+    "named_glyph": "p",
+    "glyph_name_to_id": 41,
+    "outline_units_per_em": 1000,
+    "outline_minimum_endpoint_x": 8,
+    "source_glyph": {
+      "id": 1534,
+      "text": {
+        "Mapped": "p"
+      },
+      "raw_code": [
+        112
+      ],
+      "page": 0,
+      "bbox": {
+        "min": {
+          "x": 36.0,
+          "y": 342.4655468
+        },
+        "max": {
+          "x": 41.9875226,
+          "y": 352.40822160000005
+        }
+      },
+      "baseline": {
+        "x": 36.0,
+        "y": 345.27500000000003
+      },
+      "direction": {
+        "x": 1.0,
+        "y": 0.0
+      },
+      "font_id": 0,
+      "font_size": 9.9626,
+      "render_order": 1536,
+      "render_mode": "Fill",
+      "crop_status": "Inside",
+      "path_clip_status": "Unclipped",
+      "provenance": {
+        "content_stream": {
+          "object_number": 32,
+          "generation": 0
+        },
+        "operator_index": 147
+      }
+    },
+    "page_x_of_left_outline_endpoint": 36.0797008,
+    "margin_metric_maximum_x": 36.34,
+    "remaining_rectangle_overlap": 0.2602992000000057,
+    "scope": "The probe establishes that tightening the embedded body font alone cannot move the whole rectangular census band to the right of the retained margin bound. It does not prove that the actual displayed margin ink overlaps the body."
+  },
+  "findings": [
+    "The rotated margin stamp uses unembedded Times-Roman and has no FontDescriptor or font program. Embedded font programs elsewhere on the page do not provide its outlines.",
+    "The body font is embedded Type1 URWPalladioL-Roma. A named p outline endpoint lies at page x=36.0797008, still inside the retained margin maximum x=36.34.",
+    "A renderer fallback or host font could yield a narrower display, but it is not the missing source font program and cannot be used as a source-backed exclusion certificate."
+  ],
+  "decision": "Keep the census rejection and all retained margin glyphs. Do not add a font-outline dependency or replace metric geometry based on this failed recovery hypothesis.",
+  "next_action": "Audit the other frozen body targets for a supported missing boundary or projection rule. Revisit this target only with a new explicit source-partition proof, not repeated metric tightening or a renderer-font substitution.",
+  "production_source_unchanged": true,
+  "temporary_example_removed": true,
+  "new_A_or_B_recovery": 0,
+  "strict_coverage_gain": 0,
+  "document_completion_gain": 0,
+  "gate_gain": 0,
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/probe.rs",
+      "sha256": "aba6470589be438ea1e74f368a96c0c7990019e11cf117aacfa5f1f769aad094"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/probe.log",
+      "sha256": "a869f6621d8418d932491e6af69c13e017d1fee08f59b8d4781cc9b5c98197d5"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/fonts.json",
+      "sha256": "cd875da11224dfcbff4ea305ef03f7b3006ffeeae3df9acfa433e3c36abbd7f4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/body-stream.bin",
+      "sha256": "42586ba5b376587e49244d90102efcdba7187a1ed53ffbbb10375aade47914b1"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/outline.rs",
+      "sha256": "678809dd4aa81972def5fd7b20edd052947354a4f9b45d9ca71cdd01f505ae65"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/outline",
+      "sha256": "47efcc048a63298dc7e340932eca8a80a111aa067909d84896c2274de454b5aa"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/outline.json",
+      "sha256": "209fe192b0d0abf16bc5030453958fc9e8c08cf3495909aefd6a4e507f6f0ac4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-font-bounds/font-1735.bin",
+      "sha256": "19beaaf0e6290e6e726788ebfb7add51761ddd5268f385d2fe2db1f34a15111e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-before/review/new.pdf",
+      "sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-before/review/sources.json",
+      "sha256": "f750f0b5fddb421a921114d475320f5a1324bdd0c97edb9de37613771cd8025f"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/source/content_stream.rs",
+      "sha256": "5f081a81142bd03ce79ebcdaa4f9776cf3d01b2472d7b015af5a541680383810"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/pdf/font/common.rs",
+      "sha256": "49b9808809ef8aaaa4276fdbc93f0310a7493f19edd7cd034db896dd87744ef9"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/pdf/font/metrics.rs",
+      "sha256": "f888700fc257f12f660f629caa95ad66b14a7edc8b2a56df8579957322029ec1"
+    },
+    {
+      "path": "benchmark/realworld/remaining/faster-path-closure-diagnosis.json",
+      "sha256": "7e4367ef05b57ba7b06dcf158d8c25d7dd63624437ff15d28dfa3254ca43850f"
+    }
+  ]
+}

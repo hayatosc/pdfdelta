@@ -1,0 +1,540 @@
+{
+  "status": "implemented_verified_B_source_recovery_without_loss",
+  "scope": "Reuse identical ordered borrowed source censuses across passes, keeping raw full certificates separate and requiring explicit boundary-roundoff checks for legacy closure reuse. Preserve every resource limit and strict comparison contract.",
+  "binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/pdfdelta",
+    "sha256": "a1e052d66e72ac183983245fd6fc3793885406ad2cf0b77ff134e0983c323c9f"
+  },
+  "source_changes": [
+    {
+      "source": {
+        "path": "crates/pdfdelta-core/src/document/text_scopes/cuts.rs",
+        "sha256": "6a215f472b7072d76bd0a659b402da8b3c1128746336f1232d4cae30be3f1ddc"
+      },
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/cuts-before.rs",
+        "sha256": "02732a81b85df704ea26150541666caacb4fc7a670ae36c61beb6506a1fdaee8"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/cuts-after.rs",
+        "sha256": "6a215f472b7072d76bd0a659b402da8b3c1128746336f1232d4cae30be3f1ddc"
+      },
+      "patch": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/cuts.patch",
+        "sha256": "ca376653ea35aaf964393572e6b31791f7c66d13109359360dce2b27f63db8d2"
+      }
+    },
+    {
+      "source": {
+        "path": "crates/pdfdelta-core/src/document/text_scopes.rs",
+        "sha256": "ee5da55ddbe8d719c268c663ab7f161e45c38b044602c9b6a88a0b798898f1a9"
+      },
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/scopes-before.rs",
+        "sha256": "52c98b183d13c9c71099641067fb04012f9b28b868b4608abc737e3a6d683b64"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/scopes-after.rs",
+        "sha256": "ee5da55ddbe8d719c268c663ab7f161e45c38b044602c9b6a88a0b798898f1a9"
+      },
+      "patch": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/scopes.patch",
+        "sha256": "2159d180f936a2c671c1bc6f4d5baec57b401be41b5d132e1e71ea42d6b262c4"
+      }
+    },
+    {
+      "source": {
+        "path": "crates/pdfdelta-core/src/document/text_scopes/native/census.rs",
+        "sha256": "b5840f248c91cc7ff2b639431767c30e73a658e6d501a4345ed635f6058784a7"
+      },
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/native-census-before.rs",
+        "sha256": "0f9ab45e6d35722844357dce4ec25a8e32e383291b8184e8e129092f800766d1"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/native-census-after.rs",
+        "sha256": "b5840f248c91cc7ff2b639431767c30e73a658e6d501a4345ed635f6058784a7"
+      },
+      "patch": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/native-census.patch",
+        "sha256": "64c0e87fd43fe11193d14aa2c8280f51f9aa4e4a85275571278ab7cdfe5b1aeb"
+      }
+    },
+    {
+      "source": {
+        "path": "benchmark/realworld/remaining/verify.py",
+        "sha256": "93e18048b53de38a93f0654f5a441de530cb34de79e3e203a04ef7fe43b446ff"
+      },
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/verify-before.py",
+        "sha256": "619cb6bb3df913ac2d03746df541073bba85d9431551ef16c3032cb7d694b6b7"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/verify-after.py",
+        "sha256": "93e18048b53de38a93f0654f5a441de530cb34de79e3e203a04ef7fe43b446ff"
+      },
+      "patch": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/verify.patch",
+        "sha256": "b0aafdbaefd95bb4fd57086962e19d1230305687ecbca55f68ab03f05e14d10b"
+      }
+    },
+    {
+      "source": {
+        "path": "benchmark/realworld/remaining/test_verify.py",
+        "sha256": "2f658b911cafeafcfb1dc6f1c0e7af7a6dd6ae74058515cd00248988f13408ed"
+      },
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/test_verify-before.py",
+        "sha256": "694796933980827058d277dba064b94b3cf11106340ce67be78a4009fbaffe5a"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/test_verify-after.py",
+        "sha256": "2f658b911cafeafcfb1dc6f1c0e7af7a6dd6ae74058515cd00248988f13408ed"
+      },
+      "patch": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/test_verify.patch",
+        "sha256": "ea5739f26b160b6cda397e4a1740c465fe034efa64284bdb4db30ac88b50e774"
+      }
+    }
+  ],
+  "fixed_panel_denominator": 36,
+  "additional_B_sources": 197,
+  "lost_B_sources": 0,
+  "net_B_source_gain": 197,
+  "new_B_views": 12,
+  "source_count_convention": "Per-pair distinct native glyph source atoms, with old and new counted separately. B ranges are conditional and non-owning; these are not strict changed-character masks.",
+  "document_completions_before_after": [
+    0,
+    0
+  ],
+  "strict_comparison_payloads_and_coverage_unchanged_in_all_36": true,
+  "families": [
+    {
+      "family": "clip_overpaint_figure_scan_mixed",
+      "pairs": 6,
+      "publishers": [
+        "ECB",
+        "FAA",
+        "IPCC",
+        "NASA",
+        "NIST"
+      ],
+      "B_source_counts": [
+        2767,
+        2767
+      ],
+      "added_B_sources": 0,
+      "lost_B_sources": 0,
+      "complete": [
+        0,
+        0
+      ],
+      "wall_seconds": 65.34510109301482,
+      "maximum_process_peak_rss_kib": 1249380,
+      "report_bytes": 19451197,
+      "process_exit_counts": {
+        "3": 6
+      }
+    },
+    {
+      "family": "heading_move_list_copy",
+      "pairs": 6,
+      "publishers": [
+        "NIST"
+      ],
+      "B_source_counts": [
+        16378,
+        16378
+      ],
+      "added_B_sources": 0,
+      "lost_B_sources": 0,
+      "complete": [
+        0,
+        0
+      ],
+      "wall_seconds": 93.23355821198493,
+      "maximum_process_peak_rss_kib": 1112632,
+      "report_bytes": 30511478,
+      "process_exit_counts": {
+        "3": 6
+      }
+    },
+    {
+      "family": "id_free_prose",
+      "pairs": 6,
+      "publishers": [
+        "EDPB",
+        "NIST"
+      ],
+      "B_source_counts": [
+        38285,
+        38285
+      ],
+      "added_B_sources": 0,
+      "lost_B_sources": 0,
+      "complete": [
+        0,
+        0
+      ],
+      "wall_seconds": 135.2703591479949,
+      "maximum_process_peak_rss_kib": 2633928,
+      "report_bytes": 42169914,
+      "process_exit_counts": {
+        "3": 6
+      }
+    },
+    {
+      "family": "japanese_vertical_rotated_ruby",
+      "pairs": 6,
+      "publishers": [
+        "Agency for Cultural Affairs / Japanese government",
+        "Japanese government / Agency for Cultural Affairs",
+        "MEXT",
+        "MHLW / Japan Association of Certified Care Workers"
+      ],
+      "B_source_counts": [
+        100,
+        100
+      ],
+      "added_B_sources": 0,
+      "lost_B_sources": 0,
+      "complete": [
+        0,
+        0
+      ],
+      "wall_seconds": 103.89237866399344,
+      "maximum_process_peak_rss_kib": 1143960,
+      "report_bytes": 12838464,
+      "process_exit_counts": {
+        "3": 6
+      }
+    },
+    {
+      "family": "multicolumn",
+      "pairs": 6,
+      "publishers": [
+        "BERT authors / Google",
+        "DDPM authors / UC Berkeley",
+        "Facebook AI Research / arXiv",
+        "GPT-3 authors / OpenAI",
+        "Llama 2 authors / Meta",
+        "Microsoft Research / arXiv"
+      ],
+      "B_source_counts": [
+        29550,
+        29747
+      ],
+      "added_B_sources": 197,
+      "lost_B_sources": 0,
+      "complete": [
+        0,
+        0
+      ],
+      "wall_seconds": 38.84487867401913,
+      "maximum_process_peak_rss_kib": 525984,
+      "report_bytes": 46775488,
+      "process_exit_counts": {
+        "3": 6
+      }
+    },
+    {
+      "family": "table_form",
+      "pairs": 6,
+      "publishers": [
+        "IRS"
+      ],
+      "B_source_counts": [
+        15883,
+        15883
+      ],
+      "added_B_sources": 0,
+      "lost_B_sources": 0,
+      "complete": [
+        0,
+        0
+      ],
+      "wall_seconds": 8.5188158370147,
+      "maximum_process_peak_rss_kib": 85260,
+      "report_bytes": 15791029,
+      "process_exit_counts": {
+        "3": 6
+      }
+    }
+  ],
+  "controls": {
+    "captures": 189,
+    "payloads_masks_coverage_completion_unchanged": true,
+    "non_timing_differences": {
+      "/comparison/scopes/*/result/source_cut_search/work": 14
+    },
+    "negative_false_strict_atoms": {
+      "authored/native": 0,
+      "authored/text": 0,
+      "authored/all": 0,
+      "real_metamorphic/native": 0,
+      "real_metamorphic/text": 0,
+      "real_metamorphic/all": 0
+    }
+  },
+  "checks": {
+    "workspace_passed": 2457,
+    "workspace_ignored": 2,
+    "generated_passed": 48,
+    "all_five_core_acceptance_cases_passed": true,
+    "format": "passed",
+    "clippy_locked_all_targets": "passed",
+    "verifier_tests_passed": 15,
+    "source_reviewed_new_B_views": 12,
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/workspace.log",
+        "sha256": "b7ad89414c7d4faa4fa0ec2816607d3dcf5b24198cdf3017260ed449f03bdb27"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/generated.log",
+        "sha256": "9d9aea7af470c5219fa96efe5a129afb451b9567e976cafdf6017c5178d759ac"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/format.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/clippy.log",
+        "sha256": "a16685927daa0790a2b357e2b56df170e7bad259186d3c802d6d441422dfd0cf"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/verifier-tests.log",
+        "sha256": "af0dc806717aac3c4b595f716465299b70d34ebbdfd68a78561a6b65073a3bab"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/control-comparison.log",
+        "sha256": "875a3b66840f6164272e11fa7ab349a64bf228504821d041441f7e9f21be716c"
+      }
+    ]
+  },
+  "limitations": [
+    "Document-wide completion remains 0/36; G1, G2 and G3 achievement is not established by this iteration.",
+    "The 197 recovered atoms are outside any newly claimed fixed-target recall. No fresh blind evaluation was run.",
+    "The 12 new non-owning views include overlapping refinements; event counts do not count independent author edits.",
+    "Recorded peak RSS is a process observation, not live allocator usage; reduced charged work is not a wall-time speedup claim."
+  ],
+  "next_action": "Return to the frozen body-target and document-completion failures; prefer a diagnosed shared blocker that can advance G1 or G3 over further overlapping B refinements.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/panel-summary.json",
+      "sha256": "637061a55442417790f8e8dc8b5df39ae488caba58803dffb813b2922cbd18d9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/all-source-checks.json",
+      "sha256": "6661f92d67b503638b462173920567fc72a6e26fe9f54f8e4504ec0226444d95"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/controls-comparison.json",
+      "sha256": "f343a0d031e44226755f45150019ffbd1d614e32dc5e43c2dfdb3a427ba226a9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/visual-review.json",
+      "sha256": "927ef37d67112dba99656e7679c62a776c6844da97fff7fc2a9750f15306fcc4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/diagnosis.json",
+      "sha256": "1c0b36b081ba0c5754a52c70b68e1ed6c51b54a1fe42210d90c345b98b56b055"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/capture-panel.py",
+      "sha256": "5110729c0c0147d489cd8d0c8658b5a99a915c016126a28d2fbd066dabac651e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/check-panel.py",
+      "sha256": "1d0eacbc7ac507f7e230d5a9fd87ecc737beb7fff6d75bd2008436a2964aa2da"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/check-controls.py",
+      "sha256": "ff8f5d6656d0816aa13781f71534c80ca3cef5580c9860c442609caf77b2bdcd"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/review-mask.py",
+      "sha256": "572ec710f6145674ae56ceb20046bd0a9a32ca3d1ab433eb7641c09e54383a1a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/review-all.py",
+      "sha256": "5adf2004337dea8abf9cd113965ac202318e8dc6b58d0734bb5233c09e444e47"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/export-sources.py",
+      "sha256": "9d54b85502c45e9b62bc17c1fdd428eafb373fee569366316a382ce57d28c8a6"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-final/retain-result.py",
+      "sha256": "750235c65731e463ef957624b2c1eb6974399733b44d912931140ff489767eb4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-panel/runs.json",
+      "sha256": "1d1fbdb7caefac04fbc39b4f8c4250e0068c2fd2a9647e529972921fc6a04625"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-controls/runs.json",
+      "sha256": "37a445786f8358d8be5fa039c25961b4f86d0de58ba6612b96337510079bf12d"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-control-scores/summary.json",
+      "sha256": "a9fe8a031948a91a7c4f2f00456b4af6791effac42e457f39702726893cb9ad1"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-control-scores/scores.json",
+      "sha256": "6152f713bbb5e15f8d622ec9161faa10bb6b17bb9736cd4c73e972ff52a8fac4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-control-scores/contracts.json",
+      "sha256": "3099df290d29a3fd47b6612cbebadf9c6c0c59116a0410137fd416a071573d7a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-source-exports/runs.json",
+      "sha256": "0fc71c6d2d0f8a94efa2e0b8d96a8a3092be254571e7b8b0e7e98ed5ff473405"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-ddpm-export/arxiv-ddpm-v1-to-v2/run.json",
+      "sha256": "2dd2b130e7f83343405913d93888f895c92aedcd288fc7ac4e270064fff96f94"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/summary.json",
+      "sha256": "67106112529d719abe033d3a6004cde479524c25c9430a7a94c346494e22658e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/run.py",
+      "sha256": "179a9297c1e3f823aa52ec6b6bfd20d3483d71dc985f749e675a9abc365a5d51"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/check.py",
+      "sha256": "b9f15994563f92e36f29a1745782e958c49249d655fd446f14a02d4c2e18dd8b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/runs.json",
+      "sha256": "03a263ebb6378f9dd49812f6342d395f12e5be1582cc758743780705a2a25d5e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/cuts-trial.rs",
+      "sha256": "13bfcce0a3a457be84b32c22c2c592308056c79e18bd2fda695d6629fb5e44ff"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/scopes-trial.rs",
+      "sha256": "091f5eb7e5224c328132b0e51ac3a0b3b7113ca705cf442e863e6353b179a27d"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/pdfdelta",
+      "sha256": "cd1d9da2ddf8fcb00a2c4ea9998aed38831feeba0facfc01fbd81386f31b9568"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-trial/arxiv-mask-rcnn-v1-to-v3.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/summary.json",
+      "sha256": "67106112529d719abe033d3a6004cde479524c25c9430a7a94c346494e22658e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/run.py",
+      "sha256": "85fd673f3a69157c25b19d6b1ff6ea599a6a108a18b8519217c5d37b1fd19afe"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/check.py",
+      "sha256": "7ec08b5d5018a734a67c69ada0c6460afe85c92c93457081f6f90aecc8d6b638"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/runs.json",
+      "sha256": "0b6f78c108dacd41e826d734cfc936f1a476560849741ec17424eddbec7bd143"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/cuts-trial.rs",
+      "sha256": "f8c247c9b8aee640679f5e74733ab9faa944442f55ad39c12b4c362065d980a1"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/scopes-trial.rs",
+      "sha256": "ee5da55ddbe8d719c268c663ab7f161e45c38b044602c9b6a88a0b798898f1a9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/pdfdelta",
+      "sha256": "a320248a378bbc5c483f87a8224037d4bdc271ac0b07fc0a2ff2f34ea7908405"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trial/arxiv-mask-rcnn-v1-to-v3.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/summary.json",
+      "sha256": "0472aa02dab15cf43ff199751521b7cdd05cb75f4f2c0203751136c4ce85d63b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/run.py",
+      "sha256": "d939e2c9e258c0adca012283fe38a48313800bf396c406b3e8e14e3403cebced"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/check.py",
+      "sha256": "556427a67584e8f5658da880ab3a3b606c178343f0d8659a880756e670e99949"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/runs.json",
+      "sha256": "dece24a88c6e1db85b0c721de3df1a233ea2bdf5786cbeb56a4b9ffb380cfec7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/cuts-trial.rs",
+      "sha256": "7e0de9369bfc1ab6bc3193fcb8ab62556ebb8fbabe8bdabea460217da71648e8"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/scopes-trial.rs",
+      "sha256": "ee5da55ddbe8d719c268c663ab7f161e45c38b044602c9b6a88a0b798898f1a9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/native-census-trial.rs",
+      "sha256": "013c0654e66e06048bcdcdc9ea06b3b4bfc47a3d93e5e2af569bc0522da861f2"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/pdfdelta",
+      "sha256": "68ca3884d8a535eb622f405ac5321b1f928639d59a0944051e0a27253b577333"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/legacy-census-trial/arxiv-mask-rcnn-v1-to-v3.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/closure-reuse-diagnosis/run.py",
+      "sha256": "7304734df98a7710141c57100b71ba28fca8e8e6fbff1113e2ccd1c28b9aa172"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/closure-reuse-diagnosis/runs.json",
+      "sha256": "54e39e8aa4a79b4a5c1afcfed27319ee38385b92aa3d01b9c0c3c41d1ea79c29"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/closure-reuse-diagnosis/cuts-trace.rs",
+      "sha256": "448d4ae75b79277f5e5cb29ac55f920f0023c73a6c3b1943142a40207057716f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/closure-reuse-diagnosis/pdfdelta",
+      "sha256": "4f3ba295e73c28423078bbf9ba50c6493354d26d71b6a48cc7085c296ea51077"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/closure-reuse-diagnosis/arxiv-mask-rcnn-v1-to-v3.stderr",
+      "sha256": "c3af92f0f5096bad99bd5d790217e6fe1073e95885af9c9044a83ce827968859"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trace/run.py",
+      "sha256": "27e6138cdd60a45968ef051190f93c2162a1cc95493d6bb199aa6ac6bc146498"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trace/runs.json",
+      "sha256": "31b496d5fe0488a04d195a132e17d81d7a4024927f1ee8f7683d477ace5a5c94"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trace/cuts-trace.rs",
+      "sha256": "68ada72eafe7592e05ab236de7e6ebdcc56a2103ca5e1bb45883e6df32431b1b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trace/pdfdelta",
+      "sha256": "9e96021934a8d7fabd3506e8e79ac2e41be9c603daa6466190d6bf2da94ff781"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/separate-census-trace/arxiv-mask-rcnn-v1-to-v3.stderr",
+      "sha256": "2715981389e6ac7664f6b5f1bda3c12eb532f239308d13047783ce2196b4d92b"
+    }
+  ]
+}

@@ -670,9 +670,7 @@ pub fn capture(pdf: &dyn ParsedPdf, input_sha256: &str) -> Capture {
             let commands = program(&bytes, &resources, "page contents", &mut operations)?;
             Ok(Closure {
                 profile: PROFILE.into(),
-                backend:
-                    "LopdfParser@1e3d646ca249ebf1a6ff479278c07e9c0f9377a8; strict-content-decoder"
-                        .into(),
+                backend: "LopdfParser@0.45.0; strict-content-decoder".into(),
                 entry: Entry::default(),
                 page: page_dictionary,
                 resources,

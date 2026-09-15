@@ -53,24 +53,61 @@ pub(super) fn keys<'a>(
         && !view.tokens.is_empty()
         && view.normalization == TextNormalization::Exact
     {
-        charge(result, view.tokens.len(), limits)?;
-        let mut hasher = DefaultHasher::new();
-        view.tokens.hash(&mut hasher);
-        let fingerprint = hasher.finish();
+        let fingerprint = fingerprint(&view.tokens, result, limits)?;
         keys.push(Key::Literal(node.kind, fingerprint));
-        if let Some(body) = super::padding_body(node) {
-            let fingerprint = if body.len() == view.tokens.len() {
-                fingerprint
-            } else {
-                charge(result, view.tokens.len(), limits)?;
-                let mut hasher = DefaultHasher::new();
-                body.hash(&mut hasher);
-                hasher.finish()
-            };
-            keys.push(Key::PaddingBody(node.kind, fingerprint));
+        if node.kind == NodeKind::Paragraph
+            && node.basis == crate::document::ViewBasis::NativeLayout
+        {
+            let mut start = 0;
+            let mut end = view.tokens.len();
+            // Charge boundary scans before inspecting tokens, including all-space
+            // views. Sampling must not introduce an unbounded trimming pass.
+            while start < end {
+                charge(result, 1, limits)?;
+                if view.tokens[start] != crate::normalize::ComparableToken::Scalar(' ') {
+                    break;
+                }
+                start += 1;
+            }
+            while start < end {
+                charge(result, 1, limits)?;
+                if view.tokens[end - 1] != crate::normalize::ComparableToken::Scalar(' ') {
+                    break;
+                }
+                end -= 1;
+            }
+            if start < end {
+                let body = &view.tokens[start..end];
+                let body_fingerprint = if body.len() == view.tokens.len() {
+                    fingerprint
+                } else {
+                    self::fingerprint(body, result, limits)?
+                };
+                keys.push(Key::PaddingBody(node.kind, body_fingerprint));
+            }
         }
     }
     Some(keys)
+}
+
+// Length and at most eight edge tokens cheaply exclude many unrelated views.
+// Equal keys only schedule complete literal verification; collisions retain every
+// rival in the same bucket and cannot establish a correspondence on their own.
+fn fingerprint(
+    tokens: &[crate::normalize::ComparableToken],
+    result: &mut ScopeProposals,
+    limits: MatchingLimits,
+) -> Option<u64> {
+    charge(result, tokens.len().min(8), limits)?;
+    let mut hasher = DefaultHasher::new();
+    tokens.len().hash(&mut hasher);
+    if tokens.len() <= 8 {
+        tokens.hash(&mut hasher);
+    } else {
+        tokens[..4].hash(&mut hasher);
+        tokens[tokens.len() - 4..].hash(&mut hasher);
+    }
+    Some(hasher.finish())
 }
 
 pub(super) fn charge(

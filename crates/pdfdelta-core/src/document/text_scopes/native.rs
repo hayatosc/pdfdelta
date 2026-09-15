@@ -5,7 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     Result,
     model::{
-        Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus, PageId, Rect, TextRenderMode, Vec2,
+        Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus, NonTextPaint, PageId, Rect,
+        TextRenderMode, Vec2,
     },
     normalize::ComparableToken,
 };
@@ -16,6 +17,7 @@ use super::{
 };
 use crate::document::{
     BackendKind, Channel, EvidenceBoundary, EvidenceFailure, NodeKind, ViewBasis,
+    evidence::ScopedTextEvidence,
 };
 
 mod census;
@@ -140,6 +142,7 @@ pub(super) fn runs<'a>(
     sources: &Sources<'a>,
     limits: DocumentComparisonLimits,
     rows: bool,
+    boundaries: &BTreeSet<NodeId>,
     remaining: &mut usize,
 ) -> Result<Vec<Vec<&'a GraphNode>>> {
     if spend(
@@ -153,12 +156,39 @@ pub(super) fn runs<'a>(
     {
         return Ok(Vec::new());
     }
+    // Without a complete tag-order provider, this profile can close only
+    // single-page intervals. A multi-page document's local populations need an
+    // accepted boundary on that page. Keep all raw evidence for closure checks;
+    // only geometry preparation on impossible pages is omitted.
+    let pages = if view.evidence.pages.len() > 1
+        && sources.native_order.is_none()
+        && !view.evidence.inventory_complete(None, Channel::Relations)
+    {
+        if spend(remaining, view.graph.nodes.len()).is_none() {
+            return Ok(Vec::new());
+        }
+        let mut pages = BTreeSet::<PageId>::new();
+        for node in &view.graph.nodes {
+            if boundaries.contains(&node.id) {
+                if spend(remaining, node.pages.len()).is_none() {
+                    return Ok(Vec::new());
+                }
+                pages.extend(&node.pages);
+            }
+        }
+        Some(pages)
+    } else {
+        None
+    };
     let nodes: BTreeMap<_, _> = source_children(view.graph, root, limits.matching.channels)?
         .into_iter()
         .filter(|node| {
             node.basis == ViewBasis::NativeLayout
                 && node.kind == NodeKind::Paragraph
                 && matches!(node.content, NodeContent::Text { .. })
+                && pages.as_ref().is_none_or(
+                    |pages| matches!(node.pages.as_slice(), [page] if pages.contains(page)),
+                )
         })
         .map(|node| (node.id, node))
         .collect();
@@ -256,8 +286,10 @@ pub(super) fn runs<'a>(
 }
 
 pub(super) struct Sources<'a> {
-    glyphs: BTreeMap<GlyphId, &'a Glyph>,
-    pages: BTreeMap<PageId, Vec<&'a [Glyph]>>,
+    glyphs: &'a BTreeMap<GlyphId, &'a Glyph>,
+    pages: &'a BTreeMap<PageId, Vec<&'a [Glyph]>>,
+    paint_pages: &'a BTreeMap<PageId, Vec<&'a NonTextPaint>>,
+    text_scopes: &'a BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
     native_order: Option<Vec<segments::Membership<'a>>>,
 }
 
@@ -382,7 +414,7 @@ impl<'a> Sources<'a> {
         remaining: &mut usize,
     ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
         let (mut projected, boundaries) =
-            projection::expanded(node, &self.glyphs, remaining, paint_order)?;
+            projection::expanded(node, self.glyphs, remaining, paint_order)?;
         if !padding.is_empty() {
             let NodeContent::Text { view } = &mut projected.content else {
                 return None;
@@ -410,13 +442,25 @@ impl<'a> Sources<'a> {
         Some((projected, boundaries))
     }
 
+    pub(super) fn hyphen_alternatives<'b>(
+        &self,
+        nodes: &[&'b GraphNode],
+        remaining: &mut usize,
+    ) -> Option<Vec<std::borrow::Cow<'b, GraphNode>>> {
+        spend(remaining, nodes.len())?;
+        nodes
+            .iter()
+            .map(|node| projection::hyphen_alternatives(node, self.glyphs, remaining))
+            .collect()
+    }
+
     pub(super) fn project(
         &self,
         node: &GraphNode,
         paint_order: bool,
         remaining: &mut usize,
     ) -> Option<(GraphNode, Vec<std::ops::Range<usize>>)> {
-        projection::checked_order(node, &self.glyphs, remaining, paint_order)
+        projection::checked_order(node, self.glyphs, remaining, paint_order)
     }
 
     /// Returns physical row boundaries for an exact, fully backed projection.
@@ -435,7 +479,7 @@ impl<'a> Sources<'a> {
         {
             return None;
         }
-        Some(projection::checked(node, &self.glyphs, remaining)?.1)
+        Some(projection::checked(node, self.glyphs, remaining)?.1)
     }
 
     pub(super) fn spacing(
@@ -635,39 +679,14 @@ impl<'a> Sources<'a> {
         Some(())
     }
 
-    pub(super) fn new(view: DocumentView<'a>, remaining: &mut usize) -> Option<Self> {
-        let glyphs = view.evidence.native.items();
-        spend(remaining, glyphs.len())?;
-        let mut index = Self {
-            glyphs: BTreeMap::new(),
-            pages: BTreeMap::new(),
+    pub(super) fn new(index: &'a crate::document::evidence::NativeIndex<'a>) -> Self {
+        Self {
+            glyphs: &index.glyphs,
+            pages: &index.pages,
+            paint_pages: &index.paint_pages,
+            text_scopes: &index.text_scopes,
             native_order: None,
-        };
-        let mut start = 0;
-        for (position, glyph) in glyphs.iter().enumerate() {
-            index.glyphs.insert(glyph.id, glyph);
-            if glyph.page != glyphs[start].page {
-                spend(remaining, 1)?;
-                index
-                    .pages
-                    .entry(glyphs[start].page)
-                    .or_default()
-                    .push(&glyphs[start..position]);
-                start = position;
-            }
         }
-        if start < glyphs.len() {
-            spend(remaining, 1)?;
-            index
-                .pages
-                .entry(glyphs[start].page)
-                .or_default()
-                .push(&glyphs[start..]);
-        }
-        // Each raw glyph is indexed once; each contiguous page span stores one
-        // borrowed slice. Noncontiguous spans preserve arbitrary input order,
-        // including unassigned glyphs after a different page's evidence.
-        Some(index)
     }
 
     /// Every native glyph whose baseline is in this horizontal page band must
@@ -710,12 +729,18 @@ impl<'a> Sources<'a> {
         let [page] = path[0].pages.as_slice() else {
             return None;
         };
+        let lookup_work = self.text_scopes.len().saturating_add(1).ilog2() as usize + 1;
+        spend(remaining, lookup_work.saturating_mul(2))?;
+        // A page inherits document-wide acquisition obligations from every
+        // provider. Records scoped only to another page cannot affect its band.
+        let text_scopes = [None, Some(*page)].map(|scope| self.text_scopes.get(&scope));
         spend(
             remaining,
-            view.evidence
-                .inventories
-                .len()
-                .saturating_add(view.evidence.issues.len()),
+            text_scopes
+                .iter()
+                .flatten()
+                .map(|scope| scope.inventories.len().saturating_add(scope.issues.len()))
+                .sum(),
         )?;
         let row_edges = row_order.is_some();
         let paint_order = row_order == Some(RowOrder::Paint);
@@ -852,6 +877,39 @@ impl<'a> Sources<'a> {
             (entry_left, entry_right) = first_row_bounds;
             (exit_left, exit_right) = last_row_bounds;
         }
+        // Reject unresolved acquisition or overlapping paint before the full
+        // page census. A successful paint check is only provisional: the census
+        // and graph exclusions below must still establish source closure.
+        let complete = text_scopes.iter().flatten().any(|scope| {
+            scope
+                .inventories
+                .iter()
+                .any(|record| record.inventory.complete)
+        }) && text_scopes
+            .iter()
+            .flatten()
+            .all(|scope| scope.issues.is_empty());
+        let closure = if complete {
+            Closure::WholePage
+        } else {
+            self.paint_closed(
+                view,
+                *page,
+                Rect {
+                    min: Vec2 {
+                        x: min_x,
+                        y: ink_bottom,
+                    },
+                    max: Vec2 {
+                        x: max_x,
+                        y: ink_top,
+                    },
+                },
+                text_scopes,
+                remaining,
+            )?
+        };
+
         for glyph in self
             .pages
             .get(page)
@@ -924,25 +982,7 @@ impl<'a> Sources<'a> {
                 return None;
             }
         }
-        if view.evidence.inventory_complete(Some(*page), Channel::Text) {
-            Some(Closure::WholePage)
-        } else {
-            self.paint_closed(
-                view,
-                *page,
-                Rect {
-                    min: Vec2 {
-                        x: min_x,
-                        y: ink_bottom,
-                    },
-                    max: Vec2 {
-                        x: max_x,
-                        y: ink_top,
-                    },
-                },
-                remaining,
-            )
-        }
+        Some(closure)
     }
 
     fn paint_closed(
@@ -950,12 +990,13 @@ impl<'a> Sources<'a> {
         view: DocumentView<'_>,
         page: PageId,
         band: Rect,
+        text_scopes: [Option<&ScopedTextEvidence<'_>>; 2],
         remaining: &mut usize,
     ) -> Option<Closure> {
         let evidence = view.evidence;
         let paints = evidence.native.non_text_paint_bounds()?;
         if !evidence.native.last_non_text_paint().contains_key(&page)
-            || evidence.issues.iter().any(|issue| {
+            || text_scopes.iter().flatten().flat_map(|scope| &scope.issues).any(|issue| {
                 if issue.channel != Channel::Text
                     || (issue.page.is_some() && issue.page != Some(page))
                 {
@@ -975,15 +1016,13 @@ impl<'a> Sources<'a> {
         {
             return None;
         }
-        let glyphs = self.pages.get(&page)?;
-        spend(remaining, glyphs.iter().map(|run| run.len()).sum())?;
-        let expected: BTreeSet<_> = glyphs
-            .iter()
-            .flat_map(|run| *run)
-            .map(|glyph| SourceRef::Native { glyph: glyph.id })
-            .collect();
         let mut found = false;
-        for inventory in &evidence.inventories {
+        for record in text_scopes
+            .iter()
+            .flatten()
+            .flat_map(|scope| &scope.inventories)
+        {
+            let inventory = record.inventory;
             if inventory.channel != Channel::Text
                 || (inventory.page.is_some() && inventory.page != Some(page))
             {
@@ -997,10 +1036,11 @@ impl<'a> Sources<'a> {
             {
                 return None;
             }
-            spend(remaining, inventory.sources.len())?;
-            if inventory.sources.len() != expected.len()
-                || inventory.sources.iter().copied().collect::<BTreeSet<_>>() != expected
-            {
+            // Bounded validation already proved exact native population coverage.
+            // The incomplete-acquisition exception still requires every provider
+            // and every paint operation to satisfy this band's original checks.
+            spend(remaining, 1)?;
+            if !record.covers_native_page {
                 return None;
             }
             found = true;
@@ -1008,11 +1048,10 @@ impl<'a> Sources<'a> {
         if !found {
             return None;
         }
-        for paint in paints {
+        // Validation retains all operations on this page in acquisition order.
+        // Other pages cannot overlap this band; unknown bounds here still fail.
+        for paint in self.paint_pages.get(&page).into_iter().flatten() {
             spend(remaining, 1)?;
-            if paint.page != page {
-                continue;
-            }
             let bounds = paint.bounds?;
             if bounds.max.x >= band.min.x
                 && bounds.min.x <= band.max.x

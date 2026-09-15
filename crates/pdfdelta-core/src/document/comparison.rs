@@ -56,7 +56,7 @@ pub struct ScopeViewComparison {
     pub unresolved: Vec<String>,
     #[serde(default)]
     pub extraction_dependencies: Vec<super::ExtractionDependency>,
-    /// Non-owning comparisons of closed intervals. These are excluded from
+    /// Non-owning comparisons of closed intervals or inferred paragraph groups. Excluded from
     /// strict comparison iterators, coverage, and automatic change ownership.
     #[serde(default)]
     pub text_scope_reviews: Vec<super::TextScopeReview>,
@@ -157,10 +157,12 @@ pub fn compare_document_views(
             "document comparison requires a root scope budget",
         ));
     }
-    old.graph
-        .validate(old.evidence, limits.evidence, limits.graph)?;
-    new.graph
-        .validate(new.evidence, limits.evidence, limits.graph)?;
+    let old_native = old
+        .graph
+        .validate_indexed(old.evidence, limits.evidence, limits.graph)?;
+    let new_native = new
+        .graph
+        .validate_indexed(new.evidence, limits.evidence, limits.graph)?;
     let old_nodes: BTreeMap<_, _> = old.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let new_nodes: BTreeMap<_, _> = new.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let mut document = DocumentViewComparison {
@@ -288,8 +290,16 @@ pub fn compare_document_views(
         limits.extraction,
     );
     for scope in &mut document.scopes {
-        super::text_scopes::append(old, new, &mut scope.result, scope.interpretation, limits)?;
+        super::text_scopes::append(
+            old,
+            new,
+            (&old_native, &new_native),
+            &mut scope.result,
+            scope.interpretation,
+            limits,
+        )?;
     }
+    super::text_scopes::inferred::append(old, new, root, &mut document, limits)?;
     if limits.matching.channels.relations {
         super::relations::compare_relations(
             old,
@@ -322,10 +332,12 @@ pub fn compare_scope_views(
     scope: CorrespondenceScope,
     limits: DocumentComparisonLimits,
 ) -> Result<ScopeViewComparison> {
-    old.graph
-        .validate(old.evidence, limits.evidence, limits.graph)?;
-    new.graph
-        .validate(new.evidence, limits.evidence, limits.graph)?;
+    let old_native = old
+        .graph
+        .validate_indexed(old.evidence, limits.evidence, limits.graph)?;
+    let new_native = new
+        .graph
+        .validate_indexed(new.evidence, limits.evidence, limits.graph)?;
     let mut result = compare_validated_scope(old, new, scope, &[], limits)?;
     super::extraction_dependencies::apply(
         old,
@@ -336,6 +348,7 @@ pub fn compare_scope_views(
     super::text_scopes::append(
         old,
         new,
+        (&old_native, &new_native),
         &mut result,
         InterpretationStatus::ConditionalOnCorrespondence,
         limits,

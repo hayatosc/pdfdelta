@@ -224,11 +224,19 @@ fn rows<'a>(
             if word_edges && first_end > 0 {
                 candidates.push((0..first_end, true, false));
             }
-            let last_start = (0..view.tokens.len())
+            // A discretionary terminal hyphen must not hide the mandatory
+            // suffix. The hyphen stays in the population and outside the
+            // fragment, so uniqueness still checks both interpretations.
+            let last_end = view.tokens.len()
+                - usize::from(
+                    optional.last() == Some(&true)
+                        && view.tokens.last().and_then(ComparableToken::as_scalar) == Some('-'),
+                );
+            let last_start = (0..last_end)
                 .rfind(|&index| separator(index))
                 .map_or(0, |index| index + 1);
-            if word_edges && last_start < view.tokens.len() {
-                candidates.push((last_start..view.tokens.len(), false, true));
+            if word_edges && last_start < last_end {
+                candidates.push((last_start..last_end, false, true));
             }
             for (range, before, after) in candidates {
                 spend(
@@ -395,11 +403,10 @@ fn fragment(row: &Row<'_>, maps: &OriginalCuts) -> Option<SourceFragment> {
     })
 }
 
-fn slice(node: &GraphNode, start: usize, end: usize) -> Option<GraphNode> {
+fn slice_sources(node: &GraphNode, start: usize, end: usize) -> Option<BTreeSet<SourceRef>> {
     let NodeContent::Text { view } = &node.content else {
         return None;
     };
-    let optional = view.optional_tokens()?;
     let selected: BTreeSet<_> = view.origins[start..end]
         .iter()
         .zip(&view.source_backed[start..end])
@@ -419,6 +426,15 @@ fn slice(node: &GraphNode, start: usize, end: usize) -> Option<GraphNode> {
     {
         return None;
     }
+    Some(selected)
+}
+
+fn slice(node: &GraphNode, start: usize, end: usize) -> Option<GraphNode> {
+    let NodeContent::Text { view } = &node.content else {
+        return None;
+    };
+    let optional = view.optional_tokens()?;
+    let selected = slice_sources(node, start, end)?;
     let mut sliced = TextView {
         tokens: view.tokens[start..end].to_vec(),
         origins: view.origins[start..end].to_vec(),
@@ -439,7 +455,12 @@ fn slice(node: &GraphNode, start: usize, end: usize) -> Option<GraphNode> {
     Some(result)
 }
 
-fn interior(runs: &[Vec<&GraphNode>], first: Position, last: Position) -> Option<Vec<GraphNode>> {
+fn interior<'nodes>(
+    runs: &[Vec<&'nodes GraphNode>],
+    first: Position,
+    last: Position,
+    remaining: &mut usize,
+) -> Option<Vec<std::borrow::Cow<'nodes, GraphNode>>> {
     if first.0 != last.0 || first > last {
         return None;
     }
@@ -450,6 +471,7 @@ fn interior(runs: &[Vec<&GraphNode>], first: Position, last: Position) -> Option
         .take(last.1 + 1)
         .skip(first.1)
     {
+        spend(remaining, 1)?;
         let NodeContent::Text { view } = &node.content else {
             return None;
         };
@@ -460,7 +482,20 @@ fn interior(runs: &[Vec<&GraphNode>], first: Position, last: Position) -> Option
             view.tokens.len()
         };
         if start < end {
-            result.push(slice(node, start, end)?);
+            if start == 0
+                && end == view.tokens.len()
+                && matches!(view.normalization, TextNormalization::Exact)
+            {
+                // The enclosing census already validated this complete view.
+                // Only its source references are copied into the later extent.
+                spend(remaining, node.sources.len())?;
+                result.push(std::borrow::Cow::Borrowed(node));
+                continue;
+            }
+            // Empty boundary endpoints contribute no cloned tokens or sources.
+            // Charge each retained slice before validating and allocating it.
+            spend(remaining, node.sources.len().saturating_mul(8))?;
+            result.push(std::borrow::Cow::Owned(slice(node, start, end)?));
         }
     }
     Some(result)
@@ -525,16 +560,17 @@ pub(super) enum Pass {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn append(
+pub(super) fn append<'nodes>(
     old: DocumentView<'_>,
     new: DocumentView<'_>,
     result: &mut ScopeViewComparison,
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
-    left: &[Vec<&GraphNode>],
-    right: &[Vec<&GraphNode>],
+    left: &[Vec<&'nodes GraphNode>],
+    right: &[Vec<&'nodes GraphNode>],
     sources: Option<&(native::Sources<'_>, native::Sources<'_>)>,
-    proofs: &NativeProofs<'_>,
+    proofs: &NativeProofs<'nodes>,
+    plain_censuses: &mut NativeProofs<'nodes>,
     anchors: &[Anchor],
     rows: bool,
     pass: Pass,
@@ -570,6 +606,7 @@ pub(super) fn append(
             anchors,
             SourceCutPopulation::CompletePage,
             &CutMaps::default(),
+            false,
             false,
             false,
             remaining,
@@ -640,13 +677,14 @@ pub(super) fn append(
         }
     }
     let mut new_anchors = BTreeSet::new();
-    if whole_intervals {
+    if whole_intervals || pass == Pass::Standard {
         let work = anchors.len().saturating_mul(
             anchors.len().saturating_add(1).ilog2() as usize
                 + supported_intervals.len().saturating_add(1).ilog2() as usize
                 + 1,
         );
         if spend(remaining, work).is_none() {
+            aggregate.exhaustive = false;
             aggregate.work = initial - *remaining;
             result.source_cut_search = Some(aggregate);
             return Ok(());
@@ -756,6 +794,19 @@ pub(super) fn append(
                 continue;
             }
         }
+        let whole_fallback = if pass == Pass::Standard {
+            if spend(remaining, last - first).is_none() {
+                aggregate.exhaustive = false;
+                break;
+            }
+            new_anchors
+                .range((b.0, b.1 + 1)..*d)
+                .take(last - first)
+                .count()
+                == last - first - 1
+        } else {
+            false
+        };
         let work = (c.1 - a.1 + 1)
             .saturating_add(d.1 - b.1 + 1)
             .saturating_mul(4);
@@ -818,7 +869,28 @@ pub(super) fn append(
             }
             Some(false) => {}
         }
-        let cached = if refine_existing && !proofs.is_empty() {
+        let reusable = if pass == Pass::Standard && !rows {
+            &*plain_censuses
+        } else {
+            proofs
+        };
+        let cached =
+            if (refine_existing || (pass == Pass::Standard && !rows)) && !reusable.is_empty() {
+                let work = reusable.len().saturating_add(1).ilog2() as usize
+                    + left[0].len()
+                    + right[0].len()
+                    + 1;
+                if spend(remaining, work).is_none() {
+                    aggregate.exhaustive = false;
+                    break;
+                }
+                reusable.get(&[*entry, *exit]).filter(|proof| {
+                    same_nodes(&proof.old, &left[0]) && same_nodes(&proof.new, &right[0])
+                })
+            } else {
+                None
+            };
+        let cached = if cached.is_none() && pass == Pass::Standard && !rows && !proofs.is_empty() {
             let work = proofs.len().saturating_add(1).ilog2() as usize
                 + left[0].len()
                 + right[0].len()
@@ -828,13 +900,17 @@ pub(super) fn append(
                 break;
             }
             proofs.get(&[*entry, *exit]).filter(|proof| {
-                same_nodes(&proof.old, &left[0]) && same_nodes(&proof.new, &right[0])
+                same_nodes(&proof.old, &left[0])
+                    && same_nodes(&proof.new, &right[0])
+                    && old_sources.boundary_roundoff(&left[0], remaining) == Some(false)
+                    && new_sources.boundary_roundoff(&right[0], remaining) == Some(false)
             })
         } else {
-            None
+            cached
         };
-        // RefineExisting uses the non-row, non-paint census. A successful
-        // closure on these very same borrowed nodes is its complete proof.
+        // A full plain census already checked boundary roundoff. A legacy
+        // closure needs that extra check before supporting raw projection.
+        // Both require the same ordered borrowed source population.
         let census = cached.map_or_else(
             || {
                 (
@@ -882,6 +958,39 @@ pub(super) fn append(
             aggregate.exhaustive = false;
             continue;
         };
+        // Keep successful whole-pass censuses separate from legacy proofs,
+        // which later comparison passes can replace. This representation cannot
+        // carry padding, row-order or segmented-region certificates.
+        if pass == Pass::WholeIntervals
+            && !rows
+            && old_padding.is_empty()
+            && new_padding.is_empty()
+            && old_rows.is_none()
+            && new_rows.is_none()
+            && matches!(
+                &old_closure,
+                native::Closure::WholePage | native::Closure::BoundedPaint
+            )
+            && matches!(
+                &new_closure,
+                native::Closure::WholePage | native::Closure::BoundedPaint
+            )
+        {
+            let work = left[0]
+                .len()
+                .saturating_add(right[0].len())
+                .saturating_add(plain_censuses.len().saturating_add(1).ilog2() as usize + 1);
+            if spend(remaining, work).is_some() {
+                plain_censuses.insert(
+                    [*entry, *exit],
+                    super::NativeClosureProof {
+                        old: left[0].clone(),
+                        new: right[0].clone(),
+                        bounded_paint: [old_closure.bounded_paint(), new_closure.bounded_paint()],
+                    },
+                );
+            }
+        }
         if old_rows.is_some() && new_rows.is_some() && old_rows != new_rows {
             // Mixed conventions require a separate certificate on each side.
             aggregate.exhaustive = false;
@@ -992,6 +1101,7 @@ pub(super) fn append(
             &maps,
             refine_existing,
             whole_intervals || (paint_frame && !refine_existing),
+            whole_fallback,
             remaining,
         )?;
         if let Some(search) = result.source_cut_search.take() {
@@ -1014,7 +1124,7 @@ pub(super) fn append(
             {
                 compare_population(
                     old, new, result, parent, limits, &left, &right, sources, &anchors, population,
-                    &maps, true, false, remaining,
+                    &maps, true, false, false, remaining,
                 )?;
                 if let Some(search) = result.source_cut_search.take() {
                     aggregate.exhaustive &= search.exhaustive;
@@ -1035,7 +1145,7 @@ pub(super) fn append(
         let right = vec![new_nodes.iter().collect()];
         compare_population(
             old, new, result, parent, limits, &left, &right, sources, &anchors, population, &maps,
-            false, false, remaining,
+            false, false, false, remaining,
         )?;
         if let Some(search) = result.source_cut_search.take() {
             aggregate.exhaustive &= search.exhaustive;
@@ -1073,6 +1183,7 @@ fn compare_population(
     maps: &CutMaps,
     refine_existing: bool,
     whole_only: bool,
+    whole_fallback: bool,
     remaining: &mut usize,
 ) -> Result<()> {
     let Some((old_sources, new_sources)) = sources else {
@@ -1188,6 +1299,21 @@ fn compare_population(
             SourceCutPageEdge::Before => cut.old <= a && cut.new <= b,
         });
     }
+    // If lexical discovery found no finer boundary, reuse the closed frame
+    // and its accepted endpoints. The caller checked that no accepted anchor
+    // crosses the enclosing interval; no second census or search is needed.
+    if whole_fallback && spend(remaining, boundaries.len()).is_none() {
+        search.work = initial - *remaining;
+        result.source_cut_search = Some(search);
+        return Ok(());
+    }
+    let whole_fallback = whole_fallback
+        && boundaries.iter().all(|cut| {
+            matches!(
+                cut.certificate.evidence,
+                CutEvidence::AcceptedBoundary { .. }
+            )
+        });
     let sort_work = boundaries
         .len()
         .saturating_mul(boundaries.len().saturating_add(1).ilog2() as usize + 1);
@@ -1336,6 +1462,7 @@ fn compare_population(
             || entry.new.0 != exit.new.0
             || (!refine_existing
                 && !whole_only
+                && !(whole_fallback && entry.old.1 < exit.old.1 && entry.new.1 < exit.new.1)
                 && !paint_boundaries
                 && !matches!(population, SourceCutPopulation::AnchoredPage { .. })
                 && matches!(
@@ -1437,22 +1564,17 @@ fn compare_population(
             }
             (a.to_vec(), b.to_vec())
         } else {
-            let projection_work = left[entry.old.0][entry.old.1..=exit.old.1]
-                .iter()
-                .chain(&right[entry.new.0][entry.new.1..=exit.new.1])
-                .map(|node| node.sources.len().saturating_mul(8))
-                .fold(0usize, usize::saturating_add);
-            if spend(remaining, projection_work).is_none() {
-                break;
-            }
             let (Some(a), Some(b)) = (
-                interior(left, entry.old, exit.old),
-                interior(right, entry.new, exit.new),
+                interior(left, entry.old, exit.old, remaining),
+                interior(right, entry.new, exit.new, remaining),
             ) else {
                 continue;
             };
             sliced = (a, b);
-            (sliced.0.iter().collect(), sliced.1.iter().collect())
+            (
+                sliced.0.iter().map(std::borrow::Cow::as_ref).collect(),
+                sliced.1.iter().map(std::borrow::Cow::as_ref).collect(),
+            )
         };
         let Some(kind) = a.first().or_else(|| b.first()).map(|node| node.kind) else {
             continue;
@@ -1918,6 +2040,59 @@ mod tests {
             basis: ViewBasis::NativeLayout,
             content: NodeContent::Text { view },
         }
+    }
+
+    #[test]
+    fn empty_cut_endpoints_do_not_consume_source_projection_work() {
+        let body = node();
+        let mut boundary = node();
+        boundary.id = NodeId(8);
+        boundary.sources = (10..1034).map(source).collect();
+        boundary.content = NodeContent::Text {
+            view: TextView {
+                tokens: vec![ComparableToken::Scalar('a'); 1024],
+                origins: boundary
+                    .sources
+                    .iter()
+                    .map(|source| vec![*source])
+                    .collect(),
+                source_backed: vec![true; 1024],
+                normalization: TextNormalization::Exact,
+            },
+        };
+        let runs = vec![vec![&boundary, &body, &boundary]];
+        let result = interior(&runs, (0, 0, 1024), (0, 2, 0), &mut 24)
+            .expect("only the interior body needs a source projection");
+        assert_eq!(
+            result.iter().map(|node| node.as_ref()).collect::<Vec<_>>(),
+            vec![&body]
+        );
+        assert!(interior(&runs, (0, 0, 1024), (0, 2, 0), &mut 8).is_none());
+        assert!(interior(&runs, (0, 0, 1023), (0, 2, 0), &mut 24).is_none());
+        assert_eq!(body, node());
+    }
+
+    #[test]
+    fn complete_exact_cut_members_reuse_the_validated_view_with_a_bounded_extent_copy() {
+        let mut original = node();
+        let NodeContent::Text { view } = &mut original.content else {
+            unreachable!()
+        };
+        view.normalization = TextNormalization::Exact;
+        let runs = vec![vec![&original]];
+        let whole = interior(&runs, (0, 0, 0), (0, 0, 4), &mut 3)
+            .expect("a complete exact member needs no token copy");
+        assert!(std::ptr::eq(whole[0].as_ref(), &original));
+        assert_eq!(
+            whole[0].as_ref(),
+            &slice(&original, 0, 4).expect("complete exact member has a valid slice")
+        );
+        assert!(interior(&runs, (0, 0, 0), (0, 0, 4), &mut 0).is_none());
+        assert!(interior(&runs, (0, 0, 0), (0, 0, 2), &mut 3).is_none());
+        let partial = interior(&runs, (0, 0, 0), (0, 0, 2), &mut 17)
+            .expect("partial members still validate and copy their source projection");
+        assert!(!std::ptr::eq(partial[0].as_ref(), &original));
+        assert_eq!(partial[0].sources, [source(1)]);
     }
 
     #[test]

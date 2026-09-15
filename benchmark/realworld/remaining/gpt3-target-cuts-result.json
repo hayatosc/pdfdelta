@@ -1,0 +1,378 @@
+{
+  "status": "fixed_extent_candidate_found_but_correspondence_and_budget_unproved",
+  "previous_turn_classification": "progress: superscript oracle established enclosing change coverage and exposed the remaining extent limitation",
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "finding": "The fixed target is an interior period-delimited span on both sides of a heavily rewritten paragraph. Current fragment discovery only offers mandatory whole rows and exterior words, so it cannot use this interior span directly.",
+  "prototype_contract": "Enumerate adjacent period-delimited native glyph spans, retaining decimal fragments and a final unterminated fragment. Rank all pairs by their longest identical contiguous sequence of per-glyph mapped strings. A candidate must strictly exceed every same-side competitor; unknown glyphs conservatively match any symbol in competitor upper bounds. This is diagnostic candidate ranking, not proof of correspondence.",
+  "measurement": {
+    "complete": true,
+    "work": 599875,
+    "limit": 1000000,
+    "old_spans": [
+      [
+        0,
+        200
+      ],
+      [
+        200,
+        319
+      ],
+      [
+        319,
+        546
+      ],
+      [
+        546,
+        673
+      ]
+    ],
+    "new_spans": [
+      [
+        0,
+        108
+      ],
+      [
+        108,
+        292
+      ],
+      [
+        292,
+        490
+      ],
+      [
+        490,
+        505
+      ],
+      [
+        505,
+        583
+      ],
+      [
+        583,
+        689
+      ],
+      [
+        689,
+        742
+      ],
+      [
+        742,
+        877
+      ]
+    ],
+    "scores": [
+      {
+        "old": 0,
+        "new": 0,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 0,
+        "new": 1,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 0,
+        "new": 2,
+        "known": 12,
+        "possible": 12
+      },
+      {
+        "old": 0,
+        "new": 3,
+        "known": 4,
+        "possible": 4
+      },
+      {
+        "old": 0,
+        "new": 4,
+        "known": 11,
+        "possible": 11
+      },
+      {
+        "old": 0,
+        "new": 5,
+        "known": 12,
+        "possible": 12
+      },
+      {
+        "old": 0,
+        "new": 6,
+        "known": 9,
+        "possible": 9
+      },
+      {
+        "old": 0,
+        "new": 7,
+        "known": 10,
+        "possible": 10
+      },
+      {
+        "old": 1,
+        "new": 0,
+        "known": 7,
+        "possible": 7
+      },
+      {
+        "old": 1,
+        "new": 1,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 1,
+        "new": 2,
+        "known": 12,
+        "possible": 12
+      },
+      {
+        "old": 1,
+        "new": 3,
+        "known": 2,
+        "possible": 2
+      },
+      {
+        "old": 1,
+        "new": 4,
+        "known": 4,
+        "possible": 4
+      },
+      {
+        "old": 1,
+        "new": 5,
+        "known": 40,
+        "possible": 40,
+        "fixed_core_matches": [
+          true,
+          true
+        ]
+      },
+      {
+        "old": 1,
+        "new": 6,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 1,
+        "new": 7,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 2,
+        "new": 0,
+        "known": 7,
+        "possible": 7
+      },
+      {
+        "old": 2,
+        "new": 1,
+        "known": 10,
+        "possible": 10
+      },
+      {
+        "old": 2,
+        "new": 2,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 2,
+        "new": 3,
+        "known": 3,
+        "possible": 3
+      },
+      {
+        "old": 2,
+        "new": 4,
+        "known": 4,
+        "possible": 4
+      },
+      {
+        "old": 2,
+        "new": 5,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 2,
+        "new": 6,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 2,
+        "new": 7,
+        "known": 11,
+        "possible": 11,
+        "fixed_core_matches": [
+          false,
+          false
+        ]
+      },
+      {
+        "old": 3,
+        "new": 0,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 3,
+        "new": 1,
+        "known": 8,
+        "possible": 8
+      },
+      {
+        "old": 3,
+        "new": 2,
+        "known": 12,
+        "possible": 12
+      },
+      {
+        "old": 3,
+        "new": 3,
+        "known": 2,
+        "possible": 2
+      },
+      {
+        "old": 3,
+        "new": 4,
+        "known": 4,
+        "possible": 4
+      },
+      {
+        "old": 3,
+        "new": 5,
+        "known": 13,
+        "possible": 13
+      },
+      {
+        "old": 3,
+        "new": 6,
+        "known": 9,
+        "possible": 9
+      },
+      {
+        "old": 3,
+        "new": 7,
+        "known": 9,
+        "possible": 9
+      }
+    ],
+    "candidates": [
+      {
+        "old": 1,
+        "new": 5,
+        "known": 40,
+        "possible": 40,
+        "fixed_core_matches": [
+          true,
+          true
+        ]
+      },
+      {
+        "old": 2,
+        "new": 7,
+        "known": 11,
+        "possible": 11,
+        "fixed_core_matches": [
+          false,
+          false
+        ]
+      }
+    ]
+  },
+  "witnesses": [
+    {
+      "old_span": 1,
+      "new_span": 5,
+      "maximal_common_strings": [
+        "English(93%bywordcount),italsoincludes7%"
+      ],
+      "best_competing_possible_length": 13,
+      "fixed_core_matches": [
+        true,
+        true
+      ]
+    },
+    {
+      "old_span": 2,
+      "new_span": 7,
+      "maximal_common_strings": [
+        "translation"
+      ],
+      "best_competing_possible_length": 10,
+      "fixed_core_matches": [
+        false,
+        false
+      ]
+    }
+  ],
+  "budget_comparison": {
+    "diagnostic_work": 599875,
+    "diagnostic_limit": 1000000,
+    "remaining_after_prior_oracle_source_cut_search": 262977,
+    "fits_remaining_production_work": false,
+    "caveat": "Counters describe different implementations; this is an explicit missing production integration budget, not a wall-time comparison."
+  },
+  "checks": {
+    "five_test_groups": "passed: duplicate rivals, unknown rivals, exhaustion, literal spaces/glyph partitions and decimal fragments",
+    "production_checks": "not rerun: standalone prototype and documentation only"
+  },
+  "limitations": [
+    "Adjacent period spans are a convention, not a complete enumeration of split/group or punctuation interpretations.",
+    "Unknown glyphs can also conceal punctuation boundaries; the wildcard score bound does not certify that candidate boundary population. The measured pair is fully mapped only under the existing font oracle.",
+    "The translation-only candidate demonstrates that mutually strongest common substrings do not prove sentence identity.",
+    "The hypothetical enclosing paragraph depends on unsupported font, boundary and superscript assumptions.",
+    "The quadratic scoring prototype has no production budget reservation and does not fit the observed remaining work.",
+    "No report, exact mask, target range hit or document completion is added."
+  ],
+  "next_action": "Validate the proposed correspondence against grouped/overlapping span rivals and copied text before designing an admissible conditional source-span premise. If it survives, use measured costs to design bounded candidate indexing within the unchanged budget. Do not adopt longest-substring rank as a proof or widen the fixed target extent.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/inspect_targets.py",
+      "sha256": "a334f0be88eaef1cd1eb35de19e3a1d4a0a5cf2ccdeed8bae9b471aa58beb6ee"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/target.json",
+      "sha256": "93cb8000802f91aff946a008ac3f432eb56fbb38f4cb1b24a4bf45c2ab88bab0"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/candidates.py",
+      "sha256": "4da957164eca8c9fb3bf84e06241949c2151a53575439e27847c0dad5662f550"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/test_candidates.py",
+      "sha256": "de4609804222fc1f9f561258270820774c774e84f650c6a5a758ef36574337c2"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/tests.log",
+      "sha256": "888a0c0ed615e57d32cf72be501b0c355f33b8613c81dfdaa99db33d7959487e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/run.py",
+      "sha256": "72901bfe9eea92739b6ee224fd6405ed095bb5b325dd014eec9ee0aecf717afb"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/run.log",
+      "sha256": "d981f5162d7eb15ff565ac98b381219aa43997a4b6058d0276a8d1a7f4421060"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/input.json",
+      "sha256": "454824b6c8fd9e466bf2d9eed4d5f7ce952044980cca56e8cfd0257d25619b53"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/result.json",
+      "sha256": "ea25caedda225249abf459f09402986e0bbc08f6dd88a33fb243563c012f1c35"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-target-cuts/witnesses.json",
+      "sha256": "87fad3a96a5476e533918fc66d8e76fc6b9e757dace609968d63fb0c24d439c3"
+    }
+  ]
+}

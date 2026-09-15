@@ -247,7 +247,16 @@ impl DocumentGraph {
         evidence: EvidenceLimits,
         limits: GraphLimits,
     ) -> Result<()> {
-        store.validate(evidence)?;
+        self.validate_indexed(store, evidence, limits).map(|_| ())
+    }
+
+    pub(super) fn validate_indexed<'a>(
+        &self,
+        store: &'a EvidenceStore,
+        evidence: EvidenceLimits,
+        limits: GraphLimits,
+    ) -> Result<super::evidence::NativeIndex<'a>> {
+        let native = store.validate_indexed(evidence)?;
         bounded(self.nodes.len(), limits.max_nodes, "graph nodes")?;
         bounded(self.edges.len(), limits.max_edges, "graph edges")?;
         bounded(
@@ -573,7 +582,7 @@ impl DocumentGraph {
             )?;
             check_sources(&conflict.sources, &sources, &mut references, limits)?;
         }
-        Ok(())
+        Ok(native)
     }
 }
 

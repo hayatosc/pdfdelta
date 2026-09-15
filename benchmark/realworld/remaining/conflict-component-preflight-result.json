@@ -1,0 +1,254 @@
+{
+  "version": 1,
+  "outcome": "Skip conflict graphs that cannot finish within the remaining check budget. SP 800-37 completes five independent small subset components using 30 checks instead of discarding one million partial checks. Three newly mandatory proposals remain blocked by incomplete group-candidate dependencies; no additional source range or strict coverage is recovered.",
+  "binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/pdfdelta",
+    "sha256": "b09510674106973a03cd9c6b6218d3db06d2668ed345c248e68719d3e40afb5c"
+  },
+  "changed_build_files": [
+    {
+      "path": "crates/pdfdelta-core/src/document/matching.rs",
+      "sha256": "12498a59fc7131898034bb77a7c5ce99b099388aebfb285ccd8a832b1ff87f19"
+    },
+    {
+      "path": "crates/pdfdelta-core/tests/document_matching_fixture.rs",
+      "sha256": "a4961dba8b98ae44a918e05b79a56368ee8167d19f1464e286ee344091a60c26"
+    }
+  ],
+  "mechanism": {
+    "preflight": "Compute the exact triangular pair count with checked arithmetic before constructing a non-assignment component conflict graph.",
+    "independence": "The completed ownership incidence index already separates components through node, source, physical-conflict and partition dependencies. A skipped component remains non-exhaustive with no mandatory proposal. Its partial conflicts would not have been used by the original solver.",
+    "preserved": "Candidate universe, component order, pairwise overlap semantics, assignment and subset objectives, source-only solve, uncertainty guards and preset limits are unchanged."
+  },
+  "comparisons": [
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/text-evidence-after/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "2fbe6326bed54ec52a917c1f10c9ab0700abaaed772eecb3a88023f7e483c7f5"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "a299d5f7f122eab01d185df96d387476e94980dbb52868db9c8ca48a60643418"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/runs.json",
+        "sha256": "5380a4c633c62218aea121adb156f0fd71a7c733157912142087e5fa1bdf3f83"
+      },
+      "strict_comparisons_coverage_reviews_accepted_boundaries_and_candidate_universe_identical": true,
+      "changed_result_fields": [],
+      "conflict_checks": [
+        0,
+        0
+      ],
+      "new_source_only_mandatory": [],
+      "newly_completed_components": [],
+      "pending_dependencies": {}
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/text-evidence-after/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "1063ca02bdd58e2d5306e4089630cfb35fad2e15596e55f6f557f6ec70d345e1"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "03b38a293f840b2d49f65a232319185d423d2a34408ddf12293cbd4b819d139d"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/runs.json",
+        "sha256": "5380a4c633c62218aea121adb156f0fd71a7c733157912142087e5fa1bdf3f83"
+      },
+      "strict_comparisons_coverage_reviews_accepted_boundaries_and_candidate_universe_identical": true,
+      "changed_result_fields": [
+        "matching",
+        "counterpart_decisions",
+        "text_search",
+        "unresolved"
+      ],
+      "conflict_checks": [
+        1000000,
+        30
+      ],
+      "new_source_only_mandatory": [
+        6529,
+        6530,
+        7715
+      ],
+      "newly_completed_components": [
+        {
+          "proposals": [
+            691,
+            692,
+            737,
+            738,
+            9869
+          ],
+          "mandatory": [],
+          "exhaustive": true
+        },
+        {
+          "proposals": [
+            1412,
+            6530
+          ],
+          "mandatory": [
+            6530
+          ],
+          "exhaustive": true
+        },
+        {
+          "proposals": [
+            1419,
+            6529
+          ],
+          "mandatory": [
+            6529
+          ],
+          "exhaustive": true
+        },
+        {
+          "proposals": [
+            1750,
+            1764,
+            7715
+          ],
+          "mandatory": [
+            7715
+          ],
+          "exhaustive": true
+        },
+        {
+          "proposals": [
+            1929,
+            1930,
+            2118,
+            2119,
+            2412,
+            2413
+          ],
+          "mandatory": [],
+          "exhaustive": true
+        }
+      ],
+      "pending_dependencies": {
+        "6529": {
+          "old": [],
+          "new": [
+            1434
+          ]
+        },
+        "6530": {
+          "old": [],
+          "new": [
+            1504
+          ]
+        },
+        "7715": {
+          "old": [
+            366
+          ],
+          "new": []
+        }
+      }
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/text-evidence-controls/faa-weight-27e-to-27f-text.json",
+        "sha256": "a5ce7a50de40b560e377528d4053b26c5d9475019cfc8d5025b05abe681af7d2"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-controls/faa-weight-27e-to-27f-text.json",
+        "sha256": "cd1a0f4dafe5e804c3f433471e990a1c485ea67220ccd463ef5a129cf3fc081d"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-controls/runs.json",
+        "sha256": "cbaddb936489655bcb380df9a7896cf4f0d547c97a0a74491986496a3a49e240"
+      },
+      "strict_comparisons_coverage_reviews_accepted_boundaries_and_candidate_universe_identical": true,
+      "changed_result_fields": [],
+      "conflict_checks": [
+        380033,
+        380033
+      ],
+      "new_source_only_mandatory": [],
+      "newly_completed_components": [],
+      "pending_dependencies": {}
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/text-evidence-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "0898d18dd6ca156885a2e05a1133c8b68023cec262a6cec63c25b031c5b23123"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "7a9d12f2a351eb7be19365641dbd2ef696730da9e267307cf9dbda5c80b7a598"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-controls/runs.json",
+        "sha256": "cbaddb936489655bcb380df9a7896cf4f0d547c97a0a74491986496a3a49e240"
+      },
+      "strict_comparisons_coverage_reviews_accepted_boundaries_and_candidate_universe_identical": true,
+      "changed_result_fields": [],
+      "conflict_checks": [
+        282500,
+        282500
+      ],
+      "new_source_only_mandatory": [],
+      "newly_completed_components": [],
+      "pending_dependencies": {}
+    }
+  ],
+  "checks": {
+    "fmt": "passed",
+    "diff_whitespace": "passed",
+    "clippy": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/clippy.log",
+      "sha256": "06c98a4472bb2dd936e8269668e50589fba64364815e9b9e7452bbd4beee3e4f"
+    },
+    "workspace": {
+      "passed": 2441,
+      "ignored": 2,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/workspace.log",
+        "sha256": "f90a1f3202984720e54bb41c78b869c5dff0116feb0a599d46307e30f1af9ff0"
+      }
+    },
+    "generated": {
+      "passed": 48,
+      "strict_accepted": 42,
+      "five_core_renderer_cells": 10,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/acceptance.log",
+        "sha256": "9029297a9602d23f7a2dca5b601f4ec3490c509a7f4a4b2766e0fbae7e948cb1"
+      }
+    },
+    "matching_fixture": {
+      "passed": 23,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/matching.log",
+        "sha256": "501d56df6a9ec3f11adf625d40ff55e41fc585dde08550b4170571414a044022"
+      },
+      "regression": "Two independent non-assignment components are exercised in both proposal orders, with zero, insufficient and complete pair budgets. Only completed components can produce mandatory proposals.",
+      "baseline_counterfactual": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/conflict-preflight-after/counterfactual.log",
+        "sha256": "da11bde8f922ec5284087562c12ab5f3bd410756788461dfb680daa423b965ee"
+      },
+      "baseline_counterfactual_exit": 101,
+      "baseline_failure": "The preferred small-component proposal remains unresolved after the oversized component consumes its budget.",
+      "final_source_restored_after_counterfactual": true
+    }
+  },
+  "next_blocker": {
+    "source": "crates/pdfdelta-core/src/document/groups.rs::unfinished",
+    "observed": "Newly mandatory proposals 6529, 6530 and 7715 depend respectively on new node 1434, new node 1504 and old node 366. All three are literal single-space nodes retained in the incomplete group-candidate region.",
+    "constraint": "Do not ignore blank source nodes or remove dependencies merely because the currently enumerated group is mandatory. Any pruning needs a proof that no omitted feasible group can own the source."
+  },
+  "limitations": [
+    "No additional A/B range, strict source coverage, fixed-target hit, document completion or gate achievement is claimed.",
+    "The 8,414-proposal component remains incomplete; the fix does not solve it or reinterpret missing rivals as absent.",
+    "No new collection, campaign, source convention or limit increase was introduced."
+  ]
+}

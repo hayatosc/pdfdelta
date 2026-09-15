@@ -1086,6 +1086,287 @@ fn merge_following_node(fixture: &mut Fixture, index: usize) {
 }
 
 #[test]
+fn accepted_group_boundaries_retain_the_exact_native_interior() {
+    for (merge_entry, merge_exit) in [(true, false), (false, true), (true, true)] {
+        let old = fixture_rows(&["Opening ", "context.", "Value 10.", "Ending ", "context."]);
+        let mut new = fixture_rows(&["Opening ", "context.", "Value 20.", "Ending ", "context."]);
+        if merge_exit {
+            merge_following_node(&mut new, 4);
+        }
+        if merge_entry {
+            merge_following_node(&mut new, 1);
+        }
+        for (old, new) in [(&old, &new), (&new, &old)] {
+            let body = |fixture: &Fixture| {
+                fixture
+                    .1
+                    .nodes
+                    .iter()
+                    .find(|node| node.id == NodeId(3))
+                    .expect("retained fixture node")
+                    .sources
+                    .clone()
+            };
+            let expected = [body(old), body(new)];
+            let result = compare(old, new);
+            let scope = &result.scopes[0].result;
+            let review = scope
+                .text_scope_reviews
+                .iter()
+                .find(|review| {
+                    review.source_cuts.is_none()
+                        && review.old_sources == expected[0]
+                        && review.new_sources == expected[1]
+                })
+                .expect("an accepted exact group can bound the same finite interior extent");
+            assert!(review.comparison.text_mask.is_some());
+            for (edge, index) in review.boundaries.iter().copied().enumerate() {
+                let proposal = &scope.candidates.proposals[index];
+                assert!(scope.accepted_correspondences.contains(&index));
+                assert!(scope.matching.source_only_mandatory.contains(&index));
+                for (fixture, ids, sources) in [
+                    (old, &proposal.old, &review.old_boundaries[edge]),
+                    (new, &proposal.new, &review.new_boundaries[edge]),
+                ] {
+                    let expected: Vec<_> = ids
+                        .iter()
+                        .flat_map(|id| {
+                            fixture
+                                .1
+                                .nodes
+                                .iter()
+                                .find(|node| node.id == *id)
+                                .expect("retained fixture node")
+                                .sources
+                                .iter()
+                                .copied()
+                        })
+                        .collect();
+                    assert_eq!(*sources, expected);
+                }
+            }
+            let mut gap = old.clone();
+            append_unassigned(&mut gap, PageId(0), 40.0);
+            assert!(
+                compare(&gap, new).scopes[0]
+                    .result
+                    .text_scope_reviews
+                    .iter()
+                    .all(|review| {
+                        review.old_sources != expected[0] || review.new_sources != expected[1]
+                    }),
+                "group boundaries must retain the complete native source census"
+            );
+        }
+    }
+}
+
+#[test]
+fn accepted_group_boundaries_retain_local_presence_in_both_directions() {
+    let empty = fixture_rows(&["Opening ", "context.", "Ending ", "context."]);
+    let mut populated = fixture_rows(&["Opening ", "context.", "Value 20.", "Ending ", "context."]);
+    let added = populated.1.nodes[3].sources.clone();
+    merge_following_node(&mut populated, 4);
+    merge_following_node(&mut populated, 1);
+    for (old, new, insertion) in [(&empty, &populated, true), (&populated, &empty, false)] {
+        let result = compare(old, new);
+        let review = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .find(|review| {
+                review.source_cuts.is_none()
+                    && review.presence.is_some()
+                    && if insertion {
+                        review.old_sources.is_empty() && review.new_sources == added
+                    } else {
+                        review.old_sources == added && review.new_sources.is_empty()
+                    }
+            })
+            .expect("accepted groups preserve a closed local insertion or deletion");
+        assert!(review.comparison.text_mask.is_some());
+        assert_eq!(review.boundaries.len(), 2);
+    }
+}
+
+#[test]
+fn group_boundaries_preserve_the_enclosing_comparison_without_rechecking_covered_nodes() {
+    let old = fixture_rows(&[
+        "BEGIN",
+        "Value 10.",
+        "Shared ",
+        "context.",
+        "Value 11.",
+        "END",
+    ]);
+    let mut new = fixture_rows(&[
+        "BEGIN",
+        "Value 20.",
+        "Shared ",
+        "context.",
+        "Value 21.",
+        "END",
+    ]);
+    merge_following_node(&mut new, 3);
+    let interior = |fixture: &Fixture| {
+        fixture
+            .1
+            .nodes
+            .iter()
+            .filter(|node| (2..=5).contains(&node.id.0))
+            .flat_map(|node| node.sources.iter().copied())
+            .collect::<Vec<_>>()
+    };
+    let result = compare(&old, &new);
+    let reviews = &result.scopes[0].result.text_scope_reviews;
+    assert!(
+        reviews.iter().any(|review| {
+            review.source_cuts.is_none()
+                && review.old_sources == interior(&old)
+                && review.new_sources == interior(&new)
+        }),
+        "new internal boundaries preserve the established finite extent"
+    );
+    assert_eq!(
+        reviews
+            .iter()
+            .filter(|review| review.source_cuts.is_none())
+            .count(),
+        1,
+        "covered group subranges do not repeat the whole-node comparison"
+    );
+}
+
+#[test]
+fn group_order_preflight_preserves_work_for_a_later_source_change() {
+    let mut old = fixture_rows(&[
+        "BEGIN",
+        "abcd",
+        "WXYZ",
+        "MIDDLE ",
+        "boundary.",
+        "Budget 10.",
+        "END",
+    ]);
+    let mut new = fixture_rows(&[
+        "BEGIN",
+        "abcd",
+        "WXYZ",
+        "MIDDLE ",
+        "boundary.",
+        "Budget 20.",
+        "END",
+    ]);
+    merge_following_node(&mut old, 2);
+    merge_following_node(&mut new, 2);
+    merge_following_node(&mut new, 3);
+    let control = old.1.nodes[2].sources.clone();
+    let NodeContent::Text { view } = &mut new.1.nodes[2].content else {
+        unreachable!()
+    };
+    let original = view.clone();
+    for (position, source) in [0, 4, 1, 5, 2, 6, 3, 7].into_iter().enumerate() {
+        view.tokens[position] = original.tokens[source].clone();
+        view.origins[position] = original.origins[source].clone();
+    }
+    let mut glyphs = old.0.native.items().to_vec();
+    let template = glyphs[0].clone();
+    for index in 0..2_000 {
+        let mut glyph = template.clone();
+        glyph.id = GlyphId(10_000 + index);
+        glyph.render_order = 10_000 + index as u32;
+        glyph.baseline.y = 200.0;
+        glyph.bbox.min.y = 200.0;
+        glyph.bbox.max.y = 210.0;
+        old.0.inventories[0]
+            .sources
+            .push(SourceRef::Native { glyph: glyph.id });
+        glyphs.push(glyph);
+    }
+    old.0.native = Document::new(glyphs);
+    for budget in [2_000, 4_000, 8_000] {
+        let mut limits = DocumentComparisonLimits::default();
+        limits.matching.max_group_nodes = 2;
+        limits.matching.max_ownership_visits = budget;
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded grouped comparison");
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        let recovered = reviews.iter().any(|review| {
+            review.old_sources == old.1.nodes[5].sources
+                && review.new_sources == new.1.nodes[4].sources
+        });
+        assert_eq!(recovered, budget >= 4_000, "budget {budget}");
+        assert!(reviews.iter().all(|review| {
+            !review
+                .old_sources
+                .iter()
+                .any(|source| control.contains(source))
+        }));
+    }
+    // A deferred unordered range still admits a real source-count change.
+    let NodeContent::Text { view } = &mut new.1.nodes[2].content else {
+        unreachable!()
+    };
+    view.tokens[0] = ComparableToken::Scalar('q');
+    let SourceRef::Native { glyph: changed } = view.origins[0][0] else {
+        unreachable!()
+    };
+    let mut glyphs = new.0.native.items().to_vec();
+    let glyph = glyphs
+        .iter_mut()
+        .find(|glyph| glyph.id == changed)
+        .expect("changed native glyph");
+    glyph.text = DecodedText::Mapped("q".into());
+    glyph.raw_code = b"q".to_vec();
+    new.0.native = Document::new(glyphs);
+    let mut limits = DocumentComparisonLimits::default();
+    limits.matching.max_group_nodes = 2;
+    let result = compare_document_views(
+        DocumentView {
+            evidence: &old.0,
+            graph: &old.1,
+        },
+        DocumentView {
+            evidence: &new.0,
+            graph: &new.1,
+        },
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        limits,
+        HierarchyLimits::default(),
+    )
+    .expect("deferred source-count comparison");
+    assert!(
+        result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| {
+                review.old_sources == control
+                    && review.comparison.text_mask.is_none()
+                    && review.comparison.text_change_proof.is_some()
+            })
+    );
+}
+
+#[test]
 fn source_content_edges_preserve_coarse_space_changes_and_exact_body_sources() {
     for (a, b, refined) in [
         ("Value 10.   ", "Value 20.  ", true),
@@ -1668,6 +1949,173 @@ fn whole_node_intervals_can_retain_a_raw_parent_for_content_edge_refinement() {
 }
 
 #[test]
+fn native_line_end_hyphens_do_not_manufacture_range_changes() {
+    for spacing_repetitions in [0, 40] {
+        for merge in [false, true] {
+            for reverse in [false, true] {
+                for independent_change in [false, true] {
+                    let prefix = "a b ".repeat(spacing_repetitions);
+                    let mut old = fixture_rows(&["BEGIN", &format!("{prefix}fix"), "END"]);
+                    let mut new = fixture_rows(&[
+                        "BEGIN",
+                        &format!("{prefix}fi-"),
+                        if independent_change { "z" } else { "x" },
+                        "END",
+                    ]);
+                    if merge {
+                        merge_following_node(&mut new, 2);
+                    }
+                    if spacing_repetitions != 0 {
+                        reconstruct_interior_spaces(&mut old);
+                        reconstruct_interior_spaces(&mut new);
+                    }
+                    let result = if reverse {
+                        compare(&new, &old)
+                    } else {
+                        compare(&old, &new)
+                    };
+                    let reviews: Vec<_> = result
+                        .scopes
+                        .iter()
+                        .flat_map(|scope| &scope.result.text_scope_reviews)
+                        .collect();
+                    assert_eq!(
+                        reviews.is_empty(),
+                        !independent_change,
+                        "spacing={spacing_repetitions}, merge={merge}, reverse={reverse}: {reviews:?}"
+                    );
+                    if spacing_repetitions != 0 && independent_change {
+                        assert!(
+                            reviews.iter().any(|review| {
+                                review.comparison.text_change_proof.is_some()
+                                    && review.comparison.text_mask.is_none()
+                            }),
+                            "the spacing family must retain its independent count witness"
+                        );
+                    }
+                    for review in reviews {
+                        if let Some(proof) = &review.comparison.text_change_proof {
+                            assert_ne!(proof.token, ComparableToken::Scalar('-'));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn suffix_cuts_keep_optional_hyphens_in_the_source_population() {
+    use pdfdelta_core::document::CutEvidence;
+    for duplicate in [false, true] {
+        let mut old_rows = vec!["BEGIN", "Budget 10 segmen-", "Costs 30."];
+        let mut new_rows = vec!["BEGIN", "Budget 20 segmen-", "Costs 40."];
+        if duplicate {
+            old_rows.push("Other segmen-");
+            new_rows.push("Other segmen-");
+        }
+        old_rows.push("END");
+        new_rows.push("END");
+        let mut old = fixture_rows(&old_rows);
+        let mut new = fixture_rows(&new_rows);
+        for fixture in [&mut old, &mut new] {
+            let end = fixture.1.nodes.len() - 1;
+            for node in &mut fixture.1.nodes[2..end] {
+                let NodeContent::Text { view } = &mut node.content else {
+                    unreachable!()
+                };
+                view.normalization = TextNormalization::Unresolved {
+                    reason: "retained line boundary requires native projection".into(),
+                };
+            }
+        }
+        let source_end = old.1.nodes[2].sources.len() - 1;
+        let suffix = &old.1.nodes[2].sources[source_end - 6..source_end];
+        let result = compare(&old, &new);
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        let found = reviews
+            .iter()
+            .filter_map(|review| review.source_cuts.as_ref())
+            .any(|cuts| {
+                [&cuts.entry, &cuts.exit].iter().any(|cut| {
+                    matches!(&cut.evidence, CutEvidence::UniqueNativeFragment { old, .. }
+                    if old.sources == suffix)
+                })
+            });
+        assert_eq!(found, !duplicate, "suffix uniqueness: {reviews:?}");
+        if !duplicate {
+            for (fixture, sources) in [
+                (
+                    &old,
+                    reviews
+                        .iter()
+                        .flat_map(|review| review.old_sources.iter())
+                        .copied()
+                        .collect::<std::collections::BTreeSet<_>>(),
+                ),
+                (
+                    &new,
+                    reviews
+                        .iter()
+                        .flat_map(|review| review.new_sources.iter())
+                        .copied()
+                        .collect::<std::collections::BTreeSet<_>>(),
+                ),
+            ] {
+                assert!(
+                    fixture.1.nodes[2..4]
+                        .iter()
+                        .flat_map(|node| &node.sources)
+                        .all(|source| sources.contains(source))
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_contracted_hyphen_neighbor_preserves_independent_whole_range_changes() {
+    let old = fixture("Value 10.");
+    let mut new = fixture("Value 20.-  ");
+    collapse_last_two_literal_spaces(&mut new.1.nodes[2]);
+    let NodeContent::Text { view } = &mut new.1.nodes[2].content else {
+        unreachable!()
+    };
+    view.normalization = TextNormalization::Exact;
+    for (old, new) in [(&old, &new), (&new, &old)] {
+        let result = compare(old, new);
+        assert!(
+            result.scopes[0]
+                .result
+                .text_scope_reviews
+                .iter()
+                .any(|review| {
+                    review.source_cuts.is_none()
+                        && review.old_sources == old.1.nodes[2].sources
+                        && review.new_sources == new.1.nodes[2].sources
+                        && review.comparison.compared
+                })
+        );
+    }
+}
+
+#[test]
+fn a_literal_midline_hyphen_remains_a_native_content_change() {
+    let old = fixture("fix");
+    let new = fixture("fi-x");
+    let result = compare(&old, &new);
+    let reviews = &result.scopes[0].result.text_scope_reviews;
+    assert_eq!(reviews.len(), 1);
+    let mask = reviews[0]
+        .comparison
+        .text_mask
+        .as_ref()
+        .expect("literal hyphen has an exact source mask");
+    assert_eq!(mask.claims.changed_source_lower, 1);
+    assert_eq!(mask.claims.changed_source_upper, 1);
+}
+
+#[test]
 fn interleaved_layout_tokens_do_not_prove_a_native_source_change() {
     for interleaved_paint in [false, true] {
         for reverse in [false, true] {
@@ -2051,6 +2499,267 @@ fn interleaved_native_pages_preserve_closure_and_late_unassigned_glyphs() {
                 review.old_sources == old_extent && review.new_sources == new_extent
             }));
         }
+    }
+}
+
+#[test]
+fn unanchored_pages_do_not_hide_same_page_omissions() {
+    for omitted in [false, true] {
+        let mut old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP", &"X".repeat(20_000)]);
+        let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP", &"Y".repeat(20_000)]);
+        let old_extent = old.1.nodes[2].sources.clone();
+        let new_extent = new.1.nodes[2].sources.clone();
+        for fixture in [&mut old, &mut new] {
+            let last = fixture.1.nodes.last_mut().expect("unanchored paragraph");
+            last.pages = vec![PageId(1)];
+            let sources = last.sources.clone();
+            let ids: std::collections::BTreeSet<_> = sources.iter().copied().collect();
+            let mut glyphs = fixture.0.native.items().to_vec();
+            for glyph in &mut glyphs {
+                if ids.contains(&SourceRef::Native { glyph: glyph.id }) {
+                    glyph.page = PageId(1);
+                }
+            }
+            fixture.0.native = Document::new(glyphs);
+            fixture.0.pages.push(PageEvidence {
+                page: PageId(1),
+                bounds: None,
+            });
+            fixture.0.inventories[0]
+                .sources
+                .retain(|source| !ids.contains(source));
+            fixture.0.inventories.push(ChannelInventory {
+                page: Some(PageId(1)),
+                channel: Channel::Text,
+                backend: 0,
+                sources,
+                complete: true,
+            });
+        }
+        if omitted {
+            append_unassigned(&mut new, PageId(0), 55.0);
+            let mut glyphs = new.0.native.items().to_vec();
+            glyphs.last_mut().expect("omitted glyph").id = GlyphId(50_000);
+            new.0.native = Document::new(glyphs);
+            *new.0.inventories[0]
+                .sources
+                .last_mut()
+                .expect("omitted source") = SourceRef::Native {
+                glyph: GlyphId(50_000),
+            };
+        }
+        let limits = DocumentComparisonLimits::default();
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded local comparison");
+        let recovered = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| review.old_sources == old_extent && review.new_sources == new_extent);
+        assert_eq!(recovered, !omitted, "same-page omission={omitted}");
+    }
+}
+
+#[test]
+fn validated_native_index_keeps_unrelated_pages_out_of_local_search_work() {
+    let mut old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
+    let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);
+    let old_extent = old.1.nodes[2].sources.clone();
+    let new_extent = new.1.nodes[2].sources.clone();
+    merge_following_node(&mut new, 2);
+    for fixture in [&mut old, &mut new] {
+        append_unassigned(fixture, PageId(1), 0.0);
+        let mut glyphs = fixture.0.native.items().to_vec();
+        let template = glyphs.last().expect("unrelated page glyph").clone();
+        let inventory = fixture.0.inventories.last_mut().expect("page inventory");
+        for id in 2000..22_000 {
+            let mut glyph = template.clone();
+            glyph.id = GlyphId(id);
+            inventory
+                .sources
+                .push(SourceRef::Native { glyph: glyph.id });
+            glyphs.push(glyph);
+        }
+        fixture.0.native = Document::new(glyphs);
+    }
+    for budget in [0, 10_000] {
+        let mut limits = DocumentComparisonLimits::default();
+        limits.matching.max_ownership_visits = budget;
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded evidence remains valid");
+        let recovered = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| review.old_sources == old_extent && review.new_sources == new_extent);
+        assert_eq!(recovered, budget != 0, "local work budget {budget}");
+    }
+    let mut limits = DocumentComparisonLimits::default().evidence;
+    limits.max_items = 10_000;
+    assert!(
+        old.0.validate(limits).is_err(),
+        "full evidence limits still apply"
+    );
+}
+
+#[test]
+fn page_paint_index_keeps_late_local_obstructions_and_skips_remote_paint_work() {
+    for obstruction in 0..3 {
+        let old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
+        let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);
+        let old_extent = old.1.nodes[2].sources.clone();
+        let new_extent = new.1.nodes[2].sources.clone();
+        merge_following_node(&mut new, 2);
+        append_unassigned(&mut new, PageId(1), 0.0);
+        let disjoint = Rect {
+            min: Vec2 { x: 0.0, y: 200.0 },
+            max: Vec2 { x: 100.0, y: 210.0 },
+        };
+        with_paint(&mut new, Some(disjoint));
+        let mut paints = new
+            .0
+            .native
+            .non_text_paint_bounds()
+            .expect("local paint bounds")
+            .to_vec();
+        let mut remote = paints[0].clone();
+        remote.page = PageId(1);
+        remote.bounds = None;
+        for order in 1..20_001 {
+            remote.render_order = order;
+            paints.push(remote.clone());
+        }
+        let mut last = paints[0].clone();
+        last.render_order = 20_001;
+        last.bounds = match obstruction {
+            0 => Some(disjoint),
+            1 => Some(Rect {
+                min: Vec2 { x: 0.0, y: 50.0 },
+                max: Vec2 { x: 100.0, y: 60.0 },
+            }),
+            _ => None,
+        };
+        paints.push(last);
+        new.0.native = new.0.native.clone().with_non_text_paint_bounds(paints);
+        new.0
+            .inventories
+            .last_mut()
+            .expect("remote page inventory")
+            .complete = false;
+        let mut limits = DocumentComparisonLimits::default();
+        limits.matching.max_ownership_visits = 10_000;
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded paint acquisition");
+        let recovered = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| review.old_sources == old_extent && review.new_sources == new_extent);
+        assert_eq!(recovered, obstruction == 0, "obstruction {obstruction}");
+        limits.evidence.max_items = 10_000;
+        assert!(new.0.validate(limits.evidence).is_err());
+    }
+}
+
+#[test]
+fn page_text_evidence_keeps_global_obligations_and_ignores_remote_issues() {
+    for obligation in 0..5 {
+        let old = fixture_rows(&["BEGIN", "Budget 10.", "END", "STOP"]);
+        let mut new = fixture_rows(&["BEGIN", "Budget 20.", "END", "STOP"]);
+        let old_extent = old.1.nodes[2].sources.clone();
+        let new_extent = new.1.nodes[2].sources.clone();
+        merge_following_node(&mut new, 2);
+        append_unassigned(&mut new, PageId(1), 0.0);
+        with_paint(
+            &mut new,
+            Some(Rect {
+                min: Vec2 { x: 0.0, y: 200.0 },
+                max: Vec2 { x: 100.0, y: 210.0 },
+            }),
+        );
+        let remote_issue = EvidenceIssue {
+            page: Some(PageId(1)),
+            channel: Channel::Text,
+            sources: Vec::new(),
+            boundary: None,
+            kind: EvidenceFailure::Unresolved,
+            reason: "unresolved remote-page acquisition".into(),
+        };
+        new.0.issues = vec![remote_issue.clone(); 2_000];
+        match obligation {
+            1 | 2 | 4 => {
+                let mut issue = remote_issue;
+                issue.page = (obligation == 1).then_some(PageId(0));
+                if obligation == 4 {
+                    issue.channel = Channel::Relations;
+                }
+                new.0.issues.push(issue);
+            }
+            3 => new.0.inventories.push(ChannelInventory {
+                page: None,
+                channel: Channel::Text,
+                backend: 0,
+                sources: Vec::new(),
+                complete: false,
+            }),
+            _ => {}
+        }
+        let result = compare(&old, &new);
+        let recovered = result.scopes[0]
+            .result
+            .text_scope_reviews
+            .iter()
+            .any(|review| review.old_sources == old_extent && review.new_sources == new_extent);
+        assert_eq!(
+            recovered,
+            obligation == 0 || obligation == 4,
+            "obligation {obligation}"
+        );
     }
 }
 
@@ -3110,6 +3819,67 @@ fn bounded_paint_closes_only_the_retained_local_interval() {
 }
 
 #[test]
+fn validated_paint_populations_preserve_native_membership_and_provider_obligations() {
+    for mutation in 0..4 {
+        let old = fixture("a");
+        let mut new = fixture("aa");
+        with_paint(
+            &mut new,
+            Some(Rect {
+                min: Vec2 { x: 0.0, y: 120.0 },
+                max: Vec2 { x: 200.0, y: 140.0 },
+            }),
+        );
+        new.0.inventories[0].sources.reverse();
+        match mutation {
+            1 => {
+                new.0.structured.push(StructuredEvidence {
+                    id: 0,
+                    page: Some(PageId(0)),
+                    bounds: None,
+                    object: None,
+                    backend: 0,
+                    value: StructuredValue::StructureElement {
+                        role: "Span".into(),
+                        identifier: None,
+                        text: None,
+                        glyphs: Vec::new(),
+                        content: None,
+                        parent: None,
+                        order: None,
+                    },
+                });
+                // Equal length does not prove an all-native population.
+                new.0.inventories[0].sources[0] = SourceRef::Structured { element: 0 };
+            }
+            2 => new.0.inventories[0].page = None,
+            3 => {
+                let mut backend = new.0.backends[0].clone();
+                backend.name = "second-native-provider".into();
+                new.0.backends.push(backend);
+                let mut inventory = new.0.inventories[0].clone();
+                inventory.backend = 1;
+                inventory.sources.pop();
+                new.0.inventories.push(inventory);
+            }
+            _ => {}
+        }
+        new.0
+            .validate(Default::default())
+            .expect("valid scoped evidence");
+        assert!(!new.0.inventory_complete(Some(PageId(0)), Channel::Text));
+        assert_eq!(
+            compare(&old, &new).scopes[0]
+                .result
+                .text_scope_reviews
+                .len(),
+            usize::from(mutation == 0),
+            "population mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn paint_closure_rejects_unknown_bounds_boundary_ink_and_incomplete_sources() {
     for mutation in 0..6 {
         let old = fixture("a");
@@ -3277,4 +4047,517 @@ fn whole_literal_correspondence_precedes_padding_even_at_extreme_weight() {
         weight: 1,
     };
     assert!(solve_correspondence_scope(&old.1, &new.1, scope, &[forged], limits).is_err());
+}
+
+fn inferred_merge_fixture() -> (Fixture, Fixture) {
+    (
+        fixture_rows(&[
+            "Purpose of this circular. ",
+            "a. Operators receive guidance on how to develop and receive approval for a ",
+            "weight and balance control program for aircraft under the applicable regulations. ",
+            "b. This circular presents recommendations for using average and estimated weights in the approved control program. ",
+            "NOTE: Each aircraft must be weighed at the required inspection interval. ",
+        ]),
+        fixture_rows(&[
+            "Operators receive guidance on how to develop and receive approval for a weight and balance control program for aircraft under the current regulations. This circular presents recommendations for using average and estimated weights in the approved control program. ",
+        ]),
+    )
+}
+
+fn inferred_groups(
+    result: &DocumentViewComparison,
+) -> Vec<&pdfdelta_core::document::TextScopeReview> {
+    result
+        .scopes
+        .iter()
+        .flat_map(|scope| &scope.result.text_scope_reviews)
+        .filter(|review| review.convention == "inferred-native-paragraph-group-v1")
+        .collect()
+}
+
+#[test]
+fn inferred_paragraph_merge_retains_labels_and_all_body_sources_without_order_masks() {
+    let (old, mut new) = inferred_merge_fixture();
+    let mut glyphs = new.0.native.items().to_vec();
+    let count = glyphs.len() as u32;
+    for glyph in &mut glyphs {
+        glyph.render_order = count - glyph.render_order;
+    }
+    new.0.native = Document::new(glyphs);
+    new.0.inventories[0].complete = false;
+    let result = compare(&old, &new);
+    let reviews = inferred_groups(&result);
+    assert_eq!(reviews.len(), 1);
+    let review = reviews[0];
+    assert_eq!(review.comparison.old, vec![NodeId(2), NodeId(3), NodeId(4)]);
+    assert_eq!(review.comparison.new, vec![NodeId(1)]);
+    assert_eq!(
+        review.old_sources,
+        old.1.nodes[2..5]
+            .iter()
+            .flat_map(|node| node.sources.clone())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(review.new_sources, new.1.nodes[1].sources);
+    assert!(review.boundaries.is_empty());
+    assert!(review.source_cuts.is_none());
+    assert_eq!(review.candidate_search_exhaustive, Some(false));
+    assert_eq!(
+        review.comparison.interpretation,
+        pdfdelta_core::document::InterpretationStatus::Inferred
+    );
+    assert!(review.comparison.text_mask.is_none());
+    assert!(review.comparison.text_change_proof.is_some());
+    let Some(pdfdelta_core::document::TypedOperation::TextChanged {
+        old: Some(text), ..
+    }) = &review.comparison.operation
+    else {
+        panic!("complete review text")
+    };
+    assert!(text.starts_with("a. Operators"));
+    assert!(text.contains("b. This circular"));
+    assert!(!text.contains("NOTE:"));
+    assert!(!text.contains("Purpose"));
+    assert_eq!(result, compare(&old, &new));
+}
+
+#[test]
+fn inferred_paragraph_split_is_symmetric() {
+    let (parts, whole) = inferred_merge_fixture();
+    let result = compare(&whole, &parts);
+    let reviews = inferred_groups(&result);
+    assert_eq!(reviews.len(), 1);
+    assert_eq!(reviews[0].comparison.old, vec![NodeId(1)]);
+    assert_eq!(
+        reviews[0].comparison.new,
+        vec![NodeId(2), NodeId(3), NodeId(4)]
+    );
+}
+
+#[test]
+fn inferred_paragraph_merge_does_not_report_unchanged_or_space_only_text() {
+    let (old, _) = inferred_merge_fixture();
+    let text: String = old.1.nodes[2..5]
+        .iter()
+        .map(|node| {
+            let NodeContent::Text { view } = &node.content else {
+                unreachable!()
+            };
+            view.display_text().expect("mapped fixture text")
+        })
+        .collect();
+    for text in [text.clone(), text.replace(' ', "  ")] {
+        let new = fixture_rows(&[&text]);
+        assert!(inferred_groups(&compare(&old, &new)).is_empty());
+    }
+}
+
+#[test]
+fn inferred_paragraph_merge_respects_disabled_text_and_zero_search_budget() {
+    let (old, new) = inferred_merge_fixture();
+    for disabled_text in [false, true] {
+        let mut limits = DocumentComparisonLimits::default();
+        if disabled_text {
+            limits.matching.channels.text = false;
+        } else {
+            limits.text.max_token_visits = 0;
+        }
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded comparison");
+        assert!(inferred_groups(&result).is_empty());
+    }
+}
+
+#[test]
+fn inferred_paragraph_groups_reject_competing_seeds_and_source_conflicts() {
+    let (mut old, new) = inferred_merge_fixture();
+    old.1
+        .source_conflicts
+        .push(pdfdelta_core::document::SourceConflict {
+            sources: vec![old.1.nodes[2].sources[0], old.1.nodes[3].sources[0]],
+            reason: "Two interpretations of overlapping paint".into(),
+        });
+    assert!(inferred_groups(&compare(&old, &new)).is_empty());
+
+    let (old, new) = inferred_merge_fixture();
+    let texts: Vec<_> = old.1.nodes[1..]
+        .iter()
+        .map(|node| {
+            let NodeContent::Text { view } = &node.content else {
+                unreachable!()
+            };
+            view.display_text().expect("mapped fixture text")
+        })
+        .collect();
+    let rows: Vec<_> = texts.iter().chain(&texts).map(String::as_str).collect();
+    let repeated = fixture_rows(&rows);
+    assert!(inferred_groups(&compare(&repeated, &new)).is_empty());
+}
+
+#[test]
+fn inferred_paragraph_groups_exclude_toc_headings_and_incomplete_prose() {
+    let old = fixture_rows(&[
+        "APPENDIX A. ADDITIONAL REQUIREMENTS FOR PASSENGER WEIGHT IN SMALL CABIN AIRCRAFT (4 pages)............1 ",
+    ]);
+    let new = fixture_rows(&[
+        "APPENDIX B. ADDITIONAL REQUIREMENTS FOR PASSENGER ",
+        "WEIGHT IN SMALL CABIN AIRCRAFT ",
+    ]);
+    assert!(inferred_groups(&compare(&old, &new)).is_empty());
+    let (old, new) = inferred_merge_fixture();
+    let NodeContent::Text { view } = &new.1.nodes[1].content else {
+        unreachable!()
+    };
+    let text = view.display_text().expect("mapped fixture text");
+    let incomplete = fixture_rows(&[text.trim().trim_end_matches('.')]);
+    assert!(inferred_groups(&compare(&old, &incomplete)).is_empty());
+    let unmapped_identity = fixture_rows(&[&text.replacen("Operators", "\u{e000}perators", 1)]);
+    assert!(inferred_groups(&compare(&old, &unmapped_identity)).is_empty());
+}
+
+#[test]
+fn inferred_paragraph_groups_do_not_turn_continuations_or_neighbor_definitions_into_changes() {
+    let old = fixture_rows(&[
+        "a. Figure 3 below shows the approved loading ",
+        "envelope, based on variations in passenger seating and weight as well as fuel consumption. ",
+    ]);
+    let new = fixture_rows(&[
+        "2. Figure 4, Operational Loading Envelope With a Curtailment for Variations in ",
+        "Passenger Seating, shows the approved loading envelope, based on variations in passenger seating and weight as well as fuel consumption. ",
+    ]);
+    assert!(inferred_groups(&compare(&old, &new)).is_empty());
+
+    let old = fixture_rows(&[
+        "1. Maximum taxi weight. The maximum allowable weight for taxiing. ",
+        "2. Maximum zero-fuel weight. The maximum permissible weight with no disposable fuel and oil. The manufacturer establishes the applicable aircraft operating limitations. ",
+    ]);
+    let new = fixture_rows(&[
+        "A.1 Maximum Taxi Weight. The maximum allowable weight for taxiing. A.2 Maximum Zero Fuel Weight. The maximum permissible weight ",
+        "with no disposable fuel and oil. The manufacturer establishes the applicable aircraft operational limitations. ",
+    ]);
+    assert!(inferred_groups(&compare(&old, &new)).is_empty());
+}
+
+#[test]
+fn obstructed_early_interval_preserves_work_for_a_later_closed_change() {
+    let mut old = fixture_rows(&["FIRST", "bad old", "SECOND", "good old", "THIRD"]);
+    let new = fixture_rows(&["FIRST", "bad new", "SECOND", "good new", "THIRD"]);
+    let mut glyphs = old.0.native.items().to_vec();
+    let template = glyphs[0].clone();
+    for index in 0..2_000 {
+        let mut glyph = template.clone();
+        glyph.id = GlyphId(10_000 + index);
+        glyph.render_order = 10_000 + index as u32;
+        glyph.baseline.y = 200.0;
+        glyph.bbox.min.y = 200.0;
+        glyph.bbox.max.y = 210.0;
+        old.0.inventories[0]
+            .sources
+            .push(SourceRef::Native { glyph: glyph.id });
+        glyphs.push(glyph);
+    }
+    old.0.native = Document::new(glyphs);
+    with_paint(
+        &mut old,
+        Some(Rect {
+            min: Vec2 { x: 0.0, y: 75.0 },
+            max: Vec2 { x: 100.0, y: 85.0 },
+        }),
+    );
+    for budget in [2_000, 4_000] {
+        let mut limits = DocumentComparisonLimits::default();
+        limits.matching.max_ownership_visits = budget;
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded comparison");
+        let reviews = &result.scopes[0].result.text_scope_reviews;
+        let recovered = reviews.iter().any(|review| {
+            review.old_sources == old.1.nodes[4].sources
+                && review.new_sources == new.1.nodes[4].sources
+        });
+        assert_eq!(recovered, budget == 4_000, "budget {budget}");
+        assert!(reviews.iter().all(|review| {
+            !review
+                .old_sources
+                .iter()
+                .any(|source| old.1.nodes[2].sources.contains(source))
+        }));
+    }
+}
+
+#[test]
+fn whole_presence_keeps_a_turn_before_refining_existing_changes() {
+    let old_body = format!("{}old", "a".repeat(64));
+    let new_body = format!("{}new", "a".repeat(64));
+    for margin_label in [false, true] {
+        let mut old = if margin_label {
+            fixture_rows(&["FIRST", &old_body, "SECOND", "old label", "THIRD"])
+        } else {
+            fixture_rows(&["FIRST", &old_body, "SECOND", "THIRD"])
+        };
+        let mut new = if margin_label {
+            fixture_rows(&["FIRST", &new_body, "SECOND", "new label", "added", "THIRD"])
+        } else {
+            fixture_rows(&["FIRST", &new_body, "SECOND", "added", "THIRD"])
+        };
+        if margin_label {
+            for fixture in [&mut old, &mut new] {
+                let mut glyphs = fixture.0.native.items().to_vec();
+                for glyph in &mut glyphs {
+                    if fixture.1.nodes[4]
+                        .sources
+                        .contains(&SourceRef::Native { glyph: glyph.id })
+                    {
+                        glyph.baseline.x -= 100.0;
+                        glyph.bbox.min.x -= 100.0;
+                        glyph.bbox.max.x -= 100.0;
+                        glyph.baseline.y -= 30.0;
+                        glyph.bbox.min.y -= 30.0;
+                        glyph.bbox.max.y -= 30.0;
+                    }
+                }
+                fixture.0.native = Document::new(glyphs);
+            }
+        }
+        let added = if margin_label { 5 } else { 4 };
+        for reverse in [false, true] {
+            let (left, right) = if reverse { (&new, &old) } else { (&old, &new) };
+            let budgets: &[usize] = if margin_label {
+                &[8_000]
+            } else {
+                &[1_000, 4_000]
+            };
+            for &budget in budgets {
+                let mut limits = DocumentComparisonLimits::default();
+                limits.matching.max_ownership_visits = budget;
+                let result = compare_document_views(
+                    DocumentView {
+                        evidence: &left.0,
+                        graph: &left.1,
+                    },
+                    DocumentView {
+                        evidence: &right.0,
+                        graph: &right.1,
+                    },
+                    CorrespondenceScope {
+                        old: NodeId(0),
+                        new: NodeId(0),
+                    },
+                    limits,
+                    HierarchyLimits::default(),
+                )
+                .expect("bounded comparison");
+                let reviews = &result.scopes[0].result.text_scope_reviews;
+                let presence = reviews.iter().any(|review| {
+                    let (absent, present) = if reverse {
+                        (&review.new_sources, &review.old_sources)
+                    } else {
+                        (&review.old_sources, &review.new_sources)
+                    };
+                    absent.is_empty() && *present == new.1.nodes[added].sources
+                });
+                let change = reviews.iter().any(|review| {
+                    review.old_sources == left.1.nodes[2].sources
+                        && review.new_sources == right.1.nodes[2].sources
+                });
+                assert_eq!(
+                    presence,
+                    budget >= 4_000,
+                    "presence: label={margin_label}, reverse={reverse}, budget={budget}"
+                );
+                assert_eq!(
+                    change,
+                    budget >= 4_000,
+                    "change: label={margin_label}, reverse={reverse}, budget={budget}"
+                );
+            }
+        }
+    }
+}
+
+fn ambiguous_closed_intervals(crossing: bool) -> (Fixture, Fixture) {
+    let mut old_rows = Vec::new();
+    let mut new_rows = Vec::new();
+    for label in ["ALPHA", "BETA", "GAMMA"] {
+        old_rows.extend([
+            format!("{label} joint segmentation"),
+            "[7] J. Dai. Instance-aware semantic segmen-".into(),
+            "tation via multi-task network cascades. In CVPR, 2016. 2, 3, 4, 5, 6".into(),
+            "[8] R-FCN: Object detection via".into(),
+            format!("{label} region-based networks."),
+        ]);
+        new_rows.extend([
+            format!("{label} joint segmentation"),
+            "[10] J. Dai. Instance-aware semantic segmen-".into(),
+            "tation via multi-task network cascades. In CVPR, 2016. 2, 3, 4, 5, 6".into(),
+            "[11] R-FCN: Object detection via".into(),
+            format!("{label} region-based networks."),
+        ]);
+    }
+    if crossing {
+        old_rows.push("EXTERNAL".into());
+        new_rows.push(new_rows[12].clone());
+        new_rows[12] = "EXTERNAL".into();
+    }
+    let mut old = fixture_rows(&old_rows.iter().map(String::as_str).collect::<Vec<_>>());
+    let mut new = fixture_rows(&new_rows.iter().map(String::as_str).collect::<Vec<_>>());
+    for (side, fixture) in [&mut old, &mut new].into_iter().enumerate() {
+        let mut removed = Vec::new();
+        let last = if crossing && side == 1 { 16 } else { 13 };
+        for index in [3, 8, last] {
+            let NodeContent::Text { view } = &mut fixture.1.nodes[index].content else {
+                unreachable!()
+            };
+            view.normalization = TextNormalization::Unresolved {
+                reason: "native row boundary is uncertain".into(),
+            };
+            for position in 1..view.tokens.len() - 1 {
+                if view.tokens[position] == ComparableToken::Scalar(' ') {
+                    removed.extend(view.origins[position].iter().copied());
+                    view.origins[position] =
+                        vec![view.origins[position - 1][0], view.origins[position + 1][0]];
+                    view.source_backed[position] = false;
+                }
+            }
+            fixture.1.nodes[index]
+                .sources
+                .retain(|source| !removed.contains(source));
+        }
+        fixture.0.native = Document::new(
+            fixture
+                .0
+                .native
+                .items()
+                .iter()
+                .filter(|g| !removed.contains(&SourceRef::Native { glyph: g.id }))
+                .cloned()
+                .collect(),
+        );
+        for inventory in &mut fixture.0.inventories {
+            inventory.sources.retain(|source| !removed.contains(source));
+        }
+    }
+    (old, new)
+}
+
+#[test]
+fn closed_intervals_reuse_outer_cuts_after_ambiguous_fragment_search() {
+    let (old, new) = ambiguous_closed_intervals(false);
+    for (a, b) in [(&old, &new), (&new, &old), (&old, &old)] {
+        for budget in [0, 80_000] {
+            let mut limits = DocumentComparisonLimits::default();
+            limits.matching.max_ownership_visits = budget;
+            let result = compare_document_views(
+                DocumentView {
+                    evidence: &a.0,
+                    graph: &a.1,
+                },
+                DocumentView {
+                    evidence: &b.0,
+                    graph: &b.1,
+                },
+                CorrespondenceScope {
+                    old: NodeId(0),
+                    new: NodeId(0),
+                },
+                limits,
+                HierarchyLimits::default(),
+            )
+            .expect("bounded native comparison");
+            let reviews = &result.scopes[0].result.text_scope_reviews;
+            let changed = !std::ptr::eq(a, b);
+            if !changed || budget == 0 {
+                assert!(reviews.is_empty());
+                continue;
+            }
+            for first in [2, 7, 12] {
+                let sources = |fixture: &Fixture| {
+                    fixture.1.nodes[first..first + 3]
+                        .iter()
+                        .flat_map(|node| node.sources.iter().copied())
+                        .collect::<Vec<_>>()
+                };
+                let a_sources = sources(a);
+                let b_sources = sources(b);
+                let review = reviews
+                    .iter()
+                    .find(|review| {
+                        review.old_sources == a_sources && review.new_sources == b_sources
+                    })
+                    .expect("all three closed interiors retain their independent citation changes");
+                let cuts = review.source_cuts.as_ref().expect("native cut certificate");
+                assert!(matches!(
+                    cuts.entry.evidence,
+                    pdfdelta_core::document::CutEvidence::AcceptedBoundary { .. }
+                ));
+                assert!(matches!(
+                    cuts.exit.evidence,
+                    pdfdelta_core::document::CutEvidence::AcceptedBoundary { .. }
+                ));
+                assert!(review.comparison.operation.is_some());
+            }
+        }
+    }
+}
+
+#[test]
+fn whole_cut_fallback_rejects_an_accepted_counterpart_from_outside() {
+    let (old, new) = ambiguous_closed_intervals(true);
+    let result = compare(&old, &new);
+    let scope = &result.scopes[0].result;
+    assert!(
+        scope.accepted_correspondences.iter().any(|&index| {
+            let proposal = &scope.candidates.proposals[index];
+            proposal.old == [NodeId(16)] && proposal.new == [NodeId(13)]
+        }),
+        "the negative control must retain the crossing literal counterpart"
+    );
+    let outside = &new.1.nodes[13].sources;
+    assert!(
+        scope.text_scope_reviews.iter().all(|review| {
+            !review
+                .new_sources
+                .iter()
+                .any(|source| outside.contains(source))
+        }),
+        "a whole interval must not consume an accepted counterpart from outside"
+    );
+    assert!(
+        scope.text_scope_reviews.iter().any(|review| {
+            review
+                .old_sources
+                .iter()
+                .any(|source| old.1.nodes[2].sources.contains(source))
+        }),
+        "independent closed intervals must still be compared"
+    );
 }

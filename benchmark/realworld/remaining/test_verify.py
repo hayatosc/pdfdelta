@@ -12,6 +12,39 @@ import verify
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_group_boundary_requires_unchanged_source_mandatory_comparison(self):
+        result = {
+            "accepted_correspondences": [0], "text_boundary_correspondences": [],
+            "matching": {"source_only_mandatory": [0], "inferred_proposals": []},
+            "candidates": {"proposals": [{"old": [1, 2], "new": [3]}]},
+            "comparisons": [{"old": [1, 2], "new": [3], "compared": True,
+                             "operation": None, "text_mask": {}}],
+        }
+        with patch.object(verify, "CONTRACT", "source-boundaries-v1"):
+            self.assertEqual(verify.checked_boundary_proposal(result, 0, allow_groups=True),
+                             result["candidates"]["proposals"][0])
+            with self.assertRaises(ValueError):
+                verify.checked_boundary_proposal(result, 0)
+            for mutation in ("missing", "changed", "uncompared", "unmasked", "inferred", "optional", "duplicate"):
+                invalid = copy.deepcopy(result)
+                if mutation == "missing":
+                    invalid["comparisons"] = []
+                elif mutation == "changed":
+                    invalid["comparisons"][0]["operation"] = {"kind": "text_changed"}
+                elif mutation == "uncompared":
+                    invalid["comparisons"][0]["compared"] = False
+                elif mutation == "unmasked":
+                    invalid["comparisons"][0]["text_mask"] = None
+                elif mutation == "inferred":
+                    invalid["matching"]["inferred_proposals"] = [0]
+                elif mutation == "optional":
+                    invalid["matching"]["source_only_mandatory"] = []
+                else:
+                    invalid["candidates"]["proposals"][0]["old"] = [1, 1]
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    verify.checked_boundary_proposal(invalid, 0, allow_groups=True)
+
+
     def test_native_regions_bind_endpoints_and_transition_identity(self):
         report = self.report()
         result = report["comparison"]["scopes"][0]["result"]
@@ -346,6 +379,55 @@ class EvidenceTests(unittest.TestCase):
                     row["spacing"]["old"][0]["sources"][0]["glyph"] = 999
                 with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                     verify.events(invalid)
+
+    def test_cut_separator_context_is_nonowning_and_bound_to_the_exact_edge(self):
+        review = self.report()["comparison"]["scopes"][0]["result"]["text_scope_reviews"][0]
+        review["comparison"]["operation"] = {"kind": "text_changed", "old": "1\n", "new": "2\n"}
+        review["comparison"]["text_change_proof"] = {
+            "token": {"Scalar": "1"}, "old_required": 1, "old_possible": 1,
+            "new_required": 0, "new_possible": 0,
+        }
+        review["source_cuts"] = {edge: {
+            "evidence": {"kind": "unique_native_fragment", **{
+                side: {"node": 7, "tokens": [2, 3],
+                       "sources": [{"origin": "native", "glyph": 10}]}
+                for side in ("old", "new")}},
+            **{side: {"node": 7, "token_boundary": 2} for side in ("old", "new")},
+        } for edge in ("entry", "exit")}
+        review["spacing"] = {"convention": "source-space-interpretations-v1", **{
+            side: [{"position": 1, "origin": "line_separator", "sources": [
+                copy.deepcopy(review[side + "_sources"][-1]), {"origin": "native", "glyph": 10}]}]
+            for side in ("old", "new")}}
+        verify.checked_spacing_change(review)
+        self.assertEqual(review["old_sources"], [{"origin": "native", "glyph": 1}])
+        leading = copy.deepcopy(review)
+        for side, scalar in (("old", "1"), ("new", "2")):
+            leading["comparison"]["operation"][side] = "\n" + scalar
+            leading["spacing"][side][0]["position"] = 0
+            leading["spacing"][side][0]["sources"].reverse()
+            leading["source_cuts"]["entry"][side]["token_boundary"] = 3
+        verify.checked_spacing_change(leading)
+        for mutation in ("external", "inner", "reversed", "literal", "node", "cut", "no_cut", "middle"):
+            invalid = copy.deepcopy(review)
+            boundary = invalid["spacing"]["old"][0]
+            if mutation == "external":
+                boundary["sources"][1]["glyph"] = 99
+            elif mutation == "inner":
+                boundary["sources"][0]["glyph"] = 99
+            elif mutation == "reversed":
+                boundary["sources"].reverse()
+            elif mutation == "literal":
+                boundary["origin"] = "literal_glyph"
+            elif mutation == "node":
+                invalid["source_cuts"]["exit"]["old"]["node"] = 8
+            elif mutation == "cut":
+                invalid["source_cuts"]["exit"]["old"]["token_boundary"] = 3
+            elif mutation == "no_cut":
+                del invalid["source_cuts"]
+            else:
+                invalid["comparison"]["operation"]["old"] = "1\nx"
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                verify.checked_spacing_change(invalid)
 
     @staticmethod
     def report(category="B", extra=False):

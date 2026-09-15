@@ -12,8 +12,10 @@ name = "pdfdelta"
 path = "src/main.rs"
 
 [dependencies]
+base64 = "0.22.1"
 clap.workspace = true
 clap_complete.workspace = true
+flate2 = "1.1.9"
 hayro = "=0.7.1"
 pdfdelta-core = { path = "../pdfdelta-core" }
 png = "0.18.1"

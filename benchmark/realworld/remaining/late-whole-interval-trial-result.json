@@ -1,0 +1,169 @@
+{
+  "status": "rejected_trial_restored_verified_production",
+  "hypothesis": "Reuse a Standard-pass closed projected interval for whole-interval comparison after lexical search, retaining the accepted-counterpart crossing guard and original budgets.",
+  "result": [
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "counts": [
+        {},
+        {}
+      ],
+      "B_sources": [
+        0,
+        0
+      ],
+      "lost_B_sources": 0,
+      "added_B_sources": 0,
+      "lost_event_digests": {},
+      "new_event_digests": {},
+      "strict_coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "counts": [
+        {
+          "B": 16
+        },
+        {
+          "B": 16
+        }
+      ],
+      "B_sources": [
+        5247,
+        5236
+      ],
+      "lost_B_sources": 197,
+      "added_B_sources": 186,
+      "lost_event_digests": {
+        "36d69aa2a9af444d742b5d75d463c2605ce093a8a8c388aecd37ae9cbdd0bf8c": 1
+      },
+      "new_event_digests": {
+        "a575568bbfdb5f59291fc2a13d95ad94f40e8a1341af8d91cebfe2700c1693cd": 1
+      },
+      "strict_coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "complete": [
+        false,
+        false
+      ]
+    }
+  ],
+  "focused_tests": {
+    "passed": 77,
+    "failed": 0
+  },
+  "production_changed": false,
+  "trial_admitted_recovery_claimed": false,
+  "diagnosis": "The target [old 1130..1134, new 1549..1553] is still absent. Mask loses 197 prior B source atoms and adds 186 unadjudicated atoms elsewhere. Strict comparisons and coverage remain identical in both pilot pairs.",
+  "next_action": "Instrument per-frame remaining work and rejection stages at the fixed target before choosing a scheduling change. Aggregate work alone does not prove which stage prevents recovery.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/cuts-before.rs",
+      "sha256": "fdfa9e8facc0ef751b64cca0fc61acedae5a3caaf2fd0397ead78969fc134a86"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/cuts-trial.rs",
+      "sha256": "979a274fd5ba08127ec2668850c8c0a7d70aa8606a4eb7d654c4a487d67646ca"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/trial.patch",
+      "sha256": "2c58de5f6344a712e74d012a37a61c051980dbd34d705ae9a64ccc6debc857a4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/pdfdelta",
+      "sha256": "e5fc0c4203539e0bcf7fb32d6f5b0cb8faa5e90434ff63a033dabd1468cfe62e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/run.py",
+      "sha256": "11a46dc64864e228baf9ecf785e8cc2126dd8888d8a7354f604f4bd25797add3"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/check.py",
+      "sha256": "e861e76bd53ea74e331a9624fcc73a571607d2d236467289e75c319377917810"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/runs.json",
+      "sha256": "52a2b1a9ce55399db40477e592bfffce0e1eb3dc883d3d890db7e3bcafdb2277"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/summary.json",
+      "sha256": "674fac9d47778c2eae64f36a3fb39c150a9c25bf1467c078c92e4e60ec85b0c1"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/source-diagnosis.json",
+      "sha256": "8d2a6884d6b10b0b04e15e0e5562a0464e53eb805857037bdfe74a7b2c0afa77"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/build.log",
+      "sha256": "7a133505c4dd027e7d43f27ca8a23587bdc9b0f0e6b9081c1741384be7fe5f57"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/tests.log",
+      "sha256": "f03fab054626e1a42830865193efc5059aee6c1ff9895cd77b8e9d09c4f2ca3a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/arxiv-faster-rcnn-v1-to-v3-text.json",
+      "sha256": "18ac5faa66dcdd55d8010d38dc88957b1e4d827f912bc8ed0a45962896e5d548"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/arxiv-mask-rcnn-v1-to-v3-text.json",
+      "sha256": "a78baa0419b449fa96a52948d3014d2003e58b01d5acc4700e3043c0d9560b9e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-restored/arxiv-faster-rcnn-v1-to-v3-text.json",
+      "sha256": "5365504e9382b1dc885eff99476727fd5ab1e3e7d90f0e9220f13de4091b18f7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-restored/arxiv-mask-rcnn-v1-to-v3-text.json",
+      "sha256": "7e0c46a511512d2ca621d801bcc38c3a9cc14d8dc0b7595c31c5b9ea3ba51767"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/restored-build.log",
+      "sha256": "5a8bb020ff241e434d9cfb88774aac261c167300e52c5e10f7aadbe95f350bdb"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/restored-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-trial/restored-tests.log",
+      "sha256": "e036fa7bff525be143603ff99c1b2f362de7f59f14cb0c776d11b2a6a385c47c"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-restored/pdfdelta",
+      "sha256": "d1921ce6c3352af6669ccb51bbea69a916964714e93eb0c8876e29f70e990ea6"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-restored/run.py",
+      "sha256": "d08b582b1030105890553cf8ac9686e0544e7abc7e8c5cda848a59562d6929b7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/late-whole-restored/runs.json",
+      "sha256": "b893d8682dbe8578e933c6f6ded9eba7c5338382e73d9dd553e38694a07cf7d6"
+    }
+  ],
+  "restoration": {
+    "production_source_equals_snapshot": true,
+    "all_five_prior_unit_source_files_equal": true,
+    "rebuilt_binary_equals_prior_baseline": false,
+    "binary_note": "Rebuilt executable hash differs; behavioral identity is checked only for the two recaptured pilots.",
+    "restored_focused_tests_passed": 77,
+    "format_check": "passed",
+    "diff_check": "passed",
+    "recaptured_pilots": [
+      {
+        "pair": "arxiv-faster-rcnn-v1-to-v3",
+        "full_report_equal_except_wall_time": true
+      },
+      {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "full_report_equal_except_wall_time": true
+      }
+    ]
+  }
+}

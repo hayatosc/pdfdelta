@@ -50,6 +50,57 @@ fn keeps_mixed_size_superscript_on_the_same_line() {
 }
 
 #[test]
+fn separates_staggered_columns_while_retaining_attached_scripts_and_wide_words() {
+    for scale in [0.5, 1.0, 3.0] {
+        for (gap, offset, font_size, expected_lines) in [
+            (11.9566, 4.976, 9.9626, 2),
+            (11.9566, 6.979, 9.9626, 2),
+            (11.9566, 0.0, 9.9626, 1),
+            (1.0, 5.0, 6.0, 1),
+            (1.0, -4.0, 6.0, 1),
+        ] {
+            let document = Document::new(vec![
+                glyph(
+                    1,
+                    "x",
+                    0,
+                    0.0,
+                    0.0,
+                    6.0 * scale,
+                    10.0 * scale,
+                    9.9626 * scale,
+                    0.0,
+                ),
+                glyph(
+                    2,
+                    "2",
+                    0,
+                    (6.0 + gap) * scale,
+                    offset * scale,
+                    4.0 * scale,
+                    font_size * scale,
+                    font_size * scale,
+                    offset * scale,
+                ),
+            ]);
+            let lines = reconstruct_lines(&document, LineOptions::default())
+                .expect("reconstruct staggered columns and attached scripts");
+            assert_eq!(
+                lines.len(),
+                expected_lines,
+                "gap={gap}, offset={offset}, scale={scale}"
+            );
+            let mut retained = lines
+                .iter()
+                .flat_map(|line| line.glyphs.iter().copied())
+                .collect::<Vec<_>>();
+            retained.sort();
+            assert_eq!(retained, [GlyphId(1), GlyphId(2)]);
+        }
+    }
+}
+
+#[test]
 fn records_a_missing_english_space_between_glyphs() {
     let document = Document::new(vec![
         glyph(1, "A", 0, 0.0, 0.0, 5.0, 10.0, 10.0, 0.0),

@@ -2,12 +2,91 @@
 //! visibility, population closure or correspondence to the opposing revision.
 
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     ops::Range,
 };
 
 use super::{Glyph, GlyphId, GraphNode, NodeContent, SourceRef, spend};
 use crate::{document::TextNormalization, model::DecodedText, normalize::ligature_expansion};
+
+/// Widen the interpretation of a physical hyphen at a reconstructed boundary.
+/// This preserves token addresses and does not establish source order or closure.
+pub(super) fn hyphen_alternatives<'a>(
+    node: &'a GraphNode,
+    glyphs: &BTreeMap<GlyphId, &Glyph>,
+    remaining: &mut usize,
+) -> Option<Cow<'a, GraphNode>> {
+    let NodeContent::Text { view } = &node.content else {
+        return None;
+    };
+    spend(remaining, view.tokens.len())?;
+    if view.tokens.len() != view.origins.len() || view.tokens.len() != view.source_backed.len() {
+        return None;
+    }
+    let mut additions = Vec::new();
+    let lookup_work = glyphs.len().saturating_add(1).ilog2() as usize + 1;
+    for (position, token) in view.tokens.iter().enumerate() {
+        if token.as_scalar() != Some('-') || !view.source_backed[position] {
+            continue;
+        }
+        let [SourceRef::Native { glyph: id }] = view.origins[position].as_slice() else {
+            continue;
+        };
+        spend(remaining, lookup_work)?;
+        let glyph = glyphs.get(id)?;
+        if !matches!(&glyph.text, DecodedText::Mapped(text) if text == "-") {
+            continue;
+        }
+        let mut next = None;
+        for index in position + 1..view.tokens.len() {
+            spend(remaining, 1)?;
+            if view.source_backed[index] {
+                let [SourceRef::Native { glyph: id }] = view.origins[index].as_slice() else {
+                    // A contracted neighbor has no single physical baseline.
+                    // Preserve the hyphen ambiguity; closure checks every source.
+                    break;
+                };
+                spend(remaining, lookup_work)?;
+                next = Some(*glyphs.get(id)?);
+                break;
+            }
+        }
+        if !glyph.baseline.y.is_finite() || next.is_some_and(|next| !next.baseline.y.is_finite()) {
+            return None;
+        }
+        if next.is_none_or(|next| next.page != glyph.page || next.baseline.y != glyph.baseline.y) {
+            additions.push(position);
+        }
+    }
+    if additions.is_empty() {
+        return Some(Cow::Borrowed(node));
+    }
+    let copy_work = view.origins.iter().fold(
+        view.tokens
+            .len()
+            .saturating_mul(4)
+            .saturating_add(node.sources.len()),
+        |work, origins| work.saturating_add(origins.len()),
+    );
+    spend(remaining, copy_work)?;
+    let mut optional = view.optional_tokens()?;
+    for position in additions {
+        optional[position] = true;
+    }
+    let mut projected = node.clone();
+    let NodeContent::Text { view } = &mut projected.content else {
+        unreachable!()
+    };
+    view.bind_optional_positions(
+        optional
+            .into_iter()
+            .enumerate()
+            .filter_map(|(position, optional)| optional.then_some(position))
+            .collect(),
+    );
+    Some(Cow::Owned(projected))
+}
 
 /// Expand a retained collapsed space only when every contributing native glyph
 /// independently decodes to one literal space. Interior expansion boundaries
@@ -238,6 +317,11 @@ pub(super) fn checked_order(
         }
     }
     rows.push(row_start..view.tokens.len());
+    // A layout node may end at a wrapped line. Its terminal source hyphen
+    // retains both punctuation and hyphenation interpretations.
+    if last.len() == 1 && view.tokens[last.start].as_scalar() == Some('-') {
+        optional[last.start] = true;
+    }
     let mut result = node.clone();
     let NodeContent::Text { view: local } = &mut result.content else {
         unreachable!()

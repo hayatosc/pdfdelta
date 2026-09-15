@@ -654,6 +654,78 @@ fn truncated_conflict_component_does_not_claim_uniqueness() {
 }
 
 #[test]
+fn unfinishable_conflict_components_preserve_disjoint_subset_searches() {
+    let fields = [
+        ("large-a", "x"),
+        ("large-b", "x"),
+        ("large-c", "x"),
+        ("small-a", "x"),
+        ("small-b", "x"),
+    ];
+    let mut old = graph(&fields, 0);
+    let new = graph(&fields, 0);
+    for index in [2, 3] {
+        old.nodes[index].sources = old.nodes[1].sources.clone();
+    }
+    old.nodes[5].sources = old.nodes[4].sources.clone();
+    let mut proposals = propose_scope_correspondences(&old, &new, SCOPE, MatchingLimits::default())
+        .expect("independent keyed fields")
+        .proposals;
+    proposals
+        .iter_mut()
+        .find(|p| p.old == [NodeId(4)])
+        .expect("preferred small field")
+        .weight = 3;
+    for _ in 0..2 {
+        let preferred = proposals
+            .iter()
+            .position(|p| p.old == [NodeId(4)])
+            .expect("preferred proposal");
+        for budget in [0, 1, 2, 4] {
+            let result = solve_correspondence_scope(
+                &old,
+                &new,
+                SCOPE,
+                &proposals,
+                MatchingLimits {
+                    max_pair_checks: budget,
+                    ..MatchingLimits::default()
+                },
+            )
+            .expect("bounded independent conflict components");
+            assert_eq!(result.components.len(), 2);
+            assert!(
+                result
+                    .components
+                    .iter()
+                    .all(|c| c.algorithm == MatchingAlgorithm::SubsetSearch)
+            );
+            assert_eq!(
+                result.source_only_mandatory.contains(&preferred),
+                budget != 0
+            );
+            assert_eq!(result.conflict_search_complete, budget == 4);
+            assert_eq!(
+                result.conflict_checks,
+                if budget == 4 {
+                    4
+                } else {
+                    usize::from(budget != 0)
+                }
+            );
+            assert!(
+                result
+                    .components
+                    .iter()
+                    .filter(|c| !c.exhaustive)
+                    .all(|c| c.mandatory.is_empty())
+            );
+        }
+        proposals.reverse();
+    }
+}
+
+#[test]
 fn exhausted_conflict_checks_preserve_disjoint_assignment_components() {
     let mut old = graph(
         &[("shared-a", "x"), ("shared-b", "x"), ("independent", "1")],
@@ -809,7 +881,8 @@ fn unpadded_native_literals_reuse_their_boundary_fingerprint_within_budget() {
         &document,
         SCOPE,
         MatchingLimits {
-            max_index_work: 4 * parts.iter().map(|part| part.len()).sum::<usize>(),
+            max_index_work: 4 * parts.iter().map(|part| part.len()).sum::<usize>()
+                + 4 * parts.len(),
             ..MatchingLimits::default()
         },
     )
@@ -817,6 +890,94 @@ fn unpadded_native_literals_reuse_their_boundary_fingerprint_within_budget() {
     assert!(bounded.exhaustive);
     assert_eq!(bounded.proposals, full.proposals);
     assert_eq!(bounded.proposals.len(), 3);
+}
+
+#[test]
+fn sampled_literal_keys_require_full_verification_and_retain_collision_rivals() {
+    use pdfdelta_core::document::{TextNormalization, TextView};
+    use pdfdelta_core::normalize::ComparableToken;
+
+    // All views share their length and edge tokens. Only the middle differs.
+    let parts = ["same middle-a tail", "same middle-b tail"];
+    let mut document = graph(&[("", ""), ("", "")], 0);
+    for (node, text) in document.nodes.iter_mut().skip(1).zip(parts) {
+        node.kind = NodeKind::Paragraph;
+        node.identity = None;
+        node.content = NodeContent::Text {
+            view: TextView {
+                tokens: text.chars().map(ComparableToken::Scalar).collect(),
+                origins: vec![node.sources.clone(); text.len()],
+                source_backed: vec![true; text.len()],
+                normalization: TextNormalization::Exact,
+            },
+        };
+    }
+    let full =
+        propose_scope_correspondences(&document, &document, SCOPE, MatchingLimits::default())
+            .expect("collision bucket");
+    assert!(full.exhaustive);
+    assert_eq!(full.examined_pairs, 4);
+    assert_eq!(full.proposals.len(), 2);
+    assert!(
+        full.proposals
+            .iter()
+            .all(|proposal| proposal.old == proposal.new)
+    );
+
+    let partial = propose_scope_correspondences(
+        &document,
+        &document,
+        SCOPE,
+        MatchingLimits {
+            max_pair_checks: 1,
+            ..MatchingLimits::default()
+        },
+    )
+    .expect("bounded collision bucket");
+    assert!(partial.proposals.is_empty());
+    assert!(!partial.exhaustive);
+    let pending = partial
+        .incomplete_nodes
+        .expect("complete collision population");
+    let expected = [NodeId(1), NodeId(2)].into_iter().collect();
+    assert_eq!(pending.old, expected);
+    assert_eq!(pending.new, expected);
+}
+
+#[test]
+fn long_literal_population_fits_without_hashing_every_token_twice() {
+    use pdfdelta_core::document::{TextNormalization, TextView};
+    use pdfdelta_core::normalize::ComparableToken;
+
+    let mut document = graph(&vec![("", ""); 10], 0);
+    for (index, node) in document.nodes.iter_mut().skip(1).enumerate() {
+        let text = format!("{index:04}{}", "x".repeat(996));
+        node.kind = NodeKind::Paragraph;
+        node.identity = None;
+        node.content = NodeContent::Text {
+            view: TextView {
+                tokens: text.chars().map(ComparableToken::Scalar).collect(),
+                origins: vec![node.sources.clone(); text.len()],
+                source_backed: vec![true; text.len()],
+                normalization: TextNormalization::Exact,
+            },
+        };
+    }
+    let limits = MatchingLimits {
+        max_index_work: 22_000,
+        ..MatchingLimits::default()
+    };
+    let candidates = propose_scope_correspondences(&document, &document, SCOPE, limits)
+        .expect("bounded long literals");
+    assert!(candidates.exhaustive);
+    assert_eq!(candidates.proposals.len(), 10);
+    assert!(
+        candidates
+            .proposals
+            .iter()
+            .all(|proposal| proposal.old == proposal.new)
+    );
+    assert!(candidates.index_work <= limits.max_index_work);
 }
 
 #[test]
@@ -849,7 +1010,7 @@ fn literal_verification_exhaustion_retains_all_omitted_bucket_endpoints() {
     // Complete both key indexes and the anchor, then stop after one repeated
     // pair. The remaining three rivals must prevent apparent uniqueness.
     let limits = MatchingLimits {
-        max_index_work: 2 * (6 + 100 + 100) + 2 * 6 + 2 * 100,
+        max_index_work: 2 * (6 + 8 + 8) + 2 * 6 + 2 * 100,
         ..MatchingLimits::default()
     };
     let partial = propose_scope_correspondences(&document, &document, SCOPE, limits)

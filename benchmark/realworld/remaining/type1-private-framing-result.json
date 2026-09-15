@@ -1,0 +1,113 @@
+{
+  "status": "private_binary_framing_verified_not_full_program_validation",
+  "previous_turn_classification": "progress: bounded clear-text Encoding declaration prototype passed original and malformed cases",
+  "baseline": {
+    "path": "benchmark/realworld/remaining/type1-declaration-prototype-result.json",
+    "sha256": "9211e8aae8896544e7c308f50e116824abb23c8e36609b5c28820adabe54f893"
+  },
+  "production_changed": false,
+  "dependencies_added": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "source_segments": {
+    "Length1": 1796,
+    "Length2": 11163,
+    "Length3": 0,
+    "decoded_program_bytes": 12959,
+    "dictionary": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/font.json",
+      "sha256": "deb2bfa2498fd9cec29016eab45e00f424555dde4eda360371e8d224cdaf622c"
+    },
+    "private_plaintext_bytes": 11159,
+    "cipher": "Type1 eexec, seed 55665, first four decrypted bytes discarded"
+  },
+  "observations": {
+    "framed_tokens": 1355,
+    "charstrings": 30,
+    "subroutines": 16,
+    "independent_library_names_equal": true,
+    "top_level_literal_Encoding_tokens": 0,
+    "other_subrs_byte_range": [
+      388,
+      5535
+    ],
+    "other_subrs_bytes": 5147,
+    "other_subrs_sha256": "ba49d4bfa636b173ead17b5675a1f738eac6116b3effcbd1c2271286aeb4ddec",
+    "other_subrs_finding": "The array initializer contains executable environment checks, dictionary operations and exec/ifelse code outside stored procedure bodies. It is not merely an inert array of procedure values, so a declaration-only validator cannot silently skip its effects."
+  },
+  "implementation": "Bounded diagnostic framing decrypts the segment identified by the neutral parser, tokenizes comments, strings and balanced groups, and consumes exactly the declared RD payload length for named charstrings and indexed subroutines. Binary payloads do not produce declaration tokens. It does not execute PostScript.",
+  "checks": {
+    "neutral_parser_probe_compiled_and_ran": true,
+    "four_framing_test_groups_passed": true,
+    "cipher_round_trips_checked": true,
+    "binary_comment_string_fake_Encoding_tokens_ignored": true,
+    "subsequent_real_Encoding_token_observed": true,
+    "truncated_invalid_binary_and_limit_cases_rejected": true,
+    "thirty_names_match_existing_read_fonts_reader": true,
+    "temporary_example_removed": true,
+    "production_source_hashes_unchanged": true,
+    "workspace_checks": "not rerun: diagnostic probes and documentation only"
+  },
+  "limitations": [
+    "This is binary framing, not an assertion that private-dictionary macros or the complete program are safe to interpret as source text.",
+    "RD/ND/NP definitions and their invocation effects need strict validation before framing can support production Unicode fallback.",
+    "No literal top-level Encoding token does not prove absence of computed or indirect mutations.",
+    "The OtherSubrs initialization and the preamble need either a verified supported canonical form or rejection; arbitrary code must not be silently accepted.",
+    "General segment formats, cumulative decoded-font accounting and existing mapping precedence still require integration work. The current driver uses the retained witness segment lengths."
+  ],
+  "next_action": "Validate the actual OtherSubrs initializer and preamble against a supported canonical Type1 form, with altered-operator rejection tests; combine that with strict dictionary and binary-macro validation before wiring any fallback into the native decoder.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/probe.rs",
+      "sha256": "1a2ec7949cc121ff989c4151f974e5492ca2ad64dd7cb5ec0e3592ec278561e5"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/build.log",
+      "sha256": "f79614f207c2b5405515f5fa95eccf3095ed0d74a4c9b83a60729f34b31931b2"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/font.json",
+      "sha256": "deb2bfa2498fd9cec29016eab45e00f424555dde4eda360371e8d224cdaf622c"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/font.bin",
+      "sha256": "5d5ea0385600ee76b202ca00c8f90adba96b2f00c21f005715ba679673ba866a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/private.bin",
+      "sha256": "bebd4f00444d19efcc8c5b312b10e879ef0c316442fc921c2cb769d662f06417"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/frame.py",
+      "sha256": "e91686260b42d84a663021e64bf0ee677f3013301b7c97f0f225470dd3015e80"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/frame.log",
+      "sha256": "43c4c947a0d352b5ee3e0babbc43da84845792fdc35e5d31e9e01515fb33fc26"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/framing.json",
+      "sha256": "b6205329d87903573e35c088aa07edc5a651c1f88a7b41fc6c968e400e132b9d"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/test_frame.py",
+      "sha256": "1f82cda975e4317c498c3c4eb07a46d8a0f9e3d06c033cb37f4c9b21284d307f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/tests.log",
+      "sha256": "56e03afda220e7ba78bbcecf9a2e53a0149cfc3e311fa10bbd01b25e8e5ba671"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/names.rs",
+      "sha256": "fc99a703b608e505c43797b8e24c0cd6ebacbfd4cede68b24d213e447bb97ff2"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/names",
+      "sha256": "1db469118bdfb6386789f9adda8ed20a902db89aeebfe708647dc1c5855b3246"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-private-boundaries/names.json",
+      "sha256": "f5c8fcea6ca6fc3ee144e27eac0a2aa01421a398dcf957a27fe0eacb3ab67876"
+    }
+  ]
+}

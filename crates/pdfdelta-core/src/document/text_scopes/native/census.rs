@@ -132,7 +132,11 @@ pub(super) fn checked(
 }
 
 impl Sources<'_> {
-    fn boundary_roundoff(&self, path: &[&GraphNode], remaining: &mut usize) -> Option<bool> {
+    pub(in crate::document::text_scopes) fn boundary_roundoff(
+        &self,
+        path: &[&GraphNode],
+        remaining: &mut usize,
+    ) -> Option<bool> {
         let Some(first) = path.first() else {
             return Some(false);
         };

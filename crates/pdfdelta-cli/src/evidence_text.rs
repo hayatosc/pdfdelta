@@ -196,10 +196,20 @@ pub(super) fn append_details(
                 preview(&review.convention)
             );
             if review.candidate_search_exhaustive == Some(false) {
-                let _ = writeln!(
-                    text,
-                    "  Interior correspondence search is incomplete; this content review relies on accepted source boundaries and assigns no interior identity."
-                );
+                if pair.interpretation == InterpretationStatus::Inferred {
+                    let _ = writeln!(
+                        text,
+                        "  Inferred correspondence; candidate search is incomplete and this review establishes no strict source ownership."
+                    );
+                } else {
+                    let _ = writeln!(
+                        text,
+                        "  Interior correspondence search is incomplete; this content review relies on accepted source boundaries and assigns no interior identity."
+                    );
+                }
+            }
+            for reason in &pair.unresolved {
+                let _ = writeln!(text, "  {}", preview(reason));
             }
             if let Some(TypedOperation::TextChanged { old, new }) = &pair.operation {
                 let _ = writeln!(

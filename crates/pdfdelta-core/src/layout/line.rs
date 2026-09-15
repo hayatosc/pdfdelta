@@ -53,6 +53,9 @@ pub struct Line {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LineOptions {
+    /// Baseline tolerance relative to median glyph height. Glyphs outside this
+    /// tolerance must overlap across the line and attach within the same ratio
+    /// of font size along the line, allowing nearby scripts without joining columns.
     pub max_baseline_distance_ratio: f64,
     pub min_cross_axis_overlap_ratio: f64,
     pub min_direction_similarity: f64,
@@ -320,6 +323,12 @@ impl<'a> WorkingLine<'a> {
         let median_font_size = sorted_median(&self.font_sizes)?;
         let gap_scale = median_font_size.max(glyph.font_size);
         if inline_gap > options.max_inline_gap_font_size_ratio * gap_scale {
+            return None;
+        }
+        // Cross-axis overlap accommodates attached superscripts and subscripts.
+        // Across a word-sized gap it cannot establish a shared baseline: staggered
+        // columns can overlap vertically even when their text belongs to different rows.
+        if !baseline_close && inline_gap > options.max_baseline_distance_ratio * gap_scale {
             return None;
         }
 

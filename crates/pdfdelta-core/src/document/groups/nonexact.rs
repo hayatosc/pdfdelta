@@ -46,7 +46,7 @@ pub(in crate::document) fn append_nonexact_groups(
             let mut pending = vec![vec![start]];
             while let Some(group) = pending.pop() {
                 if result.examined_pairs == limits.max_pair_checks {
-                    unfinished(result, &old_nodes, &new_nodes);
+                    unfinished(result, &old_nodes, &new_nodes, None);
                     return Ok(());
                 }
                 result.examined_pairs += 1;
@@ -64,7 +64,7 @@ pub(in crate::document) fn append_nonexact_groups(
                     Some(false) => {}
                     Some(true) => continue,
                     None => {
-                        unfinished(result, &old_nodes, &new_nodes);
+                        unfinished(result, &old_nodes, &new_nodes, None);
                         return Ok(());
                     }
                 }
@@ -73,7 +73,7 @@ pub(in crate::document) fn append_nonexact_groups(
                         total.saturating_add(text(parts[id]).len())
                     });
                     if !charge_tokens(result, limits, length) {
-                        unfinished(result, &old_nodes, &new_nodes);
+                        unfinished(result, &old_nodes, &new_nodes, None);
                         return Ok(());
                     }
                     let tokens: Vec<_> = group
@@ -82,7 +82,7 @@ pub(in crate::document) fn append_nonexact_groups(
                         .collect();
                     for node in whole.values().filter(|node| node.kind == kind) {
                         if result.examined_pairs == limits.max_pair_checks {
-                            unfinished(result, &old_nodes, &new_nodes);
+                            unfinished(result, &old_nodes, &new_nodes, None);
                             return Ok(());
                         }
                         result.examined_pairs += 1;
@@ -92,7 +92,7 @@ pub(in crate::document) fn append_nonexact_groups(
                             .saturating_add(tokens.len())
                             .saturating_mul(4);
                         if !charge_tokens(result, limits, work) {
-                            unfinished(result, &old_nodes, &new_nodes);
+                            unfinished(result, &old_nodes, &new_nodes, None);
                             return Ok(());
                         }
                         if whole_tokens == tokens {
@@ -107,7 +107,7 @@ pub(in crate::document) fn append_nonexact_groups(
                             continue;
                         }
                         if result.proposals.len() == limits.max_proposals {
-                            unfinished(result, &old_nodes, &new_nodes);
+                            unfinished(result, &old_nodes, &new_nodes, None);
                             return Ok(());
                         }
                         result.proposals.push(CorrespondenceProposal {
@@ -128,7 +128,7 @@ pub(in crate::document) fn append_nonexact_groups(
                             || pending.len()
                                 >= limits.max_pair_checks.saturating_sub(result.examined_pairs)
                         {
-                            unfinished(result, &old_nodes, &new_nodes);
+                            unfinished(result, &old_nodes, &new_nodes, None);
                             return Ok(());
                         }
                         let mut extended = group.clone();

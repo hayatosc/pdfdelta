@@ -1,0 +1,113 @@
+{
+  "status": "xfa_contains_changed_captions_hidden_text_and_interactive_behavior",
+  "previous_turn_classification": "progress: XFA and widget obligations were identified separately from page content paint",
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "measurement": [
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "old_bytes": 124667,
+      "new_bytes": 123940,
+      "changed_packets": [
+        "config",
+        "preamble",
+        "template",
+        "xmpmeta"
+      ],
+      "old_scripts": 1,
+      "new_scripts": 1,
+      "old_text_elements": 69,
+      "new_text_elements": 67,
+      "text_elements_equal": false
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "old_bytes": 243873,
+      "new_bytes": 246083,
+      "changed_packets": [
+        "config",
+        "preamble",
+        "template",
+        "xmpmeta",
+        "datasets"
+      ],
+      "old_scripts": 1,
+      "new_scripts": 1,
+      "old_text_elements": 245,
+      "new_text_elements": 245,
+      "text_elements_equal": false
+    }
+  ],
+  "finding": "The XFA packets are not merely stable metadata. Templates change on both pairs, Schedule C datasets also change, and textual contents include field captions and explicitly hidden draft stamps. Schedule C includes a mouseUp JavaScript handler; Schedule SE has only an empty script element in the inspected packets.",
+  "specific_evidence": [
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "field": "f1_13",
+      "old_caption": "168,600",
+      "new_caption": "$176,100",
+      "interpretation": "XFA field-caption content, not an independently certified visible PDF text source"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "finding": "Changed draft stamp text has a draw ancestor with presence=hidden; raw XML text extraction would include it without a rendering/visibility contract."
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "finding": "The identical script body is attached to a mouseUp event on c1_6 and references form APIs; its enclosing field location differs between revisions. No script was executed."
+    }
+  ],
+  "checks": {
+    "neutral_facade_packet_decode": "passed under default PDF limits, at most 64 packets and a 16 MiB aggregate diagnostic bound per document",
+    "xml_parse": "all four concatenated packet sequences parsed as XML after DTD/entity declarations were rejected",
+    "decoded_packet_hashes": "verified",
+    "temporary_example": "removed",
+    "production_checks": "not rerun: diagnostic example and XML inspection only"
+  },
+  "limitations": [
+    "Parsing XML and inspecting presence attributes does not implement XFA layout, scripting, inheritance, bindings, field state or visibility.",
+    "The packet bounds are diagnostic checks for these fixed inputs, not a general production XFA resource model.",
+    "Missing AcroForm appearances remain independent of XFA packet parsing.",
+    "No XFA text is admitted as native visible text, and no inventory or completion contract changes."
+  ],
+  "decision": "Do not use raw XFA text or packet inequality as an exact visible-text comparison. Preserve unsupported/unresolved obligations.",
+  "next_action": "Census the remaining frozen panel for source acquisition obligations and select a concrete non-interactive candidate before more completion work; retain these IRS findings as evidence that merely fixing page paint cannot satisfy G3.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/probe.rs",
+      "sha256": "c49a934239b9415cb26fbf8331a79a1da8c05e5d0b3c14d6e28538ca72545d12"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/run.py",
+      "sha256": "f83da83f7bbc523d4a95222f6261d3f98cd357999fb55d759e167df8c0561b3b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/probe.log",
+      "sha256": "66747260b074e5a2b23b53dbd918f9e92d247ea7d1b9d6469237ef2c769691fe"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/metadata.json",
+      "sha256": "235f9ed165d7cf5a3df4f1c4bff285c07e82147780c8a43b1a691f5a2357dad7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/check.py",
+      "sha256": "0524ac08c3531f95449e6f925f17b57b2cff95a764de50b4b61255f03ab27fdb"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/inspection.json",
+      "sha256": "19f6098530d4e4d3ea3b91b0a83efc062aed227231d114a44d29069e75000dd0"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/result.json",
+      "sha256": "b161640e369081aff7b19e32487935d34f4d734f432406a442abca7922e06a97"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/scripts.json",
+      "sha256": "de9836e79d6074e42f2d09eff2b74f8650064814ded08e3ea9a93b82121cc1dd"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/irs-xfa/selected-context.json",
+      "sha256": "bd35614d3bf5f8b7892dc8b72747b1035faa1c2cfa0bf6dece96b73633a26ce4"
+    }
+  ]
+}

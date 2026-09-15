@@ -387,7 +387,7 @@ pub fn worker() -> Result<(), u8> {
     if bytes.len() > limit {
         return Err(3);
     }
-    let response = acquire(Arc::from(bytes), request).map(wire::Acquisition::from);
+    let response = acquire(Arc::from(bytes), request).and_then(wire::Acquisition::encode);
     let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
     let mut bounded = CeilingWriter::new(&mut stdout, MAX_RESPONSE);
     if serde_json::to_writer(&mut bounded, &response).is_err() {
@@ -587,11 +587,18 @@ mod tests {
                 raw_code: vec![0, 255, 3],
                 page: PageId(0),
                 bbox: Rect {
-                    min: Vec2 { x: -1.25, y: 8.5 },
+                    min: Vec2 {
+                        x: if offset == 1 { 0.0 } else { -1.25 },
+                        y: 8.5,
+                    },
                     max: Vec2 { x: 3.5, y: 12.75 },
                 },
                 baseline: Vec2 {
-                    x: 4.25,
+                    x: match offset {
+                        0 => -1.25,
+                        1 => -0.0,
+                        _ => 4.25,
+                    },
                     y: if offset < 16 { 0.0 } else { -0.0 },
                 },
                 direction: Vec2 { x: 0.0, y: -1.0 },
@@ -636,10 +643,10 @@ mod tests {
             .native
             .items()
             .iter()
-            .map(|glyph| glyph.baseline.y.to_bits())
+            .map(|glyph| [glyph.baseline.x.to_bits(), glyph.baseline.y.to_bits()])
             .collect::<Vec<_>>();
         let named_size = serde_json::to_vec(&acquisition).expect("named bytes").len();
-        let wire = wire::Acquisition::from(acquisition);
+        let wire = wire::Acquisition::encode(acquisition).expect("bounded wire acquisition");
         let encoded = serde_json::to_vec(&wire).expect("compact bytes");
         assert!(
             encoded.len() < named_size / 3,
@@ -656,7 +663,7 @@ mod tests {
                 .native
                 .items()
                 .iter()
-                .map(|glyph| glyph.baseline.y.to_bits())
+                .map(|glyph| [glyph.baseline.x.to_bits(), glyph.baseline.y.to_bits()])
                 .collect::<Vec<_>>(),
             expected_baselines
         );
@@ -673,14 +680,6 @@ mod tests {
         );
 
         let mut unsupported = serde_json::to_value(wire).expect("wire fields");
-        let mut missing_context = unsupported.clone();
-        missing_context["store"]["native"]["items"][0][7] = serde_json::Value::Null;
-        assert!(
-            serde_json::from_value::<wire::Acquisition>(missing_context)
-                .expect("absent initial context is structurally valid")
-                .decode()
-                .is_err()
-        );
         unsupported["version"] = serde_json::json!(255);
         assert!(
             serde_json::from_value::<wire::Acquisition>(unsupported)

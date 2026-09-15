@@ -1,0 +1,76 @@
+{
+  "status": "following_boundary_exclusion_explained_by_unresolved_layout",
+  "previous_turn_classification": "progress: the Type1 oracle measured a local benefit while disproving recovery of the fixed GPT-3 target",
+  "baseline": {
+    "path": "benchmark/realworld/remaining/type1-plus-oracle-result.json",
+    "sha256": "ce35c2917534758dbfd127892a5532b31331c963a40655c6aed6b032819c5c7f"
+  },
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "finding": "The paragraph immediately following the target has identical display tokens, source-backed flags and ordered sequences of 581 mapped native glyph texts on both sides. Both production and oracle runs retain 110 synthetic spaces and one synthetic newline, mark the paragraph normalization unresolved, and generate no candidate for this exact node pair. The literal/padding key path explicitly requires Exact normalization.",
+  "instances": [
+    {
+      "revision": "production",
+      "old_node": 502,
+      "new_node": 503,
+      "display_tokens_equal": true,
+      "raw_glyph_text_sequences_equal": true,
+      "native_glyphs_per_side": 581,
+      "synthetic_spaces_per_side": 110,
+      "synthetic_newlines_per_side": 1,
+      "pair_candidate_count": 0
+    },
+    {
+      "revision": "oracle",
+      "old_node": 442,
+      "new_node": 445,
+      "display_tokens_equal": true,
+      "raw_glyph_text_sequences_equal": true,
+      "native_glyphs_per_side": 581,
+      "synthetic_spaces_per_side": 110,
+      "synthetic_newlines_per_side": 1,
+      "pair_candidate_count": 0
+    }
+  ],
+  "interpretation": "This exclusion is independent of the CMR7 plus mapping. Equality of chosen display tokens alone does not certify that independently uncertain spacing is equal. Removing the Exact guard would change its premise and is not proposed. An explicit native-glyph boundary premise could instead use exact source text evidence without declaring layout whitespace exact, but requires its own complete rival enumeration and closure checks.",
+  "next_action": "Evaluate a separate boundary-only native glyph sequence premise or a regional native census. Preserve literal source spaces, raw glyph projections and uncertainty; distinguish this premise from strict literal equality. Check copied rivals, split/group alternatives and budget exhaustion before permitting it to enclose any B range. The target interior also retains the independent unmapped-glyph problem in production.",
+  "checks": {
+    "native_source_sequences_compared_in_production_and_oracle": true,
+    "all_following_paragraph_glyphs_mapped": true,
+    "display_and_source_backed_arrays_compared": true,
+    "candidate_absence_checked": true,
+    "production_source_and_default_binary_unchanged": true,
+    "workspace_checks": "not rerun: source-bound diagnostic and documentation only"
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-following-boundary/check.py",
+      "sha256": "41951b2aefd61a043ad8179101a739bc2910adc8d97ee5859db781fd6323c8b0"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-following-boundary/check.log",
+      "sha256": "cd05eb0bc66486e8efdd778538239cf0b5f39d0599f89e39a3bc9e4320020011"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-following-boundary/check.json",
+      "sha256": "2a95b01f0542d0c59af96bca502c64e44b29592bff6eebc2325db76940c97d0a"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/matching/candidates.rs",
+      "sha256": "0c2214c3bb66efbfecaeb234bfa86b3739c57d2709430c4c7d593a77efc73c98"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/matching.rs",
+      "sha256": "12498a59fc7131898034bb77a7c5ce99b099388aebfb285ccd8a832b1ff87f19"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/comparison.rs",
+      "sha256": "bbda7739c91244ecdbb10ef72acedb36fcee73b827659422eab4ee4e4434260b"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes.rs",
+      "sha256": "ee5da55ddbe8d719c268c663ab7f161e45c38b044602c9b6a88a0b798898f1a9"
+    }
+  ]
+}

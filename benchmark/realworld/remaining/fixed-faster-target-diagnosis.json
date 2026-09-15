@@ -1,0 +1,204 @@
+{
+  "targets": {
+    "old": {
+      "source_count": 506,
+      "missing_sources": 0,
+      "pages": [
+        0
+      ],
+      "nodes": [
+        {
+          "id": 20,
+          "overlap": 506,
+          "extra": 0,
+          "normalization": {
+            "kind": "unresolved",
+            "reason": "source normalization retains competing interpretations"
+          }
+        }
+      ]
+    },
+    "new": {
+      "source_count": 517,
+      "missing_sources": 0,
+      "pages": [
+        0
+      ],
+      "nodes": [
+        {
+          "id": 25,
+          "overlap": 42,
+          "extra": 83,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 26,
+          "overlap": 43,
+          "extra": 0,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 27,
+          "overlap": 45,
+          "extra": 91,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 28,
+          "overlap": 41,
+          "extra": 0,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 29,
+          "overlap": 48,
+          "extra": 92,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 30,
+          "overlap": 47,
+          "extra": 0,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 31,
+          "overlap": 47,
+          "extra": 89,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 32,
+          "overlap": 46,
+          "extra": 0,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 34,
+          "overlap": 45,
+          "extra": 0,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 35,
+          "overlap": 46,
+          "extra": 91,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 36,
+          "overlap": 50,
+          "extra": 46,
+          "normalization": {
+            "kind": "exact"
+          }
+        },
+        {
+          "id": 37,
+          "overlap": 17,
+          "extra": 0,
+          "normalization": {
+            "kind": "exact"
+          }
+        }
+      ]
+    }
+  },
+  "page_zero_accepted": [],
+  "page_zero_eligible_singletons": [],
+  "target_and_extra_x_bounds": {
+    "target": {
+      "min_x": 36.0,
+      "max_x": 275.1060592
+    },
+    "extra": {
+      "min_x": 287.05899999999997,
+      "max_x": 526.1614000000002
+    },
+    "extra_sources": 492
+  },
+  "version": 1,
+  "status": "fixed_target_diagnosis",
+  "pair": "arxiv-faster-rcnn-v1-to-v3",
+  "reports": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-rcnn-current/arxiv-faster-rcnn-v1-to-v3-text.json",
+      "sha256": "0304da8b5e9eff56f597eefc8215d88b43e4403d74af88c67b3064a59593942a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-faster-source-review/report.json",
+      "sha256": "0a04f2374e96f4bda6f59103a2d0b70c14c78f98de42b20378023f12a55b8eed"
+    }
+  ],
+  "first_run": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-rcnn-current/runs.json",
+    "sha256": "524e5d57f85ada0d2f9a28127281679910559b83cc52e43d5bcfc80b139fc083"
+  },
+  "second_run": {
+    "exit_code": 3,
+    "timeout_seconds": 180,
+    "limit_scale": 1,
+    "channels": [
+      "text"
+    ],
+    "time": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-faster-source-review/time.txt",
+      "sha256": "fd1dd6f22763f54c40538974e00b3d9f44137add351552018bd1a2d3cd11a8a2"
+    },
+    "stderr": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-faster-source-review/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "identical_reports_except_wall_time": true,
+  "source_export": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-faster-source-review/review/sources.json",
+    "sha256": "efb29a0ff3733741ce177690ea029312a1aa197303db6afef1cfa7b58254d41c"
+  },
+  "source_images": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-faster-source-review/review/old-region-0.png",
+      "sha256": "5a08ee276109c4710edfc8ccd4cd70fd8a234f1568d5ba9f300a51041f8ee3e7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-faster-source-review/review/new-region-0.png",
+      "sha256": "4720f9c30b027af33aa517284cd84142b9d060c841c2646bebe040d5df6d3c08"
+    }
+  ],
+  "source_cut_search": {
+    "convention": "matched-interval-native-fragment-cuts-v2",
+    "exhaustive": false,
+    "examined_fragments": 0,
+    "paired_boundaries": 0,
+    "work": 229873,
+    "budget_at_entry": 940212
+  },
+  "source_diagnostic_script": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/fixed-faster-source-review/diagnose.py",
+    "sha256": "b08f21b966d2b125a1a7ec4444bafd7e78eb58906cec2aebb03445107bf151f9"
+  },
+  "finding": "Both frozen source cores are present. The new target is spread over twelve native paragraphs, six of which also contain a total of 492 right-column glyphs. Target ink ends at x=275.1060592 and extra ink begins at x=287.059. The original page images confirm the left/right column separation. No accepted correspondence touches page zero, so there is no eligible accepted singleton boundary there. The old target retains unresolved normalization. Increasing source-search limits alone does not supply these missing premises.",
+  "next": "Measure why the new introduction columns were merged and whether intact title/section text can supply source-backed boundary candidates. Preserve raw sources, finite targets and all uncertain regions.",
+  "production_change": false,
+  "goal_complete": false
+}

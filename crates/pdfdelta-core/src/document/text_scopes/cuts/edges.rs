@@ -14,6 +14,7 @@ fn fragments(
     first: Position,
     last: Position,
     maps: &OriginalCuts,
+    remaining: &mut usize,
 ) -> Option<Vec<SourceFragment>> {
     let mut fragments = Vec::new();
     for (index, &node) in runs[first.0]
@@ -34,14 +35,26 @@ fn fragments(
         if start == end {
             continue;
         }
-        let part = slice(node, start, end)?;
+        spend(
+            remaining,
+            view.tokens
+                .len()
+                .saturating_add(node.sources.len())
+                .saturating_mul(2),
+        )?;
+        let selected = slice_sources(node, start, end)?;
         fragments.push(SourceFragment {
             node: node.id,
             tokens: [
                 original_boundary(maps, node.id, start)?,
                 original_boundary(maps, node.id, end)?,
             ],
-            sources: part.sources,
+            sources: node
+                .sources
+                .iter()
+                .filter(|source| selected.contains(source))
+                .copied()
+                .collect(),
         });
     }
     Some(fragments)
@@ -67,13 +80,14 @@ fn trim(
         let NodeContent::Text { view } = &node.content else {
             return None;
         };
-        spend(
-            remaining,
-            view.tokens
-                .len()
-                .saturating_add(node.sources.len())
-                .saturating_mul(8),
-        )?;
+        // Normalization and token scanning are charged here; padding source
+        // partitions are charged separately without materializing body views.
+        let scans = if matches!(view.normalization, TextNormalization::Exact) {
+            2
+        } else {
+            8
+        };
+        spend(remaining, view.tokens.len().saturating_mul(scans))?;
         let optional = view.optional_tokens()?;
         let start = if index == first.1 { first.2 } else { 0 };
         let stop = if index == last.1 {
@@ -104,18 +118,67 @@ fn trim(
     // Both retained body and removed padding must project without shared glyphs.
     original_boundary(maps, runs[entry.0][entry.1].id, entry.2)?;
     original_boundary(maps, runs[exit.0][exit.1].id, exit.2)?;
-    interior(runs, entry, exit)?;
+    // The original interval is already validated. Each moved cut is checked
+    // from its padding side against every other source-backed token in that
+    // node, so a glyph cannot straddle the new body boundary. Copying the body
+    // here would repeat the caller's later projection without adding a check.
     Some(Trimmed {
         entry,
         exit,
         padding: [
-            fragments(runs, first, entry, maps)?,
-            fragments(runs, exit, last, maps)?,
+            fragments(runs, first, entry, maps, remaining)?,
+            fragments(runs, exit, last, maps, remaining)?,
         ],
     })
 }
 
 type Refined = (Boundary, Boundary, Option<Box<SourceCutEdgeRefinement>>);
+
+/// Only a source-backed outer space can become removable padding. Optional
+/// normalization may rule that space out, but cannot create one at another
+/// token. This rejection needs neither a body projection nor a source copy.
+fn may_have_padding(
+    runs: &[Vec<&GraphNode>],
+    first: Position,
+    last: Position,
+    remaining: &mut usize,
+) -> Option<bool> {
+    if first.0 != last.0 || first > last {
+        return None;
+    }
+    let run = runs.get(first.0)?;
+    for forward in [true, false] {
+        for offset in 0..=last.1 - first.1 {
+            spend(remaining, 1)?;
+            let index = if forward {
+                first.1 + offset
+            } else {
+                last.1 - offset
+            };
+            let NodeContent::Text { view } = &run.get(index)?.content else {
+                return None;
+            };
+            let start = if index == first.1 { first.2 } else { 0 };
+            let end = if index == last.1 {
+                last.2
+            } else {
+                view.tokens.len()
+            };
+            if view.tokens.get(start..end)?.is_empty() {
+                continue;
+            }
+            spend(remaining, 1)?;
+            let position = if forward { start } else { end.checked_sub(1)? };
+            if view.tokens.get(position)?.as_scalar() == Some(' ')
+                && *view.source_backed.get(position)?
+            {
+                return Some(true);
+            }
+            break;
+        }
+    }
+    Some(false)
+}
 
 pub(super) fn refine(
     left: &[Vec<&GraphNode>],
@@ -125,6 +188,11 @@ pub(super) fn refine(
     maps: &CutMaps,
     remaining: &mut usize,
 ) -> Option<Refined> {
+    if !may_have_padding(left, entry.old, exit.old, remaining)?
+        && !may_have_padding(right, entry.new, exit.new, remaining)?
+    {
+        return None;
+    }
     let old = trim(left, entry.old, exit.old, &maps.old, remaining)?;
     let new = trim(right, entry.new, exit.new, &maps.new, remaining)?;
     if old.padding.iter().chain(&new.padding).all(Vec::is_empty) {
@@ -232,7 +300,7 @@ mod tests {
             .expect("mandatory padding");
             assert_eq!(trimmed.entry, (0, 0, texts[0].len()));
             assert_eq!(trimmed.exit, (0, 2, 0));
-            let body = interior(&runs, trimmed.entry, trimmed.exit).expect("legal body");
+            let body = interior(&runs, trimmed.entry, trimmed.exit, &mut 1000).expect("legal body");
             assert_eq!(
                 body.iter()
                     .flat_map(|node| &node.sources)
@@ -242,5 +310,106 @@ mod tests {
             assert_eq!(trimmed.padding[0][0].sources, nodes[0].sources);
             assert_eq!(trimmed.padding[1][0].sources, nodes[2].sources);
         }
+    }
+    fn text_node(text: &str) -> GraphNode {
+        let sources: Vec<_> = (0..text.len())
+            .map(|id| SourceRef::Native {
+                glyph: GlyphId(id as u64),
+            })
+            .collect();
+        GraphNode {
+            id: NodeId(1),
+            kind: NodeKind::Paragraph,
+            pages: Vec::new(),
+            identity: None,
+            basis: ViewBasis::NativeLayout,
+            content: NodeContent::Text {
+                view: TextView {
+                    tokens: text.chars().map(ComparableToken::Scalar).collect(),
+                    origins: sources.iter().map(|source| vec![*source]).collect(),
+                    source_backed: vec![true; sources.len()],
+                    normalization: TextNormalization::Exact,
+                },
+            },
+            sources,
+        }
+    }
+
+    #[test]
+    fn padding_source_partitions_reject_a_glyph_shared_with_the_body() {
+        for prefix in [true, false] {
+            let mut node = text_node(" body ");
+            let NodeContent::Text { view } = &mut node.content else {
+                unreachable!()
+            };
+            let (padding, body) = if prefix { (0, 1) } else { (5, 4) };
+            let removed = view.origins[body][0];
+            view.origins[body] = view.origins[padding].clone();
+            node.sources.retain(|source| *source != removed);
+            assert!(
+                trim(
+                    &[vec![&node]],
+                    (0, 0, 0),
+                    (0, 0, 6),
+                    &OriginalCuts::new(),
+                    &mut 10_000
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn already_trimmed_long_content_does_not_consume_the_next_search_budget() {
+        let text = "body ".repeat(800) + "end";
+        let node = text_node(&text);
+        let boundary = |position| Boundary {
+            old: (0, 0, position),
+            new: (0, 0, position),
+            certificate: CutCorrespondence {
+                old: SourceCut {
+                    node: node.id,
+                    token_boundary: position,
+                },
+                new: SourceCut {
+                    node: node.id,
+                    token_boundary: position,
+                },
+                evidence: CutEvidence::AcceptedBoundary { proposal: 0 },
+            },
+            old_sources: Vec::new(),
+            new_sources: Vec::new(),
+        };
+        let runs = [vec![&node]];
+        let mut remaining = 1_000_000;
+        assert!(
+            refine(
+                &runs,
+                &runs,
+                &boundary(0),
+                &boundary(text.len()),
+                &CutMaps::default(),
+                &mut remaining
+            )
+            .is_none()
+        );
+        assert!(
+            1_000_000 - remaining <= 8,
+            "interior spaces cannot change the two outer cuts"
+        );
+        let padded = text_node(&(text.clone() + " "));
+        let padded_runs = [vec![&padded]];
+        assert!(
+            refine(
+                &padded_runs,
+                &padded_runs,
+                &boundary(0),
+                &boundary(text.len() + 1),
+                &CutMaps::default(),
+                &mut 64_000,
+            )
+            .is_some(),
+            "literal padding retains its complete source partition within the budget"
+        );
     }
 }

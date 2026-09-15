@@ -14,6 +14,7 @@ use super::{
 use crate::Result;
 
 mod cuts;
+pub(super) mod inferred;
 mod native;
 pub use native::{NativeRegion, NativeRegionChain, NativeRegionChains, NativeTransition};
 
@@ -24,15 +25,18 @@ pub use cuts::{
 };
 
 /// Content of corresponding intervals under the stated comparison convention.
-/// The enclosing scope retains the parent correspondence. Boundary indexes
+/// Inferred paragraph groups have no certified interval boundaries. Otherwise,
+/// the enclosing scope retains the parent correspondence. Boundary indexes
 /// refer to its candidate proposals; member nodes retain all source projections.
 /// Neither this unit nor its conditional masks owns changed sources or discharges
 /// strict coverage. An inferred parent keeps this comparison inferred.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextScopeReview {
     pub convention: String,
-    /// Legacy whole-node proposal indexes. Source-cut ranges carry their two
-    /// explicit certificates in `source_cuts` instead of inventing proposal IDs.
+    /// Whole-node or contiguous-group proposal indexes. Every member of each
+    /// boundary group is excluded from the interior. Source-cut ranges carry
+    /// their two explicit certificates in `source_cuts` instead of inventing proposal IDs.
+    /// Inferred paragraph groups leave this empty and certify no boundaries.
     pub boundaries: Vec<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_cuts: Option<SourceCutRange>,
@@ -231,14 +235,18 @@ fn closed_order<'a>(
 pub(super) fn append(
     old: DocumentView<'_>,
     new: DocumentView<'_>,
+    native: (
+        &super::evidence::NativeIndex<'_>,
+        &super::evidence::NativeIndex<'_>,
+    ),
     result: &mut ScopeViewComparison,
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
 ) -> Result<()> {
     let mut remaining = limits.matching.max_ownership_visits;
     append_pass(
-        old,
-        new,
+        (old, new),
+        native,
         result,
         parent,
         limits,
@@ -253,8 +261,8 @@ pub(super) fn append(
     let prior = result.source_cut_search.take();
     let before = remaining;
     append_pass(
-        old,
-        new,
+        (old, new),
+        native,
         result,
         parent,
         limits,
@@ -276,8 +284,8 @@ pub(super) fn append(
         let prior = result.source_cut_search.take();
         let before = remaining;
         append_pass(
-            old,
-            new,
+            (old, new),
+            native,
             result,
             parent,
             limits,
@@ -320,9 +328,52 @@ fn merge_cut_search(result: &mut ScopeViewComparison, prior: Option<SourceCutSea
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct BoundarySpan {
+    run: usize,
+    first: usize,
+    last: usize,
+}
+
+impl BoundarySpan {
+    fn contiguous(nodes: &[NodeId], positions: &BTreeMap<NodeId, (usize, usize)>) -> Option<Self> {
+        let &(run, first) = positions.get(nodes.first()?)?;
+        for (offset, node) in nodes.iter().enumerate() {
+            if positions.get(node) != Some(&(run, first.checked_add(offset)?)) {
+                return None;
+            }
+        }
+        Some(Self {
+            run,
+            first,
+            last: first.checked_add(nodes.len() - 1)?,
+        })
+    }
+
+    fn len(self) -> usize {
+        self.last - self.first + 1
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct IntervalAnchor {
+    old: BoundarySpan,
+    new: BoundarySpan,
+    proposal: usize,
+}
+
+impl IntervalAnchor {
+    fn singleton(self) -> bool {
+        self.old.len() == 1 && self.new.len() == 1
+    }
+}
+
 fn append_pass(
-    old: DocumentView<'_>,
-    new: DocumentView<'_>,
+    (old, new): (DocumentView<'_>, DocumentView<'_>),
+    native: (
+        &super::evidence::NativeIndex<'_>,
+        &super::evidence::NativeIndex<'_>,
+    ),
     result: &mut ScopeViewComparison,
     parent: InterpretationStatus,
     limits: DocumentComparisonLimits,
@@ -340,25 +391,56 @@ fn append_pass(
     ) {
         (Some(left), Some(right)) => (vec![left], vec![right], None),
         _ => {
-            let (Some(mut old_sources), Some(mut new_sources)) = (
-                native::Sources::new(old, remaining),
-                native::Sources::new(new, remaining),
-            ) else {
-                return Ok(());
-            };
+            let mut old_sources = native::Sources::new(native.0);
+            let mut new_sources = native::Sources::new(native.1);
             if matches!(discovery, Discovery::NativeStructure) {
                 old_sources.acquire_native_order(old, remaining);
                 new_sources.acquire_native_order(new, remaining);
             }
+            let mut boundaries = [BTreeSet::new(), BTreeSet::new()];
+            for &index in result
+                .accepted_correspondences
+                .iter()
+                .chain(&result.text_boundary_correspondences)
+            {
+                let proposal = &result.candidates.proposals[index];
+                if spend(
+                    remaining,
+                    proposal.old.len().saturating_add(proposal.new.len()),
+                )
+                .is_none()
+                {
+                    return Ok(());
+                }
+                boundaries[0].extend(&proposal.old);
+                boundaries[1].extend(&proposal.new);
+            }
             (
-                native::runs(old, scope.old, &old_sources, limits, rows, remaining)?,
-                native::runs(new, scope.new, &new_sources, limits, rows, remaining)?,
+                native::runs(
+                    old,
+                    scope.old,
+                    &old_sources,
+                    limits,
+                    rows,
+                    &boundaries[0],
+                    remaining,
+                )?,
+                native::runs(
+                    new,
+                    scope.new,
+                    &new_sources,
+                    limits,
+                    rows,
+                    &boundaries[1],
+                    remaining,
+                )?,
                 Some((old_sources, new_sources)),
             )
         }
     };
     let native = sources.is_some();
     let mut native_proofs = NativeProofs::new();
+    let mut plain_censuses = NativeProofs::new();
     let positions = |runs: &[Vec<&GraphNode>]| {
         runs.iter()
             .enumerate()
@@ -386,15 +468,13 @@ fn append_pass(
     let unchanged: BTreeSet<_> = result
         .comparisons
         .iter()
-        .filter(|comparison| comparison.compared && comparison.text_mask.is_some())
-        .filter_map(
-            |comparison| match (comparison.old.as_slice(), comparison.new.as_slice()) {
-                ([a], [b]) if comparison.operation.is_none() => Some((*a, *b)),
-                _ => None,
-            },
-        )
+        .filter(|comparison| {
+            comparison.compared && comparison.text_mask.is_some() && comparison.operation.is_none()
+        })
+        .map(|comparison| (comparison.old.as_slice(), comparison.new.as_slice()))
         .collect();
     let mut anchors = Vec::new();
+    let mut interval_anchors = Vec::new();
     // Accepted comparisons have already discharged their own source-candidate
     // dependencies. Optional interior hypotheses cannot invalidate protected
     // higher-priority boundaries and do not identify edits inside this range.
@@ -404,21 +484,60 @@ fn append_pass(
         .chain(&result.text_boundary_correspondences)
     {
         let proposal = &result.candidates.proposals[index];
-        let ([a], [b]) = (proposal.old.as_slice(), proposal.new.as_slice()) else {
-            continue;
+        let unchanged = unchanged.contains(&(proposal.old.as_slice(), proposal.new.as_slice()));
+        let padded = match (proposal.old.as_slice(), proposal.new.as_slice()) {
+            ([a], [b]) => padding_boundaries.contains(&(*a, *b)),
+            _ => false,
         };
         if !result.matching.source_only_mandatory.contains(&index)
             || result.matching.inferred_proposals.contains(&index)
-            || (!unchanged.contains(&(*a, *b)) && !padding_boundaries.contains(&(*a, *b)))
+            || (!unchanged && !padded)
         {
             continue;
         }
-        if let (Some(&a), Some(&b)) = (old_positions.get(a), new_positions.get(b)) {
-            anchors.push((a, b, index));
+        let grouped = proposal.old.len() != 1 || proposal.new.len() != 1;
+        if grouped
+            && spend(
+                remaining,
+                proposal
+                    .old
+                    .len()
+                    .saturating_add(proposal.new.len())
+                    .saturating_mul(
+                        old_positions
+                            .len()
+                            .saturating_add(new_positions.len())
+                            .saturating_add(1)
+                            .ilog2() as usize
+                            + 1,
+                    ),
+            )
+            .is_none()
+        {
+            continue;
         }
+        let (Some(a), Some(b)) = (
+            BoundarySpan::contiguous(&proposal.old, &old_positions),
+            BoundarySpan::contiguous(&proposal.new, &new_positions),
+        ) else {
+            continue;
+        };
+        let anchor = IntervalAnchor {
+            old: a,
+            new: b,
+            proposal: index,
+        };
+        if anchor.singleton() {
+            anchors.push(((a.run, a.first), (b.run, b.first), index));
+        }
+        // A group boundary contributes its entire contiguous source span.
+        // Interior ranges start after the entry group and end before the exit
+        // group; neither endpoint is replaced by one arbitrarily chosen node.
+        interval_anchors.push(anchor);
     }
     anchors.sort_unstable();
-    if rows || anchors.len() < 2 {
+    interval_anchors.sort_unstable();
+    if rows || interval_anchors.len() < 2 {
         for pass in [cuts::Pass::Standard, cuts::Pass::Paint] {
             let prior = result.source_cut_search.take();
             let before = *remaining;
@@ -432,6 +551,7 @@ fn append_pass(
                 &right,
                 sources.as_ref(),
                 &native_proofs,
+                &mut plain_censuses,
                 &anchors,
                 rows,
                 pass,
@@ -441,15 +561,29 @@ fn append_pass(
         }
         return Ok(());
     }
-    let new_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
+    let singleton_anchors: Vec<_> = interval_anchors
+        .iter()
+        .copied()
+        .filter(|anchor| anchor.singleton())
+        .collect();
+    let new_singleton_anchors: BTreeSet<_> = anchors.iter().map(|anchor| anchor.1).collect();
+    let new_anchors: BTreeSet<_> = interval_anchors
+        .iter()
+        .flat_map(|anchor| {
+            (anchor.new.first..=anchor.new.last).map(|index| (anchor.new.run, index))
+        })
+        .collect();
     // Established whole-node and raw-interval discovery precede narrower
-    // component views. In particular, a margin-free view must not consume the
+    // component views. Whole-node presence gets its turn before finer source
+    // boundaries; it uses the same accepted anchors and full closure checks.
+    // In particular, a margin-free view must not consume the
     // budget needed by an existing full paint-order range.
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum IntervalPass {
         Whole,
         Component,
         Empty,
+        Refine,
         DeferredComponent,
         EmptyComponent,
     }
@@ -458,6 +592,7 @@ fn append_pass(
         IntervalPass::Whole,
         IntervalPass::Component,
         IntervalPass::Empty,
+        IntervalPass::Refine,
         IntervalPass::DeferredComponent,
         IntervalPass::EmptyComponent,
     ] {
@@ -491,6 +626,7 @@ fn append_pass(
                 &right,
                 sources.as_ref(),
                 &native_proofs,
+                &mut plain_censuses,
                 &anchors,
                 rows,
                 cuts::Pass::WholeIntervals,
@@ -512,7 +648,7 @@ fn append_pass(
                 continue;
             }
         }
-        if (pass == IntervalPass::Empty
+        if (pass == IntervalPass::Refine
             || (pass == IntervalPass::EmptyComponent && defer_components))
             && sources.is_some()
             && result
@@ -536,6 +672,7 @@ fn append_pass(
                 &right,
                 sources.as_ref(),
                 &native_proofs,
+                &mut plain_censuses,
                 &anchors,
                 false,
                 cuts::Pass::RefineExisting,
@@ -543,7 +680,7 @@ fn append_pass(
             )?;
             merge_cut_search(result, prior, before - *remaining);
         }
-        if pass == IntervalPass::Empty {
+        if pass == IntervalPass::Refine {
             // Unmasked raw intervals need a turn before general page and
             // lexical discovery exhausts the remaining work. Keep half of that
             // work for those established searches; the total cap is unchanged.
@@ -561,6 +698,7 @@ fn append_pass(
                 &right,
                 sources.as_ref(),
                 &native_proofs,
+                &mut plain_censuses,
                 &anchors,
                 rows,
                 cuts::Pass::EnclosingIntervals,
@@ -583,6 +721,7 @@ fn append_pass(
                 &right,
                 sources.as_ref(),
                 &native_proofs,
+                &mut plain_censuses,
                 &anchors,
                 rows,
                 cuts::Pass::Standard,
@@ -590,16 +729,54 @@ fn append_pass(
             )?;
             merge_cut_search(result, prior, before - *remaining);
         }
-        for pair in anchors.windows(2) {
-            let [((ar0, a0), (br0, b0), first), ((ar1, a1), (br1, b1), last)] = pair else {
-                unreachable!()
+        if pass == IntervalPass::Refine {
+            continue;
+        }
+        // Keep established singleton-bounded extents before adding ranges
+        // around group boundaries. An equal interior group does not invalidate
+        // the wider non-owning comparison or justify dropping its context.
+        let mut candidates = singleton_anchors
+            .windows(2)
+            .chain(
+                interval_anchors
+                    .windows(2)
+                    .filter(|pair| !pair[0].singleton() || !pair[1].singleton()),
+            )
+            .map(|pair| (pair[0], pair[1], None));
+        let mut deferred = std::collections::VecDeque::new();
+        while let Some((entry, exit, pending)) = candidates.next().or_else(|| deferred.pop_front())
+        {
+            let count_fallback = pending.is_some();
+            let (ar0, a0, br0, b0) = (
+                &entry.old.run,
+                &entry.old.last,
+                &entry.new.run,
+                &entry.new.last,
+            );
+            let (ar1, a1, br1, b1) = (
+                &exit.old.run,
+                &exit.old.first,
+                &exit.new.run,
+                &exit.new.first,
+            );
+            let (first, last) = (&entry.proposal, &exit.proposal);
+            let singleton = entry.singleton() && exit.singleton();
+            // Component lanes trim individual endpoints; a group boundary
+            // needs its complete span and uses the whole-interval path.
+            if inset && !singleton {
+                continue;
+            }
+            let protected = if singleton {
+                &new_singleton_anchors
+            } else {
+                &new_anchors
             };
             if ar0 != ar1
                 || br0 != br1
                 || a1 <= a0
                 || b1 <= b0
                 || (a1 == &(a0 + 1) && b1 == &(b0 + 1))
-                || new_anchors
+                || protected
                     .range((*br0, b0 + 1)..(*br1, *b1))
                     .next()
                     .is_some()
@@ -610,8 +787,8 @@ fn append_pass(
             let right = &right[*br0];
             let mut old_lane = Vec::new();
             let mut new_lane = Vec::new();
-            let original_old = &left[*a0..=*a1];
-            let original_new = &right[*b0..=*b1];
+            let original_old = &left[entry.old.first..=exit.old.last];
+            let original_new = &right[entry.new.first..=exit.new.last];
             if inset {
                 if spend(remaining, result.text_scope_reviews.len()).is_none() {
                     break;
@@ -638,9 +815,42 @@ fn append_pass(
             }
             let old_path = if inset { &old_lane } else { original_old };
             let new_path = if inset { &new_lane } else { original_new };
-            let a = &old_path[1..old_path.len() - 1];
-            let b = &new_path[1..new_path.len() - 1];
-            if (a.is_empty() || b.is_empty()) != empty_sided {
+            let a = &old_path[entry.old.len()..old_path.len() - exit.old.len()];
+            let b = &new_path[entry.new.len()..new_path.len() - exit.new.len()];
+            if !singleton {
+                let work = result
+                    .text_scope_reviews
+                    .iter()
+                    .fold(0_usize, |work, review| {
+                        work.saturating_add(1)
+                            .saturating_add(a.len().saturating_mul(review.comparison.old.len()))
+                            .saturating_add(b.len().saturating_mul(review.comparison.new.len()))
+                    });
+                if spend(remaining, work).is_none() {
+                    continue;
+                }
+                // Whole-node reviews retain every source of their member
+                // nodes. Rechecking an already covered subrange adds no source
+                // coverage; preserve that work for newly bounded content.
+                if result.text_scope_reviews.iter().any(|review| {
+                    review.source_cuts.is_none()
+                        && review.boundaries.len() == 2
+                        && review.comparison.compared
+                        && review.comparison.interpretation
+                            == InterpretationStatus::ConditionalOnCorrespondence
+                        && review.presence == interval_presence(a.is_empty(), b.is_empty())
+                        && a.iter()
+                            .all(|node| review.comparison.old.contains(&node.id))
+                        && b.iter()
+                            .all(|node| review.comparison.new.contains(&node.id))
+                }) {
+                    continue;
+                }
+            }
+            // A reconstructed component is ready for the same closure checks
+            // whether one interior is empty or both contain text. Deferring an
+            // empty component would repeat this work after finer searches.
+            if (a.is_empty() || b.is_empty()) != empty_sided && pass != IntervalPass::Component {
                 continue;
             }
             // Empty intervals currently use the native source/paint closure profile.
@@ -664,13 +874,76 @@ fn append_pass(
             let padding_boundary = [*first, *last].into_iter().any(|index| {
                 result.candidates.proposals[index].basis == ProposalBasis::LiteralContentWithPadding
             });
-            let comparison = if native {
-                super::operations::compare_native_text_range(a, b, limits.local)
+            // Both ordered masks and count fallbacks must retain the same
+            // source-side hyphen interpretations. Token addresses stay fixed.
+            // Normalization shares the local proof budget with the diff kernel.
+            let mut local_limits = limits.local;
+            let mut normalization_work = local_limits.proof_work;
+            let normalized;
+            let normalized_refs;
+            let (a, b) = if let Some((old_sources, new_sources)) = &sources {
+                let (Some(old), Some(new)) = (
+                    old_sources.hyphen_alternatives(a, &mut normalization_work),
+                    new_sources.hyphen_alternatives(b, &mut normalization_work),
+                ) else {
+                    continue;
+                };
+                normalized = (old, new);
+                local_limits.proof_work = normalization_work;
+                normalized_refs = (
+                    normalized
+                        .0
+                        .iter()
+                        .map(|node| node.as_ref())
+                        .collect::<Vec<_>>(),
+                    normalized
+                        .1
+                        .iter()
+                        .map(|node| node.as_ref())
+                        .collect::<Vec<_>>(),
+                );
+                (normalized_refs.0.as_slice(), normalized_refs.1.as_slice())
+            } else {
+                (a, b)
+            };
+            let comparison = if let Some(comparison) = pending {
+                Ok(comparison)
+            } else if native {
+                super::operations::compare_native_text_range(a, b, local_limits)
             } else {
                 compare_text_group_views(a, b, limits.local)
             };
             match comparison {
                 Ok(mut comparison) if comparison.compared && comparison.operation.is_some() => {
+                    if !singleton && let Some(sources) = &sources {
+                        if count_fallback {
+                            if !use_native_count(&mut comparison, (a, b), limits.local, remaining)?
+                            {
+                                continue;
+                            }
+                        } else if comparison.text_mask.is_some()
+                            && !native_order_valid(sources, (a, b), remaining)
+                        {
+                            // Keep ordered changes ahead of count fallbacks
+                            // for interleaved layout text. Retained payloads
+                            // and both proof routes share the same work cap.
+                            let work = a.iter().chain(b).fold(
+                                a.len().saturating_add(b.len()),
+                                |work, node| {
+                                    let tokens = match &node.content {
+                                        NodeContent::Text { view } => view.tokens.len(),
+                                        _ => 0,
+                                    };
+                                    work.saturating_add(tokens)
+                                        .saturating_add(node.sources.len())
+                                },
+                            );
+                            if spend(remaining, work).is_some() {
+                                deferred.push_back((entry, exit, Some(comparison)));
+                            }
+                            continue;
+                        }
+                    }
                     // A failed normalization comparison cannot produce a review.
                     // Preserve the shared closure budget for admissible claims and
                     // later source-cut candidates; every emitted claim still needs
@@ -763,8 +1036,18 @@ fn append_pass(
                             .iter()
                             .flat_map(|node| node.sources.iter().copied())
                             .collect(),
-                        old_boundaries: [left[*a0].sources.clone(), left[*a1].sources.clone()],
-                        new_boundaries: [right[*b0].sources.clone(), right[*b1].sources.clone()],
+                        old_boundaries: [entry.old, exit.old].map(|span| {
+                            left[span.first..=span.last]
+                                .iter()
+                                .flat_map(|node| node.sources.iter().copied())
+                                .collect()
+                        }),
+                        new_boundaries: [entry.new, exit.new].map(|span| {
+                            right[span.first..=span.last]
+                                .iter()
+                                .flat_map(|node| node.sources.iter().copied())
+                                .collect()
+                        }),
                         candidate_search_exhaustive: Some(result.candidates.exhaustive),
                         spacing,
                         comparison,
@@ -786,7 +1069,9 @@ fn append_pass(
                             continue;
                         }
                     }
-                    if let Some(bounded_paint) = reusable_closure {
+                    // Source-cut discovery addresses singleton endpoints, so
+                    // it cannot reuse a group span as a singleton proof.
+                    if singleton && let Some(bounded_paint) = reusable_closure {
                         let work = old_path
                             .len()
                             .saturating_add(new_path.len())
@@ -804,36 +1089,17 @@ fn append_pass(
                             );
                         }
                     }
-                    if review.comparison.text_mask.is_some()
-                        && let Some((old_sources, new_sources)) = &sources
+                    if singleton
+                        && let Some(sources) = &sources
+                        && !validate_native_order(
+                            &mut review.comparison,
+                            sources,
+                            (a, b),
+                            limits.local,
+                            remaining,
+                        )?
                     {
-                        // Population closure does not validate the order inside a
-                        // layout node. Require a source-checked projection before
-                        // allowing its reconstructed token order to establish change.
-                        if [(old_sources, a), (new_sources, b)].into_iter().any(
-                            |(sources, nodes)| {
-                                nodes.iter().any(|node| {
-                                    sources
-                                        .project_census(node, &[], false, remaining)
-                                        .is_none()
-                                })
-                            },
-                        ) {
-                            let Some(proof) = super::operations::native_count_change(
-                                a,
-                                b,
-                                limits.local,
-                                remaining,
-                            )?
-                            else {
-                                continue;
-                            };
-                            review.comparison.text_mask = None;
-                            review.comparison.text_change_proof = Some(proof);
-                            review.comparison.unresolved.push(
-                                "native token order is unresolved; source multiplicity proves change without a mask".into(),
-                            );
-                        }
+                        continue;
                     }
                     result.text_scope_reviews.push(review);
                 }
@@ -856,6 +1122,7 @@ fn append_pass(
         &right,
         sources.as_ref(),
         &native_proofs,
+        &mut plain_censuses,
         &anchors,
         rows,
         cuts::Pass::Paint,
@@ -864,4 +1131,52 @@ fn append_pass(
     merge_cut_search(result, prior, before - *remaining);
 
     Ok(())
+}
+
+/// A reconstructed token order cannot supply an exact mask without a checked
+/// source projection. Preserve an order-independent count witness when possible.
+fn validate_native_order(
+    comparison: &mut LocalViewComparison,
+    sources: &(native::Sources<'_>, native::Sources<'_>),
+    nodes: (&[&GraphNode], &[&GraphNode]),
+    limits: super::LocalComparisonLimits,
+    remaining: &mut usize,
+) -> Result<bool> {
+    if comparison.text_mask.is_none() || native_order_valid(sources, nodes, remaining) {
+        return Ok(true);
+    }
+    use_native_count(comparison, nodes, limits, remaining)
+}
+
+fn native_order_valid(
+    (old_sources, new_sources): &(native::Sources<'_>, native::Sources<'_>),
+    (old, new): (&[&GraphNode], &[&GraphNode]),
+    remaining: &mut usize,
+) -> bool {
+    [(old_sources, old), (new_sources, new)]
+        .into_iter()
+        .all(|(sources, nodes)| {
+            nodes.iter().all(|node| {
+                sources
+                    .project_census(node, &[], false, remaining)
+                    .is_some()
+            })
+        })
+}
+
+fn use_native_count(
+    comparison: &mut LocalViewComparison,
+    (old, new): (&[&GraphNode], &[&GraphNode]),
+    limits: super::LocalComparisonLimits,
+    remaining: &mut usize,
+) -> Result<bool> {
+    let Some(proof) = super::operations::native_count_change(old, new, limits, remaining)? else {
+        return Ok(false);
+    };
+    comparison.text_mask = None;
+    comparison.text_change_proof = Some(proof);
+    comparison.unresolved.push(
+        "native token order is unresolved; source multiplicity proves change without a mask".into(),
+    );
+    Ok(true)
 }

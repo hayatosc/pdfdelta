@@ -779,26 +779,17 @@ pub fn solve_correspondence_scope(
         let indices: Vec<_> = component.into_iter().collect();
         let is_assignment = indices.iter().all(|index| assignment_eligible[*index]);
         if !is_assignment {
-            let mut complete = true;
-            'pairs: for (offset, a) in indices.iter().copied().enumerate() {
-                for b in indices.iter().copied().skip(offset + 1) {
-                    if conflict_checks == limits.max_pair_checks {
-                        complete = false;
-                        break 'pairs;
-                    }
-                    conflict_checks += 1;
-                    if overlaps(&ownership[a].0, &ownership[b].0, old)
-                        || overlaps(&ownership[a].1, &ownership[b].1, new)
-                    {
-                        conflicts[a].insert(b);
-                        conflicts[b].insert(a);
-                    }
-                }
-            }
-            if !complete {
+            let count = indices.len();
+            // Divide an even factor first so the triangular count cannot
+            // overflow merely because the undivided product is too large.
+            let required = (count / 2).checked_mul(count - 1 + count % 2);
+            if required.is_none_or(|checks| {
+                checks > limits.max_pair_checks.saturating_sub(conflict_checks)
+            }) {
                 conflict_search_complete = false;
-                // The complete ownership index separates this component from
-                // every remaining one, even though its internal checks stopped.
+                // A partial conflict graph supplies no comparison. The complete
+                // ownership index separates this component from all others, so
+                // skip unusable work and preserve their remaining check budget.
                 components.push(MatchingComponent {
                     proposals: indices,
                     mandatory: Vec::new(),
@@ -808,6 +799,17 @@ pub fn solve_correspondence_scope(
                     exhaustive: false,
                 });
                 continue;
+            }
+            for (offset, a) in indices.iter().copied().enumerate() {
+                for b in indices.iter().copied().skip(offset + 1) {
+                    conflict_checks += 1;
+                    if overlaps(&ownership[a].0, &ownership[b].0, old)
+                        || overlaps(&ownership[a].1, &ownership[b].1, new)
+                    {
+                        conflicts[a].insert(b);
+                        conflicts[b].insert(a);
+                    }
+                }
             }
         }
         let solve = |indices, limits: MatchingLimits| {

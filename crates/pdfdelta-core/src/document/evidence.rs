@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Error, Result,
-    model::{DecodedText, Document, Glyph, GlyphId, PageId, Rect, Vec2, VectorLineId},
+    model::{
+        DecodedText, Document, Glyph, GlyphId, NonTextPaint, PageId, Rect, Vec2, VectorLineId,
+    },
     pdf::ObjectRef,
 };
 
@@ -446,6 +448,58 @@ impl Default for EvidenceLimits {
     }
 }
 
+/// Text acquisition records with the same explicit dependency scope.
+#[derive(Default)]
+pub(super) struct ScopedTextEvidence<'a> {
+    pub inventories: Vec<ValidatedTextInventory<'a>>,
+    pub issues: Vec<&'a EvidenceIssue>,
+}
+
+/// A population certificate does not imply complete text acquisition.
+/// Unique same-page native references and equal population counts establish
+/// exact coverage; issue, provider and paint checks remain separate obligations.
+pub(super) struct ValidatedTextInventory<'a> {
+    pub inventory: &'a ChannelInventory,
+    pub covers_native_page: bool,
+}
+
+/// Native lookups retained from bounded evidence validation. Page slices retain
+/// all glyphs, including noncontiguous spans and sources absent from graph nodes.
+/// Paint lists retain every operation on each page, including unknown bounds.
+/// Text records retain page and document-wide scopes from every provider.
+#[derive(Default)]
+pub(super) struct NativeIndex<'a> {
+    pub glyphs: BTreeMap<GlyphId, &'a Glyph>,
+    pub pages: BTreeMap<PageId, Vec<&'a [Glyph]>>,
+    pub paint_pages: BTreeMap<PageId, Vec<&'a NonTextPaint>>,
+    pub text_scopes: BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
+}
+
+#[derive(Default)]
+struct ValidatedSources<'a> {
+    native: NativeIndex<'a>,
+    other: BTreeMap<SourceRef, Option<PageId>>,
+}
+
+impl ValidatedSources<'_> {
+    fn get(&self, source: &SourceRef) -> Option<Option<PageId>> {
+        match source {
+            SourceRef::Native { glyph } => {
+                self.native.glyphs.get(glyph).map(|glyph| Some(glyph.page))
+            }
+            _ => self.other.get(source).copied(),
+        }
+    }
+
+    fn contains_key(&self, source: &SourceRef) -> bool {
+        self.get(source).is_some()
+    }
+
+    fn insert(&mut self, source: SourceRef, page: Option<PageId>) -> Option<Option<PageId>> {
+        self.other.insert(source, page)
+    }
+}
+
 impl EvidenceStore {
     /// Validates provider output before it can affect correspondence or ownership.
     ///
@@ -453,6 +507,10 @@ impl EvidenceStore {
     /// Returns contextual configuration errors for invalid or dangling evidence
     /// and resource-limit errors before constructing unbounded lookup indexes.
     pub fn validate(&self, limits: EvidenceLimits) -> Result<()> {
+        self.validate_indexed(limits).map(|_| ())
+    }
+
+    pub(super) fn validate_indexed(&self, limits: EvidenceLimits) -> Result<NativeIndex<'_>> {
         bounded(self.pages.len(), limits.max_pages, "evidence pages")?;
         let items = [
             self.native.items().len(),
@@ -512,6 +570,7 @@ impl EvidenceStore {
                 "paint acquisition marker references an unknown page",
             ));
         }
+        let mut sources = ValidatedSources::default();
         if let Some(paints) = self.native.non_text_paint_bounds() {
             let mut last_paint = BTreeMap::new();
             for paint in paints {
@@ -523,6 +582,12 @@ impl EvidenceStore {
                 if let Some(bounds) = paint.bounds {
                     valid_rect(bounds)?;
                 }
+                sources
+                    .native
+                    .paint_pages
+                    .entry(paint.page)
+                    .or_default()
+                    .push(paint);
                 last_paint
                     .entry(paint.page)
                     .and_modify(|order: &mut u32| *order = (*order).max(paint.render_order))
@@ -553,8 +618,9 @@ impl EvidenceStore {
                 return Err(invalid("marked-content membership crosses its page scope"));
             }
         }
-        let mut sources = BTreeMap::new();
-        for glyph in self.native.items() {
+        let glyphs = self.native.items();
+        let mut span_start = 0;
+        for (position, glyph) in glyphs.iter().enumerate() {
             valid_rect(glyph.bbox)?;
             if !pages.contains_key(&glyph.page)
                 || !glyph.font_size.is_finite()
@@ -564,9 +630,17 @@ impl EvidenceStore {
             {
                 return Err(invalid("invalid native glyph geometry or page"));
             }
-            let source = SourceRef::Native { glyph: glyph.id };
-            if sources.insert(source, Some(glyph.page)).is_some() {
+            if sources.native.glyphs.insert(glyph.id, glyph).is_some() {
                 return Err(invalid("duplicate native glyph identity"));
+            }
+            if glyph.page != glyphs[span_start].page {
+                sources
+                    .native
+                    .pages
+                    .entry(glyphs[span_start].page)
+                    .or_default()
+                    .push(&glyphs[span_start..position]);
+                span_start = position;
             }
             let length = match &glyph.text {
                 DecodedText::Mapped(text) => text.len(),
@@ -584,6 +658,14 @@ impl EvidenceStore {
                 limits.max_text_bytes,
                 "evidence text bytes",
             )?;
+        }
+        if span_start < glyphs.len() {
+            sources
+                .native
+                .pages
+                .entry(glyphs[span_start].page)
+                .or_default()
+                .push(&glyphs[span_start..]);
         }
         let mut raster_bytes = 0usize;
         for line in self.native.vector_lines() {
@@ -874,7 +956,7 @@ impl EvidenceStore {
                             .ok_or_else(|| {
                                 invalid("structure references a missing native glyph")
                             })?;
-                        if !seen.insert(*glyph) || element.page.is_some_and(|p| *page != Some(p)) {
+                        if !seen.insert(*glyph) || element.page.is_some_and(|p| page != Some(p)) {
                             return Err(invalid(
                                 "duplicate or cross-page structure glyph membership",
                             ));
@@ -967,6 +1049,12 @@ impl EvidenceStore {
                 }
             }
         }
+        let native_page_counts: BTreeMap<_, usize> = sources
+            .native
+            .pages
+            .iter()
+            .map(|(page, spans)| (*page, spans.iter().map(|span| span.len()).sum()))
+            .collect();
         for inventory in &self.inventories {
             if inventory
                 .page
@@ -983,11 +1071,13 @@ impl EvidenceStore {
                 "evidence references",
             )?;
             let mut unique = BTreeSet::new();
+            let mut all_native = true;
             for source in &inventory.sources {
+                all_native &= matches!(source, SourceRef::Native { .. });
                 if !sources.contains_key(source)
                     || inventory
                         .page
-                        .is_some_and(|page| sources.get(source) != Some(&Some(page)))
+                        .is_some_and(|page| sources.get(source) != Some(Some(page)))
                     || !unique.insert(*source)
                 {
                     return Err(invalid(
@@ -995,8 +1085,35 @@ impl EvidenceStore {
                     ));
                 }
             }
+            if inventory.channel == Channel::Text {
+                let covers_native_page = all_native
+                    && inventory.page.is_some_and(|page| {
+                        native_page_counts
+                            .get(&page)
+                            .is_some_and(|count| *count == inventory.sources.len())
+                    });
+                sources
+                    .native
+                    .text_scopes
+                    .entry(inventory.page)
+                    .or_default()
+                    .inventories
+                    .push(ValidatedTextInventory {
+                        inventory,
+                        covers_native_page,
+                    });
+            }
         }
         for issue in &self.issues {
+            if issue.channel == Channel::Text {
+                sources
+                    .native
+                    .text_scopes
+                    .entry(issue.page)
+                    .or_default()
+                    .issues
+                    .push(issue);
+            }
             if let Some(boundary) = &issue.boundary {
                 let expected = match boundary {
                     EvidenceBoundary::GlyphGap {
@@ -1050,7 +1167,7 @@ impl EvidenceStore {
                 let page = sources
                     .get(source)
                     .ok_or_else(|| invalid("dangling issue dependency"))?;
-                if issue.page.is_some_and(|scope| Some(scope) != *page) {
+                if issue.page.is_some_and(|scope| Some(scope) != page) {
                     return Err(invalid("issue dependency lies outside its page scope"));
                 }
             }
@@ -1066,7 +1183,7 @@ impl EvidenceStore {
             }
         }
         super::structures::validate_content(self)?;
-        Ok(())
+        Ok(sources.native)
     }
 
     /// True only when a provider inspected this channel and no dependent issue
