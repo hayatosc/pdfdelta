@@ -1,0 +1,40 @@
+name: Completion iteration
+on:
+  push:
+    branches: [work/strict-completion-20260916]
+    paths:
+      - .github/workflows/completion-iteration.yml
+      - .experiment/iterate.py
+      - .experiment/patches/**
+      - .experiment/paint_locality_tests.rs
+permissions:
+  contents: write
+concurrency:
+  group: completion-iteration
+  cancel-in-progress: false
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: rustup toolchain install 1.98.0 --profile minimal --component clippy --component rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: .experiment/cache/inputs
+          key: completion-fixed-inputs-v1-${{ hashFiles('benchmark/realworld/followup/panel.json') }}
+      - name: Run measured iteration
+        run: python3 .experiment/iterate.py
+      - name: Retain execution records even on failure
+        if: always()
+        shell: bash
+        run: |
+          set -eu
+          git config user.name 'pdfdelta experiment'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .experiment/runs
+          git diff --cached --quiet || git commit -m 'test(experiment): retain iteration execution records [skip ci]'
+          git push origin HEAD:work/strict-completion-20260916
