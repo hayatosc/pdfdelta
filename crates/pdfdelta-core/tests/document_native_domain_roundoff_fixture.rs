@@ -257,7 +257,9 @@ fn roundoff_fallback_preserves_order_visibility_and_acquisition_obligations() {
                 missing.id = GlyphId(1000);
                 missing.render_order = 1000;
                 missing.baseline.y = glyphs[5].baseline.y.next_up();
-                new.0.inventories[0].sources.push(SourceRef::Native { glyph: missing.id });
+                new.0.inventories[0]
+                    .sources
+                    .push(SourceRef::Native { glyph: missing.id });
                 glyphs.push(missing);
             }
             "overlapping_paint" | "unknown_paint" => {}
