@@ -1,0 +1,120 @@
+{
+  "base": "7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c",
+  "iteration": "paint-locality-v1",
+  "strict_contract_changed": false,
+  "quality": {
+    "format_apply": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all"
+      ],
+      "exit_code": 0,
+      "seconds": 3.325,
+      "log": ".experiment/runs/paint-locality-v1/format-apply.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 3.22,
+      "log": ".experiment/runs/paint-locality-v1/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 78.94,
+      "log": ".experiment/runs/paint-locality-v1/clippy.log",
+      "sha256": "0e9a66b331bcbeccb105420254973eb7c37377574e99ebd8613b7d1eb202dbf0"
+    },
+    "tests": {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 101,
+      "seconds": 220.445,
+      "log": ".experiment/runs/paint-locality-v1/tests.log",
+      "sha256": "4619c044036b3f170c2f2896fcf88762580c1031119b3ebe5322fa5ab86d1281"
+    }
+  },
+  "regression_before": {
+    "disconnected_pdf_rules_do_not_acquire_joins_between_subpaths": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-core",
+        "--test",
+        "content_stream_extraction",
+        "disconnected_pdf_rules_do_not_acquire_joins_between_subpaths",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 56.531,
+      "log": ".experiment/runs/paint-locality-v1/before-disconnected_pdf_rules_do_not_acquire_joins_between_subpaths.log",
+      "sha256": "0f7b0ac07e821f071b8293cd3a87d710e14deb26c2706a10d0b0b1ae3adc7768"
+    },
+    "small_curve_in_large_form_retains_local_bounds_and_native_text": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-core",
+        "--test",
+        "content_stream_extraction",
+        "small_curve_in_large_form_retains_local_bounds_and_native_text",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 0.115,
+      "log": ".experiment/runs/paint-locality-v1/before-small_curve_in_large_form_retains_local_bounds_and_native_text.log",
+      "sha256": "06a813eb2b03ab1b45db83ed419830b63e1166e52045fe41f14a3599e28de648"
+    },
+    "failed_nested_pdf_form_keeps_outer_bounds_and_the_extraction_gap": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-core",
+        "--test",
+        "content_stream_extraction",
+        "failed_nested_pdf_form_keeps_outer_bounds_and_the_extraction_gap",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 0.115,
+      "log": ".experiment/runs/paint-locality-v1/before-failed_nested_pdf_form_keeps_outer_bounds_and_the_extraction_gap.log",
+      "sha256": "074fd410dd3fbca8e9cf901c5e23b6b4b0b84f325e0509ce62681812e8046b57"
+    }
+  },
+  "pairs": [],
+  "stage": "quality_failed",
+  "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "registered_pair_count": 36,
+  "toolchain": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+}
