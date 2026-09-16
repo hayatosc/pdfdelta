@@ -1,0 +1,191 @@
+{
+  "goal_complete": false,
+  "new_complete_pairs": 0,
+  "reproduction_commit": "898b9f5",
+  "pilot": {
+    "path": "benchmark/realworld/remaining/source-completion/interval-index-v1-pilot.json",
+    "sha256": "48d9676f5297999b3180c588cfbb49493b6b60937e6eea3f35d8d7cbee445b62"
+  },
+  "audit": {
+    "path": "benchmark/realworld/cache/source-completion/interval-index-v1/audit.py",
+    "sha256": "be41a73aa8326941d2576f983b748a1d4d09d03b4f77f50864a2fdf0019ff56c"
+  },
+  "native_capture_script": {
+    "path": "benchmark/realworld/cache/source-completion/interval-index-v1/capture-native.py",
+    "sha256": "5123c7aa366b60a07fee635d05621668ffcb3587b65d2aae9ff4feb981d119eb"
+  },
+  "native_captures": {
+    "path": "benchmark/realworld/cache/source-completion/interval-index-v1/native-captures.json",
+    "sha256": "8fae1daabc1d1dc286b652527ed18c85c43ab7298b166f91b96d9f6da0490545"
+  },
+  "native": {
+    "old": {
+      "path": "benchmark/realworld/cache/source-completion/interval-index-v1/ecb-old-native.json",
+      "sha256": "681766bbd2afc2da4a4e162ca06be6c2e9cce4069c756626b0e7538ca1df519a"
+    },
+    "new": {
+      "path": "benchmark/realworld/cache/source-completion/interval-index-v1/ecb-new-native.json",
+      "sha256": "fa7e92c1ccf2cb08ea4b5d57740410d6b9bf40a40df0ca769e727d1f7ab48180"
+    }
+  },
+  "oracle": {
+    "path": "benchmark/realworld/remaining/source-completion/audit_native_intervals.py",
+    "sha256": "acca73418cded80493effb5c34cf88aa9a018862fb6a3af6eba7d19982f47127"
+  },
+  "oracle_cases": 225,
+  "added_intervals": [
+    {
+      "boundaries": [
+        7727,
+        7728
+      ],
+      "sides": {
+        "old": {
+          "owned_sources": 31,
+          "literal_text": "2.4 Notes on the balance sheet ",
+          "boundary_overlap": 0,
+          "mask": [
+            {
+              "position": 11,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 275517
+                }
+              ]
+            }
+          ]
+        },
+        "new": {
+          "owned_sources": 31,
+          "literal_text": "2.4 Notes to the balance sheet ",
+          "boundary_overlap": 0,
+          "mask": [
+            {
+              "position": 10,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 290867
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "edit_cost": 2
+    },
+    {
+      "boundaries": [
+        7728,
+        7729
+      ],
+      "sides": {
+        "old": {
+          "owned_sources": 41,
+          "literal_text": "2.6 Notes on the profit and loss account ",
+          "boundary_overlap": 0,
+          "mask": [
+            {
+              "position": 11,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 275588
+                }
+              ]
+            }
+          ]
+        },
+        "new": {
+          "owned_sources": 41,
+          "literal_text": "2.6 Notes to the profit and loss account ",
+          "boundary_overlap": 0,
+          "mask": [
+            {
+              "position": 10,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 290938
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "edit_cost": 2
+    },
+    {
+      "boundaries": [
+        7627,
+        7628
+      ],
+      "sides": {
+        "old": {
+          "owned_sources": 79,
+          "literal_text": "The management report1 is an integral part of the ECB’s Annual Accounts and is ",
+          "boundary_overlap": 0,
+          "mask": [
+            {
+              "position": 21,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 277526
+                }
+              ]
+            }
+          ]
+        },
+        "new": {
+          "owned_sources": 78,
+          "literal_text": "The management report is an integral part of the ECB’s Annual Accounts and is ",
+          "boundary_overlap": 0,
+          "mask": []
+        }
+      },
+      "edit_cost": 1
+    }
+  ],
+  "source_delta": {
+    "old": 151,
+    "new": 150
+  },
+  "checks": {
+    "build.log": {
+      "path": "benchmark/realworld/cache/source-completion/interval-index-v1/build.log",
+      "sha256": "c8ec80924984268593c6e0404512f671a09a24d01c9194ad39456ea453105325"
+    },
+    "workspace.log": {
+      "path": "benchmark/realworld/cache/source-completion/interval-index-v1/workspace.log",
+      "sha256": "cef890c0f73f6066ca36c2afc5e55bf181ef9bf10c94032a262b2017c780ab1f"
+    },
+    "clippy-final.log": {
+      "path": "benchmark/realworld/cache/source-completion/interval-index-v1/clippy-final.log",
+      "sha256": "d5c550978eb2d83e4a4b7f133de7c8b1bba8d495491f39b129fab423c500c423"
+    },
+    "generated.log": {
+      "path": "benchmark/realworld/cache/source-completion/interval-index-v1/generated.log",
+      "sha256": "e6eebc50ebdd6e6f076c09b155946937ff55ba55d0498b35b4b422f2d6afc830"
+    },
+    "focused-final.log": {
+      "path": "benchmark/realworld/cache/source-completion/interval-index-v1/focused-final.log",
+      "sha256": "ab61825ca238a9acea14f7560b43689129a11041dac29ce671f6c5eda6e0de3a"
+    }
+  },
+  "final_test_source": {
+    "path": "crates/pdfdelta-core/tests/document_text_scopes_fixture.rs",
+    "sha256": "df4904b273132b5121726660a3ec674a32cb9cf5cb1245fd3f3cb9e190dcebe2"
+  },
+  "test_totals": {
+    "passed": 2518,
+    "failed": 0,
+    "ignored": 2
+  },
+  "limitations": [
+    "Five-pair diagnostic pilot, not final two-run acceptance or a new full-panel completion result.",
+    "Independent audit checks literal native readings, ownership uniqueness, boundary exclusion and all optimal literal masks; it does not independently certify PDF acquisition, visibility or boundary correspondence.",
+    "The final test source differs from the capture archive only in assertion failure messages; production source and frozen executable are unchanged."
+  ]
+}

@@ -93,21 +93,27 @@ fn reserved_sources(
     Some(reserved)
 }
 
-fn project(
-    view: DocumentView<'_>,
+fn project<'a>(
+    view: DocumentView<'a>,
+    index: &mut Option<BTreeMap<NodeId, &'a GraphNode>>,
     root: NodeId,
     native: &native::Sources<'_>,
     endpoints: [&[NodeId]; 2],
     interior: &[NodeId],
     remaining: &mut usize,
 ) -> Option<(Vec<GraphNode>, Vec<SourceRef>)> {
-    spend(remaining, view.graph.nodes.len())?;
-    let nodes: BTreeMap<_, _> = view
-        .graph
-        .nodes
-        .iter()
-        .map(|node| (node.id, node))
-        .collect();
+    if index.is_none() {
+        spend(remaining, view.graph.nodes.len())?;
+        *index = Some(
+            view.graph
+                .nodes
+                .iter()
+                .map(|node| (node.id, node))
+                .collect(),
+        );
+    }
+    let nodes = index.as_ref()?;
+    let lookup_work = nodes.len().saturating_add(1).ilog2() as usize + 1;
     let mut path = Vec::new();
     let mut owned = Vec::new();
     let mut projected = Vec::new();
@@ -117,7 +123,7 @@ fn project(
         .enumerate()
     {
         for id in ids {
-            spend(remaining, 1)?;
+            spend(remaining, lookup_work)?;
             let node = *nodes.get(id)?;
             let (checked, _) = native.project_interval(node, remaining)?;
             let NodeContent::Text { view: text } = &checked.content else {
@@ -168,6 +174,10 @@ pub(super) fn append(
         return Ok(());
     }
     let mut remaining = limits.local.proof_work;
+    // Views are immutable throughout this call. Reuse their node lookup, while
+    // charging its construction and every lookup to the shared proof budget.
+    // Native projection, source ownership and population closure are rechecked.
+    let mut node_indexes = [None, None];
     let mut old_native = native::Sources::new(native.0);
     let mut new_native = native::Sources::new(native.1);
     if result
@@ -221,6 +231,7 @@ pub(super) fn append(
             }
             Input::Equal(candidate) => prepare_whole(
                 [old, new],
+                &mut node_indexes,
                 [&old_native, &new_native],
                 result,
                 &candidate.boundaries,
@@ -248,6 +259,7 @@ pub(super) fn append(
                     // reconstructed before any source can enter coverage.
                     prepare_whole(
                         [old, new],
+                        &mut node_indexes,
                         [&old_native, &new_native],
                         result,
                         &review.boundaries,
@@ -332,8 +344,9 @@ fn complete_content_proof(comparison: &LocalViewComparison) -> bool {
         || (mask.claims.changed_source_upper == 0 && comparison.unresolved.is_empty())
 }
 
-fn prepare_whole(
-    views: [DocumentView<'_>; 2],
+fn prepare_whole<'a>(
+    views: [DocumentView<'a>; 2],
+    indexes: &mut [Option<BTreeMap<NodeId, &'a GraphNode>>; 2],
     native: [&native::Sources<'_>; 2],
     result: &ScopeViewComparison,
     boundaries: &[usize],
@@ -364,6 +377,7 @@ fn prepare_whole(
     let last = &result.candidates.proposals[*exit];
     let (a, a_sources) = project(
         views[0],
+        &mut indexes[0],
         result.matching.scope.old,
         native[0],
         [&first.old, &last.old],
@@ -372,6 +386,7 @@ fn prepare_whole(
     )?;
     let (b, b_sources) = project(
         views[1],
+        &mut indexes[1],
         result.matching.scope.new,
         native[1],
         [&first.new, &last.new],

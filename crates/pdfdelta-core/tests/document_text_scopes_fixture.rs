@@ -880,6 +880,81 @@ fn native_layout_edges_across_columns_do_not_displace_local_boundaries() {
 }
 
 #[test]
+fn multiple_native_intervals_share_bounded_graph_lookup() {
+    let mut old = fixture_rows(&[
+        "Start alpha.",
+        "Count 10.",
+        "Boundary beta.",
+        "Cost 10.",
+        "Boundary gamma.",
+        "Total 10.",
+        "End delta.",
+    ]);
+    let mut new = fixture_rows(&[
+        "Start alpha.",
+        "Count 20.",
+        "Boundary beta.",
+        "Cost 20.",
+        "Boundary gamma.",
+        "Total 20.",
+        "End delta.",
+    ]);
+    for fixture in [&mut old, &mut new] {
+        for id in 100..1100 {
+            let mut node = fixture.1.nodes[0].clone();
+            node.id = NodeId(id);
+            node.kind = NodeKind::Section;
+            fixture.1.nodes.push(node);
+        }
+    }
+    for (budget, expected) in [(0, 0), (10_000, 3)] {
+        let mut limits = DocumentComparisonLimits::default();
+        limits.local.proof_work = budget;
+        let result = compare_document_views(
+            DocumentView {
+                evidence: &old.0,
+                graph: &old.1,
+            },
+            DocumentView {
+                evidence: &new.0,
+                graph: &new.1,
+            },
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            limits,
+            HierarchyLimits::default(),
+        )
+        .expect("bounded native interval comparison");
+        let intervals = &result.scopes[0].result.native_text_intervals;
+        assert_eq!(intervals.len(), expected);
+        for interval in intervals {
+            let local = interval.comparison();
+            assert!(local.compared && local.unresolved.is_empty());
+            let position = match local.old.as_slice() {
+                [NodeId(2) | NodeId(6)] => 6,
+                [NodeId(4)] => 5,
+                other => panic!("unexpected interval {other:?}"),
+            };
+            let mask = local.text_mask.as_ref().expect("exact source mask");
+            assert_eq!(mask.old.len(), 1);
+            assert_eq!(mask.new.len(), 1);
+            assert_eq!(mask.old[0].position, position);
+            assert_eq!(mask.new[0].position, position);
+            assert_eq!(
+                mask.old[0].sources,
+                vec![old.1.nodes[local.old[0].0 as usize].sources[position]]
+            );
+            assert_eq!(
+                mask.new[0].sources,
+                vec![new.1.nodes[local.new[0].0 as usize].sources[position]]
+            );
+        }
+    }
+}
+
+#[test]
 fn native_interval_keeps_same_page_outside_glyphs_out_of_band_work() {
     let mut fixture = fixture_rows(&["First boundary.", "repeat", "repeat", "Last boundary."]);
     let mut glyphs = fixture.0.native.items().to_vec();
