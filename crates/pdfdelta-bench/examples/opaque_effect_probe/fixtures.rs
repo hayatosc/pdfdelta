@@ -131,7 +131,7 @@ fn fixture(mutation: &str) -> Vec<u8> {
             dictionary! { "Gs" => state, "Unused" => Object::Reference((999, 0)) },
         ),
         "default_space" => {
-            resources.set("ColorSpace", dictionary! { "DefaultRGB" => "DeviceGray" })
+            resources.set("ColorSpace", dictionary! { "DefaultRGB" => "DeviceGray" });
         }
         _ => {}
     }

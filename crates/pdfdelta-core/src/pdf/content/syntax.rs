@@ -673,7 +673,7 @@ fn looks_numeric(token: &[u8]) -> bool {
         .is_some_and(|byte| byte.is_ascii_digit() || matches!(byte, b'+' | b'-' | b'.'))
 }
 
-fn is_whitespace(byte: u8) -> bool {
+pub(crate) fn is_whitespace(byte: u8) -> bool {
     matches!(byte, 0x00 | b'\t' | b'\n' | 0x0c | b'\r' | b' ')
 }
 

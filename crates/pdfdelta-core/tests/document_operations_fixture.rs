@@ -3,9 +3,10 @@ use pdfdelta_core::{
         BackendIdentity, BackendKind, EvidenceLimits, EvidenceStore, FieldValue, GraphNode,
         InterpretationStatus, LocalComparisonLimits, NodeContent, NodeId, NodeKind, PageEvidence,
         PixelRun, Raster, RenderedEvidence, SourceRef, StructuredEvidence, StructuredValue,
-        TypedOperation, ViewBasis, compare_local_views,
+        TextNormalization, TextView, TypedOperation, ViewBasis, compare_local_views,
     },
     model::{Document, PageId, Rect, Vec2},
+    normalize::ComparableToken,
 };
 
 mod hierarchy {
@@ -265,6 +266,40 @@ fn value(text: &str) -> (EvidenceStore, GraphNode) {
         content: NodeContent::Value { value },
     };
     (store, node)
+}
+
+#[test]
+fn mismatched_source_mask_dimensions_are_rejected() {
+    let node = |source_backed: Vec<bool>| GraphNode {
+        id: NodeId(1),
+        kind: NodeKind::Paragraph,
+        pages: Vec::new(),
+        sources: Vec::new(),
+        identity: None,
+        basis: ViewBasis::NativeLayout,
+        content: NodeContent::Text {
+            view: TextView {
+                tokens: "ab".chars().map(ComparableToken::Scalar).collect(),
+                origins: vec![Vec::new(); 2],
+                source_backed,
+                normalization: TextNormalization::Exact,
+            },
+        },
+    };
+    let old_store = store();
+    let new_store = store();
+    let error = compare_local_views(
+        &node(vec![true; 2]),
+        &node(vec![true; 1]),
+        &old_store,
+        &new_store,
+        LocalComparisonLimits::default(),
+    )
+    .expect_err("a short source mask must be rejected instead of silently truncated");
+    assert!(matches!(
+        error,
+        pdfdelta_core::Error::InvalidConfiguration(_)
+    ));
 }
 
 #[test]

@@ -20,13 +20,14 @@ use pdfdelta_core::{
 
 use crate::{
     args::{ColorChoice, CompareCommand, ComparisonInput, ComparisonOptions, resolve_color},
-    extraction_cache::{ExtractionCache, cache_key},
+    evidence_text::escape_terminal_controls,
+    extraction_cache::ExtractionCache,
     fs::{
         InputReadError, ensure_named_output_does_not_alias_input,
         ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
-        output_paths_refer_to_same_file, parse_external_font_identities, parse_lopdf,
-        read_limited_typed, read_password_file, write_json_atomically,
-        write_text_report_atomically, write_trace_atomically,
+        parse_external_font_identities, parse_lopdf, paths_refer_to_same_file, read_limited_typed,
+        read_password_file, write_json_atomically, write_text_report_atomically,
+        write_trace_atomically,
     },
     trace::{ExecutionTrace, TraceSide, duration_metric},
 };
@@ -49,15 +50,15 @@ impl ExitStatus {
 /// Converts a validated core result into the CLI's process status policy.
 /// Fatal execution errors are returned through `Result` and become code 2 in
 /// `main`; an incomplete comparison takes precedence over detected changes.
-fn exit_status(summary: &ReportSummary, _strict: bool) -> ExitStatus {
-    if !summary.comparison_complete {
-        ExitStatus::IncompleteComparison
-    } else {
+fn exit_status(summary: &ReportSummary) -> ExitStatus {
+    if summary.comparison_complete {
         match summary.difference_status {
             DifferenceStatus::Detected => ExitStatus::ContentChanges,
             DifferenceStatus::NoContentChange => ExitStatus::NoContentChanges,
             DifferenceStatus::Indeterminate => ExitStatus::IncompleteComparison,
         }
+    } else {
+        ExitStatus::IncompleteComparison
     }
 }
 
@@ -146,13 +147,35 @@ fn compare_documents_inner<W: Write>(
         ),
     ] {
         if let (Some(left), Some(right)) = (left, right)
-            && output_paths_refer_to_same_file(left, right, label)?
+            && paths_refer_to_same_file(left, right, label)?
         {
             return Err(format!(
                 "refusing {left_noun} {} because it refers to the {right_noun} {}",
                 left.display(),
                 right.display()
             ));
+        }
+    }
+
+    if let Some(cache_dir) = command.extraction_cache_dir {
+        for (destination, noun) in [
+            (trace_output, "trace output"),
+            (json_output, "JSON report"),
+            (report_output, "text report output"),
+        ] {
+            if let Some(destination) = destination
+                && paths_refer_to_same_file(
+                    destination,
+                    cache_dir,
+                    "extraction cache/output collision",
+                )?
+            {
+                return Err(format!(
+                    "refusing {noun} {} because it refers to the extraction cache directory {}",
+                    destination.display(),
+                    cache_dir.display()
+                ));
+            }
         }
     }
 
@@ -340,7 +363,7 @@ pub fn compare_documents_traced<W: Write>(
             new_input.path.display()
         )
     })?;
-    let status = exit_status(&summary, options.strict);
+    let status = exit_status(&summary);
 
     if let Some(json_path) = options.json_path
         && let Err(error) = write_json_atomically(
@@ -357,42 +380,18 @@ pub fn compare_documents_traced<W: Write>(
         return Err(error);
     }
 
-    if let Some(output_path) = options.output_path {
-        let report = render_text(
+    let old_label = old_input.path.display().to_string();
+    let new_label = new_input.path.display().to_string();
+    let render_report = |color| {
+        render_text(
             &outcome.old_blocks,
             &outcome.new_blocks,
             &outcome.comparison,
             &outcome.extraction,
             &TextReportOptions {
-                old_label: &old_input.path.display().to_string(),
-                new_label: &new_input.path.display().to_string(),
-                color: matches!(options.color, ColorChoice::Always),
-            },
-        )
-        .map_err(|error| {
-            format!(
-                "cannot render comparison report for {} and {}: {error}",
-                old_input.path.display(),
-                new_input.path.display()
-            )
-        })?;
-
-        if let Err(error) = write_text_report_atomically(output_path, &report) {
-            trace.fail_message("report", None, "report", &error);
-            return Err(error);
-        }
-    }
-
-    if !options.quiet && options.json_path.is_none() && options.output_path.is_none() {
-        let report_result = render_text(
-            &outcome.old_blocks,
-            &outcome.new_blocks,
-            &outcome.comparison,
-            &outcome.extraction,
-            &TextReportOptions {
-                old_label: &old_input.path.display().to_string(),
-                new_label: &new_input.path.display().to_string(),
-                color: resolve_color(options.color),
+                old_label: &old_label,
+                new_label: &new_label,
+                color,
             },
         )
         .map_err(|error| {
@@ -402,7 +401,19 @@ pub fn compare_documents_traced<W: Write>(
                 new_input.path.display()
             )
         })
-        .and_then(|report| {
+    };
+
+    if let Some(output_path) = options.output_path {
+        let report = render_report(matches!(options.color, ColorChoice::Always))?;
+
+        if let Err(error) = write_text_report_atomically(output_path, &report) {
+            trace.fail_message("report", None, "report", &error);
+            return Err(error);
+        }
+    }
+
+    if !options.quiet && options.json_path.is_none() && options.output_path.is_none() {
+        let report_result = render_report(resolve_color(options.color)).and_then(|report| {
             let stdout = io::stdout();
             let mut stdout = stdout.lock();
             stdout
@@ -477,22 +488,94 @@ pub fn extract_comparison_outcome(
         ],
     );
 
-    // The cache key covers the complete set of extraction-determining inputs,
-    // so a hit is exactly equivalent to re-running parse and extraction. Any
-    // cache failure falls through to the normal path below.
-    let cache_entry = context.cache.map(|cache| {
-        let key = cache_key(
+    // A cache hit is exactly equivalent to re-running parse and extraction,
+    // because the key covers every extraction-determining input. The traced
+    // phases inside `extract_fresh` therefore run only on a miss.
+    let parse_bytes = bytes.clone();
+    let mut extract_fresh = || -> Result<ExtractionOutcome, String> {
+        let parse_started = std::time::Instant::now();
+        let parsed = match parse_lopdf(parse_bytes.clone(), context.parse_limits, context.password)
+        {
+            Ok(parsed) => {
+                let version = parsed.version();
+                trace.complete(
+                    "pdf_parse",
+                    Some(trace_side),
+                    [
+                        ("pdf_version_major", usize::from(version.major)),
+                        ("pdf_version_minor", usize::from(version.minor)),
+                        ("duration_us", duration_metric(parse_started.elapsed())),
+                    ],
+                );
+                parsed
+            }
+            Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
+                trace.incomplete_core("pdf_parse", Some(trace_side), &error);
+                return document_issue_outcome(error).map_err(|error| {
+                    format!(
+                        "cannot parse or extract {side} PDF {}: {error}",
+                        path.display()
+                    )
+                });
+            }
+            Err(error) => {
+                trace.fail_core("pdf_parse", Some(trace_side), &error);
+                return Err(format!(
+                    "cannot parse or extract {side} PDF {}: {error}",
+                    path.display()
+                ));
+            }
+        };
+
+        let extraction_started = std::time::Instant::now();
+        match ContentStreamGlyphExtractor.extract_outcome_with_external_font_identities(
+            parsed.as_ref(),
+            ExtractionLimits::default(),
+            context.external_font_identities,
+        ) {
+            Ok(outcome) => {
+                let extraction_duration = extraction_started.elapsed();
+                if outcome.is_complete() {
+                    trace.complete(
+                        "glyph_extraction",
+                        Some(trace_side),
+                        [
+                            ("glyphs", outcome.document().items().len()),
+                            ("issues", 0),
+                            ("duration_us", duration_metric(extraction_duration)),
+                        ],
+                    );
+                } else {
+                    trace.incomplete_extraction(
+                        trace_side,
+                        outcome.document().items().len(),
+                        outcome.issues(),
+                        Some(extraction_duration),
+                    );
+                }
+                Ok(outcome)
+            }
+            Err(error) => {
+                trace.fail_core("glyph_extraction", Some(trace_side), &error);
+                Err(format!(
+                    "cannot parse or extract {side} PDF {}: {error}",
+                    path.display()
+                ))
+            }
+        }
+    };
+
+    let (outcome, cached) = match context.cache {
+        Some(cache) => cache.get_or_extract(
             &bytes,
             &context.parse_limits,
-            &ExtractionLimits::default(),
             context.password,
             context.external_font_identities,
-        );
-        (cache, key)
-    });
-    if let Some((cache, key)) = &cache_entry
-        && let Some(outcome) = cache.load(key, &ExtractionLimits::default())
-    {
+            extract_fresh,
+        )?,
+        None => (extract_fresh()?, false),
+    };
+    if cached {
         trace.skip_phase("pdf_parse", Some(trace_side), "extraction_cache_hit");
         if outcome.is_complete() {
             trace.complete(
@@ -511,83 +594,8 @@ pub fn extract_comparison_outcome(
                 None,
             );
         }
-        return Ok(outcome);
     }
-
-    let parse_started = std::time::Instant::now();
-    let parsed = match parse_lopdf(bytes, context.parse_limits, context.password) {
-        Ok(parsed) => {
-            let version = parsed.version();
-            trace.complete(
-                "pdf_parse",
-                Some(trace_side),
-                [
-                    ("pdf_version_major", usize::from(version.major)),
-                    ("pdf_version_minor", usize::from(version.minor)),
-                    ("duration_us", duration_metric(parse_started.elapsed())),
-                ],
-            );
-            parsed
-        }
-        Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
-            trace.incomplete_core("pdf_parse", Some(trace_side), &error);
-            return document_issue_outcome(error).map_err(|error| {
-                format!(
-                    "cannot parse or extract {side} PDF {}: {error}",
-                    path.display()
-                )
-            });
-        }
-        Err(error) => {
-            trace.fail_core("pdf_parse", Some(trace_side), &error);
-            return Err(format!(
-                "cannot parse or extract {side} PDF {}: {error}",
-                path.display()
-            ));
-        }
-    };
-
-    let extraction_started = std::time::Instant::now();
-    match ContentStreamGlyphExtractor.extract_outcome_with_external_font_identities(
-        parsed.as_ref(),
-        ExtractionLimits::default(),
-        context.external_font_identities,
-    ) {
-        Ok(outcome) => {
-            let extraction_duration = extraction_started.elapsed();
-            if let Some((cache, key)) = &cache_entry
-                && outcome.is_complete()
-            {
-                cache.store(key, &outcome);
-            }
-            if outcome.is_complete() {
-                trace.complete(
-                    "glyph_extraction",
-                    Some(trace_side),
-                    [
-                        ("glyphs", outcome.document().items().len()),
-                        ("issues", 0),
-                        ("duration_us", duration_metric(extraction_duration)),
-                    ],
-                );
-            } else {
-                trace.incomplete_extraction(
-                    trace_side,
-                    outcome.document().items().len(),
-                    outcome.issues(),
-                    Some(extraction_duration),
-                );
-            }
-            Ok(outcome)
-        }
-        Err(error) => {
-            trace.fail_core("glyph_extraction", Some(trace_side), &error);
-            Err(format!(
-                "cannot parse or extract {side} PDF {}: {error}",
-                path.display()
-            ))
-        }
-    }
+    Ok(outcome)
 }
 
 pub fn document_issue_outcome(error: Error) -> Result<ExtractionOutcome, Error> {
@@ -633,37 +641,35 @@ pub fn report_extraction_issues<W: Write>(
             ExtractionIssueKind::Unsupported => "unsupported",
             ExtractionIssueKind::Unresolved => "unresolved",
         };
+        // Issue descriptions can quote PDF-derived names, so they are escaped
+        // before reaching a terminal.
+        let description = escape_terminal_controls(issue.description());
         match issue.scope() {
             ExtractionScope::Document => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=document): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=document): {description}",
                 path.display(),
-                issue.description()
             ),
             ExtractionScope::Page(page) => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=page, page={}): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=page, page={}): {description}",
                 path.display(),
-                page.0,
-                issue.description()
+                u64::from(page.0) + 1,
             ),
             ExtractionScope::PageGap { retained_before } => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=page-gap, retained-pages-before={retained_before}): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=page-gap, retained-pages-before={retained_before}): {description}",
                 path.display(),
-                issue.description()
             ),
             ExtractionScope::GlyphGap { retained_before } => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=glyph-gap, retained-glyphs-before={retained_before}): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=glyph-gap, retained-glyphs-before={retained_before}): {description}",
                 path.display(),
-                issue.description()
             ),
             _ => writeln!(
                 writer,
-                "extraction issue for {side} PDF {} (kind={kind}, scope=unknown): {}",
+                "extraction issue for {side} PDF {} (kind={kind}, scope=unknown): {description}",
                 path.display(),
-                issue.description()
             ),
         }
         .map_err(|error| {
@@ -682,7 +688,7 @@ pub fn report_extraction_issues<W: Write>(
 }
 
 pub fn report_fatal_error<W: Write>(writer: &mut W, error: &str) {
-    let _ = writeln!(writer, "{error}");
+    let _ = writeln!(writer, "{}", escape_terminal_controls(error));
     let _ = writer.flush();
 }
 
@@ -766,5 +772,32 @@ mod tests {
     #[test]
     fn final_error_diagnostic_ignores_writer_failure() {
         report_fatal_error(&mut BrokenPipeWriter, "comparison failed");
+    }
+
+    #[test]
+    fn terminal_diagnostics_escape_pdf_derived_control_characters() {
+        let issue = ExtractionIssue::new(
+            ExtractionIssueKind::Unsupported,
+            ExtractionScope::Document,
+            "font subtype /\u{1b}[31mX is not supported",
+        )
+        .expect("fixture extraction issue should be valid");
+        let mut diagnostics = Vec::new();
+        report_extraction_issues(
+            &mut diagnostics,
+            "old",
+            std::path::Path::new("fixture.pdf"),
+            &[issue],
+        )
+        .expect("diagnostics should write");
+        let text = String::from_utf8(diagnostics).expect("diagnostics are UTF-8");
+        assert!(!text.contains('\u{1b}'), "{text:?}");
+        assert!(text.contains("\\u{1b}"), "{text:?}");
+
+        let mut fatal = Vec::new();
+        report_fatal_error(&mut fatal, "cannot parse /\u{202e}font");
+        let text = String::from_utf8(fatal).expect("fatal error is UTF-8");
+        assert!(!text.contains('\u{202e}'), "{text:?}");
+        assert!(text.contains("\\u{202e}"), "{text:?}");
     }
 }

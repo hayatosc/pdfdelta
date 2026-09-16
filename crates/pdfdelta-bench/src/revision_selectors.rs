@@ -79,6 +79,7 @@ impl From<TextSourceAtom> for SelectorAtom {
 /// Resolves each expectation independently using only normalized source blocks.
 /// Missing or uncertain selectors remain explicit. No comparison result is an
 /// input, and a unique selector alone does not certify extraction completeness.
+#[must_use]
 pub fn validate(
     expected: &ExpectedDocument,
     old: &[BlockText],

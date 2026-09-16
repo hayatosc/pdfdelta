@@ -217,6 +217,7 @@ fn charge_cell(remaining_cells: &mut usize) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::all_words;
     use super::{ExactUniqueness, check};
 
     fn classify(old: &[u8], new: &[u8]) -> ExactUniqueness {
@@ -291,26 +292,6 @@ mod tests {
                 };
                 assert_eq!(classify(old, new), expected, "old={old:?}, new={new:?}");
             }
-        }
-    }
-
-    fn all_words(max_length: usize) -> Vec<Vec<u8>> {
-        let mut words = Vec::new();
-        for length in 0..=max_length {
-            append_words(&mut words, &mut Vec::new(), length);
-        }
-        words
-    }
-
-    fn append_words(words: &mut Vec<Vec<u8>>, current: &mut Vec<u8>, remaining: usize) {
-        if remaining == 0 {
-            words.push(current.clone());
-            return;
-        }
-        for token in 0..=1 {
-            current.push(token);
-            append_words(words, current, remaining - 1);
-            current.pop();
         }
     }
 

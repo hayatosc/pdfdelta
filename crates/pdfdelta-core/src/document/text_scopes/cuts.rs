@@ -1,6 +1,11 @@
 //! Reversible native row cuts. Discovery never mutates the retained graph.
 
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, Channel, Deserialize, DocumentComparisonLimits, DocumentView, GraphNode,
+    InterpretationStatus, NativeProofs, NativeRegionChains, NodeContent, NodeId, Result,
+    ScopeViewComparison, Serialize, SourceRef, TextScopeReview, TextScopeSpacing, TypedOperation,
+    interval_presence, native, spend,
+};
 use crate::document::{TextNormalization, TextView};
 use crate::normalize::ComparableToken;
 
@@ -1427,21 +1432,24 @@ fn compare_population(
         if spend(remaining, boundaries.len()).is_none() {
             break;
         }
-        if entry.new > exit.new
-            || entry.old.0 != exit.old.0
-            || entry.new.0 != exit.new.0
-            || (!refine_existing
-                && !whole_only
-                && !(whole_fallback && entry.old.1 < exit.old.1 && entry.new.1 < exit.new.1)
-                && !paint_boundaries
-                && !matches!(population, SourceCutPopulation::AnchoredPage { .. })
-                && matches!(
-                    (&entry.certificate.evidence, &exit.certificate.evidence),
-                    (
-                        CutEvidence::AcceptedBoundary { .. },
-                        CutEvidence::AcceptedBoundary { .. }
-                    )
-                ))
+        let whole_extension =
+            whole_fallback && entry.old.1 < exit.old.1 && entry.new.1 < exit.new.1;
+        let both_accepted = matches!(
+            (&entry.certificate.evidence, &exit.certificate.evidence),
+            (
+                CutEvidence::AcceptedBoundary { .. },
+                CutEvidence::AcceptedBoundary { .. }
+            )
+        );
+        if entry.new > exit.new || entry.old.0 != exit.old.0 || entry.new.0 != exit.new.0 {
+            continue;
+        }
+        if !refine_existing
+            && !whole_only
+            && !whole_extension
+            && !paint_boundaries
+            && !matches!(population, SourceCutPopulation::AnchoredPage { .. })
+            && both_accepted
         {
             continue;
         }
@@ -1845,13 +1853,12 @@ fn discover(
             if a.tokens != b.tokens {
                 continue;
             }
-            let old_unique = match old_unique {
-                Some(value) => value,
-                None => {
-                    let value = unique(&old_tokens, &old_optional, old_mandatory, a, remaining)?;
-                    old_unique = Some(value);
-                    value
-                }
+            let old_unique = if let Some(value) = old_unique {
+                value
+            } else {
+                let value = unique(&old_tokens, &old_optional, old_mandatory, a, remaining)?;
+                old_unique = Some(value);
+                value
             };
             if !old_unique || !unique(&new_tokens, &new_optional, new_mandatory, b, remaining)? {
                 continue;
@@ -1947,7 +1954,11 @@ fn population(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{document::NodeKind, model::GlyphId};
+    use crate::{
+        document::{NodeKind, TextView, ViewBasis},
+        model::GlyphId,
+        normalize::ComparableToken,
+    };
 
     #[test]
     fn cached_closure_requires_the_same_ordered_borrowed_nodes() {
@@ -2034,7 +2045,7 @@ mod tests {
         let result = interior(&runs, (0, 0, 1024), (0, 2, 0), &mut 24)
             .expect("only the interior body needs a source projection");
         assert_eq!(
-            result.iter().map(|node| node.as_ref()).collect::<Vec<_>>(),
+            result.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
             vec![&body]
         );
         assert!(interior(&runs, (0, 0, 1024), (0, 2, 0), &mut 8).is_none());
@@ -2052,7 +2063,7 @@ mod tests {
         let runs = vec![vec![&original]];
         let whole = interior(&runs, (0, 0, 0), (0, 0, 4), &mut 3)
             .expect("a complete exact member needs no token copy");
-        assert!(std::ptr::eq(whole[0].as_ref(), &original));
+        assert!(std::ptr::eq(whole[0].as_ref(), &raw const original));
         assert_eq!(
             whole[0].as_ref(),
             &slice(&original, 0, 4, &mut 100).expect("complete exact member has a valid slice")
@@ -2061,7 +2072,7 @@ mod tests {
         assert!(interior(&runs, (0, 0, 0), (0, 0, 2), &mut 3).is_none());
         let partial = interior(&runs, (0, 0, 0), (0, 0, 2), &mut 17)
             .expect("partial members still validate and copy their source projection");
-        assert!(!std::ptr::eq(partial[0].as_ref(), &original));
+        assert!(!std::ptr::eq(partial[0].as_ref(), &raw const original));
         assert_eq!(partial[0].sources, [source(1)]);
     }
 

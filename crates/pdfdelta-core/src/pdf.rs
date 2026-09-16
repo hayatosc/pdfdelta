@@ -174,14 +174,17 @@ impl PdfIssue {
         })
     }
 
+    #[must_use]
     pub const fn kind(&self) -> PdfIssueKind {
         self.kind
     }
 
+    #[must_use]
     pub const fn location(&self) -> PdfIssueLocation {
         self.location
     }
 
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }

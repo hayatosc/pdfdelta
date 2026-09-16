@@ -1938,13 +1938,13 @@ fn retain_maximal_exact_ranges(
         }
         match item.relation {
             ExactRangeParentRelation::SamePairedParent => {
-                metrics.same_paired_parent = parent_inc(metrics.same_paired_parent)?
+                metrics.same_paired_parent = parent_inc(metrics.same_paired_parent)?;
             }
             ExactRangeParentRelation::ChangedPairedParent => {
-                metrics.changed_paired_parent = parent_inc(metrics.changed_paired_parent)?
+                metrics.changed_paired_parent = parent_inc(metrics.changed_paired_parent)?;
             }
             ExactRangeParentRelation::Unknown => {
-                metrics.parent_unknown = parent_inc(metrics.parent_unknown)?
+                metrics.parent_unknown = parent_inc(metrics.parent_unknown)?;
             }
         }
         let selected_index = retained.len();
@@ -2494,13 +2494,13 @@ fn proposal_side(
         let count = range.comparable_end - range.comparable_start;
         match range.ownership {
             RecoveryOwnership::Accepted => {
-                ownership.accepted_tokens = proposal_add(ownership.accepted_tokens, count)?
+                ownership.accepted_tokens = proposal_add(ownership.accepted_tokens, count)?;
             }
             RecoveryOwnership::Leaf(_) => {
-                ownership.leaf_tokens = proposal_add(ownership.leaf_tokens, count)?
+                ownership.leaf_tokens = proposal_add(ownership.leaf_tokens, count)?;
             }
             RecoveryOwnership::Gap(_) => {
-                ownership.gap_tokens = proposal_add(ownership.gap_tokens, count)?
+                ownership.gap_tokens = proposal_add(ownership.gap_tokens, count)?;
             }
         }
         ranges

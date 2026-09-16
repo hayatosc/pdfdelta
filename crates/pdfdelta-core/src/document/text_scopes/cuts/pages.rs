@@ -1,7 +1,11 @@
 //! A complete native page can close a local search around one accepted anchor.
 //! Page indices alone never establish the correspondence between two pages.
 
-use super::*;
+use super::{
+    Anchor, BTreeMap, BTreeSet, Channel, CutMaps, DocumentComparisonLimits, DocumentView,
+    GraphNode, InterpretationStatus, NodeId, OriginalCuts, Result, ScopeViewComparison,
+    SourceCutPageEdge, SourceCutPopulation, compare_population, native, spend,
+};
 use crate::model::PageId;
 
 fn paths<'a>(runs: &[Vec<&'a GraphNode>]) -> BTreeMap<PageId, Vec<&'a GraphNode>> {

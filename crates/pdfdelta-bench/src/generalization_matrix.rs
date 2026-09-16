@@ -11,11 +11,10 @@ use std::{
 
 use pdfdelta_core::document::{ComparisonContract, TypedOperation};
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 
 use crate::{
     BenchError, Result,
-    evaluation::BenchmarkProvenance,
+    evaluation::{BenchmarkProvenance, sha256_hex},
     generalization::{
         Dimension, DimensionAnnotation, Fact, GENERALIZATION_SCHEMA_VERSION,
         GeneralizationAnnotation,
@@ -386,10 +385,7 @@ fn hash_pdf(path: &Path) -> Result<String> {
             "producer output is missing or exceeds the PDF byte limit".into(),
         ));
     }
-    Ok(Sha256::digest(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect())
+    Ok(sha256_hex(&bytes))
 }
 
 fn compile(mut command: Command, log: &fs::File) -> Result<()> {

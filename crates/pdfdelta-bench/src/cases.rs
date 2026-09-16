@@ -26,10 +26,12 @@ impl BenchmarkCase {
         })
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn plan(&self) -> &MutationPlan {
         &self.plan
     }

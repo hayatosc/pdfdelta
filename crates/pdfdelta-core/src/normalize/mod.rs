@@ -72,6 +72,7 @@ impl FontSizeSignature {
     /// Builds a signature from positive, finite effective font sizes.
     ///
     /// Returns `None` when `sizes` is empty or contains an invalid value.
+    #[must_use]
     pub fn new(sizes: &[f64]) -> Option<Self> {
         if sizes.is_empty() || sizes.iter().any(|size| !size.is_finite() || *size <= 0.0) {
             return None;
@@ -113,6 +114,7 @@ impl PositionSignature {
     /// Builds a signature from finite geometry and a non-zero text direction.
     ///
     /// Returns `None` when any component is non-finite or `direction` is zero.
+    #[must_use]
     pub fn new(baseline: Vec2, direction: Vec2) -> Option<Self> {
         if !baseline.x.is_finite()
             || !baseline.y.is_finite()
@@ -131,6 +133,7 @@ impl PositionSignature {
     }
 
     /// Returns the normalized-page baseline represented by this signature.
+    #[must_use]
     pub fn baseline(self) -> Vec2 {
         Vec2 {
             x: f64::from_bits(self.baseline_x),
@@ -139,6 +142,7 @@ impl PositionSignature {
     }
 
     /// Returns the text direction represented by this signature.
+    #[must_use]
     pub fn direction(self) -> Vec2 {
         Vec2 {
             x: f64::from_bits(self.direction_x),
@@ -173,6 +177,7 @@ pub enum ComparableToken {
 }
 
 impl ComparableToken {
+    #[must_use]
     pub fn as_scalar(&self) -> Option<char> {
         match self {
             Self::Scalar(scalar) => Some(*scalar),
@@ -180,6 +185,7 @@ impl ComparableToken {
         }
     }
 
+    #[must_use]
     pub fn is_scalar(&self) -> bool {
         matches!(self, Self::Scalar(_))
     }
@@ -336,6 +342,7 @@ impl MappedText {
     }
 
     /// Returns the `TextSource` covering the given output `ScalarRange`.
+    #[must_use]
     pub fn project_source(&self, range: ScalarRange) -> TextSource {
         let mut atoms = Vec::new();
         let mut seen = HashSet::new();
@@ -391,6 +398,7 @@ impl MappedText {
     }
 
     /// Returns all unique `GlyphId`s associated with the given output `ScalarRange`.
+    #[must_use]
     pub fn project_glyph_ids(&self, range: ScalarRange) -> Vec<GlyphId> {
         let source = self.project_source(range);
         let mut glyph_ids = Vec::new();
@@ -424,6 +432,7 @@ impl MappedText {
     }
 
     /// Returns the ordered list of `TextSourceAtom`s covering the given output `ScalarRange`.
+    #[must_use]
     pub fn project_source_atoms(&self, range: ScalarRange) -> Vec<TextSourceAtom> {
         self.project_source(range).atoms.into_vec()
     }
@@ -654,6 +663,7 @@ impl BlockText {
     /// Empty ranges return a point only for an exact boundary; otherwise they
     /// return the containing raw extent. Use [`Self::canonical_to_raw_boundary`]
     /// to distinguish a shared source from an ambiguous boundary.
+    #[must_use]
     pub fn canonical_to_raw_range(&self, canonical_range: ScalarRange) -> ScalarRange {
         if canonical_range.start == canonical_range.end {
             return self.canonical_point_to_raw_offset(canonical_range.start);
@@ -724,6 +734,7 @@ impl BlockText {
     }
 
     /// Projects a raw `ScalarRange` to the corresponding canonical `ScalarRange` in `self.canonical`.
+    #[must_use]
     pub fn raw_to_canonical_range(&self, raw_range: ScalarRange) -> ScalarRange {
         if raw_range.start == raw_range.end {
             return self.raw_point_to_canonical_offset(raw_range.start);
@@ -789,11 +800,13 @@ impl BlockText {
     }
 
     /// Projects a canonical `ScalarRange` directly to its source `TextSource`.
+    #[must_use]
     pub fn project_canonical_source(&self, canonical_range: ScalarRange) -> TextSource {
         self.canonical.project_source(canonical_range)
     }
 
     /// Projects a canonical `ScalarRange` directly to its source `GlyphId`s.
+    #[must_use]
     pub fn project_canonical_glyph_ids(&self, canonical_range: ScalarRange) -> Vec<GlyphId> {
         self.canonical.project_glyph_ids(canonical_range)
     }
@@ -801,6 +814,7 @@ impl BlockText {
     /// Projects an insertion boundary without placing it inside a composed source.
     ///
     /// Returns `None` for an out-of-range offset or missing scalar evidence.
+    #[must_use]
     pub fn canonical_to_raw_boundary(&self, offset: usize) -> Option<RawBoundary> {
         let canonical_len = self.canonical.text.chars().count();
         let raw_len = self.raw.text.chars().count();
@@ -836,18 +850,16 @@ impl BlockText {
         } else {
             extent(offset)?.start
         };
-        Some(if left == right {
-            RawBoundary::Exact(left)
-        } else if left > right {
-            RawBoundary::WithinSource(ScalarRange {
+        Some(match (left.cmp(&right), left == right) {
+            (std::cmp::Ordering::Equal, _) => RawBoundary::Exact(left),
+            (std::cmp::Ordering::Greater, _) => RawBoundary::WithinSource(ScalarRange {
                 start: right,
                 end: left,
-            })
-        } else {
-            RawBoundary::Ambiguous(ScalarRange {
+            }),
+            (std::cmp::Ordering::Less, _) => RawBoundary::Ambiguous(ScalarRange {
                 start: left,
                 end: right,
-            })
+            }),
         })
     }
 
@@ -2018,20 +2030,17 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
         // quick check is inconclusive, so those graphemes still have to be
         // normalized and compared — reporting `Nfc` for them unconditionally
         // would record a normalization that never happened.
-        let (value, normalized) = match is_nfc_quick(grapheme.chars()) {
-            IsNormalized::Yes => {
-                let mut chars = grapheme.chars();
-                let value = match (chars.next(), chars.next()) {
-                    (Some(single), None) => TextPiece::Char(single),
-                    _ => TextPiece::Str(grapheme.to_owned()),
-                };
-                (value, false)
-            }
-            _ => {
-                let canonical = grapheme.nfc().collect::<String>();
-                let normalized = canonical != grapheme;
-                (TextPiece::Str(canonical), normalized)
-            }
+        let (value, normalized) = if is_nfc_quick(grapheme.chars()) == IsNormalized::Yes {
+            let mut chars = grapheme.chars();
+            let value = match (chars.next(), chars.next()) {
+                (Some(single), None) => TextPiece::Char(single),
+                _ => TextPiece::Str(grapheme.to_owned()),
+            };
+            (value, false)
+        } else {
+            let canonical = grapheme.nfc().collect::<String>();
+            let normalized = canonical != grapheme;
+            (TextPiece::Str(canonical), normalized)
         };
         let mut kinds = atoms
             .iter()

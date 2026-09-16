@@ -102,11 +102,11 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", requires = "new")]
     pub new_password_file: Option<PathBuf>,
 
-    /// Assert an external font identity as BASE_FONT=IDENTITY for the old PDF.
+    /// Assert an external font identity as `BASE_FONT=IDENTITY` for the old PDF.
     #[arg(long, value_name = "BASE_FONT=IDENTITY", requires = "new")]
     pub old_font_identity: Vec<String>,
 
-    /// Assert an external font identity as BASE_FONT=IDENTITY for the new PDF.
+    /// Assert an external font identity as `BASE_FONT=IDENTITY` for the new PDF.
     #[arg(long, value_name = "BASE_FONT=IDENTITY", requires = "new")]
     pub new_font_identity: Vec<String>,
 
@@ -181,7 +181,7 @@ pub enum Command {
         #[arg(long, value_name = "PATH")]
         password_file: Option<PathBuf>,
 
-        /// Assert an external font identity as BASE_FONT=IDENTITY.
+        /// Assert an external font identity as `BASE_FONT=IDENTITY`.
         #[arg(long, value_name = "BASE_FONT=IDENTITY")]
         font_identity: Vec<String>,
 

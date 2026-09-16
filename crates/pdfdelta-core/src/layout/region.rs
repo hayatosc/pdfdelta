@@ -854,7 +854,7 @@ fn ruled_grid_proves_parallel_rows(
         if line.page != left.page || !vector_line_is_vertical(line, tolerance) {
             return false;
         }
-        let x = (line.from.x + line.to.x) / 2.0;
+        let x = f64::midpoint(line.from.x, line.to.x);
         let (min_y, max_y) = ordered_pair(line.from.y, line.to.y);
         x >= left.bbox.max.x - tolerance
             && x <= right.bbox.min.x + tolerance
@@ -890,7 +890,7 @@ fn ruled_grid_proves_parallel_rows(
                 if line.page != left.page || !vector_line_is_horizontal(line, tolerance) {
                     return false;
                 }
-                let y = (line.from.y + line.to.y) / 2.0;
+                let y = f64::midpoint(line.from.y, line.to.y);
                 let (min_x, max_x) = ordered_pair(line.from.x, line.to.x);
                 y >= lower_top - tolerance
                     && y <= upper_bottom + tolerance
@@ -1499,7 +1499,7 @@ fn try_vertical_cut(
         let mut left = Vec::new();
         let mut right = Vec::new();
         for &idx in indices {
-            let mid_x = (lines[idx].bbox.min.x + lines[idx].bbox.max.x) / 2.0;
+            let mid_x = f64::midpoint(lines[idx].bbox.min.x, lines[idx].bbox.max.x);
             if mid_x <= best_split_x {
                 left.push(idx);
             } else {
@@ -1575,7 +1575,7 @@ fn try_horizontal_cut(
         let mut top = Vec::new();
         let mut bottom = Vec::new();
         for &idx in indices {
-            let mid_y = (lines[idx].bbox.min.y + lines[idx].bbox.max.y) / 2.0;
+            let mid_y = f64::midpoint(lines[idx].bbox.min.y, lines[idx].bbox.max.y);
             if mid_y >= best_split_y {
                 top.push(idx);
             } else {

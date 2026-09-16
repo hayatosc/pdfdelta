@@ -167,6 +167,35 @@ fn extraction_cache_produces_identical_reports_cold_and_warm() {
 }
 
 #[test]
+fn extraction_cache_directory_cannot_alias_a_report_destination() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let report = directory.join("report.json");
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--extraction-cache-dir",
+            path_text(&report),
+            "--json",
+            path_text(&report),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let message = stderr(&output);
+    assert!(message.contains("extraction cache directory"), "{message}");
+    assert!(
+        !report.exists(),
+        "the report destination must remain unused"
+    );
+}
+
+#[test]
 fn inspect_without_flags_prints_backend_summary() {
     let directory = TestDirectory::new();
     let document = directory.join("document.pdf");
@@ -200,6 +229,46 @@ fn inspect_with_svg_flag_renders_valid_svg_file() {
     assert!(svg_content.contains("class=\"glyph-text\""));
     assert!(svg_content.contains("data-glyph-id="));
     assert!(svg_content.contains("data-cs-num="));
+}
+
+#[test]
+fn inspect_svg_refuses_to_alias_or_overwrite_outputs() {
+    let directory = TestDirectory::new();
+    let document = directory.join("document.pdf");
+    write_pdf(&document, &["Testing SVG glyph overlay rendering"]);
+    let original = fs::read(&document).expect("input PDF should be readable");
+
+    // The SVG destination must not refer to the inspected PDF.
+    let aliased = inspect(&document, &["--svg", path_text(&document)]);
+    assert_eq!(aliased.status.code(), Some(2), "{}", stderr(&aliased));
+    assert!(
+        stderr(&aliased).contains("refers to the inspected PDF"),
+        "{}",
+        stderr(&aliased)
+    );
+    assert_eq!(
+        fs::read(&document).expect("input PDF should remain readable"),
+        original,
+        "refused SVG output must not modify the inspected PDF"
+    );
+
+    // Existing output files are never replaced.
+    let svg_path = directory.join("overlay.svg");
+    let first = inspect(&document, &["--svg", path_text(&svg_path)]);
+    assert_eq!(first.status.code(), Some(0), "{}", stderr(&first));
+    let published = fs::read(&svg_path).expect("published SVG should be readable");
+    let second = inspect(&document, &["--svg", path_text(&svg_path)]);
+    assert_eq!(second.status.code(), Some(2), "{}", stderr(&second));
+    assert!(
+        stderr(&second).contains("already exists"),
+        "{}",
+        stderr(&second)
+    );
+    assert_eq!(
+        fs::read(&svg_path).expect("published SVG should remain readable"),
+        published,
+        "a refused overwrite must leave the published SVG unchanged"
+    );
 }
 
 #[test]
@@ -563,6 +632,21 @@ fn rejects_oversized_password_files() {
     assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
     let message = stderr(&output);
     assert!(message.contains("password file"), "{message}");
+}
+
+#[test]
+fn rejects_standard_input_password_files() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &["--old-password-file", "-"]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let message = stderr(&output);
+    assert!(message.contains("standard input is reserved"), "{message}");
 }
 
 #[test]
@@ -1011,6 +1095,32 @@ fn preserves_existing_json_report_on_publish_collision() {
 }
 
 #[test]
+fn preserves_existing_text_report_on_publish_collision() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("comparison.txt");
+    let existing_report = b"existing text report\n";
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    fs::write(&report, existing_report).expect("existing report should be written");
+
+    let output = compare(&old, &new, &["--output", path_text(&report)]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("refusing to overwrite existing text report"),
+        "{}",
+        stderr(&output)
+    );
+    assert_eq!(
+        fs::read(report).expect("existing report should remain readable"),
+        existing_report
+    );
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
 fn rejects_trace_and_report_output_aliases_before_processing() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
@@ -1088,6 +1198,21 @@ fn malformed_old_document_exits_two_with_context() {
 }
 
 #[test]
+fn rejects_an_empty_input_document_as_malformed() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    fs::write(&old, b"").expect("empty fixture should be written");
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &[]);
+    let error = stderr(&output);
+
+    assert_eq!(output.status.code(), Some(2), "{error}");
+    assert!(error.contains("old PDF"), "{error}");
+}
+
+#[test]
 fn malformed_type0_extraction_reports_without_false_changes() {
     let directory = TestDirectory::new();
     let malformed = directory.join("malformed-type0.pdf");
@@ -1104,6 +1229,10 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     assert!(default_stderr.contains("extraction issue for old PDF"));
     assert!(default_stderr.contains("kind=unresolved"));
     assert!(default_stderr.contains("Type0 font has no Encoding"));
+    assert!(
+        default_stderr.contains("scope=page, page=1"),
+        "{default_stderr}"
+    );
     assert!(
         default_report.contains("content changes: 0 "),
         "{default_report}"
@@ -2558,6 +2687,98 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     );
 }
 
+#[test]
+fn presentation_channel_reports_unsupported_coverage_without_changes() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-presentation.pdf");
+    let new = directory.join("new-presentation.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let report_path = directory.join("presentation.json");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "presentation"])
+        .arg(&old)
+        .arg(&new)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("presentation comparison");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["typed_changes"], 0);
+    let coverage = report["coverage"]
+        .as_array()
+        .expect("coverage")
+        .iter()
+        .find(|coverage| coverage["channel"] == "presentation")
+        .expect("presentation coverage");
+    assert_eq!(coverage["complete"], false);
+    assert!(
+        report["old"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .any(|issue| issue["channel"] == "presentation" && issue["kind"] == "unsupported"),
+        "{report}"
+    );
+}
+
+#[test]
+fn external_font_identity_flags_are_validated_end_to_end() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-identity.pdf");
+    let new = directory.join("new-identity.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let accepted = compare(
+        &old,
+        &new,
+        &[
+            "--old-font-identity",
+            "Helvetica=windows-v1",
+            "--new-font-identity",
+            "Helvetica=windows-v1",
+        ],
+    );
+    assert_eq!(accepted.status.code(), Some(0), "{}", stderr(&accepted));
+
+    let malformed = compare(&old, &new, &["--old-font-identity", "Helvetica"]);
+    assert_eq!(malformed.status.code(), Some(2), "{}", stderr(&malformed));
+    assert!(
+        stderr(&malformed).contains("BASE_FONT=IDENTITY"),
+        "{}",
+        stderr(&malformed)
+    );
+}
+
+#[test]
+fn default_evidence_path_accepts_a_large_font_identity_table() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-identity-table.pdf");
+    let new = directory.join("new-identity-table.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let report_path = directory.join("identity-table.json");
+    let identity = "a".repeat(4_096);
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+    command.args(["--channels", "text"]).arg(&old).arg(&new);
+    for index in 0..64 {
+        let value = format!("Font{index}={identity}");
+        command.arg("--old-font-identity").arg(&value);
+        command.arg("--new-font-identity").arg(&value);
+    }
+    command.arg("--json").arg(&report_path);
+
+    let output = command.output().expect("large identity table comparison");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["old"]["native_glyphs"], 34, "{report}");
+    assert_eq!(report["new"]["native_glyphs"], 34, "{report}");
+}
+
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .arg("--native-text-only")
@@ -2769,6 +2990,84 @@ fn default_report_displays_inferred_text_changes_and_exact_mask_counts() {
         "{text}"
     );
     assert!(text.contains("Unresolved old Visual"), "{text}");
+}
+
+#[cfg(unix)]
+#[test]
+fn non_utf8_cache_directories_do_not_disable_native_evidence() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let cache_dir = directory
+        .0
+        .join(std::ffi::OsString::from_vec(b"cache-\xff".to_vec()));
+    fs::create_dir_all(&cache_dir).expect("non-UTF-8 cache directory");
+    let report_path = directory.join("non-utf8-cache.json");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text"])
+        .arg(&old)
+        .arg(&new)
+        .arg("--extraction-cache-dir")
+        .arg(&cache_dir)
+        .arg("--json")
+        .arg(&report_path)
+        .output()
+        .expect("non-UTF-8 cache comparison");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let report = read_json(&report_path);
+    assert_eq!(report["old"]["native_glyphs"], 34, "{report}");
+    assert_eq!(report["new"]["native_glyphs"], 34, "{report}");
+}
+
+#[test]
+fn default_evidence_path_publishes_json_text_and_trace_reports() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-body.pdf");
+    let new = directory.join("new-body.pdf");
+    write_pdf(&old, &["The fee is 100 dollars."]);
+    write_pdf(&new, &["The fee is 200 dollars."]);
+    let json = directory.join("report.json");
+    let text = directory.join("report.txt");
+    let trace = directory.join("trace.json");
+    let arguments = |command: &mut Command| {
+        command
+            .arg(&old)
+            .arg(&new)
+            .arg("--json")
+            .arg(&json)
+            .arg("--output")
+            .arg(&text)
+            .arg("--trace-json")
+            .arg(&trace);
+    };
+
+    let output = {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+        arguments(&mut command);
+        command.output().expect("default evidence comparison")
+    };
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    assert!(json.exists() && text.exists() && trace.exists());
+
+    // Report publication refuses to replace an existing destination.
+    let repeated = {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+        arguments(&mut command);
+        command
+            .output()
+            .expect("repeated default evidence comparison")
+    };
+    assert_eq!(repeated.status.code(), Some(2), "{}", stderr(&repeated));
+    assert!(
+        stderr(&repeated).contains("refusing to overwrite existing"),
+        "{}",
+        stderr(&repeated)
+    );
 }
 
 #[test]
@@ -3175,7 +3474,7 @@ fn native_worker_rejects_malformed_and_oversized_request_frames() {
     for (input, expected) in [
         (b"{}".to_vec(), 2),
         (b"{}\n".to_vec(), 2),
-        (vec![b'x'; 256 * 1024 + 1], 3),
+        (vec![b'x'; 1024 * 1024 + 1], 3),
     ] {
         let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
             .arg("acquire-native")

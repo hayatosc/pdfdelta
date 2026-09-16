@@ -57,8 +57,9 @@ pub enum SpanSourceEvidence {
 ///
 /// # Errors
 ///
-/// Returns an error for duplicate or missing evidence, inconsistent canonical
-/// and comparable ranges, malformed normalization events, or a resource limit.
+/// Returns an error for duplicate or missing evidence, non-finite glyph
+/// geometry, inconsistent canonical and comparable ranges, malformed
+/// normalization events, or a resource limit.
 pub fn project_span_sources(
     blocks: &[BlockText],
     glyph_evidence: &[GlyphEvidence],
@@ -104,12 +105,13 @@ pub struct SpanSourceProjector<'a> {
 }
 
 impl<'a> SpanSourceProjector<'a> {
-    /// Builds indexes after validating all block and glyph ids.
+    /// Builds indexes after validating all block and glyph ids and glyph
+    /// geometry.
     ///
     /// # Errors
     ///
-    /// Returns an error for duplicate ids, invalid limits, or allocation and
-    /// configured resource limits.
+    /// Returns an error for duplicate ids, non-finite geometry, invalid limits,
+    /// or allocation and configured resource limits.
     pub fn new(
         blocks: &'a [BlockText],
         glyph_evidence: &'a [GlyphEvidence],
@@ -130,6 +132,21 @@ impl<'a> SpanSourceProjector<'a> {
             glyph_evidence.len(),
             limits.max_evidence_items,
         )?;
+        for glyph in glyph_evidence {
+            for (field, value) in [
+                ("bbox.min.x", glyph.bbox.min.x),
+                ("bbox.min.y", glyph.bbox.min.y),
+                ("bbox.max.x", glyph.bbox.max.x),
+                ("bbox.max.y", glyph.bbox.max.y),
+            ] {
+                if !value.is_finite() {
+                    return Err(Error::InvalidConfiguration(format!(
+                        "glyph {} has non-finite {field}: {value}",
+                        glyph.id.0
+                    )));
+                }
+            }
+        }
 
         let mut indexed_blocks = HashMap::new();
         reserve(
@@ -261,34 +278,35 @@ impl<'a> SpanSourceProjector<'a> {
             self.limits.max_evidence_items,
         )?;
         let mut canonical_offset = 0;
+        let mut previous_token = None;
         for (position, block_id) in span.blocks.iter().copied().enumerate() {
             let block = self.block(block_id)?;
-            let block_start_token = tokens.len();
-            append_block_tokens(&mut tokens, block, canonical_offset);
-            if position > 0
-                && separator_inserts_space(
+            let (first_token, last_token) = block_boundary_tokens(block);
+            // Decide the separator before appending so tokens are pushed in
+            // order: inserting into the middle would shift every following
+            // token for every block boundary.
+            let inserts_separator = position > 0
+                && separator_inserts_space_tokens(
                     span.separator
                         .unwrap_or(BlockSeparator::Concatenate)
                         .at(position - 1),
-                    block_start_token
-                        .checked_sub(1)
-                        .and_then(|index| tokens.get(index)),
-                    tokens.get(block_start_token),
-                )
-            {
-                tokens.insert(
-                    block_start_token,
-                    ProjectedToken {
-                        token: ProjectedComparableToken::Scalar(' '),
-                        canonical_position: canonical_offset,
-                        source: ProjectedTokenSource::BlockSeparatorSpace,
-                    },
+                    previous_token,
+                    first_token,
                 );
+            if inserts_separator {
+                tokens.push(ProjectedToken {
+                    token: ProjectedComparableToken::Scalar(' '),
+                    canonical_position: canonical_offset,
+                    source: ProjectedTokenSource::BlockSeparatorSpace,
+                });
                 canonical_offset += 1;
-                for token in &mut tokens[block_start_token + 1..] {
-                    token.canonical_position += 1;
-                }
             }
+            append_block_tokens(&mut tokens, block, canonical_offset);
+            previous_token = last_token.or(if inserts_separator {
+                Some(ProjectedComparableToken::Scalar(' '))
+            } else {
+                previous_token
+            });
             let block_scalar_count = block.canonical.text.chars().count();
             let block_start = canonical_offset;
             canonical_offset += block_scalar_count;
@@ -692,18 +710,6 @@ fn block_boundary_tokens(
     (first, last)
 }
 
-fn separator_inserts_space(
-    separator: BlockSeparator,
-    previous: Option<&ProjectedToken<'_>>,
-    next: Option<&ProjectedToken<'_>>,
-) -> bool {
-    separator_inserts_space_tokens(
-        separator,
-        previous.map(|token| token.token),
-        next.map(|token| token.token),
-    )
-}
-
 fn separator_inserts_space_tokens(
     separator: BlockSeparator,
     previous: Option<ProjectedComparableToken>,
@@ -754,7 +760,7 @@ fn reserve<T>(
     check_limit(resource, requested, limits.max_evidence_items)?;
     collection
         .try_reserve(additional)
-        .map_err(|_| Error::LimitExceeded {
+        .map_err(|()| Error::LimitExceeded {
             resource,
             limit: limits.max_evidence_items,
         })
@@ -814,5 +820,43 @@ fn evidence_limit(limits: SpanSourceProjectionLimits) -> Error {
     Error::LimitExceeded {
         resource: "span source evidence",
         limit: limits.max_evidence_items,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{GlyphProvenance, Vec2};
+
+    #[test]
+    fn rejects_non_finite_glyph_geometry() {
+        let glyph = GlyphEvidence {
+            id: GlyphId(0),
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 {
+                    x: f64::NAN,
+                    y: 0.0,
+                },
+                max: Vec2 { x: 1.0, y: 1.0 },
+            },
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: 0,
+            },
+        };
+
+        let error = SpanSourceProjector::new(&[], &[glyph], SpanSourceProjectionLimits::default())
+            .err()
+            .expect("non-finite geometry must not enter a report");
+
+        assert!(matches!(
+            error,
+            Error::InvalidConfiguration(message)
+                if message.contains("glyph 0 has non-finite bbox.min.x")
+        ));
     }
 }

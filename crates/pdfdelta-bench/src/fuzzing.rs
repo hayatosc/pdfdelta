@@ -42,7 +42,10 @@ pub fn fuzz_canonical_yaml(input: &[u8]) {
     assert!(paragraph_count <= 32);
     let render_lines = document.render_lines();
     assert!(render_lines.len() <= 32);
-    assert!(render_lines.len() == 1 + document.sections().len() + paragraph_count);
+    assert_eq!(
+        render_lines.len(),
+        1 + document.sections().len() + paragraph_count
+    );
     for line in render_lines {
         assert!(!line.is_empty());
         assert!(line.len() <= 512);
@@ -53,7 +56,7 @@ pub fn fuzz_canonical_yaml(input: &[u8]) {
 mod tests {
     use super::*;
 
-    const VALID_YAML: &str = r#"
+    const VALID_YAML: &str = r"
 document:
   title: Quarterly Service Report
   sections:
@@ -62,7 +65,7 @@ document:
       paragraphs:
         - id: availability-p1
           text: Release 10 remains available during the transition.
-"#;
+";
 
     #[test]
     fn valid_canonical_yaml_reaches_success_path() {

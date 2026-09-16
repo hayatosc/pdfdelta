@@ -8,15 +8,14 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque, hash_map::Entry},
-    fs::{self, OpenOptions},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
     time::Instant,
 };
+
+#[cfg(test)]
+use std::sync::atomic::AtomicU64;
 
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
@@ -83,7 +82,6 @@ use pdfdelta_core::{
     },
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::{
     BenchError, Result,
@@ -94,7 +92,7 @@ use crate::{
         EvaluationSummary, ExpectedChangeMatchEvaluation, ManifestProvenanceEntry,
         PROVENANCE_COLUMNS, ProvenEvaluation, QualityEvaluation, ReviewedRecallEvaluation,
         ScopedEventEvaluation, ScopedTokenEvaluation, TokenResolutionCounts, TrialStatus,
-        validate_manifest_provenance,
+        change_kind_name, ratio, sha256_hex, validate_manifest_provenance,
     },
 };
 
@@ -212,8 +210,7 @@ pub(super) const MAX_EXPECTED_CHANGE_DIAGNOSTICS: usize = 4_096;
 pub struct ActualChange {
     pub kind: ChangeKind,
     pub occurrences: Vec<ActualChangeOccurrence>,
-    /// Number of exact hunks emitted by the source
-    /// [`ChangeEvent`](pdfdelta_core::diff::ChangeEvent).
+    /// Number of exact hunks emitted by the source [`ChangeEvent`].
     ///
     /// Event matching may coalesce exact hunks from one proved relation
     /// into one logical occurrence, but quality metrics must still report the public output's
@@ -968,6 +965,7 @@ pub enum PairRunStatus {
 }
 
 impl PairRunStatus {
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Ok => "OK",
@@ -3750,15 +3748,15 @@ fn recovery_watch_report(
         .iter()
         .zip(&queries.expected_indices)
         .map(|(id, &expected_index)| {
-            let expected_id = expected
-                .get(expected_index)
-                .map(|change| change.id.clone())
-                .unwrap_or_else(|| {
+            let expected_id = expected.get(expected_index).map_or_else(
+                || {
                     join_complete = false;
                     id.clone()
-                });
-            match records_by_id.remove(id) {
-                Some(record) => ExpectedChangeRecoveryWatchRecord {
+                },
+                |change| change.id.clone(),
+            );
+            if let Some(record) = records_by_id.remove(id) {
+                ExpectedChangeRecoveryWatchRecord {
                     expected_id,
                     old: record.old.into(),
                     new: record.new.into(),
@@ -3771,24 +3769,23 @@ fn recovery_watch_report(
                     segment_pair: record.segment_pair.map(Into::into),
                     granular_pair: record.granular_pair.map(Into::into),
                     quote_local_pair: record.quote_local_pair.map(Into::into),
-                },
-                None => {
-                    join_complete = false;
-                    let change = expected.get(expected_index);
-                    ExpectedChangeRecoveryWatchRecord {
-                        expected_id,
-                        old: missing_recovery_watch_side(
-                            change.and_then(|change| change.old_quote.as_deref()),
-                        ),
-                        new: missing_recovery_watch_side(
-                            change.and_then(|change| change.new_quote.as_deref()),
-                        ),
-                        pair: None,
-                        one_sided_vetoes: Vec::new(),
-                        segment_pair: None,
-                        granular_pair: None,
-                        quote_local_pair: None,
-                    }
+                }
+            } else {
+                join_complete = false;
+                let change = expected.get(expected_index);
+                ExpectedChangeRecoveryWatchRecord {
+                    expected_id,
+                    old: missing_recovery_watch_side(
+                        change.and_then(|change| change.old_quote.as_deref()),
+                    ),
+                    new: missing_recovery_watch_side(
+                        change.and_then(|change| change.new_quote.as_deref()),
+                    ),
+                    pair: None,
+                    one_sided_vetoes: Vec::new(),
+                    segment_pair: None,
+                    granular_pair: None,
+                    quote_local_pair: None,
                 }
             }
         })
@@ -5116,6 +5113,7 @@ pub struct PairRunReport {
 impl PairRunReport {
     /// Only `Ok` records are healthy: a resource-limit stop is not a failure,
     /// but it also did not measure anything and must not be counted as done.
+    #[must_use]
     pub fn healthy(&self) -> bool {
         self.status == PairRunStatus::Ok
     }
@@ -5128,6 +5126,7 @@ pub enum PairSet {
 }
 
 impl PairSet {
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Dev => "dev",
@@ -5151,6 +5150,7 @@ pub enum PairRole {
 }
 
 impl PairRole {
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Standard => "standard",
@@ -5250,6 +5250,7 @@ impl ExpectedKind {
         )
     }
 
+    #[must_use]
     pub fn name(self) -> &'static str {
         match self {
             Self::Replacement => "replacement",
@@ -6441,6 +6442,7 @@ pub fn load_expected_document(expected_json: &str) -> Result<ExpectedDocument> {
     Ok(document)
 }
 
+#[must_use]
 pub fn collapse_whitespace(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -6525,8 +6527,7 @@ fn verify_provenance(
             provenance.byte_count
         ));
     }
-    let digest = Sha256::digest(&bytes);
-    let actual: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    let actual = sha256_hex(&bytes);
     if actual != provenance.sha256 {
         return Err(format!(
             "{side} download {} has sha256 {actual} but the manifest captured {}",
@@ -7463,10 +7464,9 @@ fn flatten_actual_changes(
                     let relation_context = match (recovered, matched_context) {
                         (Some(Some(evidence)), None) => evidence.context.as_ref(),
                         (None, Some(Some(evidence))) => Some(&evidence.context),
-                        (Some(None), _)
-                        | (Some(Some(_)), Some(_))
-                        | (None, Some(None))
-                        | (None, None) => None,
+                        (Some(None), _) | (Some(Some(_)), Some(_)) | (None, Some(None) | None) => {
+                            None
+                        }
                     };
                     let relation_context_lengths = relation_context
                         .map(|context| (context.old_comparable_len, context.new_comparable_len));
@@ -7735,10 +7735,10 @@ enum SelectedQuoteEvidence<'a> {
     Single(&'a str),
 }
 
-fn selected_quote_evidence<'a>(
-    needles: &'a NormalizedExpectedQuotes,
+fn selected_quote_evidence(
+    needles: &NormalizedExpectedQuotes,
     old_side: bool,
-) -> Option<SelectedQuoteEvidence<'a>> {
+) -> Option<SelectedQuoteEvidence<'_>> {
     let (range_fragments, changed, context) = if old_side {
         (
             needles.old_changed_range_fragments.as_deref(),
@@ -8925,14 +8925,7 @@ fn compute_scoped_reviewed_recall_metrics(
     .ok()
 }
 
-fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
-    if denominator == 0 {
-        None
-    } else {
-        Some(numerator as f64 / denominator as f64)
-    }
-}
-
+#[must_use]
 pub fn compute_quality(
     annotation: Annotation,
     expected: &[ExpectedChange],
@@ -9047,7 +9040,7 @@ fn token_resolution_counts(
             ResolutionState::Equal => counts.same = counts.same.saturating_add(length),
             ResolutionState::Changed => counts.changed = counts.changed.saturating_add(length),
             ResolutionState::Unresolved => {
-                counts.unresolved = counts.unresolved.saturating_add(length)
+                counts.unresolved = counts.unresolved.saturating_add(length);
             }
         }
     }
@@ -9066,15 +9059,6 @@ fn candidate_token_count(candidates: &[pdfdelta_core::diff::ChangeCandidate]) ->
                 .saturating_sub(span.comparable_range.start)
         })
         .sum()
-}
-
-fn change_kind_name(kind: ChangeKind) -> &'static str {
-    match kind {
-        ChangeKind::Replacement => "replacement",
-        ChangeKind::Insertion => "insertion",
-        ChangeKind::Deletion => "deletion",
-        ChangeKind::Move => "move",
-    }
 }
 
 fn issue_lines(extraction: &report::ExtractionStatus) -> Vec<IssueLine> {
@@ -12954,7 +12938,7 @@ fn validate_local_fragment_shadow_work(
     if let Some(limited_stage) = limited_stage {
         for (index, (name, examined, attempted)) in stages.into_iter().enumerate() {
             let deficit = attempted.checked_sub(examined);
-            if (index == limited_stage && !deficit.is_some_and(|deficit| deficit > 0))
+            if (index == limited_stage && deficit.is_none_or(|deficit| deficit == 0))
                 || (index != limited_stage && deficit != Some(0))
             {
                 return Err(format!(
@@ -14764,6 +14748,7 @@ pub fn run_revision_benchmark(
     Ok(pairs.iter().map(|pair| run_pair(pair, &context)).collect())
 }
 
+#[must_use]
 pub fn summarize_reports(reports: &[PairRunReport]) -> String {
     let healthy = reports.iter().filter(|record| record.healthy()).count();
     let limited = reports
@@ -14801,118 +14786,7 @@ pub fn normalize_output_destination(path: &Path) -> Result<PathBuf> {
     Ok(canonical_parent.join(file_name))
 }
 
-static TEMP_PUBLISH_COUNTER: AtomicU64 = AtomicU64::new(0);
-pub(crate) const MAX_TEMP_CREATE_ATTEMPTS: usize = 64;
-
-fn create_temp_artifact_with_counter(
-    parent: &Path,
-    counter: &AtomicU64,
-) -> Result<(fs::File, PathBuf)> {
-    let pid = std::process::id();
-    for _ in 0..MAX_TEMP_CREATE_ATTEMPTS {
-        let seq = counter.fetch_add(1, Ordering::Relaxed);
-        let temp_path = parent.join(format!(".pdfbench-artifact-{pid}-{seq}"));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_path)
-        {
-            Ok(file) => return Ok((file, temp_path)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                continue;
-            }
-            Err(error) => {
-                return Err(BenchError::Publication(format!(
-                    "cannot create temporary artifact {}: {error}",
-                    temp_path.display()
-                )));
-            }
-        }
-    }
-    Err(BenchError::Publication(format!(
-        "exhausted {MAX_TEMP_CREATE_ATTEMPTS} attempts creating unique temporary artifact in {}",
-        parent.display()
-    )))
-}
-
-/// Atomically publishes `bytes` to a new file at `path`, refusing to overwrite
-/// any existing destination file, symlink, or directory. Cleans up temporary
-/// files on failure.
-pub fn publish_new_file(path: &Path, bytes: &[u8]) -> Result<()> {
-    publish_new_file_with_counter(path, bytes, &TEMP_PUBLISH_COUNTER)
-}
-
-pub(crate) fn publish_new_file_with_counter(
-    path: &Path,
-    bytes: &[u8],
-    counter: &AtomicU64,
-) -> Result<()> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let parent = if parent.as_os_str().is_empty() {
-        Path::new(".")
-    } else {
-        parent
-    };
-    if !parent.exists() {
-        return Err(BenchError::Publication(format!(
-            "destination directory does not exist: {}",
-            parent.display()
-        )));
-    }
-
-    if path.symlink_metadata().is_ok() {
-        return Err(BenchError::Publication(format!(
-            "destination path already exists: {}",
-            path.display()
-        )));
-    }
-
-    let (mut temp_file, temp_path) = create_temp_artifact_with_counter(parent, counter)?;
-
-    let write_result = (|| -> Result<()> {
-        temp_file.write_all(bytes).map_err(|error| {
-            BenchError::Publication(format!(
-                "cannot write temporary artifact {}: {error}",
-                temp_path.display()
-            ))
-        })?;
-        temp_file.flush().map_err(|error| {
-            BenchError::Publication(format!(
-                "cannot flush temporary artifact {}: {error}",
-                temp_path.display()
-            ))
-        })?;
-        temp_file.sync_all().map_err(|error| {
-            BenchError::Publication(format!(
-                "cannot sync temporary artifact {}: {error}",
-                temp_path.display()
-            ))
-        })?;
-        Ok(())
-    })();
-
-    if let Err(error) = write_result {
-        let _ = fs::remove_file(&temp_path);
-        return Err(error);
-    }
-
-    let link_result = fs::hard_link(&temp_path, path);
-    let _ = fs::remove_file(&temp_path);
-
-    link_result.map_err(|error| {
-        if error.kind() == std::io::ErrorKind::AlreadyExists {
-            BenchError::Publication(format!(
-                "destination path already exists: {}",
-                path.display()
-            ))
-        } else {
-            BenchError::Publication(format!(
-                "cannot publish artifact to {}: {error}",
-                path.display()
-            ))
-        }
-    })
-}
+pub use crate::publication::publish_new_file;
 
 /// Writes every record as a pretty-printed JSON array to a new file, refusing to
 /// overwrite an existing destination path via atomic publication.
@@ -14984,6 +14858,7 @@ pub struct RevisionSummaryRecord {
 }
 
 impl RevisionSummaryRecord {
+    #[must_use]
     pub fn from_pair_report(report: &PairRunReport) -> Self {
         Self {
             pair_id: report.pair_id.clone(),
@@ -15279,6 +15154,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::publication::{MAX_TEMP_CREATE_ATTEMPTS, publish_new_file_with_counter};
 
     fn manifest_row(
         pair_id: &str,
@@ -29715,7 +29591,7 @@ mod tests {
         report_a.candidate_visits = Some(999);
 
         let mut report_b = base;
-        report_b.runtime_ms = 888888;
+        report_b.runtime_ms = 888_888;
         report_b.candidate_visits = Some(12345);
 
         let summary_a = RevisionSummaryReport::from_reports(&[report_a]);

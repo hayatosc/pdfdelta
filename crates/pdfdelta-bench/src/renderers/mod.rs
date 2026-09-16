@@ -35,10 +35,12 @@ pub enum RendererKind {
 }
 
 impl RendererKind {
+    #[must_use]
     pub const fn all() -> [Self; 2] {
         [Self::LopdfTj, Self::ClassicXrefTj]
     }
 
+    #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::LopdfTj => "lopdf-tj",

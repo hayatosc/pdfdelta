@@ -1,6 +1,6 @@
 use super::{
     Assessor, ChangeCandidate, ChangeEvent, Ownership, ProposedRelation, RelationOutcome,
-    SourceInterval, charge_work, occurrence_indices, project, proof_groups, visit_domain_hunks,
+    SourceInterval, charge, occurrence_indices, project, proof_groups, visit_domain_hunks,
 };
 use crate::{Result, diff::Confidence};
 
@@ -182,7 +182,7 @@ impl Assessor<'_, '_> {
                 .sum();
             let complete = visit_domain_hunks(&groups[0], &groups[1], &proof.edits, |hunk, _| {
                 if local_changes.len() >= self.options.max_assessment_ranges
-                    || !charge_work(&mut self.remaining_work, cost)
+                    || !charge(&mut self.remaining_work, cost)
                 {
                     return false;
                 }
@@ -210,9 +210,18 @@ impl Assessor<'_, '_> {
             if !self.validate_semantic_emission(relation, &local_changes)? {
                 continue;
             }
+            // A content operation must name at least one source-backed range on
+            // every side it claims. Synthetic inter-block separators project to
+            // no source block, so a separator-only edit is a structural
+            // difference and must stay unresolved instead of becoming an
+            // established content change.
+            let mut backed_changes = Vec::new();
             let mut changed = [Vec::new(), Vec::new()];
-            for change in &local_changes {
-                for occurrence in &change.occurrences {
+            for mut change in local_changes {
+                let mut backed_occurrences = Vec::new();
+                for occurrence in std::mem::take(&mut change.occurrences) {
+                    let mut projections = [Vec::new(), Vec::new()];
+                    let mut backed = true;
                     for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
                         .into_iter()
                         .enumerate()
@@ -222,11 +231,35 @@ impl Assessor<'_, '_> {
                                 self.mark_local_work_limit(relation);
                                 return Ok(false);
                             }
-                            changed[side].extend(project(self.sides[side], span)?);
+                            let projected = project(self.sides[side], span)?;
+                            // A zero-width span is a valid empty side of a
+                            // replacement; only a span that claims source
+                            // tokens yet projects to no block is unbacked.
+                            if projected.is_empty()
+                                && span.comparable_range.start != span.comparable_range.end
+                            {
+                                backed = false;
+                            }
+                            projections[side].extend(projected);
                         }
                     }
+                    if backed {
+                        for side in 0..2 {
+                            changed[side].extend(projections[side].iter().copied());
+                        }
+                        backed_occurrences.push(occurrence);
+                    }
                 }
+                if backed_occurrences.is_empty() {
+                    continue;
+                }
+                change.occurrences = backed_occurrences;
+                backed_changes.push(change);
             }
+            if backed_changes.is_empty() {
+                continue;
+            }
+            let local_changes = backed_changes;
             for side in 0..2 {
                 let Some(overlap) = overlaps(
                     &changed[side],
@@ -337,7 +370,7 @@ impl Assessor<'_, '_> {
 }
 
 fn overlaps(old: &[SourceInterval], new: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
-    if !charge_work(
+    if !charge(
         remaining,
         old.len().saturating_mul(new.len()).saturating_add(1),
     ) {

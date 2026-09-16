@@ -48,6 +48,19 @@ Run these commands before every commit:
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo test --workspace --all-features --lib
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --document-private-items
 ```
+
+The `--all-features` clippy and library-test runs compile the fuzzing-only
+entry points and run their curated-seed tests on stable Rust. They do not run
+libFuzzer; the nightly fuzz workflow is described in `fuzz/README.md`.
+
+Clippy enforces the `all`, `pedantic`, `correctness`, and `suspicious` groups.
+`Cargo.toml` documents the intentionally allowed pedantic lints: bounded numeric
+casts, exact canonical `f64` comparisons, owned evidence passed by value,
+long exhaustive functions, typed error contracts that would otherwise repeat
+per-function `# Errors` sections, and domain naming conventions. New code must
+satisfy every other pedantic lint.

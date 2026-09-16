@@ -122,6 +122,7 @@ impl Change {
     /// # Panics
     ///
     /// Panics when the span shape does not match `kind`.
+    #[must_use]
     pub fn single_occurrence(
         kind: ChangeKind,
         old_span: Option<TextSpan>,
@@ -191,6 +192,16 @@ pub enum ChangedRegionProof {
     ExactTokenMultisetMismatch,
     /// Exactly one side contains source-backed content.
     OneSidedNonEmptyRange,
+}
+
+impl ChangedRegionProof {
+    /// Whether the proof is consistent with spans of the given non-emptiness.
+    pub(crate) fn matches_span_shape(self, old_nonempty: bool, new_nonempty: bool) -> bool {
+        match self {
+            Self::ExactTokenMultisetMismatch => old_nonempty && new_nonempty,
+            Self::OneSidedNonEmptyRange => old_nonempty ^ new_nonempty,
+        }
+    }
 }
 
 /// A source-backed region whose content is proven to differ but is not exactly localized.
@@ -4459,12 +4470,12 @@ fn prepare_recovered_changes(
             ChangeKind::Deletion => {
                 metric.old_resolved_context_tokens = metric
                     .old_resolved_context_tokens
-                    .checked_add(recovery.source_tokens)?
+                    .checked_add(recovery.source_tokens)?;
             }
             ChangeKind::Insertion => {
                 metric.new_resolved_context_tokens = metric
                     .new_resolved_context_tokens
-                    .checked_add(recovery.source_tokens)?
+                    .checked_add(recovery.source_tokens)?;
             }
             ChangeKind::Replacement | ChangeKind::Move => return None,
         }
@@ -5899,7 +5910,7 @@ fn compare_match(
     let confidence = span.confidence.into();
     match line_groups {
         Some(grouped) => {
-            append_line_grouped_changes(&old, &new, &edits, grouped, confidence, output.changes)
+            append_line_grouped_changes(&old, &new, &edits, grouped, confidence, output.changes);
         }
         None => append_changes(&old, &new, &edits, confidence, output.changes),
     }
@@ -6280,7 +6291,9 @@ fn visit_semantic_hunks(
         new_index = edit.new.end;
     }
     debug_assert_eq!(old_tokens[old_index..], new_tokens[new_index..]);
-    let (old_end, new_end) = if old_index != old_tokens.len() {
+    let (old_end, new_end) = if old_index == old_tokens.len() {
+        (old_index, new_index)
+    } else {
         complete_word_ends(
             old_tokens,
             new_tokens,
@@ -6290,8 +6303,6 @@ fn visit_semantic_hunks(
             new_tokens.len(),
             complete_trailing_word,
         )
-    } else {
-        (old_index, new_index)
     };
     visit_hunk(hunk_start, old_end, new_end, &mut visit)
 }
@@ -6803,13 +6814,13 @@ impl Side<'_> {
             }
             match (&mut line_breaks, &block.line_breaks) {
                 (Some(group_breaks), Some(block_breaks)) => {
-                    group_breaks.extend(block_breaks.iter().map(|offset| block_start + offset))
+                    group_breaks.extend(block_breaks.iter().map(|offset| block_start + offset));
                 }
                 _ => line_breaks = None,
             }
             match (&mut page_breaks, &block.page_breaks) {
                 (Some(group_breaks), Some(block_breaks)) => {
-                    group_breaks.extend(block_breaks.iter().map(|offset| block_start + offset))
+                    group_breaks.extend(block_breaks.iter().map(|offset| block_start + offset));
                 }
                 _ => page_breaks = None,
             }
@@ -15508,6 +15519,18 @@ mod tests {
             source_map: Vec::new(),
             unmapped: Vec::new(),
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn change_single_occurrence_rejects_a_mismatched_span_shape() {
+        let _ = Change::single_occurrence(
+            ChangeKind::Insertion,
+            Some(test_span(1, 0, 1)),
+            Some(test_span(2, 0, 1)),
+            Confidence::High,
+            Vec::new(),
+        );
     }
 
     fn test_span(block: u64, start: usize, end: usize) -> TextSpan {

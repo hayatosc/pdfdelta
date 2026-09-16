@@ -2,7 +2,7 @@
 //! Exact baseline agreement and left-to-right separation propose an insertion;
 //! comparison still requires complete source and paint closure of the interval.
 
-use super::*;
+use super::{BTreeMap, BTreeSet, GraphNode, NodeId, SourceRef, Sources, spend};
 
 pub(super) fn attach(
     sources: &Sources<'_>,

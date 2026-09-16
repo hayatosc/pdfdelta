@@ -9,6 +9,7 @@ use crate::{
     model::{DecodedText, PageId},
 };
 
+use super::hex_preview;
 use super::svg::xml_escape;
 
 const DEFAULT_PAGE_WIDTH: f64 = 595.0;
@@ -162,7 +163,7 @@ fn write_svg<W: Write>(
     .map_err(map_io_error)?;
     writeln!(
         writer,
-        r#"  <defs>
+        r"  <defs>
     <style>
       svg {{ background: #f4f5f7; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }}
       .diagnostic-title {{ fill: #101828; font-size: 14px; font-weight: 700; }}
@@ -182,7 +183,7 @@ fn write_svg<W: Write>(
       .mismatch .snapshot-bbox {{ stroke: #7a2e0e; stroke-width: 2.75px; }}
       .mismatch .snapshot-baseline {{ stroke-width: 2.75px; }}
     </style>
-  </defs>"#
+  </defs>"
     )
     .map_err(map_io_error)?;
 
@@ -631,16 +632,6 @@ fn text_display(text: &DecodedText) -> String {
             hex_preview(&font_hash.0)
         ),
     }
-}
-
-fn hex_preview(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len().min(4) * 2);
-    for &byte in bytes.iter().take(4) {
-        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
-        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    encoded
 }
 
 fn map_io_error(error: io::Error) -> Error {

@@ -271,11 +271,21 @@ pub fn run_bounded(
                 "render output thread failed".into(),
             )
         })?;
+        let output = output.map_err(failure)?;
+        // A blocking oversized writer would otherwise be killed at the parent
+        // deadline and misreported as a deadline exhaustion.
+        if output.len() > max_output {
+            return Err((
+                EvidenceFailure::BackendFailure,
+                "oversized evidence response".into(),
+            ));
+        }
         let status = status?;
         if !status.success() {
             let kind = match status.code() {
                 Some(3) => EvidenceFailure::ResourceLimit,
                 Some(4) => EvidenceFailure::Unsupported,
+                None if cpu_limit_termination(status) => EvidenceFailure::ResourceLimit,
                 _ => EvidenceFailure::BackendFailure,
             };
             return Err((
@@ -284,15 +294,24 @@ pub fn run_bounded(
             ));
         }
         written.map_err(failure)?;
-        let output = output.map_err(failure)?;
-        if output.len() > max_output {
-            return Err((
-                EvidenceFailure::BackendFailure,
-                "oversized evidence response".into(),
-            ));
-        }
         Ok(output)
     })
+}
+
+/// The CPU budget configured by [`restrict_process`] terminates an exhausted
+/// child with `SIGXCPU`, which is a typed resource-limit outcome rather than a
+/// backend failure.
+#[cfg(target_os = "linux")]
+fn cpu_limit_termination(status: std::process::ExitStatus) -> bool {
+    use std::os::unix::process::ExitStatusExt;
+
+    const SIGXCPU: i32 = 24;
+    status.signal() == Some(SIGXCPU)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn cpu_limit_termination(_status: std::process::ExitStatus) -> bool {
+    false
 }
 
 /// Binary response: one warning flag followed by exactly width × height RGB bytes.
@@ -444,5 +463,28 @@ mod tests {
         let output = run_bounded(&mut command, b"healthy", 8, Duration::from_secs(5))
             .expect("an independent bounded request remains usable");
         assert_eq!(output, b"healthy");
+    }
+
+    #[test]
+    fn worker_cpu_exhaustion_is_a_resource_limit() {
+        let mut command = Command::new("sh");
+        // Only the soft limit is set so the child is terminated by SIGXCPU
+        // instead of the shell's ignored-signal SIGKILL fallback.
+        command.args(["-c", "ulimit -S -t 1; while :; do :; done"]);
+        let error = run_bounded(&mut command, &[], 64, Duration::from_secs(5))
+            .expect_err("a cpu-exhausted worker must not be reported as healthy");
+        assert_eq!(error.0, EvidenceFailure::ResourceLimit);
+    }
+
+    #[test]
+    fn blocking_oversized_output_is_not_reported_as_a_deadline() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "yes 1234567890"]);
+        let started = Instant::now();
+        let error = run_bounded(&mut command, &[], 8, Duration::from_secs(5))
+            .expect_err("unbounded output must not be returned");
+        assert_eq!(error.0, EvidenceFailure::BackendFailure);
+        assert!(error.1.contains("oversized"), "{}", error.1);
+        assert!(started.elapsed() < Duration::from_secs(5));
     }
 }

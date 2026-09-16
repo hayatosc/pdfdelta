@@ -20,11 +20,12 @@ use pdfdelta_core::{
 use crate::{
     BenchError, Result,
     cases::BenchmarkCase,
+    evaluation::change_kind_name,
     mutation::{ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange, RenderPlan},
     renderers::{RenderLimits, RendererKind},
 };
 
-/// Controlled ASCII fixtures require exact canonical-range agreement (IoU 1.0).
+/// Controlled ASCII fixtures require exact canonical-range agreement (`IoU` 1.0).
 pub const EXPECTED_SPAN_IOU_THRESHOLD: f64 = 1.0;
 
 #[derive(Debug)]
@@ -289,16 +290,16 @@ pub fn evaluate_rendered_with_options(
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let old = source
         .extract_outcome(old_pdf, parse_limits(), extraction_limits())
-        .map_err(|error| core_error("old extraction", error))?;
+        .map_err(|error| BenchError::core("old extraction", error))?;
     let new = source
         .extract_outcome(new_pdf, parse_limits(), extraction_limits())
-        .map_err(|error| core_error("new extraction", error))?;
+        .map_err(|error| BenchError::core("new extraction", error))?;
     let (old_index, new_index) = if old.is_complete() && new.is_complete() {
         (
             canonical_document_index(old_plan, old.document(), options)
-                .map_err(|error| core_error("old expectation context", error))?,
+                .map_err(|error| BenchError::core("old expectation context", error))?,
             canonical_document_index(new_plan, new.document(), options)
-                .map_err(|error| core_error("new expectation context", error))?,
+                .map_err(|error| BenchError::core("new expectation context", error))?,
         )
     } else {
         (
@@ -307,9 +308,9 @@ pub fn evaluate_rendered_with_options(
         )
     };
     let outcome = compare_extraction_outcomes(old, new, options)
-        .map_err(|error| core_error("comparison", error))?;
+        .map_err(|error| BenchError::core("comparison", error))?;
     let summary = summarize(&outcome.comparison, &outcome.extraction)
-        .map_err(|error| core_error("summary", error))?;
+        .map_err(|error| BenchError::core("summary", error))?;
 
     let actual_kinds = outcome
         .comparison
@@ -1025,15 +1026,6 @@ fn actual_label(actual: &[ChangeKind]) -> String {
     }
 }
 
-fn change_kind_name(kind: ChangeKind) -> &'static str {
-    match kind {
-        ChangeKind::Replacement => "replacement",
-        ChangeKind::Insertion => "insertion",
-        ChangeKind::Deletion => "deletion",
-        ChangeKind::Move => "move",
-    }
-}
-
 fn validate_case_name(name: &str) -> Result<()> {
     if name.trim().is_empty() || !name.is_ascii() {
         return Err(BenchError::InvalidInput(
@@ -1056,13 +1048,6 @@ fn validate_renderer_name(name: &str) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
-    BenchError::Core {
-        stage,
-        source: error,
-    }
 }
 
 fn parse_limits() -> ParseLimits {
@@ -1097,6 +1082,7 @@ fn extraction_limits() -> ExtractionLimits {
 
 /// Returns the bounded comparison options used by the generated fixture
 /// evaluator and by sensitivity runs unless a scenario overrides them.
+#[must_use]
 pub fn default_pipeline_options() -> PipelineOptions {
     let mut options = PipelineOptions {
         max_ngram_token_elements: 64 * 1024,
@@ -1437,6 +1423,50 @@ mod tests {
         let edges = vec![vec![0, 1], vec![0]];
 
         assert_eq!(maximum_cardinality_matching(&edges, 2), 2);
+    }
+
+    #[test]
+    fn maximum_cardinality_matching_agrees_with_brute_force_on_small_graphs() {
+        fn brute_force(edges: &[Vec<usize>], right_count: usize) -> usize {
+            fn recurse(edges: &[Vec<usize>], used: &mut [bool], left: usize) -> usize {
+                if left == edges.len() {
+                    return 0;
+                }
+                let mut best = recurse(edges, used, left + 1);
+                for &right in &edges[left] {
+                    if !used[right] {
+                        used[right] = true;
+                        best = best.max(1 + recurse(edges, used, left + 1));
+                        used[right] = false;
+                    }
+                }
+                best
+            }
+            let mut used = vec![false; right_count];
+            recurse(edges, &mut used, 0)
+        }
+
+        for left in 0..=4usize {
+            for right in 0..=4usize {
+                let slots = left * right;
+                for mask in 0..(1u32 << slots) {
+                    let edges = (0..left)
+                        .map(|left_index| {
+                            (0..right)
+                                .filter(|right_index| {
+                                    mask & (1 << (left_index * right + right_index)) != 0
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        maximum_cardinality_matching(&edges, right),
+                        brute_force(&edges, right),
+                        "left={left} right={right} mask={mask}"
+                    );
+                }
+            }
+        }
     }
 
     fn text_span(separator: BlockSeparator, start: usize, end: usize) -> TextSpan {

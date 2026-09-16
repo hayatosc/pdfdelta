@@ -49,7 +49,9 @@ fn acquire(path: &str, limits: DocumentComparisonLimits) -> Result<EvidenceStore
         .enumerate()
         .map(|(index, frame)| PageEvidence {
             page: PageId(index as u32),
-            bounds: frame.ok().map(|frame| frame.canonical_bounds()),
+            bounds: frame
+                .ok()
+                .map(pdfdelta_core::source::PageCoordinateFrame::canonical_bounds),
         })
         .collect();
     let outcome = extractor.extract_outcome(pdf.as_ref(), ExtractionLimits::default())?;

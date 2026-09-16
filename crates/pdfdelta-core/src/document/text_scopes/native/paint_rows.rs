@@ -1,7 +1,9 @@
 //! Recover discovery paths when a row's label is painted after its text.
 //! These paths retain raw render order; they do not certify source closure.
 
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, Glyph, GraphNode, NodeGeometry, PageId, SourceRef, Sources, spend,
+};
 
 /// Row classification tolerates only a small relative floating-point envelope.
 /// Raw coordinates and the enclosing source/paint band are never rounded.

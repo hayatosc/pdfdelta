@@ -1,11 +1,12 @@
-use crate::{Error, Result};
+use crate::Result;
 
 use super::super::{
-    ChangeEvent, ChangeKind, ChangeOccurrence, ChangedRegionProof, Comparison, FormattingChange,
-    ProvenChangedRegion, TextSpan, UnresolvedRegion, valid_change_occurrence_shape,
+    ChangeEvent, ChangeKind, ChangeOccurrence, Comparison, FormattingChange, ProvenChangedRegion,
+    TextSpan, UnresolvedRegion, valid_change_occurrence_shape,
 };
 use super::{
-    ComparisonAssessment, ResolutionRange, ResolutionState, block_scalar_boundary, project,
+    ComparisonAssessment, ResolutionRange, ResolutionState, allocation_error,
+    block_scalar_boundary, invalid, project,
 };
 
 #[derive(Clone, Copy)]
@@ -383,10 +384,7 @@ fn validate_proven_changed_region(
         .new_span
         .as_ref()
         .is_some_and(|span| !is_empty_span(span));
-    let valid_proof = match region.proof {
-        ChangedRegionProof::ExactTokenMultisetMismatch => old_nonempty && new_nonempty,
-        ChangedRegionProof::OneSidedNonEmptyRange => old_nonempty ^ new_nonempty,
-    };
+    let valid_proof = region.proof.matches_span_shape(old_nonempty, new_nonempty);
     if !valid_proof {
         return Err(invalid(
             "proven changed region proof does not match its spans",
@@ -495,14 +493,6 @@ pub(super) fn is_output_limit_sentinel(relation: &super::RelationAssessment) -> 
         && relation.reasons[0] == super::AssessmentReason::OutputLimit
 }
 
-fn invalid(message: &str) -> Error {
-    Error::InvalidConfiguration(message.to_owned())
-}
-
-fn allocation_error(resource: &'static str) -> Error {
-    Error::Unresolved(format!("assessment {resource} allocation failed"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -576,7 +566,7 @@ mod tests {
         }
     }
 
-    fn side<'a>(blocks: &'a [BlockText]) -> super::super::super::Side<'a> {
+    fn side(blocks: &[BlockText]) -> super::super::super::Side<'_> {
         super::super::super::SidePlan::inspect("test", blocks)
             .expect("test blocks are valid")
             .materialize()

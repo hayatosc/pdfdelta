@@ -29,15 +29,12 @@ pub(super) struct CellKeys<'a> {
 }
 
 fn spend(budget: &mut usize, work: usize) -> Option<()> {
-    match budget.checked_sub(work) {
-        Some(left) => {
-            *budget = left;
-            Some(())
-        }
-        None => {
-            *budget = 0;
-            None
-        }
+    if let Some(left) = budget.checked_sub(work) {
+        *budget = left;
+        Some(())
+    } else {
+        *budget = 0;
+        None
     }
 }
 

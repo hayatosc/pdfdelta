@@ -11,7 +11,7 @@ use pdfdelta_core::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::fs::read_limited_typed;
+use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
 /// key or the cached payload shape.
@@ -102,6 +102,32 @@ impl ExtractionCache {
         self.store_with_ceiling(key, outcome, MAX_CACHE_PAYLOAD_BYTES);
     }
 
+    /// Returns a cached extraction for `bytes` or runs `extract` and stores
+    /// the result.
+    ///
+    /// The cache key covers every extraction-determining input, so a hit is
+    /// exactly equivalent to re-running extraction. A miss or any cache
+    /// failure falls through to `extract`, and storage is best-effort: it
+    /// never changes the returned outcome. The flag reports whether the
+    /// outcome came from the cache, for trace accounting.
+    pub fn get_or_extract<E>(
+        &self,
+        bytes: &[u8],
+        parse_limits: &ParseLimits,
+        password: Option<&str>,
+        font_identities: &ExternalFontIdentities,
+        extract: impl FnOnce() -> Result<ExtractionOutcome, E>,
+    ) -> Result<(ExtractionOutcome, bool), E> {
+        let limits = ExtractionLimits::default();
+        let key = cache_key(bytes, parse_limits, &limits, password, font_identities);
+        if let Some(outcome) = self.load(&key, &limits) {
+            return Ok((outcome, true));
+        }
+        let outcome = extract()?;
+        self.store(&key, &outcome);
+        Ok((outcome, false))
+    }
+
     /// Serializes the outcome into the entry file directly, never buffering
     /// more than `ceiling` bytes: an entry that cannot be read back within
     /// [`MAX_CACHE_PAYLOAD_BYTES`] is never written, and a marker records it
@@ -128,7 +154,11 @@ impl ExtractionCache {
         let temp = self.dir.join(format!("{key}.{}.tmp", unique_temp_suffix()));
         match write_entry_exclusive(&temp, &cached, ceiling) {
             Ok(false) => {
-                let _ = fs::rename(&temp, &target);
+                if fs::rename(&temp, &target).is_err() {
+                    // A failed publication must not leave the temporary entry
+                    // behind; the cache is rebuilt on a later run.
+                    let _ = fs::remove_file(&temp);
+                }
             }
             Ok(true) => {
                 let _ = fs::remove_file(&temp);
@@ -154,14 +184,7 @@ fn write_entry_exclusive(
 ) -> std::io::Result<bool> {
     // create_new refuses symlinked pre-created names and 0o600 keeps the
     // entry private to the user, matching the report writers in fs.rs.
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path)?;
+    let mut file = crate::fs::create_private_file(path)?;
     // serde_json emits many small writes; buffer them so the ceiling check
     // does not turn into one syscall per token.
     let mut writer = CeilingWriter {
@@ -305,12 +328,7 @@ pub fn cache_key(
     }
 
     let digest = hasher.finalize();
-    let mut key = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        use std::fmt::Write as _;
-        let _ = write!(key, "{byte:02x}");
-    }
-    key
+    lowercase_hex(&digest)
 }
 
 /// Builds a name suffix unique across processes and within a process:
@@ -320,7 +338,7 @@ pub fn cache_key(
 fn unique_temp_suffix() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    ((std::process::id() as u64) << 32) | (COUNTER.fetch_add(1, Ordering::SeqCst) & 0xffff_ffff)
+    (u64::from(std::process::id()) << 32) | (COUNTER.fetch_add(1, Ordering::SeqCst) & 0xffff_ffff)
 }
 
 #[cfg(test)]
@@ -429,6 +447,41 @@ mod tests {
     }
 
     #[test]
+    fn cache_round_trips_float_geometry_exactly() {
+        let dir = unique_temp_dir("float-roundtrip");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, extraction_limits) = fixture_limits();
+        let key = cache_key(
+            b"pdf",
+            &parse_limits,
+            &extraction_limits,
+            None,
+            &ExternalFontIdentities::default(),
+        );
+        // Values whose shortest decimal form is not reproduced by a
+        // non-roundtrip float parser. The cache must preserve them exactly so
+        // cached and fresh extraction produce identical comparison evidence.
+        let mut sample = glyph(1);
+        sample.bbox.min.x = 118.744_739_530_029_29;
+        sample.bbox.max.x = 111.225_140_000_000_01;
+        sample.baseline.x = 147.690_139_999_999_99;
+        sample.baseline.y = 220.158_139_664_306_65;
+        let outcome = ExtractionOutcome::complete(Document::new(vec![sample.clone()]));
+        cache.store(&key, &outcome);
+
+        let loaded = cache
+            .load(&key, &extraction_limits)
+            .expect("stored extraction should load from the cache");
+        let loaded = loaded.document().items()[0].clone();
+        assert_eq!(loaded.bbox.min.x.to_bits(), sample.bbox.min.x.to_bits());
+        assert_eq!(loaded.bbox.max.x.to_bits(), sample.bbox.max.x.to_bits());
+        assert_eq!(loaded.baseline.x.to_bits(), sample.baseline.x.to_bits());
+        assert_eq!(loaded.baseline.y.to_bits(), sample.baseline.y.to_bits());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn oversized_entries_are_never_stored_and_marker_skips_later_stores() {
         // The ceiling is parameterized so the guard is testable without
         // materializing a 256 MiB payload: serialization aborts at the
@@ -468,6 +521,44 @@ mod tests {
             .expect("cache directory should exist")
             .count();
         assert_eq!(entries_after, 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn failed_publication_removes_the_temporary_entry() {
+        let dir = unique_temp_dir("failed-publish");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, extraction_limits) = fixture_limits();
+        let key = cache_key(
+            b"pdf",
+            &parse_limits,
+            &extraction_limits,
+            None,
+            &ExternalFontIdentities::default(),
+        );
+        // A directory at the entry path makes the atomic rename fail.
+        let blocked = dir.join(format!("{key}.json"));
+        fs::create_dir_all(&blocked).expect("blocking directory");
+        fs::write(blocked.join("keep"), b"keep").expect("blocker content");
+
+        cache.store(&key, &fixture_outcome());
+
+        let entries = fs::read_dir(&dir)
+            .expect("cache directory should exist")
+            .map(|entry| {
+                entry
+                    .expect("entry readable")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(entries, vec![format!("{key}.json")], "{entries:?}");
+        assert_eq!(
+            fs::read(blocked.join("keep")).expect("blocker survives"),
+            b"keep"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -524,5 +615,58 @@ mod tests {
                 &ExternalFontIdentities::default()
             ),
         );
+    }
+
+    #[test]
+    fn get_or_extract_reuses_hits_and_stores_incomplete_outcomes() {
+        let dir = unique_temp_dir("get-or-extract");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, _) = fixture_limits();
+        let issue = ExtractionIssue::new(
+            pdfdelta_core::source::ExtractionIssueKind::Unsupported,
+            pdfdelta_core::source::ExtractionScope::Document,
+            "unsupported fixture content",
+        )
+        .expect("valid issue");
+        let outcome =
+            ExtractionOutcome::new(Document::new(Vec::new()), vec![issue]).expect("outcome");
+        let calls = std::cell::Cell::new(0);
+
+        let (first, cached) = cache
+            .get_or_extract(
+                b"pdf",
+                &parse_limits,
+                None,
+                &ExternalFontIdentities::default(),
+                || {
+                    calls.set(calls.get() + 1);
+                    Ok::<_, pdfdelta_core::Error>(outcome)
+                },
+            )
+            .expect("fresh extraction");
+        assert!(!cached);
+        assert_eq!(calls.get(), 1);
+        assert!(!first.is_complete());
+
+        let (second, cached) = cache
+            .get_or_extract(
+                b"pdf",
+                &parse_limits,
+                None,
+                &ExternalFontIdentities::default(),
+                || {
+                    calls.set(calls.get() + 1);
+                    Err::<ExtractionOutcome, _>(pdfdelta_core::Error::Unresolved(
+                        "must not run on a cache hit".to_owned(),
+                    ))
+                },
+            )
+            .expect("cache hit");
+        assert!(cached);
+        assert_eq!(calls.get(), 1);
+        assert!(!second.is_complete());
+        assert_eq!(second.issues().len(), 1);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

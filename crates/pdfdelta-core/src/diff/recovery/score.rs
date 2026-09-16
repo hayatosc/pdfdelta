@@ -16,8 +16,13 @@ pub(in crate::diff) struct SentenceEdgeEvidence<'a> {
     budget: &'a mut RecoveryBudget,
     scope: NearSearchScope,
     class: NearSearchWorkClass,
+    // The three token counts are diagnostic outputs read only by tests; the
+    // production path consumes `edge_score`.
+    #[cfg_attr(not(test), allow(dead_code))]
     prefix_tokens: usize,
+    #[cfg_attr(not(test), allow(dead_code))]
     suffix_tokens: usize,
+    #[cfg_attr(not(test), allow(dead_code))]
     shorter_tokens: usize,
     edge_score: u16,
 }
@@ -62,16 +67,18 @@ impl CachedSentenceEdgeEvidence {
     }
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 impl SentenceEdgeEvidence<'_> {
+    #[cfg(test)]
     pub(in crate::diff) fn prefix_tokens(&self) -> usize {
         self.prefix_tokens
     }
 
+    #[cfg(test)]
     pub(in crate::diff) fn suffix_tokens(&self) -> usize {
         self.suffix_tokens
     }
 
+    #[cfg(test)]
     pub(in crate::diff) fn shorter_tokens(&self) -> usize {
         self.shorter_tokens
     }

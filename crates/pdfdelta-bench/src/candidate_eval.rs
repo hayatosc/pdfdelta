@@ -14,8 +14,6 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    fs::OpenOptions,
-    io::Write,
     path::Path,
     sync::Arc,
 };
@@ -112,7 +110,7 @@ pub struct CandidateEvalRecord {
     pub unmatched_old_blocks: usize,
     /// Inverted-index recall@K, one entry per K in `top_k`.
     pub recall_at_k: Vec<f64>,
-    /// MinHash LSH recall@K, one entry per K in `top_k`.
+    /// `MinHash` LSH recall@K, one entry per K in `top_k`.
     pub minhash_recall_at_k: Vec<f64>,
     /// Exhaustive-oracle recall@K, one entry per K in `top_k`.
     pub oracle_recall_at_k: Vec<f64>,
@@ -121,9 +119,9 @@ pub struct CandidateEvalRecord {
     /// Inverted-index candidate counts per old block (nearest-rank p95).
     pub candidate_count_p95: usize,
     pub candidate_count_max: usize,
-    /// MinHash LSH candidate counts per old block (nearest-rank p50).
+    /// `MinHash` LSH candidate counts per old block (nearest-rank p50).
     pub minhash_candidate_count_p50: usize,
-    /// MinHash LSH candidate counts per old block (nearest-rank p95).
+    /// `MinHash` LSH candidate counts per old block (nearest-rank p95).
     pub minhash_candidate_count_p95: usize,
     pub minhash_candidate_count_max: usize,
     /// Exhaustive-oracle candidate counts per old block (nearest-rank p50).
@@ -135,9 +133,9 @@ pub struct CandidateEvalRecord {
     pub index_build_latency_ns: u64,
     /// Inverted-index full, untruncated query-pass latency from one observation.
     pub query_latency_ns: u64,
-    /// MinHash LSH construction latency from one observation, in nanoseconds.
+    /// `MinHash` LSH construction latency from one observation, in nanoseconds.
     pub minhash_index_build_latency_ns: u64,
-    /// MinHash LSH full, untruncated query-pass latency from one observation.
+    /// `MinHash` LSH full, untruncated query-pass latency from one observation.
     pub minhash_query_latency_ns: u64,
     /// Exhaustive-oracle construction latency from one observation, in nanoseconds.
     pub oracle_index_build_latency_ns: u64,
@@ -160,14 +158,14 @@ pub struct CandidateEvalRecord {
     /// investigation signal, not a sufficient condition for a production
     /// LIMIT failure (false positives possible, false negatives not).
     pub estimated_visits_upper_bound_exceeds_limit: bool,
-    /// MinHash LSH estimated visits per old block (nearest-rank p50).
+    /// `MinHash` LSH estimated visits per old block (nearest-rank p50).
     pub minhash_estimated_visits_p50: usize,
-    /// MinHash LSH estimated visits per old block (nearest-rank p95).
+    /// `MinHash` LSH estimated visits per old block (nearest-rank p95).
     pub minhash_estimated_visits_p95: usize,
     pub minhash_estimated_visits_max: usize,
-    /// Sum of MinHash LSH estimated visits across all old blocks.
+    /// Sum of `MinHash` LSH estimated visits across all old blocks.
     pub minhash_estimated_visits_upper_bound_total: usize,
-    /// Whether MinHash LSH `estimated_visits_upper_bound_total` exceeds
+    /// Whether `MinHash` LSH `estimated_visits_upper_bound_total` exceeds
     /// `max_candidate_visits`.
     pub minhash_estimated_visits_upper_bound_exceeds_limit: bool,
     /// Total n-gram posting visits across all old blocks, excluding exact
@@ -205,6 +203,7 @@ impl CandidateEvalRecord {
     /// Recall values share the same integer denominator, so exact
     /// comparison is used; an empty evaluation or any vector length
     /// mismatch is never healthy.
+    #[must_use]
     pub fn healthy(&self) -> bool {
         !self.top_k.is_empty()
             && self.top_k.len() == self.recall_at_k.len()
@@ -262,22 +261,22 @@ pub fn evaluate_candidate_generation(
     )?;
 
     let old_features = build_block_features(&old_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let new_features = build_block_features(&new_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let index_build_started = Instant::now();
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate index build", error))?;
+        .map_err(|error| BenchError::core("candidate index build", error))?;
     let index_build_latency_ns =
         u64::try_from(index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let minhash_index_build_started = Instant::now();
     let minhash = MinHashLshCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("minhash candidate index build", error))?;
+        .map_err(|error| BenchError::core("minhash candidate index build", error))?;
     let minhash_index_build_latency_ns =
         u64::try_from(minhash_index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let oracle_index_build_started = Instant::now();
     let exhaustive = ExhaustiveCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate index build", error))?;
+        .map_err(|error| BenchError::core("candidate index build", error))?;
     let oracle_index_build_latency_ns =
         u64::try_from(oracle_index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
 
@@ -376,15 +375,15 @@ pub fn evaluate_candidate_visit_pressure(
     let new_blocks = normalized_blocks_from_document(new, options)?;
     enforce_ngram_budget(&old_blocks, &new_blocks, options)?;
     let old_features = build_block_features(&old_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let new_features = build_block_features(&new_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate index build", error))?;
+        .map_err(|error| BenchError::core("candidate index build", error))?;
     measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)
 }
 
-/// Measures the all-old-block candidate visit pressure of the MinHash LSH
+/// Measures the all-old-block candidate visit pressure of the `MinHash` LSH
 /// generator for two extracted glyph documents.
 pub fn evaluate_minhash_candidate_visit_pressure(
     old: &Document<Glyph>,
@@ -395,36 +394,24 @@ pub fn evaluate_minhash_candidate_visit_pressure(
     let new_blocks = normalized_blocks_from_document(new, options)?;
     enforce_ngram_budget(&old_blocks, &new_blocks, options)?;
     let old_features = build_block_features(&old_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let new_features = build_block_features(&new_blocks, options.ngram_size)
-        .map_err(|error| core_error("candidate feature build", error))?;
+        .map_err(|error| BenchError::core("candidate feature build", error))?;
     let minhash = MinHashLshCandidateGenerator::new(&new_features)
-        .map_err(|error| core_error("candidate minhash index build", error))?;
+        .map_err(|error| BenchError::core("candidate minhash index build", error))?;
     measure_visit_metrics(&old_features, &new_features, &minhash, options.alignment)
 }
 
 /// Writes every record as a pretty JSON array to a new file, refusing to
-/// overwrite an existing path via `create_new`. Suppressing partial-run
-/// artifacts is the caller's responsibility.
+/// overwrite an existing path via atomic publication. A failed write never
+/// leaves a partial artifact behind.
 pub fn write_candidates_json(path: &Path, records: &[CandidateEvalRecord]) -> Result<()> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|error| {
-            BenchError::InvalidInput(format!(
-                "cannot create candidate evaluation JSON output {}: {error}",
-                path.display()
-            ))
-        })?;
     let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
         BenchError::InvalidInput(format!(
             "cannot serialize candidate evaluation JSON: {error}"
         ))
     })?;
-    file.write_all(&bytes).map_err(|error| {
-        BenchError::InvalidInput(format!("cannot write candidate evaluation JSON: {error}"))
-    })
+    crate::publication::publish_new_file(path, &bytes)
 }
 
 /// Renders a plan and returns its normalized blocks in document order.
@@ -437,9 +424,9 @@ fn normalized_blocks(plan: &RenderPlan, renderer: RendererKind) -> Result<Vec<Bl
             ParseLimits::default(),
             ExtractionLimits::default(),
         )
-        .map_err(|error| core_error("candidate-eval extraction", error))?
+        .map_err(|error| BenchError::core("candidate-eval extraction", error))?
         .into_complete()
-        .map_err(|error| core_error("candidate-eval extraction", error))?;
+        .map_err(|error| BenchError::core("candidate-eval extraction", error))?;
     normalized_blocks_from_document(&document, PipelineOptions::default())
 }
 
@@ -450,11 +437,11 @@ fn normalized_blocks_from_document(
     options: PipelineOptions,
 ) -> Result<Vec<BlockText>> {
     let lines = reconstruct_lines(document, options.line)
-        .map_err(|error| core_error("candidate-eval line reconstruction", error))?;
+        .map_err(|error| BenchError::core("candidate-eval line reconstruction", error))?;
     let blocks = reconstruct_blocks(document, &lines, options.block)
-        .map_err(|error| core_error("candidate-eval block reconstruction", error))?;
+        .map_err(|error| BenchError::core("candidate-eval block reconstruction", error))?;
     normalize_blocks(document, &lines, &blocks)
-        .map_err(|error| core_error("candidate-eval normalization", error))
+        .map_err(|error| BenchError::core("candidate-eval normalization", error))
 }
 
 /// The render plan's flattened lines joined by one space, matching the
@@ -478,9 +465,9 @@ fn enforce_ngram_budget(
 ) -> Result<()> {
     let limit = options.max_ngram_token_elements;
     let old_elements = estimate_ngram_token_elements(old, options.ngram_size, limit)
-        .map_err(|error| core_error("candidate n-gram budget", error))?;
+        .map_err(|error| BenchError::core("candidate n-gram budget", error))?;
     let new_elements = estimate_ngram_token_elements(new, options.ngram_size, limit)
-        .map_err(|error| core_error("candidate n-gram budget", error))?;
+        .map_err(|error| BenchError::core("candidate n-gram budget", error))?;
     let aggregate = old_elements
         .checked_add(new_elements)
         .ok_or_else(|| ngram_budget_error(limit))?;
@@ -648,7 +635,7 @@ fn recall_at_k(
         total += 1;
         let top_k = generator
             .candidates(features, k)
-            .map_err(|error| core_error("candidate query", error))?
+            .map_err(|error| BenchError::core("candidate query", error))?
             .into_iter()
             .map(|candidate| candidate.block)
             .collect::<HashSet<_>>();
@@ -674,7 +661,7 @@ fn candidate_counts(
             generator
                 .candidates(features, usize::MAX)
                 .map(|candidates| candidates.len())
-                .map_err(|error| core_error("candidate query", error))
+                .map_err(|error| BenchError::core("candidate query", error))
         })
         .collect()
 }
@@ -734,7 +721,7 @@ fn estimated_visits_per_block(
         .map(|features| {
             generator
                 .estimated_visits(features, limit)
-                .map_err(|error| core_error("candidate visit estimate", error))
+                .map_err(|error| BenchError::core("candidate visit estimate", error))
         })
         .collect()
 }
@@ -903,7 +890,7 @@ fn visit_budget_error(limit: usize) -> BenchError {
 
 /// Nearest-rank percentile: the value at index `round((n - 1) * quantile)`
 /// of the sorted sample, without interpolation.
-fn percentile(values: &[usize], quantile: f64) -> usize {
+pub(crate) fn percentile(values: &[usize], quantile: f64) -> usize {
     if values.is_empty() {
         return 0;
     }
@@ -911,13 +898,6 @@ fn percentile(values: &[usize], quantile: f64) -> usize {
     sorted.sort_unstable();
     let index = ((sorted.len() - 1) as f64 * quantile).round() as usize;
     sorted[index]
-}
-
-fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
-    BenchError::Core {
-        stage,
-        source: error,
-    }
 }
 
 #[cfg(test)]
@@ -1224,6 +1204,10 @@ mod tests {
         assert_eq!(parsed[0]["oracle_index_build_latency_ns"], 15);
         assert_eq!(parsed[0]["oracle_query_latency_ns"], 16);
         assert!(write_candidates_json(&path, &records).is_err());
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("artifact survives a refused overwrite"),
+            json
+        );
         std::fs::remove_file(&path).expect("artifact removed");
     }
 

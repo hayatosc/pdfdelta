@@ -446,16 +446,7 @@ pub fn compare(
             ("selected_channels", report.coverage.len()),
         ],
     );
-    Ok((
-        if !complete {
-            3
-        } else if changes > 0 {
-            1
-        } else {
-            0
-        },
-        !complete,
-    ))
+    Ok((if !complete { 3 } else { u8::from(changes > 0) }, !complete))
 }
 
 type CollectedEvidence = (EvidenceStore, Option<Arc<[u8]>>, Option<ImageInventory>);

@@ -208,6 +208,7 @@ fn population(store: &EvidenceStore, domain: KeyDomain) -> Population<'_> {
 /// This does not establish graph scope correspondence or semantic element
 /// insertion/deletion. Callers must validate those premises independently before
 /// deriving element operations. No character mask is produced here.
+#[must_use]
 pub fn compare_document_keys(
     old: &EvidenceStore,
     new: &EvidenceStore,
@@ -235,7 +236,7 @@ pub fn compare_document_keys(
             limits.max_work.saturating_sub(result.work),
         );
         let next = cost.and_then(|cost| result.work.checked_add(cost));
-        if !next.is_some_and(|work| work <= limits.max_work) {
+        if next.is_none_or(|work| work > limits.max_work) {
             result.exhaustive = false;
             result.obligations.push(KeyEvidenceObligation {
                 domain: *domain,

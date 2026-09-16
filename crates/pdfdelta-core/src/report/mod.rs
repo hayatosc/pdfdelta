@@ -10,9 +10,8 @@ use crate::{
     Error, Result,
     alignment::BlockSeparator,
     diff::{
-        AssessmentReason, ChangeKind, ChangeTag, ChangedRegionProof, Comparison,
-        ComparisonAssumption, Confidence, ProvenChangedRegion, RelationOutcome, SearchCompleteness,
-        TextSpan,
+        AssessmentReason, ChangeKind, ChangeTag, Comparison, ComparisonAssumption, Confidence,
+        ProvenChangedRegion, RelationOutcome, SearchCompleteness, TextSpan,
     },
     layout::BlockId,
     model::FontProgramHash,
@@ -43,6 +42,7 @@ pub struct ExtractionIssueRecord {
 }
 
 impl ExtractionIssueRecord {
+    #[must_use]
     pub fn from_issue(side: DocumentSide, issue: ExtractionIssue) -> Self {
         let (kind, scope, description) = issue.into_parts();
         Self {
@@ -62,6 +62,7 @@ pub struct ExtractionStatus {
 }
 
 impl ExtractionStatus {
+    #[must_use]
     pub fn complete() -> Self {
         Self {
             old_complete: true,
@@ -143,6 +144,7 @@ pub enum DifferenceStatus {
 }
 
 impl DifferenceStatus {
+    #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Detected => "detected",
@@ -292,6 +294,11 @@ fn lowercase_hex(bytes: &[u8]) -> String {
     output
 }
 
+/// Encodes at most the first four bytes as lowercase hexadecimal.
+fn hex_preview(bytes: &[u8]) -> String {
+    lowercase_hex(&bytes[..bytes.len().min(4)])
+}
+
 /// Read-only view over one side's normalized blocks, used to resolve report
 /// spans back to canonical text and page provenance.
 pub(crate) struct SideIndex<'a> {
@@ -367,7 +374,18 @@ impl<'a> SideIndex<'a> {
         separator: Option<BlockSeparator>,
     ) -> Result<ResolvedGroup> {
         let (tokens, pages) = self.accumulate(blocks, separator)?;
-        Ok(ResolvedGroup { tokens, pages })
+        let mut scalar_prefix = Vec::with_capacity(tokens.len() + 1);
+        scalar_prefix.push(0);
+        let mut running = 0;
+        for token in &tokens {
+            running += usize::from(token.is_scalar());
+            scalar_prefix.push(running);
+        }
+        Ok(ResolvedGroup {
+            tokens,
+            pages,
+            scalar_prefix,
+        })
     }
 
     fn accumulate(
@@ -418,6 +436,15 @@ pub(crate) struct ResolvedSpan {
 pub(crate) struct ResolvedGroup {
     pub tokens: Vec<ComparableToken>,
     pub pages: Vec<u32>,
+    /// Number of scalar tokens before each comparable-token index, so a span's
+    /// canonical range can be checked against its token range in constant time.
+    scalar_prefix: Vec<usize>,
+}
+
+impl ResolvedGroup {
+    pub(crate) fn scalar_count_before(&self, index: usize) -> usize {
+        self.scalar_prefix[index.min(self.tokens.len())]
+    }
 }
 
 /// One unmapped glyph token with its stable identity and the scalar offset
@@ -533,10 +560,9 @@ fn validate_proven_changed_region(region: &ProvenChangedRegion) -> Result<()> {
     }
     let old_non_empty = region.old_span.as_ref().is_some_and(non_empty_span);
     let new_non_empty = region.new_span.as_ref().is_some_and(non_empty_span);
-    let valid = match region.proof {
-        ChangedRegionProof::ExactTokenMultisetMismatch => old_non_empty && new_non_empty,
-        ChangedRegionProof::OneSidedNonEmptyRange => old_non_empty ^ new_non_empty,
-    };
+    let valid = region
+        .proof
+        .matches_span_shape(old_non_empty, new_non_empty);
     if !valid {
         return Err(Error::InvalidConfiguration(
             "proven changed region span shape does not match its proof".to_owned(),

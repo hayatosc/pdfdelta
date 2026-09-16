@@ -79,7 +79,7 @@ pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, In
             path.display().to_string()
         };
         return Err(InputReadError::LimitExceeded {
-            message: format!("cannot read {target}: PDF input exceeds the {max_bytes}-byte limit",),
+            message: format!("cannot read {target}: PDF input exceeds the {max_bytes}-byte limit"),
             limit: max_bytes,
         });
     }
@@ -87,6 +87,13 @@ pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, In
 }
 
 pub fn read_password_file(path: &Path) -> Result<String, String> {
+    if path == Path::new("-") {
+        // Standard input carries PDF bytes; reading a password from it would
+        // silently consume the document instead, so the collision is rejected.
+        return Err(
+            "cannot read password file -: standard input is reserved for PDF input".to_owned(),
+        );
+    }
     let bytes = read_limited_typed(path, MAX_PASSWORD_FILE_BYTES)
         .map_err(|error| format!("cannot read password file {}: {error}", path.display()))?;
     let mut bytes = bytes.as_ref();
@@ -282,17 +289,9 @@ pub fn create_temporary_output_for(
         let sequence = NEXT_TEMPORARY_FILE.fetch_add(1, Ordering::Relaxed);
         let temporary_name = format!(".pdfdelta-{}-{sequence}.tmp", std::process::id());
         let temporary_path = parent.join(temporary_name);
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-
-            options.mode(0o600);
-        }
-        match options.open(&temporary_path) {
+        match create_private_file(&temporary_path) {
             Ok(file) => return Ok((temporary_path, file)),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => {
                 return Err(format!(
                     "cannot create temporary {output_kind} next to {}: {error}",
@@ -306,6 +305,32 @@ pub fn create_temporary_output_for(
         "cannot create a unique temporary {output_kind} next to {}",
         output_path.display()
     ))
+}
+
+/// Opens a new file that no other writer can have created first.
+///
+/// `create_new` refuses symlinked pre-created names and 0o600 keeps private
+/// scratch data readable only by the current user.
+pub fn create_private_file(path: &Path) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
+pub fn lowercase_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    output
 }
 
 pub fn ensure_output_does_not_alias_input(
@@ -342,68 +367,14 @@ pub fn ensure_named_output_does_not_alias_input(
     Ok(())
 }
 
+/// Returns whether two paths name the same file, tolerating leaves that do
+/// not exist yet.
+///
+/// Existing files compare by device/inode where available and otherwise by
+/// canonical path. When either leaf is missing, both paths are normalized to
+/// their absolute destination so lexical aliases of the same future file are
+/// still detected.
 pub fn paths_refer_to_same_file(
-    output_path: &Path,
-    input_path: &Path,
-    context: &str,
-) -> Result<bool, String> {
-    if output_path == Path::new("-") || input_path == Path::new("-") {
-        return Ok(false);
-    }
-    if output_path == input_path {
-        return Ok(true);
-    }
-
-    let output_metadata = match fs::metadata(output_path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            // The output leaf does not exist yet, so inode comparison is
-            // impossible; fall back to normalized destination comparison so
-            // lexical aliases of the same future file are still rejected.
-            return Ok(normalized_destination(output_path, context)?
-                == normalized_destination(input_path, context)?);
-        }
-        Err(error) => {
-            return Err(format!(
-                "cannot inspect output path {} for {context}: {error}",
-                output_path.display()
-            ));
-        }
-    };
-    let input_metadata = fs::metadata(input_path).map_err(|error| {
-        format!(
-            "cannot inspect input path {} for {context}: {error}",
-            input_path.display()
-        )
-    })?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-
-        if output_metadata.dev() == input_metadata.dev()
-            && output_metadata.ino() == input_metadata.ino()
-        {
-            return Ok(true);
-        }
-    }
-
-    let output_canonical = fs::canonicalize(output_path).map_err(|error| {
-        format!(
-            "cannot resolve output path {} for {context}: {error}",
-            output_path.display()
-        )
-    })?;
-    let input_canonical = fs::canonicalize(input_path).map_err(|error| {
-        format!(
-            "cannot resolve input path {} for {context}: {error}",
-            input_path.display()
-        )
-    })?;
-    Ok(output_canonical == input_canonical)
-}
-
-pub fn output_paths_refer_to_same_file(
     first_path: &Path,
     second_path: &Path,
     context: &str,
@@ -414,17 +385,56 @@ pub fn output_paths_refer_to_same_file(
     if first_path == second_path {
         return Ok(true);
     }
-    match fs::metadata(second_path) {
-        Ok(_) => paths_refer_to_same_file(first_path, second_path, context),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            Ok(normalized_destination(first_path, context)?
-                == normalized_destination(second_path, context)?)
+
+    let first_metadata = match fs::metadata(first_path) {
+        Ok(metadata) => Some(metadata),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "cannot inspect path {} for {context}: {error}",
+                first_path.display()
+            ));
         }
-        Err(error) => Err(format!(
-            "cannot inspect output path {} for {context}: {error}",
-            second_path.display()
-        )),
+    };
+    let second_metadata = match fs::metadata(second_path) {
+        Ok(metadata) => Some(metadata),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "cannot inspect path {} for {context}: {error}",
+                second_path.display()
+            ));
+        }
+    };
+    let (Some(first_metadata), Some(second_metadata)) = (first_metadata, second_metadata) else {
+        return Ok(normalized_destination(first_path, context)?
+            == normalized_destination(second_path, context)?);
+    };
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        if first_metadata.dev() == second_metadata.dev()
+            && first_metadata.ino() == second_metadata.ino()
+        {
+            return Ok(true);
+        }
     }
+
+    let first_canonical = fs::canonicalize(first_path).map_err(|error| {
+        format!(
+            "cannot resolve path {} for {context}: {error}",
+            first_path.display()
+        )
+    })?;
+    let second_canonical = fs::canonicalize(second_path).map_err(|error| {
+        format!(
+            "cannot resolve path {} for {context}: {error}",
+            second_path.display()
+        )
+    })?;
+    Ok(first_canonical == second_canonical)
 }
 
 /// Resolve a path to its normalized absolute destination without requiring
@@ -473,7 +483,7 @@ pub fn normalized_destination(path: &Path, context: &str) -> Result<PathBuf, Str
 
 #[cfg(test)]
 mod tests {
-    use super::{InputReadError, read_limited_typed};
+    use super::{InputReadError, MAX_PASSWORD_FILE_BYTES, read_limited_typed, read_password_file};
 
     #[test]
     fn classifies_input_size_limits_separately_from_io_failures() {
@@ -490,6 +500,110 @@ mod tests {
             error,
             InputReadError::LimitExceeded { limit: 3, .. }
         ));
+    }
+
+    #[test]
+    fn accepts_input_at_the_byte_limit_and_rejects_one_byte_more() {
+        let path = std::env::temp_dir().join(format!(
+            "pdfdelta-input-boundary-test-{}.pdf",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"abc").expect("input boundary fixture should be written");
+
+        let exact = read_limited_typed(&path, 3).expect("input at the limit is accepted");
+        assert_eq!(exact.as_ref(), b"abc");
+        let error = read_limited_typed(&path, 2).expect_err("input above the limit is rejected");
+        std::fs::remove_file(path).expect("input boundary fixture should be removed");
+
+        assert!(matches!(
+            error,
+            InputReadError::LimitExceeded { limit: 2, .. }
+        ));
+    }
+
+    #[test]
+    fn password_files_strip_one_line_ending_and_enforce_their_byte_limit() {
+        let path = std::env::temp_dir().join(format!(
+            "pdfdelta-password-file-test-{}",
+            std::process::id()
+        ));
+
+        std::fs::write(&path, b"secret\r\n").expect("CRLF password fixture");
+        assert_eq!(
+            read_password_file(&path).expect("CRLF password should parse"),
+            "secret"
+        );
+        std::fs::write(&path, b"secret\n").expect("LF password fixture");
+        assert_eq!(
+            read_password_file(&path).expect("LF password should parse"),
+            "secret"
+        );
+        std::fs::write(&path, b"").expect("empty password fixture");
+        assert_eq!(
+            read_password_file(&path).expect("empty password should be accepted"),
+            ""
+        );
+
+        let exact = vec![b'a'; MAX_PASSWORD_FILE_BYTES];
+        std::fs::write(&path, &exact).expect("password at the limit");
+        assert_eq!(
+            read_password_file(&path)
+                .expect("password at the limit should parse")
+                .len(),
+            MAX_PASSWORD_FILE_BYTES
+        );
+
+        let oversized = vec![b'a'; MAX_PASSWORD_FILE_BYTES + 1];
+        std::fs::write(&path, oversized).expect("oversized password fixture");
+        let error = read_password_file(&path).expect_err("oversized password should be rejected");
+        std::fs::remove_file(path).expect("password fixture should be removed");
+
+        assert!(error.contains("password file"), "{error}");
+    }
+
+    #[test]
+    fn existing_aliases_compare_by_identity_and_missing_leaves_by_destination() {
+        let directory = std::env::temp_dir().join(format!(
+            "pdfdelta-path-alias-test-{}-{}",
+            std::process::id(),
+            super::NEXT_TEMPORARY_FILE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&directory).expect("alias fixture directory");
+        let pdf = directory.join("input.pdf");
+        std::fs::write(&pdf, b"pdf").expect("input fixture");
+        #[cfg(unix)]
+        let link = {
+            let link = directory.join("alias.pdf");
+            std::os::unix::fs::symlink(&pdf, &link).expect("symlink fixture");
+            link
+        };
+
+        assert!(
+            super::paths_refer_to_same_file(&pdf, &pdf, "self collision").expect("identical paths")
+        );
+        #[cfg(unix)]
+        assert!(
+            super::paths_refer_to_same_file(&pdf, &link, "symlink collision")
+                .expect("symlinked alias")
+        );
+        assert!(
+            !super::paths_refer_to_same_file(
+                &directory.join("future.json"),
+                &directory.join("other.json"),
+                "distinct missing leaves"
+            )
+            .expect("distinct future destinations")
+        );
+        assert!(
+            super::paths_refer_to_same_file(
+                &directory.join("future.json"),
+                &directory.join(".").join("future.json"),
+                "lexical alias"
+            )
+            .expect("lexically aliased future destination")
+        );
+
+        std::fs::remove_dir_all(directory).expect("alias fixture cleanup");
     }
 
     #[cfg(unix)]

@@ -397,7 +397,9 @@ mod tests {
                 let mut matrix = vec![vec![None; columns]; rows];
                 for row in &mut matrix {
                     for entry in row {
-                        state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                        state = state
+                            .wrapping_mul(6_364_136_223_846_793_005)
+                            .wrapping_add(1);
                         if !state.is_multiple_of(7) {
                             *entry = Some(((state >> 12) as usize % 5, (state >> 32) as u32));
                         }

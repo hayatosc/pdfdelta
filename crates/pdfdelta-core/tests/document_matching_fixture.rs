@@ -797,6 +797,29 @@ fn physical_source_conflict_prevents_double_counting_different_origins() {
 }
 
 #[test]
+fn one_group_cannot_consume_conflicting_physical_sources() {
+    let mut old = graph(&[("a", "x")], 0);
+    let new = graph(&[("a", "x")], 0);
+    old.nodes[1]
+        .sources
+        .push(SourceRef::Structured { element: 2 });
+    old.source_conflicts.push(SourceConflict {
+        sources: vec![
+            SourceRef::Structured { element: 1 },
+            SourceRef::Structured { element: 2 },
+        ],
+        reason: "two overlapping widget crops".into(),
+    });
+    let limits = MatchingLimits::default();
+    let candidates = propose_scope_correspondences(&old, &new, SCOPE, limits)
+        .expect("valid scoped correspondence");
+    assert!(
+        solve_correspondence_scope(&old, &new, SCOPE, &candidates.proposals, limits).is_err(),
+        "one group must not consume both sources of a conflict"
+    );
+}
+
+#[test]
 fn suppliers_cannot_forge_identity_or_consume_sources_twice() {
     let old = graph(&[("a", "x"), ("b", "x")], 0);
     let new = graph(&[("a", "y"), ("b", "y")], 0);

@@ -54,6 +54,34 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "layout_pipeline"
+path = "fuzz_targets/layout_pipeline.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "graph_pipeline"
+path = "fuzz_targets/graph_pipeline.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "text_comparison"
+path = "fuzz_targets/text_comparison.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "native_evidence"
+path = "fuzz_targets/native_evidence.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]
 resolver = "3"

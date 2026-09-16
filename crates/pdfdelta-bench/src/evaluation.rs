@@ -7,11 +7,13 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, OpenOptions},
-    io::Write,
     path::Path,
 };
 
+#[cfg(test)]
+use std::fs;
+
+use pdfdelta_core::diff::ChangeKind;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -41,6 +43,7 @@ pub enum TuningUse {
 }
 
 impl TuningUse {
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Unused => "unused",
@@ -48,6 +51,7 @@ impl TuningUse {
         }
     }
 
+    #[must_use]
     pub fn parse(value: &str) -> Option<Self> {
         match value.trim() {
             "unused" => Some(Self::Unused),
@@ -113,6 +117,7 @@ impl BenchmarkProvenance {
 
     /// A known producer family remains useful evidence when its version is
     /// unavailable; unknown families do not count as producer validation.
+    #[must_use]
     pub fn known_producer(&self) -> bool {
         !self.producer_family.eq_ignore_ascii_case("unknown")
     }
@@ -664,53 +669,33 @@ pub struct EvaluationSummary {
 }
 
 impl EvaluationSummary {
+    #[must_use]
     pub fn from_records(records: Vec<EvaluationRecord>) -> Self {
         let document_totals = records
             .iter()
-            .map(|record| aggregate_group(record.pair_id.clone(), std::slice::from_ref(record)))
+            .map(|record| aggregate_group(record.pair_id.clone(), std::slice::from_ref(&record)))
             .collect();
-        let mut by_series = BTreeMap::<String, Vec<EvaluationRecord>>::new();
-        for record in &records {
-            let key = record
+        let series_totals = grouped_totals(&records, |record| {
+            record
                 .document_series_id
                 .clone()
-                .unwrap_or_else(|| format!("pair:{}", record.pair_id));
-            by_series.entry(key).or_default().push(record.clone());
-        }
-        let series_totals = by_series
-            .into_iter()
-            .map(|(group, records)| aggregate_group(group, &records))
-            .collect::<Vec<_>>();
-        let mut by_producer = BTreeMap::<String, Vec<EvaluationRecord>>::new();
-        for record in &records {
+                .unwrap_or_else(|| format!("pair:{}", record.pair_id))
+        });
+        let producer_totals = grouped_totals(&records, |record| {
             // Unknown producer families are retained in one bucket but do not
             // create a producer-diversity claim. A known family remains
             // identifiable when its version is unavailable.
-            let key = match &record.producer_family {
+            match &record.producer_family {
                 Some(family) if !family.eq_ignore_ascii_case("unknown") => {
                     let version = record.producer_version.as_deref().unwrap_or("unknown");
                     format!("{family}@{version}")
                 }
                 _ => "unknown".to_owned(),
-            };
-            by_producer.entry(key).or_default().push(record.clone());
-        }
-        let producer_totals = by_producer
-            .into_iter()
-            .map(|(group, records)| aggregate_group(group, &records))
-            .collect::<Vec<_>>();
-        let mut by_split = BTreeMap::<String, Vec<EvaluationRecord>>::new();
-        for record in &records {
-            by_split
-                .entry(record.split.clone())
-                .or_default()
-                .push(record.clone());
-        }
-        let split_totals = by_split
-            .into_iter()
-            .map(|(group, records)| aggregate_group(group, &records))
-            .collect();
-        let totals = aggregate_group("all".to_owned(), &records);
+            }
+        });
+        let split_totals = grouped_totals(&records, |record| record.split.clone());
+        let all = records.iter().collect::<Vec<_>>();
+        let totals = aggregate_group("all".to_owned(), &all);
         let lineage_macro = macro_quality(&series_totals);
         let producer_macro = macro_quality(&producer_totals);
         Self {
@@ -727,13 +712,29 @@ impl EvaluationSummary {
         }
     }
 
+    #[must_use]
     pub fn with_baselines(mut self, baselines: Vec<BaselineRecord>) -> Self {
         self.baselines = baselines;
         self
     }
 }
 
-fn aggregate_group(group_id: String, records: &[EvaluationRecord]) -> EvaluationGroupTotals {
+/// Aggregates records by a derived group key without cloning them per group.
+fn grouped_totals(
+    records: &[EvaluationRecord],
+    key: impl Fn(&EvaluationRecord) -> String,
+) -> Vec<EvaluationGroupTotals> {
+    let mut groups = BTreeMap::<String, Vec<&EvaluationRecord>>::new();
+    for record in records {
+        groups.entry(key(record)).or_default().push(record);
+    }
+    groups
+        .into_iter()
+        .map(|(group, grouped)| aggregate_group(group, &grouped))
+        .collect()
+}
+
+fn aggregate_group(group_id: String, records: &[&EvaluationRecord]) -> EvaluationGroupTotals {
     let mut result = EvaluationGroupTotals {
         group_id,
         ..EvaluationGroupTotals::default()
@@ -1029,8 +1030,18 @@ fn mean(values: &[f64]) -> Option<f64> {
     (!values.is_empty()).then(|| values.iter().sum::<f64>() / values.len() as f64)
 }
 
-fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
+pub(crate) fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
     (denominator > 0).then(|| numerator as f64 / denominator as f64)
+}
+
+/// Stable lowercase name of an exact change kind for reports and summaries.
+pub(crate) fn change_kind_name(kind: ChangeKind) -> &'static str {
+    match kind {
+        ChangeKind::Replacement => "replacement",
+        ChangeKind::Insertion => "insertion",
+        ChangeKind::Deletion => "deletion",
+        ChangeKind::Move => "move",
+    }
 }
 
 /// Baseline identity recorded alongside the evaluation output.
@@ -1052,6 +1063,7 @@ pub struct BaselineRecord {
 /// Executable paths and hashes belong to a specific run and must be supplied
 /// through [`EvaluationSummary::with_baselines`] rather than embedded in
 /// library defaults.
+#[must_use]
 pub fn default_baselines() -> Vec<BaselineRecord> {
     Vec::new()
 }
@@ -1073,89 +1085,33 @@ pub struct ReproducibleArtifact {
     pub summary_sha256: Option<String>,
 }
 
-/// Hashes bytes using the same lowercase SHA-256 representation as the
-/// revision manifest.
-pub fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+/// Formats bytes as lowercase hexadecimal.
+#[must_use]
+pub fn hex_digest(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    output
 }
 
-/// Hashes a reproducibility input without accepting a directory or symlink.
-pub fn hash_file(path: &Path) -> Result<String> {
-    let metadata = fs::symlink_metadata(path).map_err(|error| {
-        BenchError::InvalidInput(format!(
-            "cannot inspect artifact input {}: {error}",
-            path.display()
-        ))
-    })?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
-        return Err(BenchError::InvalidInput(format!(
-            "artifact input {} must be a regular file",
-            path.display()
-        )));
-    }
-    let bytes = fs::read(path).map_err(|error| {
-        BenchError::InvalidInput(format!(
-            "cannot read artifact input {}: {error}",
-            path.display()
-        ))
-    })?;
-    Ok(sha256_hex(&bytes))
+/// Hashes bytes using the same lowercase SHA-256 representation as the
+/// revision manifest.
+#[must_use]
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    hex_digest(Sha256::digest(bytes).as_slice())
 }
 
 /// Publishes reproduction metadata atomically and refuses to overwrite an
 /// existing artifact.
 pub fn write_reproducible_artifact(path: &Path, artifact: &ReproducibleArtifact) -> Result<()> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    if !parent.is_dir() {
-        return Err(BenchError::Publication(format!(
-            "artifact parent directory does not exist: {}",
-            parent.display()
-        )));
-    }
-    if path.symlink_metadata().is_ok() {
-        return Err(BenchError::Publication(format!(
-            "artifact destination already exists: {}",
-            path.display()
-        )));
-    }
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| {
-            BenchError::Publication(format!(
-                "artifact destination has no valid file name: {}",
-                path.display()
-            ))
-        })?;
-    let temp_path = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp_path)
-        .map_err(|error| {
-            BenchError::Publication(format!("cannot create temporary artifact: {error}"))
-        })?;
     let mut bytes = serde_json::to_vec_pretty(artifact).map_err(|error| {
         BenchError::Publication(format!("cannot serialize reproducible artifact: {error}"))
     })?;
     bytes.push(b'\n');
-    let result = (|| -> Result<()> {
-        file.write_all(&bytes).map_err(|error| {
-            BenchError::Publication(format!("cannot write temporary artifact: {error}"))
-        })?;
-        file.sync_all().map_err(|error| {
-            BenchError::Publication(format!("cannot sync temporary artifact: {error}"))
-        })?;
-        fs::hard_link(&temp_path, path).map_err(|error| {
-            BenchError::Publication(format!("cannot publish reproducible artifact: {error}"))
-        })?;
-        Ok(())
-    })();
-    let _ = fs::remove_file(&temp_path);
-    result
+    crate::publication::publish_new_file(path, &bytes)
 }
 
 #[cfg(test)]
@@ -1181,6 +1137,23 @@ mod tests {
             tuning_use,
             old_sha256: old_sha256.to_owned(),
             new_sha256: new_sha256.to_owned(),
+        }
+    }
+
+    fn artifact() -> ReproducibleArtifact {
+        ReproducibleArtifact {
+            schema_version: EVALUATION_SCHEMA_VERSION,
+            command: vec!["pdfbench".to_owned()],
+            manifest_sha256: sha256_hex(b"manifest"),
+            annotation_sha256: sha256_hex(b"annotation"),
+            policy_sha256: sha256_hex(b"policy"),
+            corpus_sha256: sha256_hex(b"corpus"),
+            source_revision: "test".to_owned(),
+            options: BTreeMap::new(),
+            baselines: Vec::new(),
+            raw_result_path: "raw.json".to_owned(),
+            raw_result_sha256: sha256_hex(b"raw"),
+            summary_sha256: None,
         }
     }
 
@@ -1560,22 +1533,28 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("temporary root");
         let path = root.join("run.json");
-        let artifact = ReproducibleArtifact {
-            schema_version: EVALUATION_SCHEMA_VERSION,
-            command: vec!["pdfbench".to_owned()],
-            manifest_sha256: sha256_hex(b"manifest"),
-            annotation_sha256: sha256_hex(b"annotation"),
-            policy_sha256: sha256_hex(b"policy"),
-            corpus_sha256: sha256_hex(b"corpus"),
-            source_revision: "test".to_owned(),
-            options: BTreeMap::new(),
-            baselines: Vec::new(),
-            raw_result_path: "raw.json".to_owned(),
-            raw_result_sha256: sha256_hex(b"raw"),
-            summary_sha256: None,
-        };
-        write_reproducible_artifact(&path, &artifact).expect("publish artifact");
-        assert!(write_reproducible_artifact(&path, &artifact).is_err());
+        write_reproducible_artifact(&path, &artifact()).expect("publish artifact");
+        let published = fs::read(&path).expect("published artifact is readable");
+        assert!(write_reproducible_artifact(&path, &artifact()).is_err());
+        assert_eq!(
+            fs::read(&path).expect("artifact survives a refused overwrite"),
+            published
+        );
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn reproducible_artifact_accepts_a_relative_destination() {
+        let name = format!(
+            "pdfbench-relative-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        );
+        write_reproducible_artifact(Path::new(&name), &artifact())
+            .expect("a bare file name resolves against the working directory");
+        let _ = fs::remove_file(&name);
     }
 }

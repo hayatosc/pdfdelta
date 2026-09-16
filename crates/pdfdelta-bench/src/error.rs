@@ -16,6 +16,13 @@ pub enum BenchError {
     },
 }
 
+impl BenchError {
+    /// Wraps a core failure with the benchmark stage that requested it.
+    pub(crate) fn core(stage: &'static str, source: pdfdelta_core::Error) -> Self {
+        Self::Core { stage, source }
+    }
+}
+
 impl fmt::Display for BenchError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

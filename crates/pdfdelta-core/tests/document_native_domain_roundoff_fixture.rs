@@ -279,7 +279,7 @@ fn roundoff_fallback_preserves_order_visibility_and_acquisition_obligations() {
         }
         for (a, b) in [(&old, &new), (&new, &old)] {
             let result = compare(a, b);
-            let expected = if case == "unknown_paint" { 0 } else { 1 };
+            let expected = usize::from(case != "unknown_paint");
             assert_eq!(
                 result.scopes[0].result.native_text_domains.len(),
                 expected,

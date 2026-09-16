@@ -5,9 +5,8 @@ mod wire;
 
 use std::{
     collections::BTreeSet,
-    fmt::Write as _,
     io::{BufRead, Read, Write},
-    path::{Path, PathBuf},
+    path::Path,
     process::Command,
     sync::Arc,
     time::Duration,
@@ -18,19 +17,24 @@ use pdfdelta_core::{
         BackendIdentity, BackendKind, Channel, EvidenceFailure, EvidenceIssue, EvidenceLimits,
         EvidenceStore, PageEvidence, StructuredValue,
     },
-    model::{Document, PageId},
+    model::{Document, FontProgramHash, PageId},
     pdf::{ObjectRef, PageRef, ParseLimits},
-    source::{ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome},
+    source::{
+        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits, ExtractionOutcome,
+    },
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    extraction_cache::{CeilingWriter, ExtractionCache, cache_key},
-    fs::{parse_external_font_identities, parse_lopdf},
+    extraction_cache::{CeilingWriter, ExtractionCache},
+    fs::{lowercase_hex, parse_external_font_identities, parse_lopdf},
 };
 
-const MAX_HEADER: usize = 256 * 1024;
+/// Bounds the serialized request header. The widest documented identity table
+/// is 1,024 entries of a 127-byte `BaseFont` plus a 64-character digest; the
+/// allowance also covers JSON escaping of `BaseFont` names.
+const MAX_HEADER: usize = 1024 * 1024;
 const MAX_RESPONSE: usize = 128 * 1024 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(35);
 
@@ -50,8 +54,13 @@ enum Job {
 struct Request {
     job: Job,
     password: Option<String>,
-    font_identities: Vec<String>,
-    cache_dir: Option<PathBuf>,
+    /// `(BaseFont, lowercase SHA-256 hex)` pairs. The worker never needs the
+    /// original assertion bytes, and only the digest determines extraction
+    /// identity and the extraction-cache key.
+    font_identities: Vec<(String, String)>,
+    /// A UTF-8 cache directory, or `None` to disable the cache: the transport
+    /// is JSON, and a non-UTF-8 path must not fail the whole acquisition.
+    cache_dir: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -102,11 +111,41 @@ fn backend() -> BackendIdentity {
 }
 
 fn revision(bytes: &[u8]) -> String {
-    let mut hash = String::with_capacity(64);
-    for byte in Sha256::digest(bytes) {
-        write!(&mut hash, "{byte:02x}").expect("formatting a string cannot fail");
+    lowercase_hex(&Sha256::digest(bytes))
+}
+
+/// Rebuilds the asserted font identities from their transported digests.
+fn decode_font_identities(entries: &[(String, String)]) -> Result<ExternalFontIdentities, String> {
+    let mut fonts = ExternalFontIdentities::default();
+    for (base_font, digest) in entries {
+        let digest = decode_sha256_hex(digest)?;
+        fonts
+            .insert_hash(base_font.as_bytes(), FontProgramHash(digest))
+            .map_err(|error| error.to_string())?;
     }
-    hash
+    Ok(fonts)
+}
+
+fn decode_sha256_hex(value: &str) -> Result<Vec<u8>, String> {
+    if value.len() != 64 || !value.is_ascii() {
+        return Err("font identity digest must be 64 ASCII hexadecimal characters".to_owned());
+    }
+    let mut digest = Vec::with_capacity(32);
+    for pair in value.as_bytes().as_chunks::<2>().0 {
+        let high = hex_nibble(pair[0])?;
+        let low = hex_nibble(pair[1])?;
+        digest.push((high << 4) | low);
+    }
+    Ok(digest)
+}
+
+fn hex_nibble(byte: u8) -> Result<u8, String> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err("font identity digest must be 64 ASCII hexadecimal characters".to_owned()),
+    }
 }
 
 fn issue(store: &mut EvidenceStore, failure: &Failure, channels: &[Channel]) {
@@ -135,13 +174,26 @@ pub fn collect(
     channels: &BTreeSet<Channel>,
 ) -> Result<(EvidenceStore, Vec<PageRef>), String> {
     // Validate user configuration before converting a child failure to evidence.
-    parse_external_font_identities(font_identities)?;
+    let fonts = parse_external_font_identities(font_identities)?;
+    let identities = fonts
+        .iter()
+        .map(|(base_font, hash)| {
+            (
+                String::from_utf8_lossy(base_font).into_owned(),
+                lowercase_hex(&hash.0),
+            )
+        })
+        .collect::<Vec<_>>();
     let hash = revision(bytes);
+    // The worker request is JSON, so a non-UTF-8 cache directory can only be
+    // transported by dropping the cache; the cache is best-effort and must
+    // never turn a valid comparison into missing evidence.
+    let cache_dir = cache_dir.and_then(|path| path.to_str().map(str::to_owned));
     let request = |job| Request {
         job,
         password: password.map(str::to_owned),
-        font_identities: font_identities.to_vec(),
-        cache_dir: cache_dir.map(Path::to_path_buf),
+        font_identities: identities.clone(),
+        cache_dir: cache_dir.clone(),
     };
     let forms = channels.contains(&Channel::Forms) || channels.contains(&Channel::Relations);
     let mut metadata = forms.then(|| invoke(bytes, &request(Job::Metadata { forms }), &hash));
@@ -404,8 +456,7 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
             "native structure id exceeds the evidence budget",
         ));
     }
-    let fonts =
-        parse_external_font_identities(&request.font_identities).map_err(Failure::backend)?;
+    let fonts = decode_font_identities(&request.font_identities).map_err(Failure::backend)?;
     let parsed = parse_lopdf(
         bytes.clone(),
         ParseLimits::default(),
@@ -440,35 +491,35 @@ fn acquire(bytes: Arc<[u8]>, request: Request) -> Result<Acquisition, Failure> {
         .collect();
     let extraction = match request.job {
         Job::Metadata { .. } => ExtractionOutcome::complete(Document::new(Vec::new())),
-        Job::Content { .. } => {
-            let cache = request.cache_dir.as_deref().map(ExtractionCache::new);
-            let key = cache_key(
-                &bytes,
-                &ParseLimits::default(),
-                &ExtractionLimits::default(),
-                request.password.as_deref(),
-                &fonts,
-            );
-            match cache
-                .as_ref()
-                .and_then(|cache| cache.load(&key, &ExtractionLimits::default()))
-            {
-                Some(outcome) => outcome,
-                None => {
-                    let outcome = extractor
-                        .extract_outcome_with_external_font_identities(
-                            parsed.as_ref(),
-                            ExtractionLimits::default(),
-                            &fonts,
-                        )
-                        .map_err(Failure::core)?;
-                    if let Some(cache) = cache {
-                        cache.store(&key, &outcome);
-                    }
-                    outcome
-                }
+        Job::Content { .. } => match request.cache_dir.as_deref().map(Path::new) {
+            Some(cache_dir) => {
+                let cache = ExtractionCache::new(cache_dir);
+                cache
+                    .get_or_extract(
+                        &bytes,
+                        &ParseLimits::default(),
+                        request.password.as_deref(),
+                        &fonts,
+                        || {
+                            extractor
+                                .extract_outcome_with_external_font_identities(
+                                    parsed.as_ref(),
+                                    ExtractionLimits::default(),
+                                    &fonts,
+                                )
+                                .map_err(Failure::core)
+                        },
+                    )
+                    .map(|(outcome, _)| outcome)?
             }
-        }
+            None => extractor
+                .extract_outcome_with_external_font_identities(
+                    parsed.as_ref(),
+                    ExtractionLimits::default(),
+                    &fonts,
+                )
+                .map_err(Failure::core)?,
+        },
     };
     let mut store =
         EvidenceStore::from_native(revision(&bytes), backend(), pages, extraction, limits)

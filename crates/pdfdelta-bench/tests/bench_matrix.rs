@@ -307,7 +307,7 @@ fn mutations_reject_invalid_input_without_panicking() {
     assert_invalid(
         Mutation::TextReplace {
             paragraph_id: "target".to_owned(),
-            new_text: "".to_owned(),
+            new_text: String::new(),
         }
         .apply(&document, 12),
     );
@@ -379,7 +379,7 @@ fn mutations_reject_invalid_input_without_panicking() {
         Mutation::TextInsert {
             paragraph_id: "target".to_owned(),
             at: 0,
-            text: "".to_owned(),
+            text: String::new(),
         }
         .apply(&document, 12),
     );

@@ -476,6 +476,40 @@ fn extracts_rotated_simple_font_glyphs_with_provenance() -> Result<()> {
 }
 
 #[test]
+fn negative_and_oversized_page_rotations_normalize_modulo_360() -> Result<()> {
+    let snapshot = |rotation: i64| -> Result<PrimitiveExtractionSnapshot> {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 30 40 Tm (AB) Tj ET".to_vec(),
+        ));
+        let resources = dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        };
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(resources),
+            Some([10, 20, 210, 120]),
+            Some(rotation),
+        );
+        let document = extract(pdf, ExtractionLimits::default())?;
+        Ok(PrimitiveExtractionSnapshot::from(&document))
+    };
+
+    let quarter_turn = snapshot(90)?;
+    for equivalent in [450, -270, 90 + 360, 90 - 360] {
+        assert_eq!(
+            snapshot(equivalent)?,
+            quarter_turn,
+            "rotation {equivalent} must normalize like 90 degrees"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn normalizes_reversed_page_box_coordinates_before_rotation() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);
@@ -1688,12 +1722,12 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
                 );
         }
         let first_parents = pdf.add_object(dictionary! {
-            "Limits" => vec![Object::Integer(0), Object::Integer(if fault == "parents-limits" { 1 } else { 0 })],
+            "Limits" => vec![Object::Integer(0), Object::Integer(i64::from(fault == "parents-limits"))],
             "Nums" => vec![Object::Integer(0), Object::Array(vec![
                 if fault == "parents-owner" { root.into() } else { parent.into() }, child.into(),
             ])],
         });
-        let second_key = if fault == "parents-duplicate" { 0 } else { 1 };
+        let second_key = i64::from(fault != "parents-duplicate");
         let second_parents = pdf.add_object(dictionary! {
             "Limits" => vec![Object::Integer(second_key), Object::Integer(second_key)],
             "Nums" => vec![Object::Integer(second_key), Object::Array(vec![parent.into()])],

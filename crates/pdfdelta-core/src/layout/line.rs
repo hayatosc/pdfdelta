@@ -64,7 +64,7 @@ pub struct LineOptions {
     /// twice this threshold; CJK boundaries use four times it to allow justified
     /// typographic spacing in scripts without mandatory word separators.
     pub space_gap_font_size_ratio: f64,
-    /// Minimum inferred word gap relative to average glyph advance, with the
+    /// Minimum inferred word gap relative to the median glyph advance, with the
     /// same boundary adjustment as [`Self::space_gap_font_size_ratio`].
     pub space_gap_advance_ratio: f64,
 }
@@ -443,18 +443,16 @@ fn reconstruct_spaces(
     direction: Vec2,
     options: LineOptions,
 ) -> Vec<SyntheticSpace> {
-    let (advance_sum, visible_count) = glyphs
+    let mut advances = glyphs
         .iter()
         .filter(|glyph| !is_whitespace(&glyph.text))
         .map(|glyph| projected_extent(glyph.bbox, direction))
-        .fold((0.0, 0usize), |(sum, count), advance| {
-            (sum + advance, count + 1)
-        });
-    let average_advance = if visible_count == 0 {
-        0.0
-    } else {
-        advance_sum / visible_count as f64
-    };
+        .collect::<Vec<_>>();
+    advances.sort_unstable_by(f64::total_cmp);
+    // The median advance is the typical glyph width. Wide CJK glyphs elsewhere
+    // in the line must not raise the relative threshold and erase a Latin word
+    // space; an arithmetic mean would let them.
+    let typical_advance = sorted_median(&advances).unwrap_or(0.0);
 
     glyphs
         .windows(2)
@@ -469,17 +467,20 @@ fn reconstruct_spaces(
                 projected_interval(preceding.bbox, direction),
                 projected_interval(following.bbox, direction),
             );
-            let font_size = (preceding.font_size + following.font_size) / 2.0;
+            let font_size = f64::midpoint(preceding.font_size, following.font_size);
             let threshold = (options.space_gap_font_size_ratio * font_size)
-                .max(options.space_gap_advance_ratio * average_advance);
-            // CJK side bearings and font changes can create gaps inside a word.
-            // Keep those boundaries conservative while recovering compressed
-            // word spaces inside a uniform run. Raw glyphs remain unchanged.
+                .max(options.space_gap_advance_ratio * typical_advance);
+            // CJK side bearings and size transitions can create gaps inside a
+            // word. Keep those boundaries conservative while recovering
+            // compressed word spaces inside a uniform run. A same-size font
+            // switch alone does not widen the threshold: its side-bearing
+            // difference stays below the base gap floor, and doubling here
+            // would erase a real word space when only the font changed.
             let cjk_boundary = matches!(&preceding.text, DecodedText::Mapped(text) if text.chars().next_back().is_some_and(is_cjk))
                 || matches!(&following.text, DecodedText::Mapped(text) if text.chars().next().is_some_and(is_cjk));
             let threshold = if cjk_boundary {
                 threshold * 4.0
-            } else if preceding.font_id != following.font_id || preceding.font_size != following.font_size {
+            } else if preceding.font_size != following.font_size {
                 threshold * 2.0
             } else {
                 threshold

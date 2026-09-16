@@ -6,8 +6,10 @@ rust = "1.98.0"
 description = "Run the CI quality gate"
 run = [
   "cargo fmt --all -- --check",
-  "cargo clippy --workspace --all-targets --locked -- -D warnings",
+  "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
   "cargo test --workspace --locked",
+  "cargo test --workspace --locked --all-features --lib",
+  "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps --all-features --document-private-items --locked",
   "cargo run -p pdfdelta-bench --locked -- verify",
 ]
 
@@ -15,13 +17,21 @@ run = [
 description = "Check Rust formatting"
 run = "cargo fmt --all -- --check"
 
+[tasks.doc]
+description = "Build workspace documentation, including private items, with warnings denied"
+run = "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps --all-features --document-private-items --locked"
+
 [tasks.clippy]
 description = "Lint every workspace target"
-run = "cargo clippy --workspace --all-targets --locked -- -D warnings"
+run = "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings"
 
 [tasks.test]
 description = "Run the workspace test suite"
 run = "cargo test --workspace --locked"
+
+[tasks.test-fuzzing]
+description = "Compile the fuzzing entry points and run their curated-seed library tests"
+run = "cargo test --workspace --locked --all-features --lib"
 
 [tasks.pdfdelta]
 description = "Run the pdfdelta CLI (usage: mise run pdfdelta -- <args>)"
@@ -95,6 +105,13 @@ run = "benchmark/realworld/compare-summary-parity.sh"
 description = "Build all fuzz targets, or one target passed after --"
 run = "cargo +nightly fuzz build"
 
+[tasks.fuzz-check]
+description = "Check formatting and lints of the fuzz workspace on stable Rust"
+run = [
+  "cargo fmt --manifest-path fuzz/Cargo.toml --all -- --check",
+  "cargo clippy --manifest-path fuzz/Cargo.toml --all-targets --locked -- -D warnings",
+]
+
 [tasks.fuzz-run]
 description = "Run a fuzz target (usage: mise run fuzz-run -- <target> [args])"
 run = "cargo +nightly fuzz run"
@@ -108,4 +125,8 @@ run = [
   "cargo +nightly fuzz run font_decoder -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run canonical_yaml -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run glyph_extraction -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run layout_pipeline -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run graph_pipeline -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run text_comparison -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run native_evidence fuzz/corpus/native_evidence fuzz/corpus/parser_entry -- -max_total_time=30 -max_len=65536",
 ]

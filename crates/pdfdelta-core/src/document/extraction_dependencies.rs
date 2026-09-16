@@ -61,12 +61,14 @@ impl<'a> Gaps<'a> {
         };
         for (index, issue) in store.issues.iter().enumerate() {
             match issue.boundary {
-                Some(EvidenceBoundary::GlyphGap {
-                    retained_before, ..
-                })
-                | Some(EvidenceBoundary::PageGlyphGap {
-                    retained_before, ..
-                }) => result.glyph_gaps.push((retained_before, index)),
+                Some(
+                    EvidenceBoundary::GlyphGap {
+                        retained_before, ..
+                    }
+                    | EvidenceBoundary::PageGlyphGap {
+                        retained_before, ..
+                    },
+                ) => result.glyph_gaps.push((retained_before, index)),
                 Some(EvidenceBoundary::PageGap {
                     retained_before, ..
                 }) => result.page_gaps.push((retained_before, index)),

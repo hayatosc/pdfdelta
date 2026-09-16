@@ -49,6 +49,7 @@ pub enum BlockRole {
 
 impl BlockRole {
     /// Returns whether blocks with these roles may participate in one alignment match.
+    #[must_use]
     pub fn is_alignment_compatible(self, other: Self) -> bool {
         self == other
     }

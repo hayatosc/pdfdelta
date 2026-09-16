@@ -3,6 +3,7 @@ use std::{
     io::{self, Write},
 };
 
+use super::hex_preview;
 use crate::{
     Error, Result,
     model::{
@@ -60,7 +61,7 @@ pub fn write_glyph_overlay_svg<W: Write>(document: &Document<Glyph>, writer: &mu
 
     writeln!(
         writer,
-        r#"  <defs>
+        r"  <defs>
     <style>
       svg {{ background-color: #f4f5f7; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }}
       .page-bg {{ fill: #ffffff; stroke: #d0d5dd; stroke-width: 1px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.06)); }}
@@ -80,7 +81,7 @@ pub fn write_glyph_overlay_svg<W: Write>(document: &Document<Glyph>, writer: &mu
       .glyph-path-clip-outside {{ opacity: 0.45; }}
       .glyph-path-clip-outside .glyph-bbox {{ stroke-dasharray: 1,2; stroke: rgba(71, 84, 103, 0.8); }}
     </style>
-  </defs>"#
+  </defs>"
     )
     .map_err(map_io_error)?;
 
@@ -153,7 +154,7 @@ fn calculate_page_layouts(
         {
             return Err(Error::Report(format!(
                 "page {} has non-finite derived layout dimensions",
-                (page_id.0 as u64) + 1
+                u64::from(page_id.0) + 1
             )));
         }
 
@@ -172,7 +173,7 @@ fn calculate_page_layouts(
         if !current_y.is_finite() {
             return Err(Error::Report(format!(
                 "page {} causes non-finite cumulative page offset",
-                (page_id.0 as u64) + 1
+                u64::from(page_id.0) + 1
             )));
         }
     }
@@ -186,7 +187,7 @@ fn render_page_svg<W: Write>(
     glyphs: &[&Glyph],
     layout: &PageLayout,
 ) -> Result<()> {
-    let page_num = (page_id.0 as u64) + 1;
+    let page_num = u64::from(page_id.0) + 1;
     let page_x = PAGE_PADDING;
     let page_y = layout.y_offset;
     let page_w = layout.svg_width - PAGE_PADDING * 2.0;
@@ -223,7 +224,7 @@ fn render_page_svg<W: Write>(
         )?;
     }
 
-    writeln!(writer, r#"  </g>"#).map_err(map_io_error)?;
+    writeln!(writer, r"  </g>").map_err(map_io_error)?;
     Ok(())
 }
 
@@ -278,7 +279,7 @@ fn render_glyph_svg<W: Write>(
     let title_text = format!(
         "Glyph #{id} (Page {page})\nText: {text}\nBBox: ({min_x:.1}, {min_y:.1}) - ({max_x:.1}, {max_y:.1})\nBaseline: ({bx:.1}, {by:.1}) Dir: ({dx:.2}, {dy:.2})\nFont #{font_id}, Size: {font_size:.1}pt\nRender Order: {render_order}, Mode: {render_mode:?}, Crop: {crop_status:?}, Path clip: {path_clip_status:?}\nProvenance: stream {cs_num} {cs_gen} R, op #{op_idx}",
         id = glyph.id.0,
-        page = (glyph.page.0 as u64) + 1,
+        page = u64::from(glyph.page.0) + 1,
         text = text_display,
         min_x = glyph.bbox.min.x,
         min_y = glyph.bbox.min.y,
@@ -303,7 +304,7 @@ fn render_glyph_svg<W: Write>(
         writer,
         r#"    <g class="{class_attr}" data-glyph-id="{id}" data-page="{page}" data-render-order="{render_order}" data-crop-status="{crop_status:?}" data-path-clip-status="{path_clip_status:?}" data-cs-num="{cs_num}" data-cs-gen="{cs_gen}" data-op-idx="{op_idx}">"#,
         id = glyph.id.0,
-        page = (glyph.page.0 as u64) + 1,
+        page = u64::from(glyph.page.0) + 1,
         render_order = glyph.render_order,
         crop_status = glyph.crop_status,
         path_clip_status = glyph.path_clip_status,
@@ -313,12 +314,7 @@ fn render_glyph_svg<W: Write>(
     )
     .map_err(map_io_error)?;
 
-    writeln!(
-        writer,
-        r#"      <title>{}</title>"#,
-        xml_escape(&title_text)
-    )
-    .map_err(map_io_error)?;
+    writeln!(writer, r"      <title>{}</title>", xml_escape(&title_text)).map_err(map_io_error)?;
 
     writeln!(
         writer,
@@ -352,18 +348,8 @@ fn render_glyph_svg<W: Write>(
         .map_err(map_io_error)?;
     }
 
-    writeln!(writer, r#"    </g>"#).map_err(map_io_error)?;
+    writeln!(writer, r"    </g>").map_err(map_io_error)?;
     Ok(())
-}
-
-fn hex_preview(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len().min(4) * 2);
-    for &byte in bytes.iter().take(4) {
-        out.push(DIGITS[(byte >> 4) as usize] as char);
-        out.push(DIGITS[(byte & 0x0f) as usize] as char);
-    }
-    out
 }
 
 /// Returns true if `ch` is a legal character in XML 1.0 (Fifth Edition, Section 2.2):
@@ -445,7 +431,7 @@ fn validate_document_and_layout_geometry(
         let layout = page_layouts.get(page_id).ok_or_else(|| {
             Error::Report(format!(
                 "missing page layout for page {}",
-                (page_id.0 as u64) + 1
+                u64::from(page_id.0) + 1
             ))
         })?;
         let content_origin_x = PAGE_PADDING;

@@ -16,7 +16,7 @@ use pdfdelta_core::{
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::{BenchError, Result};
+use crate::{BenchError, Result, evaluation::hex_digest};
 
 pub const EXTRACTION_ORACLE_SCHEMA_VERSION: u32 = 1;
 pub const MAX_EXTRACTION_ORACLE_BYTES: usize = 64 * 1024 * 1024;
@@ -45,6 +45,7 @@ pub struct ExtractionConformanceRecord {
 }
 
 impl ExtractionConformanceRecord {
+    #[must_use]
     pub const fn passed(&self) -> bool {
         self.mismatch.is_none()
     }
@@ -251,7 +252,7 @@ fn validate_oracle_header(oracle: &ExtractionOracle, pdf: &[u8]) -> Result<()> {
         return Err(invalid(format!(
             "extraction oracle input_sha256 does not match the input PDF: expected {}, got {}",
             oracle.input_sha256,
-            lowercase_hex(&actual_hash)
+            hex_digest(&actual_hash)
         )));
     }
     Ok(())
@@ -398,16 +399,6 @@ const fn hex_nibble(byte: u8) -> u8 {
         b'a'..=b'f' => byte - b'a' + 10,
         _ => unreachable!(),
     }
-}
-
-fn lowercase_hex(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for &byte in bytes {
-        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
-        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    encoded
 }
 
 impl From<OraclePoint> for Vec2 {

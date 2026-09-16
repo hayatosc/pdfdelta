@@ -129,6 +129,7 @@ impl From<&BTreeSet<super::Channel>> for MatchingChannels {
 
 /// Selects content, linked field appearances, and required containing context.
 /// Relationship/presentation requests include all supporting content views.
+#[must_use]
 pub fn selected_nodes(graph: &DocumentGraph, channels: MatchingChannels) -> BTreeSet<NodeId> {
     if channels.relations
         || channels.presentation
@@ -1119,19 +1120,19 @@ fn group_ownership(
                 }
             }
         }
-        if !result.sources.is_empty() {
-            for conflict in conflicts {
-                let mut current = false;
-                let mut previous = false;
-                for source in &conflict.sources {
-                    charge_ownership(budget, limits)?;
-                    current |= sources.contains(source);
-                    previous |= result.sources.contains(source);
-                    if current && previous {
+        // A conflict is an exclusive claim on physical material: neither one
+        // group nor two accepted groups may consume both of its sources.
+        for conflict in conflicts {
+            let mut seen = false;
+            for source in &conflict.sources {
+                charge_ownership(budget, limits)?;
+                if sources.contains(source) || result.sources.contains(source) {
+                    if seen {
                         return Err(invalid(
                             "correspondence group consumes conflicting physical sources",
                         ));
                     }
+                    seen = true;
                 }
             }
         }

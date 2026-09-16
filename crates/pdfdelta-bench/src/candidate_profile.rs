@@ -5,7 +5,7 @@
 //! Latency and Linux process-memory observations are diagnostic single-run
 //! evidence, not statistically stable benchmark measurements.
 
-use std::{collections::HashSet, fs::OpenOptions, io::Write, path::Path, time::Instant};
+use std::{collections::HashSet, path::Path, time::Instant};
 
 use pdfdelta_core::{
     alignment::{
@@ -17,7 +17,7 @@ use pdfdelta_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{BenchError, Result};
+use crate::{BenchError, Result, candidate_eval::percentile};
 
 pub const DEFAULT_SYNTHETIC_PROFILE_BLOCKS: usize = 1_000;
 pub const MIN_SYNTHETIC_PROFILE_BLOCKS: usize = 2;
@@ -36,6 +36,7 @@ pub enum CandidateProfileGenerator {
 }
 
 impl CandidateProfileGenerator {
+    #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
             Self::InvertedIndex => "inverted-index",
@@ -78,6 +79,7 @@ pub struct CandidateProfileRecord {
 
 impl CandidateProfileRecord {
     /// Whether every requested K retained the known identity counterpart.
+    #[must_use]
     pub fn healthy(&self) -> bool {
         self.top_k.len() == self.recall_at_k.len()
             && !self.top_k.is_empty()
@@ -99,8 +101,10 @@ pub fn profile_synthetic_candidate_generator(
     match generator {
         CandidateProfileGenerator::InvertedIndex => {
             let started = Instant::now();
-            let candidate_generator = InvertedIndexCandidateGenerator::new(&features)
-                .map_err(|error| core_error("candidate profile inverted index build", error))?;
+            let candidate_generator =
+                InvertedIndexCandidateGenerator::new(&features).map_err(|error| {
+                    BenchError::core("candidate profile inverted index build", error)
+                })?;
             profile_with_generator(
                 &features,
                 top_k,
@@ -112,8 +116,10 @@ pub fn profile_synthetic_candidate_generator(
         }
         CandidateProfileGenerator::MinhashLsh => {
             let started = Instant::now();
-            let candidate_generator = MinHashLshCandidateGenerator::new(&features)
-                .map_err(|error| core_error("candidate profile MinHash index build", error))?;
+            let candidate_generator =
+                MinHashLshCandidateGenerator::new(&features).map_err(|error| {
+                    BenchError::core("candidate profile MinHash index build", error)
+                })?;
             profile_with_generator(
                 &features,
                 top_k,
@@ -126,7 +132,7 @@ pub fn profile_synthetic_candidate_generator(
         CandidateProfileGenerator::Exhaustive => {
             let started = Instant::now();
             let candidate_generator = ExhaustiveCandidateGenerator::new(&features)
-                .map_err(|error| core_error("candidate profile exhaustive build", error))?;
+                .map_err(|error| BenchError::core("candidate profile exhaustive build", error))?;
             profile_with_generator(
                 &features,
                 top_k,
@@ -139,27 +145,17 @@ pub fn profile_synthetic_candidate_generator(
     }
 }
 
-/// Writes profile records as a pretty JSON array to a new file.
+/// Writes profile records as a pretty JSON array to a new file, refusing to
+/// overwrite an existing path via atomic publication. A failed write never
+/// leaves a partial artifact behind.
 pub fn write_candidate_profiles_json(
     path: &Path,
     records: &[CandidateProfileRecord],
 ) -> Result<()> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|error| {
-            BenchError::InvalidInput(format!(
-                "cannot create candidate profile JSON output {}: {error}",
-                path.display()
-            ))
-        })?;
     let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
         BenchError::InvalidInput(format!("cannot serialize candidate profile JSON: {error}"))
     })?;
-    file.write_all(&bytes).map_err(|error| {
-        BenchError::InvalidInput(format!("cannot write candidate profile JSON: {error}"))
-    })
+    crate::publication::publish_new_file(path, &bytes)
 }
 
 fn validate_profile_options(blocks: usize, top_k: &[usize]) -> Result<()> {
@@ -255,7 +251,7 @@ fn profile_with_generator<G: CandidateGenerator>(
         for old in features {
             let candidates = generator
                 .candidates(old, k)
-                .map_err(|error| core_error("candidate profile recall query", error))?;
+                .map_err(|error| BenchError::core("candidate profile recall query", error))?;
             if candidates
                 .iter()
                 .any(|candidate| candidate.block == old.block)
@@ -271,7 +267,7 @@ fn profile_with_generator<G: CandidateGenerator>(
     for old in features {
         let candidates = generator
             .candidates(old, usize::MAX)
-            .map_err(|error| core_error("candidate profile full query", error))?;
+            .map_err(|error| BenchError::core("candidate profile full query", error))?;
         candidate_counts.push(candidates.len());
     }
     let query_latency_ns = query_started.elapsed().as_nanos();
@@ -294,17 +290,6 @@ fn profile_with_generator<G: CandidateGenerator>(
             .peak_rss_bytes
             .saturating_sub(memory_before.rss_bytes),
     })
-}
-
-/// Nearest-rank percentile without interpolation.
-fn percentile(values: &[usize], quantile: f64) -> usize {
-    if values.is_empty() {
-        return 0;
-    }
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    let index = ((sorted.len() - 1) as f64 * quantile).round() as usize;
-    sorted[index]
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -360,13 +345,6 @@ fn parse_proc_status_kib(status: &str, field: &str) -> Result<u64> {
             "Linux process memory status overflowed for {field}"
         ))
     })
-}
-
-fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
-    BenchError::Core {
-        stage,
-        source: error,
-    }
 }
 
 #[cfg(test)]

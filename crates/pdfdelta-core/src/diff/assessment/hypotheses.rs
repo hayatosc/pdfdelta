@@ -8,6 +8,7 @@
 use std::{hash::Hash, mem::size_of};
 
 use super::claims::{self, CountBounds};
+use super::{allocation_error, charge, invalid, limit_error};
 use crate::{Error, Result};
 
 const MAX_HYPOTHESIS_MEMORY_BYTES: usize = 64 * 1024 * 1024;
@@ -56,9 +57,9 @@ pub(super) struct UniversalClaims {
 ///
 /// # Errors
 ///
-/// Returns Error::InvalidConfiguration for masks whose lengths do not match
-/// their sides, Error::LimitExceeded for overflowing hypothesis counts or the
-/// configured memory ceiling, and Error::Unresolved when a bounded temporary
+/// Returns `Error::InvalidConfiguration` for masks whose lengths do not match
+/// their sides, `Error::LimitExceeded` for overflowing hypothesis counts or the
+/// configured memory ceiling, and `Error::Unresolved` when a bounded temporary
 /// allocation fails.
 pub(super) fn universal_claims<T: Eq + Hash>(
     old: HypothesisSide<'_, T>,
@@ -166,7 +167,7 @@ fn evaluate_pair<T: Eq + Hash>(
     let old_residual = project(old.residual, old_indices)?;
     let new_residual = project(new.residual, new_indices)?;
 
-    let literal = match claims::literal_claims(
+    let Some(literal) = claims::literal_claims(
         &old_values,
         &new_values,
         &old_source,
@@ -174,9 +175,9 @@ fn evaluate_pair<T: Eq + Hash>(
         &old_residual,
         &new_residual,
         remaining_work,
-    )? {
-        Some(claims) => claims,
-        None => return Ok(false),
+    )?
+    else {
+        return Ok(false);
     };
     let update_work = old_indices
         .len()
@@ -345,34 +346,6 @@ fn project(input: &[bool], indices: &[usize]) -> Result<Vec<bool>> {
         );
     }
     Ok(output)
-}
-
-fn charge(remaining_work: &mut usize, amount: usize) -> bool {
-    match remaining_work.checked_sub(amount) {
-        Some(remaining) => {
-            *remaining_work = remaining;
-            true
-        }
-        None => {
-            *remaining_work = 0;
-            false
-        }
-    }
-}
-
-fn invalid(message: &str) -> Error {
-    Error::InvalidConfiguration(message.to_owned())
-}
-
-fn limit_error(resource: &'static str) -> Error {
-    Error::LimitExceeded {
-        resource,
-        limit: usize::MAX,
-    }
-}
-
-fn allocation_error(resource: &'static str) -> Error {
-    Error::Unresolved(format!("{resource} allocation failed"))
 }
 
 #[cfg(test)]

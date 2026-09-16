@@ -176,7 +176,7 @@ fn mixed_native_order_closes_only_the_unique_parent_bound_source_interval() {
                     .as_mut()
                     .expect("parents")[1]
                     .owner
-                    .object_number = 100
+                    .object_number = 100;
             }
             "annotation" => {
                 let StructuredValue::StructureElement {
@@ -245,9 +245,8 @@ fn mixed_native_order_closes_only_the_unique_parent_bound_source_interval() {
 
 fn tagged_page_break(fixture: &mut Fixture) {
     let mut glyphs = fixture.0.native.items().to_vec();
-    let start = match fixture.1.nodes[3].sources[0] {
-        SourceRef::Native { glyph } => glyph,
-        _ => unreachable!(),
+    let SourceRef::Native { glyph: start } = fixture.1.nodes[3].sources[0] else {
+        unreachable!()
     };
     for glyph in &mut glyphs {
         if glyph.id >= start {
@@ -365,7 +364,7 @@ fn page_adjacency_and_incomplete_or_contrary_tags_do_not_close_transitions() {
                     .inventories
                     .last_mut()
                     .expect("relation inventory")
-                    .complete = false
+                    .complete = false;
             }
             2 => {
                 let StructuredValue::StructureElement { glyphs, .. } =
@@ -451,7 +450,7 @@ fn partially_clipped_boundary_padding_is_census_only_and_cannot_touch_the_body()
             1 => glyphs[end - 1].path_clip_status = GlyphPathClipStatus::PartiallyOutside,
             2 => {
                 glyphs["BEGIN".len() + "Budget".len()].path_clip_status =
-                    GlyphPathClipStatus::PartiallyOutside
+                    GlyphPathClipStatus::PartiallyOutside;
             }
             3 => glyphs[end].bbox.max.y = 75.0,
             _ => {}
@@ -933,7 +932,7 @@ fn multiple_native_intervals_share_bounded_graph_lookup() {
             let local = interval.comparison();
             assert!(local.compared && local.unresolved.is_empty());
             let position = match local.old.as_slice() {
-                [NodeId(2) | NodeId(6)] => 6,
+                [NodeId(2 | 6)] => 6,
                 [NodeId(4)] => 5,
                 other => panic!("unexpected interval {other:?}"),
             };
@@ -4360,7 +4359,7 @@ fn native_interval_rejects_omissions_unsafe_visibility_and_order_competitors() {
                     .iter_mut()
                     .find(|edge| edge.kind == EdgeKind::Precedes)
                     .expect("fixture precedence edge")
-                    .basis = ViewBasis::ReconstructedStructure
+                    .basis = ViewBasis::ReconstructedStructure;
             }
             7 => {
                 new.1.relations_complete = true;
@@ -4430,7 +4429,7 @@ fn bounded_failed_invocation_closes_no_more_than_its_disjoint_local_band() {
                 retained_before: 0,
                 before: None,
                 after: Some(new.0.native.items()[0].id),
-                paint_index: (mutation != 2).then_some(if mutation == 3 { 1 } else { 0 }),
+                paint_index: (mutation != 2).then_some(usize::from(mutation == 3)),
             }),
             kind: EvidenceFailure::Unsupported,
             reason: "failed Form invocation with declared clipping bounds".into(),
@@ -4565,7 +4564,7 @@ fn paint_closure_rejects_unknown_bounds_boundary_ink_and_incomplete_sources() {
         match mutation {
             2 => {
                 new.0.native = Document::new(new.0.native.items().to_vec())
-                    .with_last_non_text_paint([(PageId(0), 0)].into())
+                    .with_last_non_text_paint([(PageId(0), 0)].into());
             }
             3 => {
                 new.0.inventories[0].sources.pop();

@@ -1,6 +1,9 @@
 //! Owned native interiors behind independently admitted boundary matches.
 
-use super::*;
+use super::{
+    BTreeMap, Deserialize, DocumentComparisonLimits, DocumentView, GraphNode, InterpretationStatus,
+    NodeId, Result, ScopeViewComparison, Serialize, SourceFragment, SourceRef, native, spend,
+};
 use crate::document::{NodeContent, TextNormalization, TextSourcePartition};
 use crate::normalize::ComparableToken;
 
@@ -90,9 +93,10 @@ fn validated_partition<'a>(
 ) -> Option<(TextSourcePartition<'a>, Option<native::RowOrder>)> {
     // Expand contracted native spaces to validate every complete glyph and
     // its order. Expansion outside the body does not change the owned interval.
-    let (projected, row_order) = match sources.project_census(node, &[], false, remaining) {
-        Some((projected, _)) => (projected, None),
-        None => {
+    let (projected, row_order) =
+        if let Some((projected, _)) = sources.project_census(node, &[], false, remaining) {
+            (projected, None)
+        } else {
             // A tiny ascending baseline step can defeat the spatial projection.
             // Reusing the paint convention requires its complete source census,
             // including glyphs just outside the exact baseline band. Merely
@@ -110,8 +114,7 @@ fn validated_partition<'a>(
             }
             let (projected, _) = sources.project_census(node, &[], true, remaining)?;
             (projected, Some(native::RowOrder::Paint))
-        }
-    };
+        };
     let checked = partition(&projected, remaining)?;
     let original = partition(node, remaining)?;
     let (NodeContent::Text { view: a }, NodeContent::Text { view: b }) =

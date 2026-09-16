@@ -7,6 +7,7 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
+    io::Read as _,
     path::{Path, PathBuf},
     sync::Arc,
     time::Instant,
@@ -36,7 +37,10 @@ use super::{
     flatten_actual_changes, flatten_candidate_changes, load_expected_document, match_changes,
     token_resolution_counts,
 };
-use crate::{BenchError, Result};
+use crate::{
+    BenchError, Result,
+    evaluation::{hex_digest, sha256_hex},
+};
 
 const MAX_EXPECTED_BYTES: usize = 16 * 1024 * 1024;
 const MAX_MODEL_BYTES: usize = 64 * 1024 * 1024;
@@ -336,8 +340,8 @@ fn run(input: ProbeInput) -> Result<OrderProbeReport> {
         ParseLimits::default().max_input_bytes,
         "new PDF",
     )?;
-    let old_sha256 = sha256(&old_bytes);
-    let new_sha256 = sha256(&new_bytes);
+    let old_sha256 = sha256_hex(&old_bytes);
+    let new_sha256 = sha256_hex(&new_bytes);
     let expected = input
         .expected_path
         .as_deref()
@@ -444,9 +448,28 @@ fn run(input: ProbeInput) -> Result<OrderProbeReport> {
 }
 
 fn read_bounded(path: &Path, max_bytes: usize, label: &str) -> Result<Vec<u8>> {
-    let bytes = fs::read(path).map_err(|error| {
+    let metadata = fs::metadata(path).map_err(|error| {
         BenchError::InvalidInput(format!("cannot read {label} {}: {error}", path.display()))
     })?;
+    if metadata.len() > max_bytes as u64 {
+        return Err(BenchError::InvalidInput(format!(
+            "{label} {} exceeds the {} byte limit",
+            path.display(),
+            max_bytes
+        )));
+    }
+    // Enforce the ceiling on the read itself: the metadata check above can
+    // race a growing file, and an oversized input must never be buffered in
+    // full before the limit is noticed.
+    let file = fs::File::open(path).map_err(|error| {
+        BenchError::InvalidInput(format!("cannot read {label} {}: {error}", path.display()))
+    })?;
+    let mut bytes = Vec::new();
+    file.take(max_bytes as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            BenchError::InvalidInput(format!("cannot read {label} {}: {error}", path.display()))
+        })?;
     if bytes.len() > max_bytes {
         return Err(BenchError::InvalidInput(format!(
             "{label} {} exceeds the {} byte limit",
@@ -630,10 +653,7 @@ fn scope_fingerprint(document: &ExpectedDocument) -> Option<String> {
     for scope in &document.scopes {
         for value in [
             scope.id.as_str(),
-            scope
-                .completeness
-                .map(|_| "complete")
-                .unwrap_or("unspecified"),
+            scope.completeness.map_or("unspecified", |_| "complete"),
             scope.old.start_quote.as_str(),
             scope.old.end_quote.as_str(),
             scope.new.start_quote.as_str(),
@@ -932,8 +952,8 @@ fn contains_point(container: Rect, point: pdfdelta_core::model::Vec2) -> bool {
 
 fn center(rect: Rect) -> pdfdelta_core::model::Vec2 {
     pdfdelta_core::model::Vec2 {
-        x: (rect.min.x + rect.max.x) / 2.0,
-        y: (rect.min.y + rect.max.y) / 2.0,
+        x: f64::midpoint(rect.min.x, rect.max.x),
+        y: f64::midpoint(rect.min.y, rect.max.y),
     }
 }
 
@@ -1262,8 +1282,9 @@ fn report_control(evidence: ControlEvidence<'_>) -> ControlReport {
             )
         });
     let (candidate_recall, candidate_expected_outcomes) = expected
-        .map(|document| candidate_match_summary(document, &candidate_actuals))
-        .unwrap_or((None, None));
+        .map_or((None, None), |document| {
+            candidate_match_summary(document, &candidate_actuals)
+        });
     let (old_token_resolution, new_token_resolution) = source_token_resolution(comparison);
     ControlReport {
         name: name.to_owned(),
@@ -1418,13 +1439,12 @@ fn source_token_resolution(
     comparison
         .assessment
         .as_ref()
-        .map(|assessment| {
+        .map_or((None, None), |assessment| {
             (
                 Some(token_resolution_counts(&assessment.old_resolution)),
                 Some(token_resolution_counts(&assessment.new_resolution)),
             )
         })
-        .unwrap_or((None, None))
 }
 
 fn failure_reason_name(reason: &ExpectedChangeFailureReason) -> &'static str {
@@ -1482,12 +1502,4 @@ fn quality_for(
             None,
         )
     }
-}
-
-fn sha256(bytes: &[u8]) -> String {
-    hex_digest(Sha256::digest(bytes).as_slice())
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

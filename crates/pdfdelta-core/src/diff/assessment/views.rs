@@ -8,6 +8,7 @@ use crate::{
 };
 
 use super::super::{GroupText, SentenceRecoveryInput, Side, TextSpan};
+use super::charge;
 
 mod anchors;
 
@@ -88,15 +89,15 @@ pub(super) fn discover(
     max_ranges: usize,
 ) -> Result<Discovery> {
     if max_ranges == 0 {
-        return Err(Error::InvalidConfiguration(
-            "local-domain range limit must be greater than zero".to_owned(),
+        return Err(super::invalid(
+            "local-domain range limit must be greater than zero",
         ));
     }
     if recovery.old_trusted_run_intervals.len() != sides[0].blocks.len()
         || recovery.new_trusted_run_intervals.len() != sides[1].blocks.len()
     {
-        return Err(Error::InvalidConfiguration(
-            "trusted run interval metadata must match normalized blocks".to_owned(),
+        return Err(super::invalid(
+            "trusted run interval metadata must match normalized blocks",
         ));
     }
     if *remaining_work == 0 || sides.iter().any(|side| side.blocks.is_empty()) {
@@ -1047,15 +1048,6 @@ fn merge_collinear(anchors: &mut Vec<AnchorHit>) {
     anchors.truncate(retained);
 }
 
-fn charge(remaining_work: &mut usize, cost: usize) -> bool {
-    let Some(next) = remaining_work.checked_sub(cost) else {
-        *remaining_work = 0;
-        return false;
-    };
-    *remaining_work = next;
-    true
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1152,7 +1144,7 @@ mod tests {
         }
     }
 
-    fn side<'a>(blocks: &'a [crate::normalize::BlockText]) -> Side<'a> {
+    fn side(blocks: &[crate::normalize::BlockText]) -> Side<'_> {
         super::super::super::SidePlan::inspect("test", blocks)
             .expect("test blocks are valid")
             .materialize()

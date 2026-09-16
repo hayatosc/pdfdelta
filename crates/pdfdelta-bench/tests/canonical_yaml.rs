@@ -21,7 +21,7 @@ use pdfdelta_core::{
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
 
-const EXAMPLE_YAML: &str = r#"
+const EXAMPLE_YAML: &str = r"
 document:
   title: Quarterly Service Report
   sections:
@@ -35,7 +35,7 @@ document:
       paragraphs:
         - id: support-p1
           text: Support hours remain unchanged.
-"#;
+";
 
 const TYPST_FIXTURE_YAML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -431,7 +431,7 @@ fn global_rendering_mutations_preserve_content_and_feed_the_evaluator() {
 
 #[test]
 fn single_section_column_change_preserves_metadata_and_feeds_the_evaluator() {
-    let yaml = r#"
+    let yaml = r"
 document:
   title: Column report
   sections:
@@ -446,7 +446,7 @@ document:
           text: Right first paragraph remains stable.
         - id: body-p4
           text: Right second paragraph remains stable.
-"#;
+";
     let document = CanonicalRenderDocument::from_yaml(yaml).expect("valid canonical YAML");
     let plan = Mutation::ColumnChangeInSection {
         section_id: "body".to_owned(),
@@ -474,7 +474,7 @@ document:
 
 #[test]
 fn multi_section_column_change_preserves_surrounding_sections_and_feeds_the_evaluator() {
-    let yaml = r#"
+    let yaml = r"
 document:
   title: Column report
   sections:
@@ -499,7 +499,7 @@ document:
       paragraphs:
         - id: conclusion-p1
           text: Closing context remains full width.
-"#;
+";
     let document = CanonicalRenderDocument::from_yaml(yaml).expect("valid canonical YAML");
     let plan = Mutation::ColumnChangeInSection {
         section_id: "body".to_owned(),
@@ -723,7 +723,7 @@ fn same_section_paragraph_move_preserves_structure_and_feeds_the_evaluator() {
 
 #[test]
 fn cross_section_paragraph_move_preserves_structure_and_feeds_the_evaluator() {
-    let yaml = r#"
+    let yaml = r"
 document:
   title: Transfer report
   sections:
@@ -741,7 +741,7 @@ document:
           text: This destination paragraph remains first.
         - id: destination-p2
           text: This destination paragraph remains last.
-"#;
+";
     let document = CanonicalRenderDocument::from_yaml(yaml).expect("valid canonical YAML");
     let cases = [
         (
@@ -918,7 +918,7 @@ fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_cha
     }
 
     let cross_section_document = CanonicalRenderDocument::from_yaml(
-        r#"
+        r"
 document:
   title: Transfer report
   sections:
@@ -934,7 +934,7 @@ document:
       paragraphs:
         - id: destination-p1
           text: Existing destination paragraph.
-"#,
+",
     )
     .expect("cross-section YAML is valid");
     for (mutation, expected) in [
@@ -987,7 +987,7 @@ document:
     }
 
     let single_section = CanonicalRenderDocument::from_yaml(
-        r#"
+        r"
 document:
   title: Short report
   sections:
@@ -996,7 +996,7 @@ document:
       paragraphs:
         - id: body-p1
           text: Only paragraph.
-"#,
+",
     )
     .expect("single-section YAML is valid");
     for (section_id, expected) in [
@@ -1191,7 +1191,7 @@ fn evaluate_yaml_command_runs_each_global_rendering_mutation() {
 #[test]
 fn evaluate_yaml_command_runs_multi_section_column_change_for_each_renderer() {
     let (input, _) = temp_fixture_paths();
-    let yaml = r#"
+    let yaml = r"
 document:
   title: Column report
   sections:
@@ -1216,7 +1216,7 @@ document:
       paragraphs:
         - id: conclusion-p1
           text: Closing context remains full width.
-"#;
+";
     fs::write(&input, yaml).expect("temporary canonical YAML is written");
 
     for renderer in ["lopdf-tj", "classic-xref-tj"] {

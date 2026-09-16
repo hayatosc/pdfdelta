@@ -25,15 +25,12 @@ struct Context<'a> {
 }
 
 fn spend(remaining: &mut usize, amount: usize) -> Option<()> {
-    match remaining.checked_sub(amount) {
-        Some(left) => {
-            *remaining = left;
-            Some(())
-        }
-        None => {
-            *remaining = 0;
-            None
-        }
+    if let Some(left) = remaining.checked_sub(amount) {
+        *remaining = left;
+        Some(())
+    } else {
+        *remaining = 0;
+        None
     }
 }
 

@@ -2009,6 +2009,77 @@ fn text_report_renders_replacement_insertion_and_deletion_hunks() -> Result<()> 
 }
 
 #[test]
+fn text_report_escapes_control_and_bidi_characters_from_pdf_text() -> Result<()> {
+    let hostile = "before\u{1b}[31mred\u{202e}after";
+    let old_blocks = vec![block_with_text(2, hostile)];
+    let new_blocks = vec![block_with_text(102, "before red after")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(2, hostile)),
+            new_span: Some(full_span(102, "before red after")),
+        }],
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(
+        !report.contains('\u{1b}'),
+        "terminal escape sequences must not reach the report: {report:?}"
+    );
+    assert!(
+        !report.contains('\u{202e}'),
+        "bidi overrides must not reach the report: {report:?}"
+    );
+    assert!(
+        report.contains("\\u{1b}"),
+        "the escaped escape must stay visible literally: {report:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_escapes_extraction_issue_text_and_labels() -> Result<()> {
+    let extraction = ExtractionStatus {
+        old_complete: false,
+        new_complete: true,
+        issues: vec![ExtractionIssueRecord {
+            side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::Page(PageId(0)),
+            description: "font subtype /\u{1b}[31mX is not supported".to_owned(),
+        }],
+    };
+    let options = TextReportOptions {
+        old_label: "old\u{202e}.pdf",
+        new_label: "new.pdf",
+        color: false,
+    };
+    let mut comparison = empty_comparison();
+    // An incomplete side carries no coverage ratio, matching the pipeline.
+    comparison.old_coverage.ratio = None;
+
+    let report = render_text(&[], &[], &comparison, &extraction, &options)?;
+
+    assert!(
+        !report.contains('\u{1b}') && !report.contains('\u{202e}'),
+        "extraction diagnostics and labels must not reach the terminal raw: {report:?}"
+    );
+    assert!(report.contains("\\u{1b}"), "{report:?}");
+    assert!(report.contains("\\u{202e}"), "{report:?}");
+    Ok(())
+}
+
+#[test]
 fn text_report_renders_change_tags_in_hunk_headers() -> Result<()> {
     let old_blocks = vec![block_with_text(2, "Ａ")];
     let new_blocks = vec![block_with_text(102, "A")];
@@ -2228,6 +2299,131 @@ fn text_report_keeps_distant_edits_in_separate_hunks() -> Result<()> {
 }
 
 #[test]
+fn text_report_never_renders_a_neighboring_change_as_context() -> Result<()> {
+    let old_text = format!("A{}{}{}C", "q".repeat(20), "B", "r".repeat(20));
+    let new_text = format!("X{}{}{}C", "q".repeat(20), "Y", "r".repeat(20));
+    let old_blocks = vec![block_with_text(6, &old_text)];
+    let new_blocks = vec![block_with_text(106, &new_text)];
+    let mut comparison = empty_comparison();
+    for (start, end) in [(0_usize, 1_usize), (21, 22)] {
+        comparison.changes.push(Change {
+            kind: ChangeKind::Replacement,
+            occurrences: vec![ChangeOccurrence {
+                old_span: Some(range_span(6, start, end)),
+                new_span: Some(range_span(106, start, end)),
+            }],
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        });
+    }
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    let minus_lines: Vec<_> = report
+        .lines()
+        .filter(|line| line.starts_with("- "))
+        .collect();
+    assert_eq!(minus_lines.len(), 2, "{report}");
+    assert!(!minus_lines[0].contains('B'), "{report}");
+    assert!(!minus_lines[1].contains('A'), "{report}");
+    Ok(())
+}
+
+#[test]
+fn text_report_move_context_does_not_render_a_neighboring_replacement() -> Result<()> {
+    let old_text = format!("M{}{}{}", "q".repeat(20), "B", "r".repeat(20));
+    let new_text = format!("M{}{}{}", "q".repeat(20), "Y", "r".repeat(20));
+    let old_blocks = vec![block_with_text(6, &old_text)];
+    let new_blocks = vec![block_with_text(106, &new_text)];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Move,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(6, 0, 1)),
+            new_span: Some(range_span(106, 0, 1)),
+        }],
+        confidence: Confidence::Medium,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(6, 21, 22)),
+            new_span: Some(range_span(106, 21, 22)),
+        }],
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    let minus_lines: Vec<_> = report
+        .lines()
+        .filter(|line| line.starts_with("- "))
+        .collect();
+    let move_line = minus_lines
+        .iter()
+        .find(|line| line.contains('M'))
+        .expect("move line");
+    assert!(!move_line.contains('B'), "{report}");
+    let replacement_line = minus_lines
+        .iter()
+        .find(|line| line.contains('B'))
+        .expect("replacement line");
+    assert!(!replacement_line.contains('M'), "{report}");
+    Ok(())
+}
+
+#[test]
+fn text_report_rejects_a_span_whose_ranges_select_different_scalars() -> Result<()> {
+    let old_blocks = vec![block_with_text(6, "AB")];
+    let new_blocks = vec![block_with_text(106, "AB")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(6)],
+                separator: None,
+                canonical_range: ScalarRange { start: 1, end: 2 },
+                comparable_range: TokenRange { start: 0, end: 1 },
+            }),
+            new_span: Some(range_span(106, 0, 1)),
+        }],
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let error = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )
+    .expect_err("canonical and comparable ranges must select the same scalars");
+    assert!(
+        error
+            .to_string()
+            .contains("select different scalar evidence"),
+        "{error}"
+    );
+    Ok(())
+}
+
+#[test]
 fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> {
     let long_prefix = "a".repeat(80);
     let long_suffix = "z".repeat(80);
@@ -2262,8 +2458,8 @@ fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> 
     // of either the bare scalar or the whole oversized block: 31 leading 'a'
     // scalars, the changed digit, then 32 trailing 'z' scalars, with `...`
     // marking both elisions.
-    let expected_minus = format!("- ... {} 4{} ...\n", "a".repeat(31), "z".repeat(32),);
-    let expected_plus = format!("+ ... {} 5{} ...\n", "a".repeat(31), "z".repeat(32),);
+    let expected_minus = format!("- ... {} 4{} ...\n", "a".repeat(31), "z".repeat(32));
+    let expected_plus = format!("+ ... {} 5{} ...\n", "a".repeat(31), "z".repeat(32));
     assert!(report.contains(&expected_minus), "{report}");
     assert!(report.contains(&expected_plus), "{report}");
     Ok(())

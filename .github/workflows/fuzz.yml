@@ -1,0 +1,49 @@
+name: Fuzz smoke
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/fuzz.yml"
+      - "crates/pdfdelta-core/src/pdf/**"
+      - "crates/pdfdelta-core/src/source/**"
+      - "crates/pdfdelta-core/src/layout/**"
+      - "crates/pdfdelta-core/src/alignment/**"
+      - "crates/pdfdelta-core/src/diff/**"
+      - "crates/pdfdelta-core/src/normalize/**"
+      - "crates/pdfdelta-core/src/model.rs"
+      - "crates/pdfdelta-core/src/pipeline.rs"
+      - "crates/pdfdelta-core/src/fuzzing.rs"
+      - "crates/pdfdelta-bench/src/canonical.rs"
+      - "crates/pdfdelta-bench/src/fuzzing.rs"
+      - "fuzz/**"
+      - "mise.toml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Install stable lint components
+        run: mise exec -- rustup component add clippy rustfmt
+      - name: Install nightly Rust
+        run: mise exec -- rustup toolchain install nightly --profile minimal
+      - name: Install cargo-fuzz for the nightly host
+        run: mise exec -- cargo +nightly install cargo-fuzz --version 0.13.2 --locked
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: Fuzz workspace checks
+        run: mise run fuzz-check
+      - name: Fuzz smoke
+        run: mise run fuzz-smoke

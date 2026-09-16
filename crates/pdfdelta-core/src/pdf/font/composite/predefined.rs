@@ -1,6 +1,8 @@
 use hayro_cmap::CMap;
 
-use super::*;
+use super::{
+    Error, FontDecoderLimits, ParsedPdf, PdfDict, PdfObject, Result, resolve_object, unresolved,
+};
 
 pub(super) const ENCODING_BYTES: &[u8] = include_bytes!("cmaps/UniJIS-UTF16-H");
 pub(super) const UNICODE_BYTES: &[u8] = include_bytes!("cmaps/Adobe-Japan1-UCS2");

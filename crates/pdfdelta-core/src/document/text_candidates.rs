@@ -36,7 +36,7 @@ pub struct TextCandidateSearch {
     pub new_nodes: BTreeSet<super::NodeId>,
     pub token_visits: usize,
     pub feature_entries: usize,
-    /// Posting entries transferred from right-side feature maps; bounded by feature_entries.
+    /// Posting entries transferred from right-side feature maps; bounded by `feature_entries`.
     #[serde(default)]
     pub index_entries: usize,
     pub exhaustive: bool,

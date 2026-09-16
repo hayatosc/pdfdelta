@@ -71,6 +71,11 @@ pub(super) fn append(
             }
         }
     }
+    // `grids` can exhaust the budget while rejecting every candidate seed, so
+    // the loop body above never observes the exhausted state.
+    if budget == 0 {
+        graph.relations_complete = false;
+    }
     Ok(())
 }
 
@@ -367,8 +372,8 @@ fn cell_views(
         .iter()
         .filter(|glyph| glyph.page == grid.page)
     {
-        let x = (glyph.bbox.min.x + glyph.bbox.max.x) / 2.0;
-        let y = (glyph.bbox.min.y + glyph.bbox.max.y) / 2.0;
+        let x = f64::midpoint(glyph.bbox.min.x, glyph.bbox.max.x);
+        let y = f64::midpoint(glyph.bbox.min.y, glyph.bbox.max.y);
         if x < grid.xs[0]
             || x > grid.xs[columns]
             || y > grid.ys[0]
@@ -625,5 +630,82 @@ fn edge(from: NodeId, to: NodeId, kind: EdgeKind, sources: Vec<SourceRef>) -> Gr
         kind,
         sources,
         basis: BASIS,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::{BackendIdentity, BackendKind, PageEvidence};
+    use crate::model::{GlyphProvenance, Rect, Vec2, VectorLineId};
+    use crate::pdf::ObjectRef;
+
+    #[test]
+    fn budget_exhaustion_without_a_grid_invalidates_relations() {
+        let provenance = GlyphProvenance {
+            content_stream: ObjectRef {
+                object_number: 1,
+                generation: 0,
+            },
+            operator_index: 0,
+        };
+        let lines = (0..8)
+            .map(|index| VectorLine {
+                id: VectorLineId(index),
+                page: PageId(0),
+                from: Vec2 {
+                    x: index as f64 * 10.0,
+                    y: 0.0,
+                },
+                to: Vec2 {
+                    x: index as f64 * 10.0 + 5.0,
+                    y: 0.0,
+                },
+                width: 0.5,
+                render_order: 0,
+                provenance,
+            })
+            .collect();
+        let store = EvidenceStore {
+            revision: "ruled-budget".into(),
+            native: Document::with_vector_lines(Vec::new(), lines),
+            backends: vec![BackendIdentity {
+                kind: BackendKind::NativeParser,
+                name: "fixture".into(),
+                version: "1".into(),
+                profile: "raw-glyphs".into(),
+                model: None,
+            }],
+            pages: vec![PageEvidence {
+                page: PageId(0),
+                bounds: Some(Rect {
+                    min: Vec2 { x: 0.0, y: 0.0 },
+                    max: Vec2 { x: 100.0, y: 100.0 },
+                }),
+            }],
+            rendered: Vec::new(),
+            structured: Vec::new(),
+            key_inventories: Vec::new(),
+            native_structures: Vec::new(),
+            inventories: Vec::new(),
+            issues: Vec::new(),
+        };
+        let mut graph = DocumentGraph {
+            relations_complete: true,
+            ..DocumentGraph::default()
+        };
+
+        append(
+            &mut graph,
+            &store,
+            PipelineOptions::default(),
+            GraphLimits {
+                max_references: 1,
+                ..GraphLimits::default()
+            },
+        )
+        .expect("budget-limited grid detection");
+
+        assert!(!graph.relations_complete);
     }
 }

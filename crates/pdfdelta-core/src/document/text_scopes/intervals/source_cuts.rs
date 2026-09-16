@@ -1,6 +1,11 @@
 //! Reconstruct source-cut domains from immutable native populations.
 
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, CutCorrespondence, CutEvidence, Deserialize, DocumentView, GraphNode,
+    NodeContent, NodeId, Prepared, ProposalBasis, ScopeViewComparison, Serialize, SourceCut,
+    SourceCutPopulation, SourceCutRange, SourceFragment, SourceRef, TextSourcePartition, native,
+    spend,
+};
 use crate::{document::TextView, normalize::ComparableToken};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

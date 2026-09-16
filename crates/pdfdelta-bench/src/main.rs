@@ -205,7 +205,7 @@ enum Command {
         /// Manifest describing the public revision pairs.
         #[arg(long, default_value = "benchmark/realworld/manifest.tsv")]
         manifest: PathBuf,
-        /// Directory holding downloads named <pair>-old.pdf and <pair>-new.pdf.
+        /// Directory holding downloads named `<pair>-old.pdf` and `<pair>-new.pdf`.
         #[arg(long)]
         cache_dir: PathBuf,
         /// Restrict the run to one corpus set (dev, holdout, or all).
@@ -218,7 +218,7 @@ enum Command {
         /// alignment candidate visits, alignment DP cells, diff token and
         /// edit-distance limits) uniformly by this factor (>= 1); parser and
         /// extraction limits are untouched. When omitted, every pair uses
-        /// the limit_scale_hint recorded in the manifest.
+        /// the `limit_scale_hint` recorded in the manifest.
         #[arg(long)]
         limit_scale: Option<f64>,
         /// Verify downloads and checksums without running comparisons.
@@ -767,14 +767,7 @@ fn evaluate_document<W: Write>(
     let report = read_bounded_file(report, MAX_DOCUMENT_REPORT_BYTES, "document report")?;
     let result =
         evaluate_document_report(&annotation, &report).map_err(|error| error.to_string())?;
-    let passed = result.score.comparison_complete
-        && !result.score.dimensions.is_empty()
-        && result.score.dimensions.iter().all(|dimension| {
-            dimension.inferred_reports == 0
-                && dimension.alternatives.iter().any(|alternative| {
-                    alternative.false_positive == 0 && alternative.false_negative == 0
-                })
-        });
+    let passed = result.score.exact();
     serde_json::to_writer_pretty(&mut *writer, &result).map_err(|error| error.to_string())?;
     writeln!(writer).map_err(|error| error.to_string())?;
     Ok(u8::from(!passed))
@@ -1024,10 +1017,8 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
 
     Ok(if execution_error {
         2
-    } else if passed == total {
-        0
     } else {
-        1
+        u8::from(passed != total)
     })
 }
 
@@ -1148,10 +1139,8 @@ fn candidates<W: Write>(
 
     Ok(if execution_error {
         2
-    } else if records.iter().any(|record| !record.healthy()) {
-        1
     } else {
-        0
+        u8::from(records.iter().any(|record| !record.healthy()))
     })
 }
 
@@ -1225,7 +1214,7 @@ fn candidate_profile<W: Write>(
         write_candidate_profiles_json(path, &records).map_err(|error| error.to_string())?;
     }
 
-    Ok(if healthy == records.len() { 0 } else { 1 })
+    Ok(u8::from(healthy != records.len()))
 }
 
 fn sensitivity<W: Write>(writer: &mut W, json_output: Option<&Path>) -> Result<u8, String> {
@@ -1427,34 +1416,23 @@ fn revisions<W: Write>(
     summary_json_output: Option<&Path>,
     evaluation_json_output: Option<&Path>,
 ) -> Result<u8, String> {
-    if let (Some(full_path), Some(summary_path)) = (json_output, summary_json_output) {
-        let norm_full = normalize_output_destination(full_path).map_err(|e| e.to_string())?;
-        let norm_summary = normalize_output_destination(summary_path).map_err(|e| e.to_string())?;
-        if norm_full == norm_summary {
-            return Err(format!(
-                "--json-output and --summary-json-output must specify distinct paths; got conflicting destination {}",
-                full_path.display()
-            ));
-        }
-    }
-    for (left_name, left, right_name, right) in [
-        (
-            "--json-output",
-            json_output,
-            "--evaluation-json-output",
-            evaluation_json_output,
-        ),
-        (
-            "--summary-json-output",
-            summary_json_output,
-            "--evaluation-json-output",
-            evaluation_json_output,
-        ),
-    ] {
-        if let (Some(left), Some(right)) = (left, right) {
-            let norm_left = normalize_output_destination(left).map_err(|e| e.to_string())?;
-            let norm_right = normalize_output_destination(right).map_err(|e| e.to_string())?;
-            if norm_left == norm_right {
+    // Every pair of publication destinations must be distinct. The table
+    // preserves the original check order (json/summary, json/evaluation,
+    // summary/evaluation) and its left-to-right refusal message.
+    let outputs = [
+        ("--json-output", json_output),
+        ("--summary-json-output", summary_json_output),
+        ("--evaluation-json-output", evaluation_json_output),
+    ];
+    for (index, (left_name, left)) in outputs.iter().enumerate() {
+        let Some(left) = left else { continue };
+        for (right_name, right) in &outputs[index + 1..] {
+            let Some(right) = right else { continue };
+            let normalized_left =
+                normalize_output_destination(left).map_err(|error| error.to_string())?;
+            let normalized_right =
+                normalize_output_destination(right).map_err(|error| error.to_string())?;
+            if normalized_left == normalized_right {
                 return Err(format!(
                     "{left_name} and {right_name} must specify distinct paths; got conflicting destination {}",
                     left.display()
@@ -1504,11 +1482,7 @@ fn revisions<W: Write>(
         write_evaluation_summary_json(path, &reports).map_err(|error| error.to_string())?;
     }
 
-    Ok(if reports.iter().any(|record| !record.healthy()) {
-        1
-    } else {
-        0
-    })
+    Ok(u8::from(reports.iter().any(|record| !record.healthy())))
 }
 
 fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> String {
@@ -1531,9 +1505,9 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
             " extracted={} comparison={} coverage=old={},new={},comp={} unresolved={}",
             yes_no(record.extraction_complete),
             yes_no(record.comparison_complete),
-            optional_ratio(record.coverage_old),
-            optional_ratio(record.coverage_new),
-            optional_ratio(record.coverage_comparison),
+            ratio_label(record.coverage_old),
+            ratio_label(record.coverage_new),
+            ratio_label(record.coverage_comparison),
             record.unresolved_regions.unwrap_or_default()
         ));
         if let Some(quality) = &record.quality {
@@ -1541,10 +1515,10 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
                 " reported={} expected={} recall={} precision={} kind={} hunks/matched={} tinyFP={}",
                 quality.reported_changes,
                 quality.expected_changes,
-                optional_ratio(quality.recall),
-                optional_ratio(quality.precision),
-                optional_ratio(quality.kind_accuracy),
-                optional_ratio(quality.reported_hunks_per_matched_change),
+                ratio_label(quality.recall),
+                ratio_label(quality.precision),
+                ratio_label(quality.kind_accuracy),
+                ratio_label(quality.reported_hunks_per_matched_change),
                 quality.unmatched_tiny_changes
             ));
         }
@@ -1624,7 +1598,7 @@ fn yes_no(value: Option<bool>) -> &'static str {
     }
 }
 
-fn optional_ratio(ratio: Option<f64>) -> String {
+fn ratio_label(ratio: Option<f64>) -> String {
     ratio.map_or_else(|| "unknown".to_owned(), |ratio| format!("{ratio:.3}"))
 }
 
@@ -1652,8 +1626,8 @@ fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(
         record.renderer,
         record.expected.label(),
         actual_label(&record.actual_kinds),
-        coverage_label(record.old_coverage),
-        coverage_label(record.new_coverage),
+        ratio_label(record.old_coverage),
+        ratio_label(record.new_coverage),
         record.candidate_changes,
         record.proven_changed_regions,
         record.precision.matched_events,
@@ -1666,10 +1640,6 @@ fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(
         record.detail
     )
     .map_err(|error| format!("cannot write benchmark result: {error}"))
-}
-
-fn coverage_label(ratio: Option<f64>) -> String {
-    ratio.map_or_else(|| "unknown".to_owned(), |ratio| format!("{ratio:.3}"))
 }
 
 fn actual_label(kinds: &[ChangeKind]) -> String {
@@ -1692,6 +1662,24 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn read_bounded_file_accepts_the_limit_and_rejects_one_byte_more() {
+        let path = std::env::temp_dir().join(format!(
+            "pdfbench-bounded-{}-{}.bin",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::write(&path, b"abc").expect("bounded fixture");
+        let exact = read_bounded_file(&path, 3, "bounded fixture").expect("exact limit");
+        assert_eq!(exact, b"abc");
+        let error = read_bounded_file(&path, 2, "bounded fixture").expect_err("oversized input");
+        fs::remove_file(&path).expect("bounded fixture cleanup");
+        assert!(error.contains("must not exceed 2 bytes"), "{error}");
+    }
 
     #[test]
     fn generated_precision_summary_is_unavailable_when_evaluation_is_incomplete() {

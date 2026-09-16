@@ -409,7 +409,7 @@ fn spans(
     limit: &mut usize,
     remaining: &mut usize,
 ) -> Result<Option<Vec<TextSpan>>> {
-    if !super::charge_work(remaining, mandatory.len()) {
+    if !super::charge(remaining, mandatory.len()) {
         return Ok(None);
     }
     let mut output = Vec::new();
@@ -423,7 +423,7 @@ fn spans(
         while index < mandatory.len() && mandatory[index] && source[index] {
             index += 1;
         }
-        if *limit == 0 || !super::charge_work(remaining, group.blocks.len()) {
+        if *limit == 0 || !super::charge(remaining, group.blocks.len()) {
             return Ok(None);
         }
         *limit -= 1;

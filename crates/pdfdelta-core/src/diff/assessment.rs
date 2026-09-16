@@ -34,9 +34,34 @@ use crate::{
     layout::BlockId,
     normalize::{ComparableToken, ScalarRange},
 };
+use claims::{allocation_error, charge, invalid, limit_error};
 
 /// Version of the evidence and resolution-accounting policy.
 pub const ASSESSMENT_POLICY_VERSION: u32 = 1;
+
+/// Enumerates every binary word up to `max_length`, shortest first.
+///
+/// The exact and semantic uniqueness tests use the same oracle corpus; this
+/// lives with the assessment parent so both tests share one definition.
+#[cfg(test)]
+pub(super) fn all_words(max_length: usize) -> Vec<Vec<u8>> {
+    fn append(words: &mut Vec<Vec<u8>>, current: &mut Vec<u8>, remaining: usize) {
+        if remaining == 0 {
+            words.push(current.clone());
+            return;
+        }
+        for token in 0..=1 {
+            current.push(token);
+            append(words, current, remaining - 1);
+            current.pop();
+        }
+    }
+    let mut words = Vec::new();
+    for length in 0..=max_length {
+        append(&mut words, &mut Vec::new(), length);
+    }
+    words
+}
 
 /// Why a proposed correspondence cannot establish a localized change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -465,10 +490,6 @@ fn validate_partition(ranges: &[ResolutionRange], coverage: Coverage) -> Result<
     Ok(())
 }
 
-fn invalid(message: &str) -> Error {
-    Error::InvalidConfiguration(message.to_owned())
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SourceInterval {
     block_index: usize,
@@ -605,7 +626,7 @@ fn span_has_source_issues(side: &Side<'_>, span: &TextSpan, remaining: &mut usiz
             .saturating_add(block.canonical.source_map.len())
             .saturating_add(block.normalization_events.len())
             .saturating_add(block.canonical.unmapped.len());
-        if !charge_work(
+        if !charge(
             remaining,
             source_items.saturating_mul(block.issues.len().saturating_add(1)),
         ) {
@@ -656,10 +677,6 @@ fn record_boundary(
 
 fn space_token(token: &ComparableToken) -> bool {
     matches!(token, ComparableToken::Scalar(' '))
-}
-
-fn allocation_error(resource: &'static str) -> Error {
-    Error::Unresolved(format!("assessment {resource} allocation failed"))
 }
 
 /// Accepted contexts and their changed subranges are collected separately.
@@ -1179,7 +1196,7 @@ fn tokens_equal_with_budget(
     new: &[ComparableToken],
     remaining: &mut usize,
 ) -> Option<bool> {
-    if !charge_work(remaining, 1) {
+    if !charge(remaining, 1) {
         return None;
     }
     if old.len() != new.len() {
@@ -1188,7 +1205,7 @@ fn tokens_equal_with_budget(
     // Most source windows disagree near the beginning. Charge the inspected
     // prefix rather than exhausting the budget on an unvisited suffix.
     for (old, new) in old.iter().zip(new) {
-        if !charge_work(remaining, 1) {
+        if !charge(remaining, 1) {
             return None;
         }
         if old != new {
@@ -1207,13 +1224,13 @@ fn semantic_signature(
 ) -> Result<Option<Vec<ProjectedEvent>>> {
     let [old, new] = groups;
     let token_work = old.tokens.len().saturating_add(new.tokens.len());
-    if !charge_work(remaining, token_work.saturating_add(edits.len())) {
+    if !charge(remaining, token_work.saturating_add(edits.len())) {
         return Ok(None);
     }
     let mut output = Vec::new();
     let mut error = None;
     let mut visit = |hunk: super::SemanticHunk, _kind: ChangeKind| {
-        if output.len() >= limit || !charge_work(remaining, token_work) {
+        if output.len() >= limit || !charge(remaining, token_work) {
             return false;
         }
         let mut events = Vec::new();
@@ -1221,7 +1238,7 @@ fn semantic_signature(
         let Some(event) = events.first() else {
             return true;
         };
-        if event.occurrences.len() > limit || !charge_work(remaining, event.occurrences.len()) {
+        if event.occurrences.len() > limit || !charge(remaining, event.occurrences.len()) {
             return false;
         }
         match projected_event(sides, event) {
@@ -2936,15 +2953,12 @@ impl<'a, 'document> Assessor<'a, 'document> {
     }
 
     fn charge(&mut self, work: usize) -> bool {
-        match self.remaining_work.checked_sub(work) {
-            Some(remaining) => {
-                self.remaining_work = remaining;
-                true
-            }
-            None => {
-                self.remaining_work = 0;
-                false
-            }
+        if let Some(remaining) = self.remaining_work.checked_sub(work) {
+            self.remaining_work = remaining;
+            true
+        } else {
+            self.remaining_work = 0;
+            false
         }
     }
 

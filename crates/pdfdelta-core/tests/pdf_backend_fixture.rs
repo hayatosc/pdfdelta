@@ -10,7 +10,7 @@ use pdfdelta_core::{
     Error, Result,
     pdf::{
         DecodedStream, LopdfParser, ObjectRef, PageRef, ParseLimits, ParsedPdf, PdfDict, PdfIssue,
-        PdfIssueLocation, PdfObject, PdfParser, PdfVersion, RawStream,
+        PdfIssueLocation, PdfObject, PdfParser, PdfVersion, RawStream, decode_text_string,
     },
     source::{
         ContentStreamGlyphExtractor, ExtractionIssueKind, ExtractionLimits, ExtractionScope,
@@ -1551,5 +1551,49 @@ proptest! {
             trailer.get(b"Root".as_slice()),
             Some(&PdfObject::Reference(object_ref(ids.catalog)))
         );
+    }
+
+    // Contract: a successful text-string decode never exceeds the caller's
+    // byte ceiling. Without an encoding marker, each input byte maps to exactly
+    // one character or the decode fails on an undefined entry.
+    #[test]
+    fn text_string_decoding_is_bounded_and_byte_preserving(
+        bytes in proptest::collection::vec(any::<u8>(), 0..96),
+        max_output_bytes in 0_usize..=128,
+    ) {
+        let Ok(text) = decode_text_string(&bytes, max_output_bytes) else {
+            return Ok(());
+        };
+        prop_assert!(
+            text.len() <= max_output_bytes,
+            "decoded {} bytes above the {max_output_bytes}-byte ceiling",
+            text.len()
+        );
+        if !bytes.starts_with(&[0xfe, 0xff]) && !bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+            prop_assert_eq!(
+                text.chars().count(),
+                bytes.len(),
+                "unmarked PDFDocEncoding must map one character per input byte"
+            );
+        }
+    }
+
+    // Contract: a UTF-8-BOM string is either rejected for malformed UTF-8 or
+    // returned exactly, with the marker itself never becoming content.
+    #[test]
+    fn text_string_utf8_bom_decodes_to_the_exact_payload(
+        payload in proptest::collection::vec(any::<u8>(), 0..64),
+        max_output_bytes in 0_usize..=128,
+    ) {
+        let mut bytes = vec![0xef, 0xbb, 0xbf];
+        bytes.extend_from_slice(&payload);
+        let decoded = decode_text_string(&bytes, max_output_bytes);
+        match std::str::from_utf8(&payload) {
+            Ok(expected) if expected.len() <= max_output_bytes => {
+                prop_assert_eq!(decoded.ok(), Some(expected.to_owned()));
+            }
+            Ok(_) => prop_assert!(decoded.is_err(), "over-ceiling payload decoded"),
+            Err(_) => prop_assert!(decoded.is_err(), "malformed UTF-8 decoded"),
+        }
     }
 }

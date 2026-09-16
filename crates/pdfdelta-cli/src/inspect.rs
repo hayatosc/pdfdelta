@@ -6,11 +6,17 @@ use std::{
 
 use pdfdelta_core::{
     model::{DecodedText, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode, VectorLine},
-    pdf::{LopdfParser, ParseLimits, PdfDict, PdfObject},
-    source::{ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits},
+    pdf::{LopdfParser, ParseLimits, PdfDict, PdfIssue, PdfObject},
+    source::{
+        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssue, ExtractionLimits,
+    },
 };
 
-use crate::fs::{parse_external_font_identities, parse_lopdf, read_limited, read_password_file};
+use crate::evidence_text::escape_terminal_controls;
+use crate::fs::{
+    lowercase_hex, parse_external_font_identities, parse_lopdf, paths_refer_to_same_file,
+    read_limited, read_password_file, write_output_atomically,
+};
 
 pub fn inspect_document(
     path: &Path,
@@ -22,6 +28,15 @@ pub fn inspect_document(
     font_identity: &[String],
 ) -> Result<(), String> {
     let backend_info = backend_info || (!glyphs && !objects && svg.is_none());
+    if let Some(svg_path) = svg
+        && paths_refer_to_same_file(svg_path, path, "SVG output collision")?
+    {
+        return Err(format!(
+            "refusing SVG output {} because it refers to the inspected PDF {}",
+            svg_path.display(),
+            path.display()
+        ));
+    }
     let limits = ParseLimits::default();
     let bytes = read_limited(path, limits.max_input_bytes)?;
     let password = password_file.map(read_password_file).transpose()?;
@@ -97,13 +112,28 @@ pub fn inspect_backend<W: Write>(
     )?;
     write_inspection_line(writer, path, format_args!("pages: {page_count}"))?;
     for issue in pdf.issues() {
-        write_inspection_line(
-            writer,
-            path,
-            format_args!("parser-issue: unresolved: {}", issue.description()),
-        )?;
+        write_inspection_line(writer, path, format_args!("{}", parser_issue_text(issue)))?;
     }
     Ok(())
+}
+
+/// Parser issue descriptions can quote PDF-derived bytes, so they are escaped
+/// before reaching a terminal.
+fn parser_issue_text(issue: &PdfIssue) -> String {
+    format!(
+        "parser-issue: unresolved: {}",
+        escape_terminal_controls(issue.description())
+    )
+}
+
+/// Extraction issue descriptions can quote PDF-derived bytes, so they are
+/// escaped before reaching a terminal.
+fn extraction_issue_text(issue: &ExtractionIssue) -> String {
+    format!(
+        "extraction-issue: {:?}: {}",
+        issue.scope(),
+        escape_terminal_controls(issue.description())
+    )
 }
 
 pub fn inspect_objects<W: Write>(
@@ -137,11 +167,7 @@ pub fn inspect_objects<W: Write>(
         )?;
     }
     for issue in pdf.issues() {
-        write_inspection_line(
-            writer,
-            path,
-            format_args!("parser-issue: unresolved: {}", issue.description()),
-        )?;
+        write_inspection_line(writer, path, format_args!("{}", parser_issue_text(issue)))?;
     }
     Ok(())
 }
@@ -166,11 +192,7 @@ pub fn inspect_glyphs<W: Write>(
         write_inspection_line(
             writer,
             path,
-            format_args!(
-                "extraction-issue: {:?}: {}",
-                issue.scope(),
-                issue.description()
-            ),
+            format_args!("{}", extraction_issue_text(issue)),
         )?;
     }
     let document = outcome.document();
@@ -213,15 +235,10 @@ pub fn inspect_svg(
         )
         .map_err(inspect_error(path))?;
     let document = outcome.document();
-    let mut file = std::fs::File::create(svg_path).map_err(|error| {
-        format!(
-            "cannot create svg output file {}: {error}",
-            svg_path.display()
-        )
-    })?;
-    pdfdelta_core::report::write_glyph_overlay_svg(document, &mut file)
-        .map_err(|error| format!("cannot render svg overlay for {}: {error}", path.display()))?;
-    Ok(())
+    write_output_atomically(svg_path, "SVG overlay", |writer| {
+        pdfdelta_core::report::write_glyph_overlay_svg(document, writer)
+            .map_err(|error| format!("cannot render svg overlay for {}: {error}", path.display()))
+    })
 }
 
 pub fn write_inspection_line<W: Write>(
@@ -249,14 +266,14 @@ pub fn format_pdf_object(object: &PdfObject) -> String {
                 format!("{val}")
             }
         }
-        PdfObject::Name(bytes) => format!("/{}", String::from_utf8_lossy(bytes)),
-        PdfObject::String(bytes) => {
-            if let Ok(s) = std::str::from_utf8(bytes) {
-                format!("{s:?}")
-            } else {
-                format!("<{}>", lowercase_hex(bytes))
-            }
-        }
+        PdfObject::Name(bytes) => format!(
+            "/{}",
+            escape_terminal_controls(&String::from_utf8_lossy(bytes))
+        ),
+        PdfObject::String(bytes) => match std::str::from_utf8(bytes) {
+            Ok(text) => escape_terminal_controls(&format!("{text:?}")),
+            Err(_) => format!("<{}>", lowercase_hex(bytes)),
+        },
         PdfObject::Array(items) => {
             let formatted: Vec<_> = items.iter().map(format_pdf_object).collect();
             format!("[{}]", formatted.join(" "))
@@ -274,7 +291,7 @@ pub fn format_pdf_dict(dict: &PdfDict) -> String {
     for (key, value) in dict {
         parts.push(format!(
             "/{} {}",
-            String::from_utf8_lossy(key),
+            escape_terminal_controls(&String::from_utf8_lossy(key)),
             format_pdf_object(value)
         ));
     }
@@ -283,7 +300,9 @@ pub fn format_pdf_dict(dict: &PdfDict) -> String {
 
 pub fn format_glyph(glyph: &Glyph) -> String {
     let text = match &glyph.text {
-        DecodedText::Mapped(text) => format!("text={text:?}"),
+        DecodedText::Mapped(text) => {
+            format!("text={}", escape_terminal_controls(&format!("{text:?}")))
+        }
         DecodedText::Unmapped {
             font_hash,
             glyph_id,
@@ -352,16 +371,6 @@ pub fn path_clip_status_name(status: GlyphPathClipStatus) -> &'static str {
     }
 }
 
-pub fn lowercase_hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
-    for byte in bytes {
-        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
-        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-    }
-    output
-}
-
 pub fn render_mode_name(mode: TextRenderMode) -> &'static str {
     match mode {
         TextRenderMode::Fill => "fill",
@@ -387,10 +396,14 @@ mod tests {
             DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
             GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
         },
-        pdf::{ObjectRef, PdfDict, PdfObject},
+        pdf::{ObjectRef, PdfDict, PdfIssue, PdfObject},
+        source::{ExtractionIssue, ExtractionIssueKind, ExtractionScope},
     };
 
-    use super::{format_glyph, format_pdf_dict, format_pdf_object, write_inspection_line};
+    use super::{
+        extraction_issue_text, format_glyph, format_pdf_dict, format_pdf_object,
+        write_inspection_line,
+    };
 
     struct BrokenPipeWriter;
 
@@ -449,6 +462,50 @@ mod tests {
             format_pdf_object(&PdfObject::String(b"Hello".to_vec())),
             "\"Hello\""
         );
+    }
+
+    #[test]
+    fn pdf_names_strings_and_keys_escape_terminal_controls() {
+        let mut dict: PdfDict = BTreeMap::new();
+        dict.insert(b"Ty\x1bpe".to_vec(), PdfObject::Name(b"Page".to_vec()));
+        dict.insert(
+            b"Type".to_vec(),
+            PdfObject::Name("Pa\u{202e}ge".as_bytes().to_vec()),
+        );
+        assert_eq!(
+            format_pdf_dict(&dict),
+            "<< /Ty\\u{1b}pe /Page /Type /Pa\\u{202e}ge >>"
+        );
+        assert_eq!(
+            format_pdf_object(&PdfObject::String(b"a\x1b]0;t\x07b".to_vec())),
+            "\"a\\u{1b}]0;t\\u{7}b\""
+        );
+        assert_eq!(
+            format_pdf_object(&PdfObject::String(vec![0xff, 0xfe])),
+            "<fffe>"
+        );
+    }
+
+    #[test]
+    fn parser_issue_lines_escape_terminal_controls() {
+        let issue =
+            PdfIssue::unresolved("filter /\u{1b}[31mX is unsupported").expect("valid issue");
+        let line = super::parser_issue_text(&issue);
+        assert!(!line.contains('\u{1b}'), "{line:?}");
+        assert!(line.contains("\\u{1b}"), "{line:?}");
+    }
+
+    #[test]
+    fn extraction_issue_lines_escape_terminal_controls() {
+        let issue = ExtractionIssue::new(
+            ExtractionIssueKind::Unsupported,
+            ExtractionScope::Page(PageId(0)),
+            "font /\u{1b}[31mX is unsupported",
+        )
+        .expect("valid issue");
+        let line = extraction_issue_text(&issue);
+        assert!(!line.contains('\u{1b}'), "{line:?}");
+        assert!(line.contains("\\u{1b}"), "{line:?}");
     }
 
     #[test]

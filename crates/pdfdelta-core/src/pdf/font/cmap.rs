@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{Error, Result};
+use crate::{Error, Result, pdf::content::is_pdf_whitespace};
 
 use super::common::unresolved;
 
@@ -37,6 +37,9 @@ pub(crate) struct ToUnicodeCMap {
 pub(crate) struct IdentityCidEncoding {
     pub(crate) source_width: usize,
     pub(crate) vertical: bool,
+    /// Codespace and CID-range entries covered by this identity `CMap`, charged
+    /// against the decoder's aggregate `CMap` entry budget.
+    pub(crate) entries: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -254,6 +257,7 @@ pub(crate) fn parse_identity_cid_encoding(
     Ok(IdentityCidEncoding {
         source_width,
         vertical: vertical.unwrap_or(false),
+        entries,
     })
 }
 
@@ -1064,10 +1068,6 @@ fn is_delimiter(byte: u8) -> bool {
     is_pdf_whitespace(byte) || matches!(byte, b'[' | b']' | b'<' | b'>' | b'%')
 }
 
-fn is_pdf_whitespace(byte: u8) -> bool {
-    matches!(byte, 0x00 | b'\t' | b'\n' | 0x0c | b'\r' | b' ')
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1081,7 +1081,7 @@ mod tests {
     #[test]
     fn parses_char_and_both_range_forms() -> Result<()> {
         let cmap = parse_to_unicode(
-            br#"
+            br"
                 2 begincodespacerange
                 <00> <7F>
                 <8100> <81FF>
@@ -1095,7 +1095,7 @@ mod tests {
                 1 beginbfrange
                 <8100> <8101> [<0066 0069> <0066 006C>]
                 endbfrange
-            "#,
+            ",
             LIMITS,
         )?;
 
@@ -1119,7 +1119,7 @@ mod tests {
     #[test]
     fn parses_standard_postscript_wrapper() -> Result<()> {
         let cmap = parse_to_unicode(
-            br#"
+            br"
                 /CIDInit /ProcSet findresource begin
                 12 dict begin
                 begincmap
@@ -1129,7 +1129,7 @@ mod tests {
                 CMapName currentdict /CMap defineresource pop
                 end
                 end
-            "#,
+            ",
             LIMITS,
         )?;
 
@@ -1140,7 +1140,7 @@ mod tests {
     #[test]
     fn parses_cid_system_info_dictionary_inside_cmap() -> Result<()> {
         let cmap = parse_to_unicode(
-            br#"
+            br"
                 /CIDInit /ProcSet findresource begin
                 12 dict begin
                 begincmap
@@ -1155,7 +1155,7 @@ mod tests {
                 CMapName currentdict /CMap defineresource pop
                 end
                 end
-            "#,
+            ",
             LIMITS,
         )?;
 
@@ -1334,6 +1334,7 @@ mod tests {
             IdentityCidEncoding {
                 source_width: 1,
                 vertical: true,
+                entries: 257,
             }
         );
         assert!(matches!(

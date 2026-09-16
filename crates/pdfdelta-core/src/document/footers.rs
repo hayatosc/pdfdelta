@@ -84,12 +84,14 @@ pub(crate) fn candidates(
             return Ok(Vec::new());
         }
         // Missing page-local geometry can hide competing material below the
-        // proposed footer. Multi-page blocks need a finer source view first.
+        // proposed footer. Multi-page blocks and missing line-boundary
+        // evidence need a finer source view first.
         if indices.iter().any(|&index| {
             let block = &blocks[index];
             block.pages != [page]
                 || block.position_signatures.is_none()
                 || block.font_size_signatures.is_none()
+                || block.line_breaks.is_none()
         }) {
             discovery.complete = false;
             continue;
@@ -116,7 +118,7 @@ pub(crate) fn candidates(
                     .as_ref()
                     .expect("page geometry was checked above")
                     .iter()
-                    .flat_map(|s| s.values())
+                    .flat_map(super::super::normalize::FontSizeSignature::values)
             })
             .min_by(f64::total_cmp);
         let Some(size) = size else {
@@ -172,25 +174,24 @@ pub(crate) fn candidates(
                         .x,
                 )
         });
-        // Repetition assigns margin roles to individual fragments. Those
-        // inferred roles cannot veto the complete horizontal source band above.
         if members.windows(2).any(|pair| {
             let a = &blocks[pair[0]];
             let b = &blocks[pair[1]];
-            a.position_signatures
-                .as_ref()
-                .expect("page geometry was checked above")
-                .last()
-                .expect("footer members have nonempty horizontal positions")
-                .baseline()
-                .x
-                > b.position_signatures
+            !a.role.is_alignment_compatible(b.role)
+                || a.position_signatures
                     .as_ref()
                     .expect("page geometry was checked above")
-                    .first()
+                    .last()
                     .expect("footer members have nonempty horizontal positions")
                     .baseline()
                     .x
+                    > b.position_signatures
+                        .as_ref()
+                        .expect("page geometry was checked above")
+                        .first()
+                        .expect("footer members have nonempty horizontal positions")
+                        .baseline()
+                        .x
         }) {
             continue;
         }
@@ -205,7 +206,7 @@ pub(crate) fn candidates(
         }
         let Some(text) = tokens
             .iter()
-            .map(|token| token.as_scalar())
+            .map(super::super::normalize::ComparableToken::as_scalar)
             .collect::<Option<String>>()
         else {
             continue;
@@ -435,100 +436,77 @@ mod tests {
     use super::*;
     use crate::{
         layout::BlockId,
-        model::{GlyphId, Vec2},
-        normalize::{
-            FontSizeSignature, MappedText, PositionSignature, ScalarRange, SourceMapEntry,
-            TextSource, TextSourceAtom,
-        },
+        model::Vec2,
+        normalize::{ComparableToken, FontSizeSignature, MappedText, PositionSignature},
     };
 
-    fn terminal_block(id: u32, text: &str, x: f64, y: f64, role: BlockRole) -> BlockText {
-        let count = text.chars().count();
-        let mapped = MappedText {
-            text: text.into(),
-            unmapped: Vec::new(),
-            source_map: (0..count)
-                .map(|index| SourceMapEntry {
-                    output_range: ScalarRange {
-                        start: index,
-                        end: index + 1,
+    fn terminal_block(line_breaks: Option<Vec<usize>>) -> BlockText {
+        let text = "Cat. No. 1234";
+        let tokens = text
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let sizes = tokens
+            .iter()
+            .map(|_| FontSizeSignature::new(&[10.0]).expect("single size"))
+            .collect();
+        let positions = tokens
+            .iter()
+            .enumerate()
+            .map(|(index, _)| {
+                PositionSignature::new(
+                    Vec2 {
+                        x: 10.0 + index as f64,
+                        y: 10.0,
                     },
-                    source: TextSource {
-                        atoms: vec![TextSourceAtom::Glyph(GlyphId(
-                            u64::from(id) * 1000 + index as u64,
-                        ))]
-                        .into(),
-                    },
-                })
-                .collect(),
-        };
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("horizontal position")
+            })
+            .collect();
         BlockText {
-            block: BlockId(u64::from(id)),
-            role,
-            raw: mapped.clone(),
-            canonical: mapped.clone(),
-            matching: text.into(),
-            matching_tokens: mapped.comparable_tokens().expect("fixture tokens"),
+            block: BlockId(1),
+            role: BlockRole::RepeatedFooter,
+            raw: MappedText {
+                text: text.to_owned(),
+                source_map: Vec::new(),
+                unmapped: Vec::new(),
+            },
+            canonical: MappedText {
+                text: text.to_owned(),
+                source_map: Vec::new(),
+                unmapped: Vec::new(),
+            },
+            matching: text.to_owned(),
+            matching_tokens: tokens,
             numeric_mask_applied: false,
             normalization_events: Vec::new(),
             issues: Vec::new(),
             pages: vec![0],
-            font_size_signatures: Some(vec![
-                FontSizeSignature::new(&[6.0]).expect("font size");
-                count
-            ]),
-            position_signatures: Some(
-                (0..count)
-                    .map(|index| {
-                        PositionSignature::new(
-                            Vec2 {
-                                x: x + index as f64,
-                                y,
-                            },
-                            Vec2 { x: 1.0, y: 0.0 },
-                        )
-                        .expect("source position")
-                    })
-                    .collect(),
-            ),
-            line_breaks: Some(Vec::new()),
+            font_size_signatures: Some(sizes),
+            position_signatures: Some(positions),
+            line_breaks,
             page_breaks: Some(Vec::new()),
         }
     }
 
     #[test]
-    fn terminal_geometry_survives_fragmented_inferred_margin_roles() {
-        for (label_y, expected) in [(30.0, 1), (50.0, 0)] {
-            let blocks = vec![
-                terminal_block(
-                    0,
-                    "Reviewed catalog instructions remain available.",
-                    0.0,
-                    30.0,
-                    BlockRole::Body,
-                ),
-                terminal_block(1, "Cat. No. 98Z76", 100.0, 30.0, BlockRole::Body),
-                terminal_block(
-                    2,
-                    "Form 4567 (2030)",
-                    200.0,
-                    label_y,
-                    BlockRole::RepeatedFooter,
-                ),
-            ];
-            let mut search = CandidateSearch {
-                complete: true,
-                work_limited: false,
-            };
-            let found =
-                candidates(&blocks, 8, &mut 100_000, 10, &mut search).expect("candidate search");
-            assert!(search.complete);
-            assert_eq!(found.len(), expected);
-            if let Some(footer) = found.first() {
-                assert_eq!(footer.members, [0, 1, 2]);
-                assert_eq!((&*footer.catalog, &*footer.form), ("98Z76", "4567"));
-            }
-        }
+    fn missing_line_break_evidence_keeps_footer_discovery_incomplete() {
+        let mut discovery = CandidateSearch {
+            complete: true,
+            work_limited: false,
+        };
+        let mut remaining = 1_000_000;
+        let found = candidates(
+            std::slice::from_ref(&terminal_block(None)),
+            1,
+            &mut remaining,
+            64,
+            &mut discovery,
+        )
+        .expect("valid terminal block");
+        assert!(found.is_empty());
+        assert!(!discovery.complete);
     }
 
     #[test]

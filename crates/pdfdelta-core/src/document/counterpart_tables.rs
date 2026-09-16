@@ -49,15 +49,12 @@ struct Anchor {
 }
 
 fn spend(budget: &mut usize, amount: usize) -> bool {
-    match budget.checked_sub(amount) {
-        Some(left) => {
-            *budget = left;
-            true
-        }
-        None => {
-            *budget = 0;
-            false
-        }
+    if let Some(left) = budget.checked_sub(amount) {
+        *budget = left;
+        true
+    } else {
+        *budget = 0;
+        false
     }
 }
 
@@ -328,6 +325,7 @@ fn proposal_grid(
     store: &EvidenceStore,
     glyphs: &BTreeMap<GlyphId, &Glyph>,
     budget: &mut usize,
+    exhaustive: &mut bool,
 ) -> Option<Grid> {
     let common: Vec<_> = template
         .columns
@@ -392,7 +390,18 @@ fn proposal_grid(
     if anchors.values().any(|anchor| anchor.page != page) {
         return None;
     }
-    let frame = store.pages.iter().find(|item| item.page == page)?.bounds?;
+    let Some(frame) = store
+        .pages
+        .iter()
+        .find(|item| item.page == page)
+        .and_then(|item| item.bounds)
+    else {
+        // The target page geometry is missing, so an otherwise applicable
+        // grid cannot be checked. That is an incomplete search rather than an
+        // inapplicable template.
+        *exhaustive = false;
+        return None;
+    };
     let header_low = columns
         .iter()
         .map(|(_, anchor)| anchor.bounds.min.y)
@@ -411,7 +420,7 @@ fn proposal_grid(
     if row_right >= columns[1].1.bounds.min.x {
         return None;
     }
-    let row_column_cut = (row_right + columns[1].1.bounds.min.x) / 2.0;
+    let row_column_cut = f64::midpoint(row_right, columns[1].1.bounds.min.x);
     let last = rows.last()?.1;
     if !spend(
         budget,
@@ -476,7 +485,7 @@ fn proposal_grid(
         if gap.0 >= gap.1 {
             return None;
         }
-        xs.push((gap.0 + gap.1) / 2.0);
+        xs.push(f64::midpoint(gap.0, gap.1));
     }
     xs.push(frame.max.x);
     let structure_sources = anchors
@@ -523,7 +532,8 @@ fn apply(
         .map(|glyph| (glyph.id, glyph))
         .collect();
     for template in templates {
-        let Some(grid) = proposal_grid(&template, graph, store, &glyphs, budget) else {
+        let Some(grid) = proposal_grid(&template, graph, store, &glyphs, budget, &mut exhaustive)
+        else {
             continue;
         };
         let anchor_sources = grid.structure_sources.clone();

@@ -353,14 +353,17 @@ impl RecoveryOwnershipPartitionAnalysis {
         })
     }
 
+    #[must_use]
     pub fn old_side(&self) -> &RecoveryOwnershipSideAnalysis {
         &self.sides[0]
     }
 
+    #[must_use]
     pub fn new_side(&self) -> &RecoveryOwnershipSideAnalysis {
         &self.sides[1]
     }
 
+    #[must_use]
     pub fn metrics(&self) -> RecoveryOwnershipPartitionMetrics {
         RecoveryOwnershipPartitionMetrics {
             old: self.old_side().metrics,
@@ -369,6 +372,7 @@ impl RecoveryOwnershipPartitionAnalysis {
     }
     /// Returns behavior-neutral structural-container diagnostics derived from
     /// this verified ownership partition.
+    #[must_use]
     pub fn structural_container_metrics(&self) -> Option<StructuralContainerMetrics> {
         self.structural_container_metrics
     }
@@ -379,6 +383,7 @@ impl RecoveryOwnershipPartitionAnalysis {
 
     /// Returns behavior-neutral section-pairing diagnostics derived from the
     /// normalized blocks and trusted-run evidence.
+    #[must_use]
     pub fn section_pairing_metrics(&self) -> Option<SectionPairingMetrics> {
         self.section_pairing_analysis
             .as_ref()
@@ -386,6 +391,7 @@ impl RecoveryOwnershipPartitionAnalysis {
     }
 
     /// Returns the atomic section-pairing proposal outcome, when diagnostics ran.
+    #[must_use]
     pub fn section_pairing_proposal_outcome(&self) -> Option<&SectionPairingProposalOutcome> {
         self.section_pairing_analysis
             .as_ref()
@@ -393,6 +399,7 @@ impl RecoveryOwnershipPartitionAnalysis {
     }
 
     /// Returns the atomic exact-range parent classification, when diagnostics ran.
+    #[must_use]
     pub fn exact_range_parent_outcome(&self) -> Option<&ExactRangeParentOutcome> {
         self.section_pairing_analysis
             .as_ref()
@@ -416,10 +423,12 @@ impl Default for RecoveryOwnershipSideMetrics {
 }
 
 impl RecoveryOwnershipSideMetrics {
+    #[must_use]
     pub fn leaf(self, kind: RecoveryLeafKind) -> RecoveryOwnershipMetrics {
         self.leaves[kind.index()]
     }
 
+    #[must_use]
     pub fn gap(self, reason: RecoveryGapReason) -> RecoveryOwnershipMetrics {
         self.gaps[reason.index()]
     }
@@ -451,9 +460,10 @@ pub fn verify_recovery_ownership_partition(
 ///
 /// # Errors
 ///
-/// Returns [`RecoveryOwnershipError`] under the same conditions as
-/// [`verify_recovery_ownership_partition`]. No aggregate or sample is returned
-/// for a partial partition.
+/// Returns [`RecoveryOwnershipError`] when a configured resource bound is
+/// exceeded, allocation or checked arithmetic fails, coordinate evidence is
+/// invalid, or either token space is not covered exactly. No aggregate or
+/// sample is returned for a partial partition.
 pub fn analyze_recovery_ownership_partition(
     blocks: &[RecoveryEligibleBlock<'_>],
     ranges: &[RecoveryOwnershipRange],
@@ -899,7 +909,7 @@ mod tests {
             block_id,
             canonical_tokens: tokens,
             comparable_tokens: tokens,
-            comparable_to_canonical: &IDENTITY_BOUNDARIES[..tokens + 1],
+            comparable_to_canonical: &IDENTITY_BOUNDARIES[..=tokens],
             trusted,
             role,
         }

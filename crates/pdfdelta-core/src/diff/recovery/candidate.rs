@@ -762,7 +762,6 @@ fn fill_final_sentence_edge_signature_postings(
 ///
 /// This remains separate from [`UnitCandidateIndex`] so production candidate
 /// construction has no additional allocation or runtime work.
-#[allow(dead_code)]
 pub(in crate::diff) struct SentenceEdgeSignatureIndex {
     scope: SentenceEdgeSignatureScope,
     own_depth_postings: SentenceEdgeSignaturePostings,
@@ -771,7 +770,6 @@ pub(in crate::diff) struct SentenceEdgeSignatureIndex {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[allow(dead_code)]
 pub(in crate::diff) struct SentenceEdgeSignatureIndexMetrics {
     pub(in crate::diff) posting_items: usize,
     pub(in crate::diff) own_distinct_keys: usize,
@@ -808,7 +806,6 @@ pub(in crate::diff) struct SentenceEdgeSignatureIndexMetrics {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[allow(dead_code)]
 pub(in crate::diff) struct SentenceEdgeSignatureQueryMetrics {
     pub(in crate::diff) posting_visits: usize,
     pub(in crate::diff) candidate_union: usize,
@@ -851,34 +848,6 @@ pub(in crate::diff) enum SentenceEdgeSignatureIndexBuildError {
         progress: SentenceEdgeSignatureIndexMetrics,
     },
     Index(SentenceEdgeSignatureIndexError),
-}
-
-#[allow(dead_code)]
-impl SentenceEdgeSignatureIndexBuildError {
-    pub(in crate::diff) fn work(self) -> (usize, usize) {
-        match self {
-            Self::PostingLimit {
-                examined,
-                attempted,
-            }
-            | Self::DistinctKeyLimit {
-                examined,
-                attempted,
-                ..
-            }
-            | Self::EstimatedByteLimit {
-                examined,
-                attempted,
-                ..
-            }
-            | Self::AllocationFailure {
-                examined,
-                attempted,
-                ..
-            } => (examined, attempted),
-            Self::Index(error) => error.work(),
-        }
-    }
 }
 
 #[derive(Default)]
@@ -1475,7 +1444,6 @@ impl UnitCandidateIndex {
     }
 }
 
-#[allow(dead_code)]
 impl SentenceEdgeSignatureIndex {
     pub(in crate::diff) fn posting_upper_bound(
         occurrences: &[SentenceOccurrence],
@@ -1627,6 +1595,7 @@ impl SentenceEdgeSignatureIndex {
         )
     }
 
+    #[cfg(test)]
     pub(in crate::diff) fn new(
         occurrences: &[SentenceOccurrence],
         scope: CandidatePostingIndexScope<'_>,
@@ -1657,6 +1626,7 @@ impl SentenceEdgeSignatureIndex {
         })
     }
 
+    #[cfg(test)]
     fn empty(scope: SentenceEdgeSignatureScope) -> Self {
         Self {
             scope,
@@ -1670,6 +1640,7 @@ impl SentenceEdgeSignatureIndex {
         self.metrics
     }
 
+    #[cfg(test)]
     pub(in crate::diff) fn collect_plausible_occurrences(
         &self,
         plausible: &mut Vec<usize>,
@@ -1809,6 +1780,7 @@ impl SentenceEdgeSignatureIndex {
         Ok(visits)
     }
 
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     fn collect_sentence_tokens(
         &self,
@@ -2082,12 +2054,9 @@ fn validate_sentence_edge_signature_build_limits(
     Ok(())
 }
 
-#[allow(dead_code)]
 pub(in crate::diff) const SENTENCE_EDGE_SIGNATURE_SEED: u64 = 0xcbf2_9ce4_8422_2325;
-#[allow(dead_code)]
 const SENTENCE_EDGE_SIGNATURE_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-#[allow(dead_code)]
 pub(in crate::diff) fn sentence_edge_signature_depth(shorter_len: usize) -> Option<usize> {
     let threshold = usize::from(MIN_WORD_SCORE_EDGE_EVIDENCE);
     let whole = shorter_len.checked_div(10_000)?.checked_mul(threshold)?;
@@ -2101,7 +2070,6 @@ pub(in crate::diff) fn sentence_edge_signature_depth(shorter_len: usize) -> Opti
         .checked_add(usize::from(required % 2 != 0))
 }
 
-#[allow(dead_code)]
 pub(in crate::diff) fn sentence_edge_signature_step(
     state: u64,
     token: SentenceEvidenceToken,
@@ -2116,7 +2084,6 @@ pub(in crate::diff) fn sentence_edge_signature_step(
     (state ^ token).wrapping_mul(SENTENCE_EDGE_SIGNATURE_PRIME)
 }
 
-#[allow(dead_code)]
 fn candidate_posting_bucket(
     scope: CandidatePostingIndexScope<'_>,
     occurrence_index: usize,
@@ -2251,7 +2218,6 @@ fn sentence_edge_signature_key_from_bucket(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[allow(dead_code)]
 fn collect_sentence_edge_signatures(
     postings: &SentenceEdgeSignaturePostings,
     plausible: &mut Vec<usize>,
@@ -2299,7 +2265,6 @@ fn collect_sentence_edge_signatures(
     Ok(())
 }
 
-#[allow(dead_code)]
 fn collect_sentence_edge_signature(
     postings: &SentenceEdgeSignaturePostings,
     plausible: &mut Vec<usize>,

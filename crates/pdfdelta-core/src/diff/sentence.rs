@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    marker::PhantomData,
     mem::size_of,
     ops::Range,
 };
@@ -421,10 +422,10 @@ fn assemble_merged_clause_run(
     let old_blocks = ordered_unique_blocks(&old_consumed)?;
     let new_blocks = ordered_unique_blocks(&new_consumed)?;
     let origin = |role: BlockRole| {
-        if role != BlockRole::Body {
-            ChangeOrigin::RunningMatter
-        } else {
+        if role == BlockRole::Body {
             ChangeOrigin::LocalFragment
+        } else {
+            ChangeOrigin::RunningMatter
         }
     };
     let separator = |blocks: &[BlockId]| {
@@ -3220,10 +3221,10 @@ fn collapse_granular_whitespace(
         let part = value
             .get(start..offset)
             .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
-        if !output.is_empty() {
-            output.push(' ');
+        if output.is_empty() {
             original_boundaries.push(start);
         } else {
+            output.push(' ');
             original_boundaries.push(start);
         }
         output.push_str(part);
@@ -3733,16 +3734,20 @@ fn granular_relation(scores: impl IntoIterator<Item = u16>) -> RecoveryWatchGran
         ..RecoveryWatchGranularRelation::default()
     };
     for (partner, score) in scores.into_iter().enumerate() {
-        if score > relation.best_score {
-            relation.second_score = relation.best_score;
-            relation.best_score = score;
-            relation.partner_index = Some(partner);
-            relation.tied_for_best = false;
-        } else if score == relation.best_score {
-            relation.second_score = score;
-            relation.tied_for_best = true;
-        } else {
-            relation.second_score = relation.second_score.max(score);
+        match score.cmp(&relation.best_score) {
+            std::cmp::Ordering::Greater => {
+                relation.second_score = relation.best_score;
+                relation.best_score = score;
+                relation.partner_index = Some(partner);
+                relation.tied_for_best = false;
+            }
+            std::cmp::Ordering::Equal => {
+                relation.second_score = score;
+                relation.tied_for_best = true;
+            }
+            std::cmp::Ordering::Less => {
+                relation.second_score = relation.second_score.max(score);
+            }
         }
     }
     if relation.best_score == 0 {
@@ -4018,10 +4023,10 @@ fn collapse_quote_local_whitespace(
         let part = value
             .get(start..offset)
             .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
-        if !text.is_empty() {
-            text.push(' ');
+        if text.is_empty() {
             original_boundaries.push(start);
         } else {
+            text.push(' ');
             original_boundaries.push(start);
         }
         text.push_str(part);
@@ -6930,16 +6935,13 @@ fn build_signature_index(
                 .metrics
                 .index_posting_items_examined
                 .checked_add(actual);
-            match (attempted, examined) {
-                (Some(attempted), Some(examined)) => {
-                    shadow.metrics.index_posting_items_attempted = attempted;
-                    shadow.metrics.index_posting_items_examined = examined;
-                    Some(index)
-                }
-                _ => {
-                    shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
-                    None
-                }
+            if let (Some(attempted), Some(examined)) = (attempted, examined) {
+                shadow.metrics.index_posting_items_attempted = attempted;
+                shadow.metrics.index_posting_items_examined = examined;
+                Some(index)
+            } else {
+                shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+                None
             }
         }
         Err(error) => {
@@ -7045,7 +7047,7 @@ fn apply_signature_filter(
     }
     if !shadow.active {
         return (shadow.mode != SentenceEdgeSignatureFilterMode::Direct).then_some(());
-    };
+    }
     let Some(index) = index else {
         if shadow.mode == SentenceEdgeSignatureFilterMode::Direct
             && shadow.direct_metrics.stop_reason.is_none()
@@ -8599,17 +8601,21 @@ struct RunBest {
 
 impl RunBest {
     fn record(&mut self, partner: usize, score: RunSignatureScore) {
-        if score > self.score {
-            self.second = self.score;
-            self.score = score;
-            self.partner = Some(partner);
-            self.ambiguous = false;
-        } else if score == self.score {
-            self.second = self.second.max(score);
-            self.partner = None;
-            self.ambiguous = true;
-        } else {
-            self.second = self.second.max(score);
+        match score.cmp(&self.score) {
+            std::cmp::Ordering::Greater => {
+                self.second = self.score;
+                self.score = score;
+                self.partner = Some(partner);
+                self.ambiguous = false;
+            }
+            std::cmp::Ordering::Equal => {
+                self.second = self.second.max(score);
+                self.partner = None;
+                self.ambiguous = true;
+            }
+            std::cmp::Ordering::Less => {
+                self.second = self.second.max(score);
+            }
         }
     }
 
@@ -9191,8 +9197,7 @@ impl BlockUncertaintyBudget {
         let comparison_factor = issue_atoms.max(block.issues.len());
         let atom_budget = build_remaining
             .checked_sub(work)
-            .map(|remaining| remaining / comparison_factor)
-            .unwrap_or(0);
+            .map_or(0, |remaining| remaining / comparison_factor);
         let evidence_atom_lengths = block
             .raw
             .source_map
@@ -15415,14 +15420,14 @@ fn enforce_edge_gate_shadow_completion(metrics: &mut SentenceRecoveryMetrics) {
     let Some(shadow) = metrics.sentence_edge_gate_shadow.as_mut() else {
         return;
     };
-    let reason = metrics
-        .near_relation_stop_reason
-        .map(Into::into)
-        .unwrap_or_else(|| {
+    let reason = metrics.near_relation_stop_reason.map_or_else(
+        || {
             shadow
                 .stop_reason
                 .unwrap_or(SentenceEdgeGateShadowStopReason::DiagnosticFailure)
-        });
+        },
+        Into::into,
+    );
     shadow.complete = false;
     shadow.stop_reason.get_or_insert(reason);
 }
@@ -15702,10 +15707,10 @@ fn build_clause_occurrence(
         (
             RecoveryUnitKind::Sentence,
             role,
-            if role != BlockRole::Body {
-                ChangeOrigin::RunningMatter
-            } else {
+            if role == BlockRole::Body {
                 ChangeOrigin::LocalFragment
+            } else {
+                ChangeOrigin::RunningMatter
             },
         ),
         budget,
@@ -15921,10 +15926,10 @@ fn build_sentence_occurrence(
                 (
                     kind,
                     role,
-                    if role != BlockRole::Body {
-                        ChangeOrigin::RunningMatter
-                    } else {
+                    if role == BlockRole::Body {
                         origin
+                    } else {
+                        ChangeOrigin::RunningMatter
                     },
                 ),
                 budget,
@@ -18306,25 +18311,49 @@ struct GlobalLengthAwareBoundaryKey {
     signature: u64,
 }
 
-struct LocalFragmentPairStreamFingerprint {
+/// Hash-only fingerprint of a stream of fragment queries consumed by one
+/// retained-pair pass. Only each query's count and digest enter the stream.
+struct StreamFingerprint<Q> {
     hasher: Sha256,
+    query: PhantomData<Q>,
 }
 
-struct ExactBoundaryCertificationStreamFingerprint {
-    hasher: Sha256,
+/// Digest-bearing query whose contents are absorbed by a [`StreamFingerprint`].
+trait QueryFingerprint {
+    fn count(&self) -> usize;
+    fn into_digest(self) -> [u8; 32];
 }
 
-impl ExactBoundaryCertificationStreamFingerprint {
+type LocalFragmentPairStreamFingerprint = StreamFingerprint<LocalFragmentQueryFingerprint>;
+type ExactBoundaryCertificationStreamFingerprint =
+    StreamFingerprint<ExactBoundaryCertificationQueryFingerprint>;
+
+impl StreamFingerprint<LocalFragmentQueryFingerprint> {
     fn new() -> Self {
+        Self::with_domain(b"pdfdelta-local-fragment-pair-stream-v1")
+    }
+}
+
+impl StreamFingerprint<ExactBoundaryCertificationQueryFingerprint> {
+    fn new() -> Self {
+        Self::with_domain(b"pdfdelta-exact-boundary-certification-stream-v1")
+    }
+}
+
+impl<Q: QueryFingerprint> StreamFingerprint<Q> {
+    fn with_domain(domain: &[u8]) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(b"pdfdelta-exact-boundary-certification-stream-v1");
-        Self { hasher }
+        hasher.update(domain);
+        Self {
+            hasher,
+            query: PhantomData,
+        }
     }
 
     fn commit_query(
         &mut self,
         old_fragment_index: usize,
-        query: ExactBoundaryCertificationQueryFingerprint,
+        query: Q,
     ) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
         self.hasher.update(
             u64::try_from(old_fragment_index)
@@ -18332,11 +18361,11 @@ impl ExactBoundaryCertificationStreamFingerprint {
                 .to_le_bytes(),
         );
         self.hasher.update(
-            u64::try_from(query.count)
+            u64::try_from(query.count())
                 .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
                 .to_le_bytes(),
         );
-        self.hasher.update(query.hasher.finalize());
+        self.hasher.update(query.into_digest());
         Ok(())
     }
 
@@ -18387,33 +18416,12 @@ impl ExactBoundaryCertificationQueryFingerprint {
     }
 }
 
-impl LocalFragmentPairStreamFingerprint {
-    fn new() -> Self {
-        let mut hasher = Sha256::new();
-        hasher.update(b"pdfdelta-local-fragment-pair-stream-v1");
-        Self { hasher }
+impl QueryFingerprint for ExactBoundaryCertificationQueryFingerprint {
+    fn count(&self) -> usize {
+        self.count
     }
 
-    fn commit_query(
-        &mut self,
-        old_fragment_index: usize,
-        query: LocalFragmentQueryFingerprint,
-    ) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
-        self.hasher.update(
-            u64::try_from(old_fragment_index)
-                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
-                .to_le_bytes(),
-        );
-        self.hasher.update(
-            u64::try_from(query.count)
-                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
-                .to_le_bytes(),
-        );
-        self.hasher.update(query.hasher.finalize());
-        Ok(())
-    }
-
-    fn finish(self) -> [u8; 32] {
+    fn into_digest(self) -> [u8; 32] {
         self.hasher.finalize().into()
     }
 }
@@ -18444,6 +18452,16 @@ impl LocalFragmentQueryFingerprint {
                 .to_le_bytes(),
         );
         Ok(())
+    }
+}
+
+impl QueryFingerprint for LocalFragmentQueryFingerprint {
+    fn count(&self) -> usize {
+        self.count
+    }
+
+    fn into_digest(self) -> [u8; 32] {
+        self.hasher.finalize().into()
     }
 }
 
@@ -19467,6 +19485,7 @@ impl LocalFragmentFlatExactBoundaryShadowMetrics {
     /// The diagnostic retains two reusable radix buffers and one active-fragment index buffer.
     /// `None` indicates that the platform-sized byte calculation overflowed.
     #[doc(hidden)]
+    #[must_use]
     pub fn expected_radix_scratch_bytes(fragment_count: usize) -> Option<usize> {
         let bytes_per_fragment = std::mem::size_of::<ExactClassRecord>()
             .checked_mul(2)?
@@ -25101,7 +25120,7 @@ fn extend_paired_stream_exact_matches<'a>(
     proposals
         .try_reserve_exact(remaining_candidates)
         .map_err(|_| SentenceEdgeGateShadowStopReason::AllocationFailure)?;
-    for ((pair_index, interval_index, _, _), group) in groups.iter_mut() {
+    for ((pair_index, interval_index, _, _), group) in &mut groups {
         if group.old.len() != group.new.len() || group.old.is_empty() {
             continue;
         }
@@ -29825,8 +29844,7 @@ fn exact_clause_prefix_candidates(
         let end = trimmed
             .char_indices()
             .nth(CLAUSE_PREFIX_PAIR_CHARS)
-            .map(|(byte, _)| byte)
-            .unwrap_or(trimmed.len());
+            .map_or(trimmed.len(), |(byte, _)| byte);
         trimmed.get(..end)
     }
     fn index_postings<'a>(
@@ -32918,7 +32936,7 @@ mod tests {
         }
     }
 
-    fn page_anchor_test_side<'a>(blocks: &'a [BlockText]) -> Side<'a> {
+    fn page_anchor_test_side(blocks: &[BlockText]) -> Side<'_> {
         let canonical = blocks
             .iter()
             .map(|block| block.matching_tokens.clone())
@@ -35589,14 +35607,14 @@ mod tests {
                         .trusted_position
                         .as_mut()
                         .expect("fixture is positioned")
-                        .ordinal = 2
+                        .ordinal = 2;
                 }
                 1 => {
                     occurrences[1]
                         .trusted_position
                         .as_mut()
                         .expect("fixture is positioned")
-                        .stream_index = 1
+                        .stream_index = 1;
                 }
                 2 => occurrences[1].span_index = Some(1),
                 3 => occurrences[1].role = Some(BlockRole::RepeatedHeader),
@@ -42967,7 +42985,7 @@ mod tests {
         let output_ranges_before = budget.output_ranges;
         let output_tokens_before = budget.output_tokens;
 
-        assert!(
+        assert_eq!(
             append_isolated_exact_tail_matches(
                 &mut plan,
                 &mut old_occurrences,
@@ -42976,9 +42994,8 @@ mod tests {
                 1,
                 &mut budget,
                 &census,
-            ) == ExactTailAppendOutcome::Unavailable(
-                ExactTailRecoveryStopReason::OverlappingRanges,
-            )
+            ),
+            ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::OverlappingRanges,)
         );
         assert!(plan.matches.is_empty());
         assert_eq!(plan.deletion_consumed, [old_range]);
@@ -43003,7 +43020,7 @@ mod tests {
         let output_ranges_before = budget.output_ranges;
         let output_tokens_before = budget.output_tokens;
 
-        assert!(
+        assert_eq!(
             append_isolated_exact_tail_matches(
                 &mut plan,
                 &mut old_occurrences,
@@ -43012,9 +43029,8 @@ mod tests {
                 1,
                 &mut budget,
                 &census,
-            ) == ExactTailAppendOutcome::Unavailable(
-                ExactTailRecoveryStopReason::OutputCommitFailed,
-            )
+            ),
+            ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::OutputCommitFailed,)
         );
         assert!(plan.matches.is_empty());
         assert!(plan.deletion_consumed.is_empty());
@@ -43781,13 +43797,12 @@ mod tests {
                 Some(BlockRole::Body),
             ),
         ];
-        let index_error = match SentenceEdgeSignatureIndex::new_with_allocation_failure_after(
+        let Err(index_error) = SentenceEdgeSignatureIndex::new_with_allocation_failure_after(
             &candidates,
             CandidatePostingIndexScope::Global,
             1,
-        ) {
-            Ok(_) => panic!("injected index allocation failure must be reported"),
-            Err(error) => error,
+        ) else {
+            panic!("injected index allocation failure must be reported");
         };
         let mut index_shadow = SentenceEdgeSignatureShadow::new(
             8,
@@ -44621,7 +44636,7 @@ mod tests {
         .expect("baseline signature index fits");
         let metrics = baseline.metrics();
         let distinct_keys = metrics.own_distinct_keys + metrics.all_distinct_keys;
-        let probe = match SentenceEdgeSignatureIndex::new_with_limits(
+        let Err(probe) = SentenceEdgeSignatureIndex::new_with_limits(
             &occurrences,
             CandidatePostingIndexScope::Global,
             SentenceEdgeSignatureIndexBuildLimits {
@@ -44629,9 +44644,8 @@ mod tests {
                 distinct_keys,
                 estimated_logical_bytes: metrics.estimated_logical_bytes,
             },
-        ) {
-            Ok(_) => panic!("completed bytes exclude the transition peak"),
-            Err(error) => error,
+        ) else {
+            panic!("completed bytes exclude the transition peak");
         };
         let SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
             attempted: transition_peak,
@@ -44997,14 +45011,14 @@ mod tests {
         let mut direct_order = empty;
         direct_order
             .record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 1, 2)
-            .and_then(|_| {
+            .and_then(|()| {
                 direct_order.record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 3, 4)
             })
             .expect("fingerprints record");
         let mut reference_order = empty;
         reference_order
             .record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 3, 4)
-            .and_then(|_| {
+            .and_then(|()| {
                 reference_order.record(NearSearchScope::CrossSpan, OccurrenceSide::Old, 1, 2)
             })
             .expect("fingerprints record");

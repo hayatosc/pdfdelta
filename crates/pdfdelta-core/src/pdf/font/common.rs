@@ -30,6 +30,11 @@ pub(super) fn load_to_unicode_with_width(
     let Some(to_unicode) = dictionary.get(b"ToUnicode".as_slice()) else {
         return Ok((None, 0));
     };
+    // A null entry is equivalent to an absent one, and the font remains usable
+    // without a Unicode map.
+    if matches!(to_unicode, PdfObject::Null) {
+        return Ok((None, 0));
+    }
     let reference =
         resolve_stream_reference(pdf, to_unicode, limits.max_indirections, "ToUnicode")?;
     let stream = pdf.decoded_stream(reference)?;
@@ -345,7 +350,7 @@ impl<'a> Type3ResourceHasher<'a> {
                 unresolved("direct Type 3 resource streams are unavailable through the PDF facade")
             }
             PdfObject::Null => Ok(tagged_hash(b"null", &[])),
-            PdfObject::Boolean(value) => Ok(tagged_hash(b"boolean", &[*value as u8])),
+            PdfObject::Boolean(value) => Ok(tagged_hash(b"boolean", &[u8::from(*value)])),
             PdfObject::Integer(value) => Ok(tagged_hash(b"integer", &value.to_be_bytes())),
             PdfObject::Real(value) if value.is_finite() => {
                 let normalized = if *value == 0.0 { 0.0 } else { *value };
@@ -584,10 +589,18 @@ fn limit_indirections<T>(limit: usize) -> Result<T> {
     })
 }
 
-pub(super) fn optional_number(dictionary: &PdfDict, key: &[u8]) -> Result<Option<f64>> {
+pub(super) fn optional_number(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    key: &[u8],
+    max_indirections: usize,
+) -> Result<Option<f64>> {
     dictionary
         .get(key)
-        .map(|value| finite_number(value, "font metric"))
+        .map(|value| {
+            let value = resolve_object(pdf, value.clone(), max_indirections)?;
+            finite_number(&value, "font metric")
+        })
         .transpose()
 }
 
@@ -643,7 +656,7 @@ pub(super) fn unresolved<T>(message: &str) -> Result<T> {
     Err(Error::Unresolved(message.into()))
 }
 
-/// Replaces ascent/descent with the descriptor FontBBox extent whenever the
+/// Replaces ascent/descent with the descriptor `FontBBox` extent whenever the
 /// declared metrics cannot form a positive vertical extent.
 pub(super) fn apply_bbox_vertical_fallback(
     (ascent, descent): (Option<f64>, Option<f64>),

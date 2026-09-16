@@ -17,14 +17,40 @@ fn escaped(value: &str) -> (String, bool) {
     let mut chars = value.chars();
     let mut output = String::new();
     for ch in chars.by_ref().take(MAX_PREVIEW_CHARS) {
-        if matches!(ch, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
-        {
+        if is_bidi_control(ch) {
             output.extend(ch.escape_unicode());
         } else {
             output.extend(ch.escape_debug());
         }
     }
     (output, chars.next().is_some())
+}
+
+pub(crate) fn is_bidi_control(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{061c}'
+            | '\u{200e}'
+            | '\u{200f}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{2069}'
+    )
+}
+
+/// Renders untrusted bytes for a terminal by escaping control characters and
+/// Unicode bidi controls; every other character is preserved as-is.
+pub(crate) fn escape_terminal_controls(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_control() || is_bidi_control(ch) {
+            output.extend(ch.escape_unicode());
+        } else {
+            output.push(ch);
+        }
+    }
+    output
 }
 
 fn preview(value: &str) -> String {
@@ -43,9 +69,10 @@ fn quoted(value: &str) -> String {
 fn field_value(value: &FieldValue) -> String {
     match value {
         FieldValue::Text(text) => quoted(text),
-        FieldValue::Name(bytes) => match std::str::from_utf8(bytes) {
-            Ok(text) => format!("name {}", quoted(text)),
-            Err(_) => {
+        FieldValue::Name(bytes) => {
+            if let Ok(text) = std::str::from_utf8(bytes) {
+                format!("name {}", quoted(text))
+            } else {
                 let mut text = String::from("name bytes: ");
                 for byte in bytes.iter().take(64) {
                     let _ = write!(text, "{byte:02x}");
@@ -55,7 +82,7 @@ fn field_value(value: &FieldValue) -> String {
                 }
                 text
             }
-        },
+        }
         FieldValue::Selected(selected) => if *selected {
             "selected"
         } else {
@@ -216,11 +243,9 @@ pub(super) fn append_details(
                     text,
                     "  - {}\n  + {}",
                     old.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into()),
+                        .map_or_else(|| "(text unresolved)".into(), quoted),
                     new.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into())
+                        .map_or_else(|| "(text unresolved)".into(), quoted)
                 );
             }
             if let Some(mask) = &pair.text_mask {
@@ -248,24 +273,23 @@ pub(super) fn append_details(
             {
                 continue;
             }
-            let key = match std::str::from_utf8(&claim.key) {
-                Ok(key) => quoted(key),
-                Err(_) => {
-                    let bytes: String = claim
-                        .key
-                        .iter()
-                        .take(64)
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect();
-                    format!(
-                        "bytes {bytes}{}",
-                        if claim.key.len() > 64 {
-                            " [truncated]"
-                        } else {
-                            ""
-                        }
-                    )
-                }
+            let key = if let Ok(key) = std::str::from_utf8(&claim.key) {
+                quoted(key)
+            } else {
+                let bytes: String = claim
+                    .key
+                    .iter()
+                    .take(64)
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect();
+                format!(
+                    "bytes {bytes}{}",
+                    if claim.key.len() > 64 {
+                        " [truncated]"
+                    } else {
+                        ""
+                    }
+                )
             };
             let direction = match claim.side {
                 pdfdelta_core::document::PresenceSide::Old => "removed",
@@ -334,11 +358,9 @@ pub(super) fn append_details(
                     text,
                     "  - {}\n  + {}",
                     old.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into()),
+                        .map_or_else(|| "(text unresolved)".into(), quoted),
                     new.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into())
+                        .map_or_else(|| "(text unresolved)".into(), quoted)
                 );
             }
             TypedOperation::ValueChanged { old, new } => {
@@ -480,6 +502,12 @@ mod tests {
         assert!(text.contains("\\n"));
         assert!(preview(&"界".repeat(MAX_PREVIEW_CHARS + 1)).ends_with(" [truncated]"));
         assert_eq!(preview("日本語"), "日本語");
+    }
+
+    #[test]
+    fn terminal_escaping_covers_line_and_paragraph_separators() {
+        assert_eq!(escape_terminal_controls("\u{2028}"), "\\u{2028}");
+        assert_eq!(escape_terminal_controls("\u{2029}"), "\\u{2029}");
     }
 
     #[test]

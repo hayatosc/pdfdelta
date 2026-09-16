@@ -1,5 +1,19 @@
 //! Fuzzing-only entry points for internal parsers.
 
+use crate::diff::Confidence;
+use crate::document::{
+    BackendIdentity, BackendKind, ButtonAppearanceState, CorrespondenceScope,
+    DocumentComparisonLimits, DocumentGraph, DocumentView, EvidenceLimits, EvidenceStore,
+    FieldValue, FormLimits, FormWidget, GraphLimits, HierarchyLimits, NodeId, NodeKind,
+    PageEvidence, Raster, RecognizedWord, RenderedEvidence, StructureLimits, StructuredEvidence,
+    StructuredValue, extract_form_evidence, extract_structure_evidence, refine_table_views,
+};
+use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
+use crate::model::{
+    DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphEvidence, GlyphId,
+    GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine,
+    VectorLineId,
+};
 use crate::pdf::LopdfParser;
 use crate::pdf::ParseLimits;
 use crate::pdf::content::{ContentBudget, ContentLimits, ContentParser, Operation};
@@ -8,13 +22,16 @@ use crate::pdf::font::cmap::{
 };
 use crate::pdf::font::{FontDecoder, FontDecoderLimits, WritingMode};
 use crate::pdf::{
-    DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfVersion, RawStream,
+    DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfParser, PdfVersion,
+    RawStream,
 };
+use crate::pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents};
+use crate::report::{TextReportOptions, render_text, summarize, write_json};
 use crate::source::{
     ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
 };
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 const MAX_INPUT_BYTES: usize = 64 * 1024;
@@ -69,7 +86,7 @@ const EXTRACTION_LIMITS: ExtractionLimits = ExtractionLimits {
     max_vector_lines: 1_024,
 };
 
-/// Exercises the production CMap parsers with finite resource limits.
+/// Exercises the production `CMap` parsers with finite resource limits.
 ///
 /// Inputs larger than 64 KiB are ignored. Parser errors are accepted outcomes.
 ///
@@ -583,9 +600,9 @@ pub fn fuzz_glyph_extraction(input: &[u8]) {
         return;
     }
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let outcome = match source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS) {
-        Ok(outcome) => outcome,
-        Err(_) => return,
+    let Ok(outcome) = source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS)
+    else {
+        return;
     };
     assert!(outcome.document().items().len() <= EXTRACTION_LIMITS.max_glyphs);
     // `ExtractionOutcome::new` validates issue scopes and glyph-gap
@@ -615,6 +632,1064 @@ pub fn fuzz_glyph_extraction(input: &[u8]) {
     drop(document);
     drop(issues);
 }
+
+const MAX_LAYOUT_GLYPHS: usize = 32;
+const MAX_LAYOUT_VECTOR_LINES: usize = 8;
+const MAX_LAYOUT_PAGES: u32 = 3;
+const LAYOUT_FONT_SIZE_MIN: f64 = 4.0;
+const LAYOUT_FONT_SIZE_STEP: f64 = 1.5;
+const LAYOUT_POSITION_CELL: f64 = 12.0;
+const LAYOUT_POSITION_CELLS: u8 = 24;
+
+/// Exercises line, block, and region reconstruction plus the full comparison
+/// pipeline over an arbitrary synthetic [`Document<Glyph>`].
+///
+/// Inputs larger than 64 KiB are ignored. The first byte selects the glyph
+/// count (at most [`MAX_LAYOUT_GLYPHS`]); every remaining field is derived from
+/// fuzzed bytes but kept finite, axis-consistent, and within small page bounds,
+/// so layout code sees degenerate-but-valid geometry rather than being
+/// short-circuited by validation. Glyph text mixes mapped, multi-scalar, CJK,
+/// and unmapped values, and up to [`MAX_LAYOUT_VECTOR_LINES`] straight vector
+/// lines are retained as layout evidence. Parser errors are accepted outcomes.
+///
+/// # Panics
+///
+/// Panics if comparing the constructed document with itself reports any exact
+/// or formatting change, because identity input must never produce a change,
+/// or if a successful glyph-overlay render does not start with `<svg`.
+#[doc(hidden)]
+pub fn fuzz_layout_pipeline(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES {
+        return;
+    }
+    if input.is_empty() {
+        return;
+    }
+    let document = synthetic_glyph_document(input);
+
+    if let Ok(lines) = reconstruct_lines(&document, LineOptions::default()) {
+        let mut pages = lines.iter().map(|line| line.page).collect::<Vec<_>>();
+        pages.sort_unstable();
+        pages.dedup();
+        for page in pages.into_iter().take(MAX_LAYOUT_PAGES as usize) {
+            let page_lines = lines
+                .iter()
+                .filter(|line| line.page == page)
+                .cloned()
+                .collect::<Vec<Line>>();
+            let _ = partition_regions(page, &page_lines, RegionOptions::default());
+        }
+    }
+
+    let Ok(comparison) = compare_glyph_documents(&document, &document, PipelineOptions::default())
+    else {
+        return;
+    };
+    assert!(
+        comparison.changes.is_empty(),
+        "identity comparison reported {} exact changes",
+        comparison.changes.len()
+    );
+    assert!(
+        comparison.formatting_changes.is_empty(),
+        "identity comparison reported {} formatting changes",
+        comparison.formatting_changes.len()
+    );
+
+    if let Ok(svg) = crate::report::render_glyph_overlay_svg(&document) {
+        assert!(svg.starts_with("<svg"));
+    }
+}
+
+/// Compares two arbitrary synthetic documents through the full text pipeline.
+///
+/// Inputs larger than 64 KiB are ignored, and each half must be non-empty. The
+/// two halves produce separate documents that are compared in both directions,
+/// exercising alignment, recovery, sentence pairing, the Myers diff, and report
+/// summarization. Comparison errors are accepted outcomes; a successful
+/// comparison must still summarize and satisfy the public result shapes.
+///
+/// # Panics
+///
+/// Panics if a successful comparison cannot be summarized or violates a public
+/// result-shape invariant.
+#[doc(hidden)]
+pub fn fuzz_text_comparison(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES || input.len() < 2 {
+        return;
+    }
+    let (left, right) = input.split_at(input.len() / 2);
+    if left.is_empty() || right.is_empty() {
+        return;
+    }
+    let old = synthetic_glyph_document(left);
+    let new = synthetic_glyph_document(right);
+    let _ = check_text_comparison(&old, &new);
+    let _ = check_text_comparison(&new, &old);
+}
+
+fn check_text_comparison(old: &Document<Glyph>, new: &Document<Glyph>) -> bool {
+    let Ok(outcome) = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old.clone()),
+        ExtractionOutcome::complete(new.clone()),
+        PipelineOptions::default(),
+    ) else {
+        return false;
+    };
+    let comparison = &outcome.comparison;
+    let summary =
+        summarize(comparison, &outcome.extraction).expect("a successful comparison must summarize");
+    assert_eq!(summary.content_changes, comparison.changes.len());
+    assert_eq!(
+        summary.uncertain_changes,
+        comparison
+            .changes
+            .iter()
+            .filter(|change| change.confidence == Confidence::Low)
+            .count()
+    );
+    for change in &comparison.changes {
+        assert!(!change.occurrences.is_empty());
+        for occurrence in &change.occurrences {
+            assert!(occurrence.old_span.is_some() || occurrence.new_span.is_some());
+        }
+    }
+    for region in &comparison.unresolved_regions {
+        assert!(region.old_span.is_some() || region.new_span.is_some());
+    }
+    // A pipeline-produced comparison must satisfy the public report contracts.
+    let text = render_text(
+        &outcome.old_blocks,
+        &outcome.new_blocks,
+        comparison,
+        &outcome.extraction,
+        &TextReportOptions {
+            old_label: "old",
+            new_label: "new",
+            color: false,
+        },
+    )
+    .expect("a successful comparison must render as text");
+    assert!(!text.is_empty());
+    assert!(
+        !text.contains('\u{1b}') && !text.contains('\u{202e}'),
+        "PDF-derived text must be rendered with terminal controls escaped"
+    );
+    let old_evidence = old
+        .items()
+        .iter()
+        .map(GlyphEvidence::from)
+        .collect::<Vec<_>>();
+    let new_evidence = new
+        .items()
+        .iter()
+        .map(GlyphEvidence::from)
+        .collect::<Vec<_>>();
+    let mut json = Vec::new();
+    write_json(
+        &mut json,
+        &outcome.old_blocks,
+        &outcome.new_blocks,
+        &old_evidence,
+        &new_evidence,
+        comparison,
+        &outcome.extraction,
+    )
+    .expect("a successful comparison must serialize as JSON");
+    assert!(json.starts_with(b"{"));
+    assert!(
+        serde_json::from_slice::<serde_json::Value>(&json).is_ok(),
+        "the JSON report must parse"
+    );
+    true
+}
+
+/// Exercises the shared evidence graph and solver over arbitrary synthetic
+/// [`Document<Glyph>`] values.
+///
+/// Inputs larger than 64 KiB are ignored. A single-byte input compares one
+/// store with itself: a successful comparison must not report any typed
+/// operation. Longer inputs split into two documents, build one store for each,
+/// and compare them through the shared solver; a successful comparison must
+/// serialize and satisfy the channel coverage contract. Evidence, graph, and
+/// comparison errors are accepted outcomes.
+///
+/// # Panics
+///
+/// Panics if an identity comparison reports a typed operation, if a pairwise
+/// comparison cannot serialize, or if channel coverage is internally
+/// inconsistent.
+#[doc(hidden)]
+pub fn fuzz_graph_pipeline(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES || input.is_empty() {
+        return;
+    }
+    if input.len() < 2 {
+        let document = synthetic_glyph_document(input);
+        let _ = exercise_default_graph_pipeline(&document, input[0]);
+        return;
+    }
+    let (left, right) = input.split_at(input.len() / 2);
+    let old = synthetic_glyph_document(left);
+    let new = synthetic_glyph_document(right);
+    let old_store = exercise_default_graph_pipeline(&old, input[0]);
+    let new_store = exercise_default_graph_pipeline(&new, input.get(1).copied().unwrap_or(0));
+    if let (Some(old_store), Some(new_store)) = (old_store, new_store) {
+        let _ = check_graph_pair(&old_store, &new_store);
+    }
+}
+
+fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> bool {
+    let limits = EvidenceLimits::default();
+    let Ok(mut old_graph) = DocumentGraph::from_evidence(
+        old_store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return false;
+    };
+    let Ok(mut new_graph) = DocumentGraph::from_evidence(
+        new_store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return false;
+    };
+    {
+        let old_view = DocumentView {
+            evidence: old_store,
+            graph: &old_graph,
+        };
+        let new_view = DocumentView {
+            evidence: new_store,
+            graph: &new_graph,
+        };
+        let Ok(comparison) = crate::document::compare_document_views(
+            old_view,
+            new_view,
+            CorrespondenceScope {
+                old: NodeId(0),
+                new: NodeId(0),
+            },
+            DocumentComparisonLimits::default(),
+            HierarchyLimits::default(),
+        ) else {
+            return false;
+        };
+        assert!(
+            serde_json::to_vec(&comparison).is_ok(),
+            "a successful document comparison must serialize"
+        );
+        let channels = [
+            crate::document::Channel::Text,
+            crate::document::Channel::Visual,
+            crate::document::Channel::Forms,
+            crate::document::Channel::Relations,
+        ]
+        .into_iter()
+        .collect();
+        for entry in crate::document::document_coverage(old_view, new_view, &comparison, &channels)
+        {
+            assert!(entry.old_compared_sources <= entry.old_discovered_sources);
+            assert!(entry.new_compared_sources <= entry.new_discovered_sources);
+            if entry.complete {
+                assert!(entry.old_inventory_complete && entry.new_inventory_complete);
+                assert_eq!(entry.old_uncompared_sources, 0);
+                assert_eq!(entry.new_uncompared_sources, 0);
+            }
+        }
+    }
+
+    let old_nodes = old_graph
+        .nodes
+        .iter()
+        .map(|node| node.id)
+        .collect::<BTreeSet<_>>();
+    let new_nodes = new_graph
+        .nodes
+        .iter()
+        .map(|node| node.id)
+        .collect::<BTreeSet<_>>();
+    let Ok(refinements) = refine_table_views(
+        &mut old_graph,
+        &mut new_graph,
+        old_store,
+        new_store,
+        PipelineOptions::default(),
+        DocumentComparisonLimits::default(),
+    ) else {
+        return false;
+    };
+    for (graph, store, views, counterpart, before) in [
+        (
+            &old_graph,
+            old_store,
+            &refinements.old,
+            &new_graph,
+            &old_nodes,
+        ),
+        (
+            &new_graph,
+            new_store,
+            &refinements.new,
+            &old_graph,
+            &new_nodes,
+        ),
+    ] {
+        assert!(
+            graph
+                .validate(store, EvidenceLimits::default(), GraphLimits::default())
+                .is_ok(),
+            "a refined graph must stay valid against its evidence"
+        );
+        for node in before {
+            assert!(
+                graph.nodes.iter().any(|candidate| candidate.id == *node),
+                "table refinement removed original node {node:?}"
+            );
+        }
+        for view in views {
+            assert!(
+                graph
+                    .nodes
+                    .iter()
+                    .any(|node| node.id == view.target_table && node.kind == NodeKind::Table),
+                "an installed table must be a real table node"
+            );
+            assert!(
+                counterpart
+                    .nodes
+                    .iter()
+                    .any(|node| node.id == view.counterpart_table && node.kind == NodeKind::Table),
+                "a counterpart view must reference a real table node"
+            );
+            assert!(
+                !view.anchor_sources.is_empty() && !view.counterpart_sources.is_empty(),
+                "installed counterpart views must carry their source evidence"
+            );
+        }
+    }
+    true
+}
+
+/// Exercises native form and structure evidence extraction on the input PDF and
+/// on a synthetic form/tag PDF derived from the same bytes.
+///
+/// Inputs larger than 64 KiB are ignored. The parser and glyph extraction use
+/// the tight fuzzing budgets. A successful store build, form extraction, or
+/// structure extraction must validate as evidence, and structure IDs continue
+/// after any extracted form fields. Malformed, unsupported, unresolved, and
+/// resource-limit outcomes are accepted.
+///
+/// # Panics
+///
+/// Panics if evidence produced by form or structure extraction fails validation.
+#[doc(hidden)]
+#[must_use]
+pub fn fuzz_native_evidence(input: &[u8]) -> bool {
+    if input.len() > MAX_INPUT_BYTES {
+        return false;
+    }
+    let mut reached = native_evidence_for_pdf(input);
+    let synthetic = synthetic_evidence_pdf(input);
+    if !synthetic.is_empty() {
+        reached |= native_evidence_for_pdf(&synthetic);
+    }
+    reached
+}
+
+fn native_evidence_for_pdf(input: &[u8]) -> bool {
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+    let Ok(outcome) = source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS)
+    else {
+        return false;
+    };
+    let (document, issues) = outcome.into_parts();
+    let Ok(extraction) = ExtractionOutcome::new(document, issues) else {
+        return false;
+    };
+    let Ok(pdf) = LopdfParser.parse(Arc::from(input), PARSE_LIMITS) else {
+        return false;
+    };
+    let limits = EvidenceLimits::default();
+    let Ok(pages) = pdf.pages() else {
+        return false;
+    };
+    let page_evidence = pages
+        .iter()
+        .enumerate()
+        .filter_map(|(index, _)| u32::try_from(index).ok())
+        .map(|index| PageEvidence {
+            page: PageId(index),
+            bounds: None,
+        })
+        .collect();
+    let backend = BackendIdentity {
+        kind: BackendKind::NativeParser,
+        name: "pdfdelta-fuzz".into(),
+        version: "0".into(),
+        profile: "native-evidence-v1".into(),
+        model: None,
+    };
+    let Ok(mut store) = EvidenceStore::from_native(
+        "pdfdelta-fuzz".into(),
+        backend,
+        page_evidence,
+        extraction,
+        limits,
+    ) else {
+        return false;
+    };
+    let mut reached = false;
+    if let Ok(forms) = extract_form_evidence(pdf.as_ref(), 0, 0, FormLimits::default()) {
+        store.structured = forms.fields;
+        store.issues.extend(forms.issues);
+        store.inventories.push(forms.inventory);
+        assert!(
+            store.validate(limits).is_ok(),
+            "form evidence must validate"
+        );
+        reached = true;
+    }
+    let first_structure_id = store.structured.len() as u64;
+    if let Ok(structure) = extract_structure_evidence(
+        pdf.as_ref(),
+        &store.native,
+        0,
+        first_structure_id,
+        StructureLimits::default(),
+    ) {
+        store.structured.extend(structure.elements);
+        store.issues.extend(structure.issues);
+        store.inventories.push(structure.inventory);
+        assert!(
+            store.validate(limits).is_ok(),
+            "structure evidence must validate"
+        );
+        reached = true;
+    }
+    let Ok(graph) = DocumentGraph::from_evidence(
+        &store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return reached;
+    };
+    let view = DocumentView {
+        evidence: &store,
+        graph: &graph,
+    };
+    if let Ok(comparison) = crate::document::compare_document_views(
+        view,
+        view,
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        DocumentComparisonLimits::default(),
+        HierarchyLimits::default(),
+    ) {
+        assert!(
+            comparison
+                .comparisons()
+                .all(|pair| pair.operation.is_none()),
+            "identity comparison of extracted evidence reported a typed operation"
+        );
+        reached = true;
+    }
+    reached
+}
+
+/// Builds a small PDF with one font, a marked-content run, a structure tree,
+/// and up to three `AcroForm` fields whose names, types, values, and widget
+/// states derive from the fuzz bytes.
+fn synthetic_evidence_pdf(input: &[u8]) -> Vec<u8> {
+    use lopdf::{Document, Object, Stream, dictionary};
+
+    let byte = |index: usize| input.get(index).copied().unwrap_or(0);
+    let mut pdf = Document::with_version("1.7");
+    let pages = pdf.new_object_id();
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/P <</MCID 0>> BDC BT /F1 10 Tf 1 0 0 1 20 30 Tm (Tagged note) Tj ET EMC".to_vec(),
+    ));
+    let page = pdf.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages,
+        "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(200), Object::from(200)],
+        "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } },
+        "Contents" => content,
+        "StructParents" => 0,
+    });
+    pdf.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page)],
+            "Count" => 1,
+        }),
+    );
+
+    let mut fields = Vec::new();
+    for index in 0..usize::from(byte(0) % 4) {
+        let base = 1 + index * 8;
+        let name = format!("field{}", byte(base + 1) % 10);
+        let mut field = dictionary! { "T" => Object::string_literal(name) };
+        match byte(base) % 3 {
+            0 => {
+                field.set("FT", "Tx");
+                match byte(base + 2) % 4 {
+                    0 => field.set(
+                        "V",
+                        Object::string_literal(format!("value{}", byte(base + 3))),
+                    ),
+                    1 => field.set(
+                        "V",
+                        Object::String(
+                            vec![0xfe, 0xff, byte(base + 3)],
+                            lopdf::StringFormat::Literal,
+                        ),
+                    ),
+                    2 => field.set("V", Object::Integer(i64::from(byte(base + 3)))),
+                    _ => {}
+                }
+            }
+            1 => {
+                field.set("FT", "Btn");
+                let saved = if byte(base + 2).is_multiple_of(2) {
+                    b"Yes".to_vec()
+                } else {
+                    b"Off".to_vec()
+                };
+                field.set("V", Object::Name(saved));
+                if byte(base + 3).is_multiple_of(2) {
+                    field.set("Subtype", "Widget");
+                    let state = match byte(base + 4) % 3 {
+                        0 => b"Off".to_vec(),
+                        1 => b"Yes".to_vec(),
+                        _ => b"Other".to_vec(),
+                    };
+                    field.set("AS", Object::Name(state));
+                } else {
+                    let kids = (0..=usize::from(byte(base + 4) % 3))
+                        .map(|kid| {
+                            let state = match byte(base + 5 + kid) % 3 {
+                                0 => b"Off".to_vec(),
+                                1 => b"Yes".to_vec(),
+                                _ => b"Other".to_vec(),
+                            };
+                            Object::Reference(pdf.add_object(dictionary! {
+                                "Subtype" => "Widget",
+                                "AS" => Object::Name(state),
+                            }))
+                        })
+                        .collect::<Vec<_>>();
+                    field.set("Kids", kids);
+                }
+            }
+            _ => {
+                field.set("FT", "Ch");
+                match byte(base + 2) % 3 {
+                    0 => field.set(
+                        "V",
+                        Object::string_literal(format!("choice{}", byte(base + 3))),
+                    ),
+                    1 => {
+                        let values = (0..=usize::from(byte(base + 3) % 3))
+                            .map(|value| {
+                                Object::string_literal(format!("c{}", byte(base + 4 + value)))
+                            })
+                            .collect::<Vec<_>>();
+                        field.set("V", Object::Array(values));
+                    }
+                    _ => {
+                        field.set("Opt", Object::Array(vec![Object::string_literal("option")]));
+                        field.set("V", Object::Name(b"Off".to_vec()));
+                    }
+                }
+            }
+        }
+        let field_id = pdf.new_object_id();
+        match byte(base + 7) % 4 {
+            0 => {
+                // A repeated reference must stay a reported failure, never a hang.
+                field.set("Kids", vec![Object::Reference(field_id)]);
+            }
+            1 => {
+                // The inherited type stays on the parent while the child owns
+                // the partial name.
+                let child_id = pdf.new_object_id();
+                let child = dictionary! {
+                    "T" => Object::string_literal(format!("child{index}")),
+                };
+                pdf.objects.insert(child_id, Object::Dictionary(child));
+                field.set("Kids", vec![Object::Reference(child_id)]);
+            }
+            _ => {}
+        }
+        pdf.objects.insert(field_id, Object::Dictionary(field));
+        fields.push(Object::Reference(field_id));
+    }
+
+    let root = pdf.new_object_id();
+    let table = pdf.new_object_id();
+    let row = pdf.new_object_id();
+    let cell = pdf.add_object(dictionary! {
+        "Type" => "StructElem",
+        "S" => "TD",
+        "P" => row,
+        "Pg" => page,
+        "K" => i64::from(byte(31) % 3),
+    });
+    pdf.objects.insert(
+        row,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructElem",
+            "S" => "TR",
+            "P" => table,
+            "K" => cell,
+        }),
+    );
+    pdf.objects.insert(
+        table,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructElem",
+            "S" => "Table",
+            "P" => root,
+            "K" => row,
+        }),
+    );
+    let root_k = if byte(32).is_multiple_of(2) {
+        // A second root child whose parent reference points to itself must
+        // stay a reported failure, never a hang.
+        let cyclic = pdf.new_object_id();
+        pdf.objects.insert(
+            cyclic,
+            Object::Dictionary(dictionary! {
+                "Type" => "StructElem",
+                "S" => "P",
+                "P" => cyclic,
+                "Pg" => page,
+                "K" => Object::Array(vec![Object::Integer(0)]),
+            }),
+        );
+        Object::Array(vec![Object::Reference(table), Object::Reference(cyclic)])
+    } else {
+        Object::Reference(table)
+    };
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => root_k }),
+    );
+
+    let catalog = pdf.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages,
+        "AcroForm" => dictionary! { "Fields" => fields },
+        "StructTreeRoot" => root,
+        "MarkInfo" => dictionary! { "Marked" => true },
+    });
+    pdf.trailer.set("Root", catalog);
+
+    let mut bytes = Vec::new();
+    if pdf.save_to(&mut bytes).is_err() {
+        return Vec::new();
+    }
+    bytes
+}
+
+/// Exercises the multichannel evidence graph and shared solver over an
+/// arbitrary native document and reports whether the comparison completed.
+///
+/// The store also retains up to three synthetic renderer regions, overlapping
+/// structure elements, and text form fields so visual candidate search,
+/// structure import, and form validation run under the same identity
+/// comparison. The comparison uses the same store and graph for both sides, so
+/// a successful comparison must not report any typed operation. Evidence,
+/// graph, or comparison errors are accepted outcomes.
+fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> Option<EvidenceStore> {
+    let mut page_ids: BTreeSet<PageId> = document.items().iter().map(|glyph| glyph.page).collect();
+    page_ids.insert(PageId(0));
+    let pages = page_ids
+        .into_iter()
+        .map(|page| PageEvidence { page, bounds: None })
+        .collect();
+    let limits = EvidenceLimits::default();
+    let backend = BackendIdentity {
+        kind: BackendKind::NativeParser,
+        name: "pdfdelta-fuzz".into(),
+        version: "0".into(),
+        profile: "layout-pipeline-v1".into(),
+        model: None,
+    };
+    let Ok(mut store) = EvidenceStore::from_native(
+        "pdfdelta-fuzz".into(),
+        backend,
+        pages,
+        ExtractionOutcome::complete(document.clone()),
+        limits,
+    ) else {
+        return None;
+    };
+    store.backends.push(BackendIdentity {
+        kind: BackendKind::Renderer,
+        name: "pdfdelta-fuzz-renderer".into(),
+        version: "0".into(),
+        profile: "layout-pipeline-v1".into(),
+        model: None,
+    });
+    for index in 0..=usize::from(seed % 3) {
+        let width = 2 + u32::from(seed) % 3;
+        let height = 2 + (u32::from(seed) >> 2) % 3;
+        let mut rgb = Vec::with_capacity((width * height * 3) as usize);
+        for sample in 0..width * height {
+            let value = seed
+                .wrapping_add((index as u8) << 4)
+                .wrapping_add(sample as u8);
+            rgb.extend_from_slice(&[value, value.wrapping_mul(3), value.wrapping_add(70)]);
+        }
+        let id = store.rendered.len() as u64;
+        store.rendered.push(RenderedEvidence {
+            id,
+            page: PageId(0),
+            backend: 1,
+            raster: Raster { width, height, rgb },
+            composited_page: true,
+            polygon: vec![
+                Vec2 { x: 0.0, y: 0.0 },
+                Vec2 { x: 10.0, y: 0.0 },
+                Vec2 { x: 10.0, y: 10.0 },
+                Vec2 { x: 0.0, y: 10.0 },
+            ],
+        });
+    }
+    if seed.is_multiple_of(4)
+        && let Some(region) = store.rendered.first()
+    {
+        let width = region.raster.width;
+        let height = region.raster.height;
+        let pixel_bounds = [0, 0, width, height];
+        let region_id = region.id;
+        let Ok(bounds) = region.pixel_bounds_in_page(pixel_bounds) else {
+            return None;
+        };
+        let ocr_backend = store.backends.len();
+        store.backends.push(BackendIdentity {
+            kind: BackendKind::Ocr,
+            name: "pdfdelta-fuzz-ocr".into(),
+            version: "0".into(),
+            profile: "layout-pipeline-v1".into(),
+            model: Some("pdfdelta-fuzz-model".into()),
+        });
+        let id = store.structured.len() as u64;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: Some(bounds),
+            object: None,
+            backend: ocr_backend,
+            value: StructuredValue::RecognizedText {
+                text: "ocr".into(),
+                region: region_id,
+                pixel_bounds,
+                words: vec![RecognizedWord {
+                    text: "w".into(),
+                    pixel_bounds: [0, 0, 1, 1],
+                    confidence: Some(50.0),
+                }],
+            },
+        });
+    }
+    let page_zero_glyphs = store
+        .native
+        .items()
+        .iter()
+        .filter(|glyph| glyph.page == PageId(0))
+        .map(|glyph| glyph.id)
+        .collect::<Vec<_>>();
+    let mut previous_structure = None;
+    for index in 0..usize::from(seed % 3) {
+        if page_zero_glyphs.is_empty() {
+            break;
+        }
+        let count = 1 + (usize::from(seed) + index) % page_zero_glyphs.len();
+        let id = store.structured.len() as u64;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::StructureElement {
+                role: "P".into(),
+                identifier: None,
+                text: None,
+                glyphs: page_zero_glyphs[..count].to_vec(),
+                content: None,
+                parent: previous_structure,
+                order: None,
+            },
+        });
+        previous_structure = Some(id);
+    }
+    for index in 0..usize::from(seed % 2) {
+        let id = store.structured.len() as u64;
+        let button = index == 1;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::FormField {
+                name: format!("field{index}"),
+                field_type: Some(if button {
+                    b"Btn".to_vec()
+                } else {
+                    b"Tx".to_vec()
+                }),
+                value: if button {
+                    FieldValue::Selected(true)
+                } else {
+                    FieldValue::Text(format!("value{index}"))
+                },
+                widgets: vec![FormWidget {
+                    object: None,
+                    page: Some(PageId(0)),
+                    bounds: Some(Rect {
+                        min: Vec2 { x: 0.0, y: 0.0 },
+                        max: Vec2 {
+                            x: 10.0 + f64::from(seed),
+                            y: 10.0,
+                        },
+                    }),
+                    normal_appearance: None,
+                    crop: None,
+                    unresolved: None,
+                }],
+                button_states: if button {
+                    vec![ButtonAppearanceState {
+                        widget: None,
+                        name: Some(b"Yes".to_vec()),
+                    }]
+                } else {
+                    Vec::new()
+                },
+            },
+        });
+    }
+    if seed.is_multiple_of(3) {
+        let id = store.structured.len() as u64;
+        store.structured.push(StructuredEvidence {
+            id,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::Annotation {
+                category: "Link".into(),
+                text: Some("reference".into()),
+                target: Some("https://example.invalid".into()),
+            },
+        });
+    }
+    let Ok(graph) = DocumentGraph::from_evidence(
+        &store,
+        PipelineOptions::default(),
+        limits,
+        GraphLimits::default(),
+    ) else {
+        return None;
+    };
+    let _ = crate::document::assess_form_appearances(&store, Default::default());
+    let Ok(comparison) = crate::document::compare_document_views(
+        DocumentView {
+            evidence: &store,
+            graph: &graph,
+        },
+        DocumentView {
+            evidence: &store,
+            graph: &graph,
+        },
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        DocumentComparisonLimits::default(),
+        HierarchyLimits::default(),
+    ) else {
+        return None;
+    };
+    assert!(
+        comparison
+            .comparisons()
+            .all(|pair| pair.operation.is_none()),
+        "identity graph comparison reported a typed operation"
+    );
+    Some(store)
+}
+
+fn synthetic_glyph_document(input: &[u8]) -> Document<Glyph> {
+    let glyph_count = usize::from(input[0]) % MAX_LAYOUT_GLYPHS + 1;
+    let bytes = &input[1..];
+    let mut glyphs = Vec::with_capacity(glyph_count);
+    for index in 0..glyph_count {
+        let field = |offset: usize| -> u8 {
+            bytes
+                .get(index.saturating_mul(8).saturating_add(offset) % bytes.len().max(1))
+                .copied()
+                .unwrap_or(0)
+        };
+        let font_size = LAYOUT_FONT_SIZE_MIN + f64::from(field(0) % 16) * LAYOUT_FONT_SIZE_STEP;
+        let x = f64::from(field(1) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let y = f64::from(field(2) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let width = font_size * (0.4 + f64::from(field(3) % 8) * 0.1);
+        let height = font_size * (0.6 + f64::from(field(4) % 8) * 0.1);
+        let direction = SYNTHETIC_DIRECTIONS[usize::from(field(5) % 6)];
+        let page = PageId(u32::from(field(6)) % MAX_LAYOUT_PAGES);
+        let text = if field(7) % 8 == 0 {
+            DecodedText::Unmapped {
+                font_hash: crate::model::FontProgramHash(vec![field(7); 8]),
+                glyph_id: u16::from(field(0)) | u16::from(field(7)) << 8,
+            }
+        } else {
+            DecodedText::Mapped(
+                SYNTHETIC_TEXTS[usize::from(field(7)) % SYNTHETIC_TEXTS.len()].to_owned(),
+            )
+        };
+        let raw_code = match &text {
+            DecodedText::Mapped(value) => value.as_bytes().to_vec(),
+            DecodedText::Unmapped { glyph_id, .. } => glyph_id.to_be_bytes().to_vec(),
+        };
+        glyphs.push(Glyph {
+            id: GlyphId(index as u64),
+            text,
+            raw_code,
+            page,
+            bbox: Rect {
+                min: Vec2 { x, y },
+                max: Vec2 {
+                    x: x + width,
+                    y: y + height,
+                },
+            },
+            baseline: Vec2 { x, y },
+            direction,
+            font_id: FontId(u32::from(field(0) % 3)),
+            font_size,
+            render_order: index as u32,
+            render_mode: SYNTHETIC_RENDER_MODES
+                [usize::from(field(3)) % SYNTHETIC_RENDER_MODES.len()],
+            crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: index as u32,
+            },
+        });
+    }
+
+    let vector_base = glyph_count.saturating_mul(8);
+    // Derive the vector count from the count byte so most inputs retain at
+    // least one straight line instead of depending on one window byte.
+    let vector_count = (usize::from(input[0]) * 7 + 3) % (MAX_LAYOUT_VECTOR_LINES + 1);
+    let mut vector_lines = Vec::with_capacity(vector_count);
+    for index in 0..vector_count {
+        let base = vector_base.saturating_add(index.saturating_mul(6));
+        let byte = |offset: usize| -> u8 {
+            bytes
+                .get(base.saturating_add(offset) % bytes.len().max(1))
+                .copied()
+                .unwrap_or(0)
+        };
+        let x = f64::from(byte(0) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let y = f64::from(byte(1) % LAYOUT_POSITION_CELLS) * LAYOUT_POSITION_CELL;
+        let length = 6.0 + f64::from(byte(3) % 12) * LAYOUT_POSITION_CELL / 4.0;
+        let (to_x, to_y) = if byte(2) % 2 == 0 {
+            (x + length, y)
+        } else {
+            (x, y + length)
+        };
+        let render_order = glyph_count as u32 + index as u32;
+        vector_lines.push(VectorLine {
+            id: VectorLineId(index as u64),
+            page: PageId(u32::from(byte(5)) % MAX_LAYOUT_PAGES),
+            from: Vec2 { x, y },
+            to: Vec2 { x: to_x, y: to_y },
+            width: 0.2 + f64::from(byte(4) % 5) * 0.2,
+            render_order,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: render_order,
+            },
+        });
+    }
+    Document::with_vector_lines(glyphs, vector_lines)
+}
+
+const SYNTHETIC_TEXTS: [&str; 24] = [
+    "a",
+    "b",
+    " ",
+    "ab",
+    "1",
+    "10",
+    "status:",
+    "\u{8a2d}\u{5b9a}",
+    "e\u{301}",
+    "-\n",
+    "release10",
+    "paragraph",
+    "value 20",
+    "unchanged.",
+    "wrap-",
+    "hyphenation",
+    "\u{1b}[31m",
+    "\u{202e}reordered",
+    "\u{ad}",
+    "\u{2028}",
+    "a\u{200d}b",
+    "e\u{327}\u{301}",
+    "one\rtwo",
+    "\u{5e}3",
+];
+
+const SYNTHETIC_RENDER_MODES: [TextRenderMode; 4] = [
+    TextRenderMode::Fill,
+    TextRenderMode::Stroke,
+    TextRenderMode::Invisible,
+    TextRenderMode::FillAndStroke,
+];
+
+/// Unit writing directions covering horizontal, vertical, and diagonal text.
+const SYNTHETIC_DIRECTIONS: [Vec2; 6] = [
+    Vec2 { x: 1.0, y: 0.0 },
+    Vec2 { x: -1.0, y: 0.0 },
+    Vec2 { x: 0.0, y: 1.0 },
+    Vec2 { x: 0.0, y: -1.0 },
+    Vec2 {
+        x: core::f64::consts::FRAC_1_SQRT_2,
+        y: core::f64::consts::FRAC_1_SQRT_2,
+    },
+    Vec2 {
+        x: -core::f64::consts::FRAC_1_SQRT_2,
+        y: core::f64::consts::FRAC_1_SQRT_2,
+    },
+];
 
 #[derive(Default)]
 struct FuzzPdf {
@@ -978,6 +2053,167 @@ mod tests {
     #[test]
     fn oversized_glyph_extraction_input_is_ignored() {
         fuzz_glyph_extraction(&vec![b'A'; MAX_INPUT_BYTES + 1]);
+    }
+
+    #[test]
+    fn synthetic_layout_seeds_reach_the_pipeline_without_changes() {
+        let mut reconstruction_reached = 0;
+        let mut comparison_reached = 0;
+        let mut graph_comparison_reached = 0;
+        let mut svg_reached = 0;
+        let mut vector_lines_seen = 0;
+        for seed in 0u8..=64 {
+            let mut input = vec![seed];
+            input.extend((0..128u16).map(|index| {
+                (index as u8)
+                    .wrapping_mul(seed.wrapping_add(3))
+                    .wrapping_add(seed)
+            }));
+            let document = synthetic_glyph_document(&input);
+            if !document.vector_lines().is_empty() {
+                vector_lines_seen += 1;
+            }
+            assert!(
+                reconstruct_lines(&document, LineOptions::default()).is_ok(),
+                "seed {seed} produced a document that line reconstruction rejects"
+            );
+            reconstruction_reached += 1;
+            if compare_glyph_documents(&document, &document, PipelineOptions::default()).is_ok() {
+                comparison_reached += 1;
+            }
+            if exercise_default_graph_pipeline(&document, seed).is_some() {
+                graph_comparison_reached += 1;
+            }
+            if crate::report::render_glyph_overlay_svg(&document).is_ok() {
+                svg_reached += 1;
+            }
+            fuzz_layout_pipeline(&input);
+        }
+        // The generator must keep producing documents that flow through the
+        // whole exercised pipeline instead of stopping at validation.
+        assert_eq!(reconstruction_reached, 65);
+        assert!(
+            comparison_reached >= 32,
+            "only {comparison_reached} of 65 seeds reached the comparison pipeline"
+        );
+        assert!(
+            graph_comparison_reached >= 32,
+            "only {graph_comparison_reached} of 65 seeds reached the shared graph solver"
+        );
+        assert!(
+            svg_reached >= 32,
+            "only {svg_reached} of 65 seeds reached the SVG renderer"
+        );
+        assert!(
+            vector_lines_seen >= 32,
+            "only {vector_lines_seen} of 65 seeds carried vector-line evidence"
+        );
+        // Degenerate inputs must not panic or fabricate identity changes.
+        fuzz_layout_pipeline(&[0]);
+        fuzz_layout_pipeline(&[255]);
+    }
+
+    #[test]
+    fn synthetic_graph_pairs_reach_the_shared_solver() {
+        let mut reached = 0;
+        for seed in 0u8..=16 {
+            let mut input = vec![seed, seed.wrapping_mul(3)];
+            input.extend((0..192u16).map(|index| (index as u8).wrapping_mul(seed.wrapping_add(5))));
+            let (left, right) = input.split_at(input.len() / 2);
+            let old = synthetic_glyph_document(left);
+            let new = synthetic_glyph_document(right);
+            if let (Some(old_store), Some(new_store)) = (
+                exercise_default_graph_pipeline(&old, input[0]),
+                exercise_default_graph_pipeline(&new, input.get(1).copied().unwrap_or(0)),
+            ) && check_graph_pair(&old_store, &new_store)
+            {
+                reached += 1;
+            }
+            fuzz_graph_pipeline(&input);
+        }
+        assert!(
+            reached >= 1,
+            "no synthetic pair reached the shared graph solver"
+        );
+    }
+
+    #[test]
+    fn synthetic_text_comparison_seeds_reach_the_diff_pipeline() {
+        let mut reached = 0;
+        for seed in 0u8..=32 {
+            let mut input = vec![seed];
+            input.extend((0..192u16).map(|index| {
+                (index as u8)
+                    .wrapping_mul(seed.wrapping_add(7))
+                    .wrapping_add(seed.wrapping_mul(3))
+            }));
+            let (left, right) = input.split_at(input.len() / 2);
+            let old = synthetic_glyph_document(left);
+            let new = synthetic_glyph_document(right);
+            if check_text_comparison(&old, &new) && check_text_comparison(&new, &old) {
+                reached += 1;
+            }
+            fuzz_text_comparison(&input);
+        }
+        assert!(
+            reached >= 16,
+            "only {reached} of 33 seeds reached and summarized the comparison"
+        );
+    }
+
+    #[test]
+    fn curated_native_evidence_seed_reaches_validation() {
+        let _ = fuzz_native_evidence(GLYPH_EXTRACTION_SEED);
+        assert!(
+            fuzz_native_evidence(GLYPH_EXTRACTION_SEED),
+            "the curated PDF should reach form or structure evidence"
+        );
+    }
+
+    #[test]
+    fn synthetic_evidence_pdf_reaches_form_and_structure_extraction() {
+        let mut field_seeds = 0;
+        for seed in 0u8..=32 {
+            let input = std::iter::once(seed)
+                .chain((0..64u16).map(|index| {
+                    (index as u8)
+                        .wrapping_mul(seed.wrapping_add(11))
+                        .wrapping_add(seed)
+                }))
+                .collect::<Vec<u8>>();
+            let bytes = synthetic_evidence_pdf(&input);
+            assert!(!bytes.is_empty(), "seed {seed} failed to serialize");
+            let pdf = LopdfParser
+                .parse(Arc::from(bytes.as_slice()), PARSE_LIMITS)
+                .expect("synthetic evidence PDF should parse");
+
+            let forms = extract_form_evidence(pdf.as_ref(), 0, 0, FormLimits::default())
+                .expect("synthetic form extraction should succeed");
+            if !forms.fields.is_empty() {
+                field_seeds += 1;
+            }
+
+            let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+            let outcome = source
+                .extract_outcome(Arc::from(bytes.as_slice()), PARSE_LIMITS, EXTRACTION_LIMITS)
+                .expect("synthetic tagged content should extract");
+            let structure = extract_structure_evidence(
+                pdf.as_ref(),
+                outcome.document(),
+                0,
+                0,
+                StructureLimits::default(),
+            )
+            .expect("synthetic structure extraction should succeed");
+            assert!(
+                !structure.elements.is_empty(),
+                "seed {seed} produced no structure elements"
+            );
+        }
+        assert!(
+            field_seeds >= 8,
+            "only {field_seeds} of 33 seeds produced form fields"
+        );
     }
 
     #[test]

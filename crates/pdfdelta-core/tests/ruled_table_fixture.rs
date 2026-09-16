@@ -553,6 +553,124 @@ fn counterpart_axes_repartition_missing_borders_without_matching_values() {
 }
 
 #[test]
+fn installed_counterpart_views_preserve_native_evidence_and_original_graph() {
+    use pdfdelta_core::document::SourceRef;
+    for scale in [0.5, 1.0, 3.0] {
+        for rename_header in [false, true] {
+            let old = table(["100 kg", "20 kg"], scale, true, false);
+            let mut new = table(["20 kg", "100 kg"], scale, false, false);
+            let mut glyphs = new.native.items().to_vec();
+            // A row label can start one representable step left of its header.
+            glyphs[2].bbox.min.x = glyphs[2].bbox.min.x.next_down();
+            if rename_header {
+                glyphs[1].text = DecodedText::Mapped("Amount".into());
+            }
+            new.native = Document::new(glyphs);
+            new.structured.push(StructuredEvidence {
+                id: 0,
+                page: Some(PageId(0)),
+                bounds: None,
+                object: None,
+                backend: 0,
+                value: StructuredValue::StructureElement {
+                    role: "TD".into(),
+                    identifier: None,
+                    text: None,
+                    glyphs: vec![GlyphId(3)],
+                    content: None,
+                    parent: None,
+                    order: None,
+                },
+            });
+            let mut old_graph = graph(&old);
+            let mut new_graph = DocumentGraph::from_evidence(
+                &new,
+                PipelineOptions::default(),
+                EvidenceLimits::default(),
+                GraphLimits::default(),
+            )
+            .expect("retain overlapping tag membership");
+            let old_nodes_before = old_graph.nodes.clone();
+            let nodes_before = new_graph.nodes.clone();
+            let edges_before = new_graph.edges.clone();
+
+            let refinements = refine_table_views(
+                &mut old_graph,
+                &mut new_graph,
+                &old,
+                &new,
+                PipelineOptions::default(),
+                DocumentComparisonLimits::default(),
+            )
+            .expect("counterpart geometry");
+
+            assert!(
+                refinements.exhaustive,
+                "scale {scale} rename {rename_header}"
+            );
+            assert_eq!(refinements.new.len(), 1);
+            let view = &refinements.new[0];
+            assert!(
+                old_graph
+                    .nodes
+                    .iter()
+                    .any(|node| node.id == view.counterpart_table && node.kind == NodeKind::Table),
+                "counterpart table must exist in the old graph"
+            );
+            assert!(
+                new_graph
+                    .nodes
+                    .iter()
+                    .any(|node| node.id == view.target_table && node.kind == NodeKind::Table),
+                "installed table must exist in the refined graph"
+            );
+            assert!(!view.counterpart_sources.is_empty());
+            assert!(!view.anchor_sources.is_empty());
+            for source in &view.anchor_sources {
+                let SourceRef::Native { glyph } = source else {
+                    panic!("anchor sources must be native glyphs: {source:?}");
+                };
+                assert!(
+                    new.native.items().iter().any(|item| item.id == *glyph),
+                    "anchor source {glyph:?} is missing from the new store"
+                );
+            }
+            for node in &nodes_before {
+                assert!(
+                    new_graph
+                        .nodes
+                        .iter()
+                        .any(|candidate| candidate.id == node.id),
+                    "refinement removed original node {:?}",
+                    node.id
+                );
+            }
+            // Layout nodes covered by the grid are re-parented under an archive
+            // node, so their original Contains edge may be replaced; every
+            // replaced target must keep a Contains parent.
+            for edge in &edges_before {
+                if new_graph.edges.contains(edge) {
+                    continue;
+                }
+                assert!(
+                    new_graph.edges.iter().any(|candidate| {
+                        candidate.kind == EdgeKind::Contains && candidate.to == edge.to
+                    }),
+                    "re-parented original edge {edge:?} lost its Contains parent"
+                );
+            }
+            assert_eq!(
+                old_graph.nodes, old_nodes_before,
+                "a rejected old-side proposal must not mutate the old graph"
+            );
+            new_graph
+                .validate(&new, EvidenceLimits::default(), GraphLimits::default())
+                .expect("refined graph must stay valid against its evidence");
+        }
+    }
+}
+
+#[test]
 fn counterpart_axes_reject_duplicate_labels_and_crossing_glyphs() {
     let old = table(["100 kg", "20 kg"], 1.0, true, false);
     let duplicated = table(["Material A", "20 kg"], 1.0, false, false);
@@ -600,6 +718,30 @@ fn counterpart_storage_limit_does_not_report_exhaustive_refinement() {
     assert!(result.new.is_empty());
     assert!(!result.exhaustive);
     assert!(!new_graph.relations_complete);
+    assert_eq!(new_graph.nodes, before);
+}
+
+#[test]
+fn counterpart_missing_target_page_bounds_does_not_report_exhaustive_refinement() {
+    let old = table(["100 kg", "20 kg"], 1.0, true, false);
+    let mut new = table(["100 kg", "20 kg"], 1.0, false, false);
+    for page in &mut new.pages {
+        page.bounds = None;
+    }
+    let mut old_graph = graph(&old);
+    let mut new_graph = graph(&new);
+    let before = new_graph.nodes.clone();
+    let result = refine_table_views(
+        &mut old_graph,
+        &mut new_graph,
+        &old,
+        &new,
+        PipelineOptions::default(),
+        DocumentComparisonLimits::default(),
+    )
+    .expect("missing page geometry is an outcome, not an error");
+    assert!(result.new.is_empty());
+    assert!(!result.exhaustive);
     assert_eq!(new_graph.nodes, before);
 }
 
