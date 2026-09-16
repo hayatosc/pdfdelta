@@ -5409,16 +5409,92 @@ fn tagged_page_regions_retain_disjoint_same_row_prefixes() {
     }
     new.0.native = Document::new(glyphs);
     let result = compare(&old, &new);
+    let interval = result
+        .scopes
+        .iter()
+        .flat_map(|scope| &scope.result.native_text_intervals)
+        .find(|interval| {
+            interval
+                .comparison()
+                .text_mask
+                .as_ref()
+                .is_some_and(|mask| {
+                    mask.claims.changed_source_lower == 4 && mask.claims.changed_source_upper == 4
+                })
+        })
+        .expect("owned tagged interval");
+    let mask = interval
+        .comparison()
+        .text_mask
+        .as_ref()
+        .expect("exact mask");
+    assert_eq!(
+        mask.old
+            .iter()
+            .flat_map(|change| change.sources.iter().copied())
+            .collect::<Vec<_>>(),
+        [old.1.nodes[2].sources[7], old.1.nodes[3].sources[5]]
+    );
+    assert_eq!(
+        mask.new
+            .iter()
+            .flat_map(|change| change.sources.iter().copied())
+            .collect::<Vec<_>>(),
+        [new.1.nodes[2].sources[7], new.1.nodes[3].sources[5]]
+    );
     assert!(
         result
             .scopes
             .iter()
-            .flat_map(|scope| &scope.result.native_text_intervals)
-            .any(|interval| interval
-                .comparison()
-                .text_mask
-                .as_ref()
-                .is_some_and(|mask| mask.claims.changed_source_lower == 4
-                    && mask.claims.changed_source_upper == 4))
+            .flat_map(|scope| &scope.result.text_scope_reviews)
+            .filter_map(|review| review.native_regions.as_ref())
+            .filter_map(|chains| chains.new.as_ref())
+            .any(|chain| chain
+                .regions
+                .iter()
+                .any(|region| region.row_order.as_deref() == Some("horizontal-row-boundaries-v1")))
     );
+    for fault in ["overlap", "missing-source", "reversed-tag", "unknown-paint"] {
+        let mut bad = new.clone();
+        match fault {
+            "overlap" => {
+                let mut glyphs = bad.0.native.items().to_vec();
+                for glyph in &mut glyphs {
+                    if sources.contains(&SourceRef::Native { glyph: glyph.id }) {
+                        glyph.baseline.x -= 100.0;
+                        glyph.bbox.min.x -= 100.0;
+                        glyph.bbox.max.x -= 100.0;
+                    }
+                }
+                bad.0.native = Document::new(glyphs);
+            }
+            "missing-source" => {
+                bad.1.nodes[2].sources.pop();
+                let NodeContent::Text { view } = &mut bad.1.nodes[2].content else {
+                    unreachable!()
+                };
+                view.tokens.pop();
+                view.origins.pop();
+                view.source_backed.pop();
+            }
+            "reversed-tag" => {
+                let StructuredValue::StructureElement { glyphs, .. } =
+                    &mut bad.0.structured[0].value
+                else {
+                    unreachable!()
+                };
+                glyphs.reverse();
+            }
+            "unknown-paint" => with_paint(&mut bad, None),
+            _ => unreachable!(),
+        }
+        let result = compare(&old, &bad);
+        assert!(
+            result
+                .scopes
+                .iter()
+                .all(|scope| scope.result.native_text_intervals.is_empty()),
+            "{fault}"
+        );
+    }
 }

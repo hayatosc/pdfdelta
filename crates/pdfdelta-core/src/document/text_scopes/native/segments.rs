@@ -28,6 +28,10 @@ pub struct NativeRegion {
     pub page: PageId,
     pub nodes: Vec<NodeId>,
     pub bounded_paint: bool,
+    /// A page-local row census may order disjoint same-baseline boundary nodes.
+    /// The native membership must still bind the complete inter-page sequence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_order: Option<String>,
 }
 
 /// The two adjacent glyphs have consecutive positions in the retained native
@@ -243,7 +247,20 @@ pub(super) fn closed(
         let [page] = nodes[0].pages.as_slice() else {
             return None;
         };
-        let closure = sources.closed_page(view, root, nodes, remaining)?;
+        let (closure, row_order) =
+            if let Some(closure) = sources.closed_page(view, root, nodes, remaining) {
+                (closure, None)
+            } else {
+                let closure = sources.closed_page_with_padding(
+                    view,
+                    root,
+                    nodes,
+                    &BTreeSet::new(),
+                    Some(RowOrder::Spatial),
+                    remaining,
+                )?;
+                (closure, Some(RowOrder::Spatial.convention().to_owned()))
+            };
         for node in nodes {
             spend(
                 remaining,
@@ -265,6 +282,7 @@ pub(super) fn closed(
             page: *page,
             nodes: nodes.iter().map(|node| node.id).collect(),
             bounded_paint: closure.bounded_paint(),
+            row_order,
         });
         if end < path.len() {
             offsets.push(selected.len());

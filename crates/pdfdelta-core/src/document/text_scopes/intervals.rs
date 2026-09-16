@@ -168,8 +168,16 @@ pub(super) fn append(
         return Ok(());
     }
     let mut remaining = limits.local.proof_work;
-    let old_native = native::Sources::new(native.0);
-    let new_native = native::Sources::new(native.1);
+    let mut old_native = native::Sources::new(native.0);
+    let mut new_native = native::Sources::new(native.1);
+    if result
+        .text_scope_reviews
+        .iter()
+        .any(|review| review.native_regions.is_some())
+    {
+        old_native.acquire_native_order(old, &mut remaining);
+        new_native.acquire_native_order(new, &mut remaining);
+    }
     let Some(mut owned_old) = reserved_sources(old, result, true, &mut remaining) else {
         return Ok(());
     };
@@ -235,9 +243,9 @@ pub(super) fn append(
                         &mut remaining,
                     )
                 } else {
-                    if review.native_regions.is_some() {
-                        continue;
-                    }
+                    // Region metadata is not an ownership certificate. The full
+                    // path, native transitions and both boundary premises are
+                    // reconstructed before any source can enter coverage.
                     prepare_whole(
                         [old, new],
                         [&old_native, &new_native],
