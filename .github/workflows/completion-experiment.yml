@@ -1,0 +1,87 @@
+name: Completion experiment
+on:
+  push:
+    branches: [work/strict-completion-20260916]
+    paths:
+      - .github/workflows/completion-experiment.yml
+      - .experiment/request.json
+permissions:
+  contents: write
+concurrency:
+  group: completion-experiment
+  cancel-in-progress: false
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Export the frozen source for local inspection
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p .experiment/transport
+          git archive --format=tar 7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c | gzip -9 > .experiment/transport/source.tar.gz
+          sha256sum .experiment/transport/source.tar.gz > .experiment/transport/source.sha256
+          printf '{"base":"7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c","stage":"source_exported"}\n' > .experiment/transport/status.json
+          git config user.name 'pdfdelta experiment'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .experiment/transport/source.tar.gz .experiment/transport/source.sha256 .experiment/transport/status.json
+          git commit -m 'chore(experiment): retain frozen source transport [skip ci]'
+          git push origin HEAD:work/strict-completion-20260916
+      - name: Install the repository toolchain
+        id: toolchain
+        continue-on-error: true
+        shell: bash
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal --component clippy --component rustfmt
+          rustc --version
+          cargo --version
+      - uses: Swatinem/rust-cache@v2
+      - name: Run unchanged baseline quality gates and build
+        if: steps.toolchain.outcome == 'success'
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .experiment/transport
+          run_check() {
+            name="$1"; shift
+            "$@" > ".experiment/transport/${name}.log" 2>&1
+            code=$?
+            printf '%s\t%s\n' "$name" "$code" >> .experiment/transport/checks.tsv
+            return 0
+          }
+          : > .experiment/transport/checks.tsv
+          run_check fmt cargo fmt --all -- --check
+          run_check clippy cargo clippy --workspace --all-targets --locked -- -D warnings
+          run_check tests cargo test --workspace --locked
+          run_check release cargo build --release --locked -p pdfdelta-cli -p pdfdelta-bench
+          if test -x target/release/pdfdelta; then gzip -c -9 target/release/pdfdelta > .experiment/transport/pdfdelta-baseline.gz; fi
+          if test -x target/release/pdfbench; then gzip -c -9 target/release/pdfbench > .experiment/transport/pdfbench-baseline.gz; fi
+          rustc --version > .experiment/transport/toolchain.txt
+          cargo --version >> .experiment/transport/toolchain.txt
+      - name: Publish actual execution records
+        if: always()
+        env:
+          TOOLCHAIN_OUTCOME: ${{ steps.toolchain.outcome }}
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p .experiment/transport
+          python3 - <<'PY'
+          import json, os, pathlib
+          p = pathlib.Path('.experiment/transport')
+          checks = {}
+          if (p / 'checks.tsv').exists():
+              for line in (p / 'checks.tsv').read_text().splitlines():
+                  name, code = line.split('\t')
+                  checks[name] = int(code)
+          (p / 'status.json').write_text(json.dumps({'base': '7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c', 'stage': 'baseline_attempt_finished', 'toolchain': os.environ['TOOLCHAIN_OUTCOME'], 'exit_codes': checks}, indent=2) + '\n')
+          PY
+          git config user.name 'pdfdelta experiment'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .experiment/transport
+          git diff --cached --quiet || git commit -m 'test(experiment): publish baseline execution records [skip ci]'
+          git push origin HEAD:work/strict-completion-20260916
